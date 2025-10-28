@@ -141,7 +141,8 @@ def parse_lean_errors(error_file: Path) -> dict:
     # Full message is everything after the location line
     message = error_text[len(lines[0]):].strip() if len(lines) > 1 else ""
 
-    error_type = classify_error(message)
+    # For classification, use the full error text (includes first line)
+    error_type = classify_error(error_text)
     error_hash = compute_error_hash(error_type, location["file"], location["line"])
 
     result = {
