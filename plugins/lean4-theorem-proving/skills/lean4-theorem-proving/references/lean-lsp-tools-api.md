@@ -385,6 +385,88 @@ lean_leansearch("Cauchy Schwarz inequality", num_results=5)
 
 ---
 
+### `lean_leanfinder` - Semantic Search for Mathlib
+
+**Best for:** Semantic search with natural language, goal states, or informal descriptions
+
+**What makes it special:**
+- **Tuned for mathematician queries:** Works with informal descriptions, partial statements, natural language questions
+- **Goal-aware:** Paste proof states (⊢ ...) directly - it understands them
+- **>30% improvement:** Over prior search engines on retrieval tasks (arXiv evaluation)
+- **Returns paired results:** Formal snippet + informal summary
+
+**When to use:**
+- You have a math question: "Does y being a root of minpoly(x) imply minpoly(x)=minpoly(y)?"
+- You have an informal description: "algebraic elements with same minimal polynomial"
+- You have a goal state and want semantically relevant facts
+- Use it before `lean_loogle` when query is natural/fuzzy
+- Combine with `lean_state_search` for goal-conditioned premises
+
+**Parameters:**
+- `query` (required): Natural language, statement fragment, or goal text
+  - Can paste Lean goal exactly as shown (e.g., beginning with ⊢)
+  - Can add short hints: "⊢ |re z| ≤ ‖z‖ + transform to squared norm inequality"
+
+**Return structure:**
+Array of results, each result is a 2-element array:
+1. Formal snippet (Lean theorem/lemma as formatted)
+2. Informal summary of what it states
+
+```json
+[
+  [
+    "/-- If `y : L` is a root of `minpoly K x`, then `minpoly K y = minpoly K x`. -/\ntheorem ... : minpoly K y = minpoly K x := ...",
+    "If y is a root of minpoly_K(x) and x is algebraic over K, then minpoly_K(y) = minpoly_K(x)."
+  ],
+  ...
+]
+```
+
+**Example 1: Informal math question**
+```
+lean_leanfinder("Does y being a root of minpoly(x) imply minpoly(x)=minpoly(y)?")
+→ Returns pairs of [formal_snippet, informal_summary]
+```
+
+**Example 2: Using current goal (recommended in proofs!)**
+```
+Step 1 - Get the goal:
+lean_goal(file, line=24)
+
+Step 2 - Feed goal (with optional hint) to Lean Finder:
+lean_leanfinder("⊢ |re z| ≤ ‖z‖ + transform to squared norm inequality")
+```
+
+**Good query styles:**
+- Informal: "algebraic elements x,y over K with same minimal polynomial"
+- Q&A: "Does y being a root of minpoly(x) imply minpoly(x)=minpoly(y)?"
+- Goal-based: Paste `⊢ ...` (optionally add 3-6 word cue like "use triangle inequality")
+- Fragment: "theorem restrict Ioi: restrict Ioi e = restrict Ioi e"
+
+**Workflow pattern:**
+1. `lean_goal` to get current goal
+2. `lean_leanfinder` with goal text (+ optional hint)
+3. For promising hits, open source: `lean_declaration_file(symbol="...")`
+4. Test with `lean_multi_attempt`
+
+**Pro tips:**
+- Goal text works best - paste directly from `lean_goal` output
+- Add 3-6 word hints for direction ("rewrite with minpoly equality")
+- Rephrase in plain English if results are weak
+- Always verify hits by attempting the tactic
+
+**Troubleshooting:**
+- **Empty/weak results:** Rephrase in plain English, include goal line with ⊢, add 3-6 word direction
+- **Latency:** Queries external service; brief delays possible. Use `lean_local_search` for strictly local behavior
+- **Verification:** Always check returned snippets with `lean_declaration_file` and test with `lean_multi_attempt`
+
+**References:**
+- Paper: [Lean Finder on arXiv](https://arxiv.org/abs/2501.02447)
+- Public UI: [Lean Finder on Hugging Face](https://huggingface.co/spaces/InternLM/Lean-Finder)
+- Implementation: lean-lsp-mcp server (feature/lean-finder-support branch)
+
+---
+
 ### `lean_state_search` - Proof State Search
 
 **Best for:** Finding lemmas that apply to your current proof state
@@ -479,15 +561,36 @@ Error: Rate limit exceeded. Try again in X seconds.
 5. lean_diagnostic_messages(file)  # Confirm
 ```
 
-### When Local Search Fails
+### Which Search Tool to Use?
 
-**Escalation path:**
+**Decision tree:**
 ```
-1. lean_local_search("exact_name")   # Try exact
-2. lean_local_search("partial")       # Try partial
-3. lean_loogle("?a -> ?b")            # Try type pattern
-4. lean_leansearch("description")     # Try natural language
-5. lean_state_search(file, line, col) # Try state-based
+Have goal state (⊢ ...)?
+  → lean_leanfinder("⊢ ... + hint")  # Best for goals! (semantic)
+  → lean_state_search(file, line)    # Also good (goal-conditioned)
+
+Know exact/partial name?
+  → lean_local_search("name")        # Always try first (unlimited!)
+
+Know type pattern?
+  → lean_loogle("?a -> ?b")          # Type structure search
+
+Have informal description?
+  → lean_leanfinder("description")   # Semantic (30% better!)
+  → lean_leansearch("description")   # Natural language (alternative)
+
+Unsure?
+  → lean_leanfinder("question")      # Best general-purpose semantic search
+```
+
+**Full escalation path:**
+```
+1. lean_local_search("exact_name")    # Try local first (unlimited)
+2. lean_local_search("partial")       # Try partial match
+3. lean_leanfinder("goal or query")   # Semantic search (best!)
+4. lean_loogle("?a -> ?b")            # Type pattern if known
+5. lean_leansearch("description")     # Natural language alternative
+6. lean_state_search(file, line, col) # Goal-conditioned premises
 ```
 
 ### Debugging Multi-Step Proofs
@@ -532,7 +635,22 @@ lean_multi_attempt(file, line, [
 → Test which approach works best
 ```
 
-### Pattern 2: Stuck on Unknown Type
+### Pattern 2: Goal-Based Semantic Search
+```
+lean_goal(file, line)
+→ Get current goal: ⊢ |re z| ≤ ‖z‖
+
+lean_leanfinder("⊢ |re z| ≤ ‖z‖ + transform to squared norm")
+→ Get semantically relevant lemmas with informal summaries
+
+lean_multi_attempt(file, line, [
+  "  apply lemma_from_result1",
+  "  rw [lemma_from_result2]"
+])
+→ Test candidates
+```
+
+### Pattern 3: Stuck on Unknown Type
 ```
 lean_hover_info(file, line, col)
 → See what the type actually is
@@ -541,7 +659,7 @@ lean_loogle("?a -> ?b matching that type")
 → Find lemmas with that type signature
 ```
 
-### Pattern 3: Multi-Step Proof
+### Pattern 4: Multi-Step Proof
 ```
 For each step:
   lean_goal(file, line)           # See current goal
