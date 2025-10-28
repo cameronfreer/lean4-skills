@@ -21,14 +21,14 @@ Creative extensions and enhancements to explore. Organized by category with impl
 
 **Workflow:**
 1. Compile → parse structured error (type, location, goal, context)
-2. Try solver cascade first (40-60% success, zero LLM cost)
+2. Try solver cascade first (many simple cases, zero LLM cost)
 3. If fail → agent repair (Stage 1: Haiku fast, Stage 2: Sonnet precise)
 4. Apply minimal patch (1-5 lines), recompile, repeat (max 24 attempts)
 
-**Results:**
-- Success rate: ~70% overall
-- Avg attempts: 3-8
-- Cost: ~$0.05-0.15 per repair (vs $2-5 blind sampling)
+**Benefits:**
+- Success improves over time with structured logging
+- Low sampling budget (K=1) with compiler feedback
+- Much more cost-effective than blind best-of-N sampling
 
 **Inspired by:** APOLLO (https://arxiv.org/abs/2505.05758)
 
@@ -41,7 +41,7 @@ Creative extensions and enhancements to explore. Organized by category with impl
 - Design doc: `COMPILER-GUIDED-REPAIR.md`
 
 **Key learnings:**
-1. Solver cascade is incredibly effective (40-60% of simple cases)
+1. Solver cascade is incredibly effective for simple cases
 2. Low-K sampling + compiler feedback beats high-K blind sampling
 3. Multi-stage escalation optimizes cost/quality
 4. Error-specific routing essential (not one-size-fits-all)
@@ -62,7 +62,7 @@ Creative extensions and enhancements to explore. Organized by category with impl
 
 **Use cases:**
 - "This sorry was filled 3 different ways before converging on the current proof"
-- "Pattern X works 80% of time for goals of type Y in this codebase"
+- "Pattern X frequently succeeds for goals of type Y in this codebase"
 - "These 5 theorems had similar proof trajectories - extract common lemma?"
 - Mine successful proof strategies from project history
 - Identify which mathlib lemmas are most effective in practice

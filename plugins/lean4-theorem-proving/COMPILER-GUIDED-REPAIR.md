@@ -11,8 +11,8 @@
 ### Traditional Approach (Blind Sampling)
 ```
 Generate 100 proof attempts → Test all → Pick best
-❌ Wasteful: 99% of attempts fail identically
-❌ No learning: Same error repeated 50 times
+❌ Wasteful: Most attempts fail identically
+❌ No learning: Same error repeated many times
 ❌ Expensive: Large model × high K
 ```
 
@@ -28,7 +28,7 @@ Generate attempt → Lean error → Route to specific fix → Retry (max 24 atte
 **Key wins:**
 - **Low sampling budgets** (K=1 or K=3) with compiler guidance beat high-K blind sampling
 - **Multi-stage approach** (fast model → escalate to strong model) optimizes cost/quality
-- **Solver cascade** (try automation before resampling) handles 40-60% of cases mechanically
+- **Solver cascade** (try automation before resampling) handles many cases mechanically
 - **Early stopping** (bail after 3 identical errors) prevents runaway costs
 
 ---
@@ -564,7 +564,7 @@ if __name__ == "__main__":
 #!/usr/bin/env python3
 """
 Try automated solvers in sequence before resampling with LLM.
-Handles 40-60% of simple cases mechanically.
+Handles many simple cases mechanically.
 
 Cascade order:
 1. rfl (definitional equality)
@@ -877,7 +877,7 @@ thinking: off
 - Temperature: 0.2
 - Max attempts: 6
 - Budget: ~2 seconds per attempt
-- Use for: First 6 attempts, most errors (80%)
+- Use for: First 6 attempts, most errors
 
 ### Stage 2: Precise (Sonnet 4.5, thinking ON)
 - Model: `sonnet-4.5`
@@ -953,7 +953,7 @@ When called, you get structured error context:
 5. Reorder arguments (instance arguments should come before regular arguments)
 
 #### `sorry_present`
-1. Search mathlib for exact lemma (60% hit rate)
+1. Search mathlib for exact lemma (many exist)
 2. Try automated solvers (handled by solver cascade)
 3. Generate compositional proof from mathlib lemmas
 4. Break into provable subgoals
@@ -1008,7 +1008,7 @@ theorem example (h : Measurable f) : Continuous f := by
 - Don't try random tactics
 
 ### 3. Search Before Creating
-- 60% of proofs exist in mathlib
+- Many proofs exist in mathlib
 - Search FIRST: `.claude/tools/lean4/search_mathlib.sh`
 - Then compose: combine 2-3 mathlib lemmas
 - Last resort: novel proof
@@ -1135,7 +1135,7 @@ When proofs fail to compile, use iterative compiler-guided repair instead of bli
 - Low sampling budget (K=1, not K=100)
 - Error-driven action selection (not blind guessing)
 - Fast model first, escalate only when needed
-- Automated solver cascade handles 40-60% mechanically
+- Automated solver cascade handles many cases mechanically
 - Early stopping prevents runaway costs
 
 **Budget defaults:**
@@ -1157,25 +1157,28 @@ Quick reference for repair strategies, examples of each error type with before/a
 
 ## Expected Outcomes
 
+Success improves over time as structured logging enables learning from repair attempts.
+
+**Efficiency benefits:**
+- Solver cascade handles many simple cases mechanically (zero LLM cost)
+- Multi-stage escalation: fast model first, strong model only when needed
+- Early stopping prevents runaway attempts on intractable errors
+- Low sampling budget (K=1) with strong compiler feedback
+
+**Cost optimization:**
+- Solver cascade: Free (automated tactics)
+- Stage 1 (Haiku): Low cost, handles most common cases
+- Stage 2 (Sonnet): Higher cost, reserved for complex cases
+- Much more cost-effective than blind best-of-N sampling
+
 ### Metrics to Track
 
-**Success rate by error type:**
-- `type_mismatch`: 70-85%
-- `unsolved_goals`: 60-75%
-- `unknown_ident`: 85-95%
-- `synth_instance`: 50-70%
-- Overall: ~70%
-
-**Efficiency:**
-- Avg attempts to success: 3-8
-- Solver cascade hit rate: 40-60%
-- Stage 1 resolution rate: 80%
-- Stage 2 needed: 20%
-
-**Cost:**
-- Stage 1: ~$0.001 per attempt (Haiku)
-- Stage 2: ~$0.01 per attempt (Sonnet)
-- Avg cost per repair: $0.05-0.15 (vs $2-5 for blind sampling)
+Log and analyze these over time:
+- Success rate by error type (`type_mismatch`, `unsolved_goals`, `unknown_ident`, `synth_instance`, etc.)
+- Average attempts to success
+- Solver cascade success rate
+- Stage 1 vs Stage 2 usage patterns
+- Cost per successful repair
 
 ---
 

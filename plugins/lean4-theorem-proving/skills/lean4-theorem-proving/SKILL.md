@@ -86,24 +86,21 @@ Use `/search-mathlib` slash command, LSP server search tools, or automation scri
 
 **How it works:**
 1. Compile → extract structured error (type, location, goal, context)
-2. Try automated solver cascade first (40-60% success, zero cost)
+2. Try automated solver cascade first (many simple cases handled mechanically, zero LLM cost)
    - Order: `rfl → simp → ring → linarith → nlinarith → omega → exact? → apply? → aesop`
 3. If solvers fail → call `lean4-proof-repair` agent:
-   - **Stage 1:** Haiku (fast, 80% of cases) - 6 attempts
-   - **Stage 2:** Sonnet (precise, 20% of cases) - 18 attempts
+   - **Stage 1:** Haiku (fast, most common cases) - 6 attempts
+   - **Stage 2:** Sonnet (precise, complex cases) - 18 attempts
 4. Apply minimal patch (1-5 lines), recompile, repeat (max 24 attempts)
 
 **Key benefits:**
 - **Low sampling budget** (K=1 per attempt, not K=100)
 - **Error-driven action selection** (specific fix per error type, not random guessing)
 - **Fast model first** (Haiku), escalate only when needed (Sonnet)
-- **Solver cascade** handles simple cases mechanically (free)
+- **Solver cascade** handles simple cases mechanically (zero LLM cost)
 - **Early stopping** prevents runaway costs (bail after 3 identical errors)
 
-**Expected outcomes:**
-- Success rate: ~70% overall (type_mismatch 70-85%, unknown_ident 85-95%)
-- Avg attempts: 3-8 to success
-- Cost: ~$0.05-0.15 per successful repair (vs $2-5 blind sampling)
+**Expected outcomes:** Success improves over time as structured logging enables learning from attempts. Cost optimized through solver cascade (free) and multi-stage escalation.
 
 **Commands:**
 - `/repair-file FILE.lean` - Full file repair

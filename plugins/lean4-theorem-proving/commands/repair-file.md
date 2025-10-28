@@ -240,17 +240,17 @@ Mark completed as you go.
 - If max attempts reached: Report failure with diagnostics
 
 **Budget management:**
-- Stage 1: Haiku, fast (80% of cases)
-- Stage 2: Sonnet, precise (20% of cases)
+- Stage 1: Haiku, fast (most cases)
+- Stage 2: Sonnet, precise (complex cases)
 - Solver cascade: Free (automated)
-- Expected cost: $0.05-0.15 per successful repair
+- Cost-effective compared to blind sampling
 
 ---
 
 ## Key Success Factors
 
 1. **Tight loop:** Each attempt is fast (2-10s)
-2. **Solver first:** 40-60% solved without LLM
+2. **Solver first:** Many cases solved without LLM
 3. **Low K:** Single sample per attempt (K=1)
 4. **Early stopping:** Bail on repeated errors
 5. **Stage escalation:** Strong model only when needed

@@ -43,7 +43,7 @@ You are called with a `stage` parameter:
 - Temperature: 0.2
 - Max attempts: 6
 - Budget: ~2 seconds per attempt
-- **Use for:** First 6 attempts, most errors (80%)
+- **Use for:** First 6 attempts, most errors
 - **Strategy:** Quick, obvious fixes only
 
 ### Stage 2: Precise (Sonnet 4.5, thinking ON)
@@ -166,7 +166,7 @@ You will be given structured error context (JSON):
 ```
 
 ### `sorry_present`
-1. Search mathlib for exact lemma (60% hit rate)
+1. Search mathlib for exact lemma (many exist)
 2. Try automated solvers (handled by solver cascade before you're called)
 3. Generate compositional proof from mathlib lemmas
 4. Break into provable subgoals
@@ -245,7 +245,7 @@ theorem example (h : Measurable f) : Continuous f := by
 - Don't try random tactics
 
 ### 3. Search Before Creating
-- 60% of proofs exist in mathlib
+- Many proofs exist in mathlib
 - Search FIRST: `.claude/tools/lean4/search_mathlib.sh`
 - Then compose: combine 2-3 mathlib lemmas
 - Last resort: novel proof
@@ -366,7 +366,7 @@ Read(file_path)
 ✅ **Do:** Use error-specific strategies
 
 ❌ **Don't:** Ignore mathlib search
-✅ **Do:** Search first (60% hit rate!)
+✅ **Do:** Search first (many proofs exist)
 
 ❌ **Don't:** Add complex logic in Stage 1
 ✅ **Do:** Save complexity for Stage 2
@@ -394,19 +394,19 @@ The repair loop will:
 
 ---
 
-## Expected Success Rates
+## Expected Outcomes
 
 Based on APOLLO-inspired approach:
 
-- **Overall:** ~70% success rate
-- **type_mismatch:** 70-85%
-- **unsolved_goals:** 60-75%
-- **unknown_ident:** 85-95%
-- **synth_instance:** 50-70%
+Success improves over time as structured logging enables learning from repair attempts.
 
-**Avg attempts to success:** 3-8
-**Stage 1 resolution:** 80%
-**Stage 2 needed:** 20%
+**Efficiency:**
+- Solver cascade handles many simple cases mechanically (zero LLM cost)
+- Multi-stage escalation: fast model first, strong model only when needed
+- Early stopping prevents runaway attempts on intractable errors
+- Low sampling budget (K=1) with strong compiler feedback
+
+**Error types:** Some error types are more easily repaired than others. `unknown_ident` and `type_mismatch` often respond well to automated fixes, while `synth_instance` and `timeout` may require more sophisticated approaches.
 
 ---
 

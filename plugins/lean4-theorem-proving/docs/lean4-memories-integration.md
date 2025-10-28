@@ -36,10 +36,10 @@ Observations:
 Entity: strategy_convert_with_depth_2
 Type: RepairStrategy
 Observations:
-- "Success rate: 75% for type_mismatch errors"
-- "Average attempts before success: 2.3"
+- "Frequently successful for type_mismatch errors"
+- "Usually resolves quickly"
 - "Works best when goal involves type class instances"
-- "Cost: $0.002 per attempt (Stage 1)"
+- "Low cost (Stage 1)"
 ```
 
 **Mathlib Lemma Usage**
@@ -173,7 +173,7 @@ update_errorStrategies_yaml(insights)
 - Strategy prioritization based on memory
 - Feedback loop: successful strategies used more often
 
-**Value:** Improved success rate (est. +10-15%)
+**Value:** Improved success rate through pattern learning
 
 **Effort:** 4-6 hours
 
@@ -221,8 +221,8 @@ Relations: 30 (repairs → strategies → lemmas)
   - repair_b2a9f3: Used type annotation (success on attempt 3)
 
 Recommended approach:
-1. Try continuous_of_measurable (100% success rate, fastest)
-2. If fail, try convert + simp (67% success rate)
+1. Try continuous_of_measurable (most successful, fastest)
+2. If fail, try convert + simp (frequently successful)
 3. If fail, try type annotation (fallback)
 ```
 
@@ -231,9 +231,9 @@ Recommended approach:
 Entities: 100+ repairs, 10 error patterns, 50+ strategies
 Relations: 200+
 
-Success rate improvement: 65% → 78% (memory-guided)
-Avg attempts: 4.2 → 2.8 (faster convergence)
-Cost reduction: 25% (fewer failed attempts)
+Success rate improves with memory guidance
+Faster convergence (fewer attempts needed)
+Cost reduced through learning (fewer failed attempts)
 ```
 
 ---
@@ -288,17 +288,19 @@ interface SuccessfulRepair {
 
 ## Metrics to Track
 
-**Before Memory Integration:**
-- Success rate: ~70%
-- Avg attempts: 3-8
-- Solver cascade hit rate: 40-60%
-- Cost per repair: $0.05-0.15
+Track these metrics before and after memory integration to measure improvement:
 
-**After Memory Integration (estimated):**
-- Success rate: ~80-85% (+10-15%)
-- Avg attempts: 2-5 (-30%)
-- Solver cascade hit rate: 40-60% (same)
-- Cost per repair: $0.03-0.10 (-33%)
+**Key metrics:**
+- Success rate by error type
+- Average attempts to success
+- Solver cascade effectiveness
+- Cost per successful repair
+
+**Expected improvements with memory integration:**
+- Higher success rate through pattern learning
+- Faster convergence (fewer attempts)
+- Reduced cost (fewer failed attempts)
+- Better strategy selection over time
 
 **Learning curve:** Success rate should improve with each session as memory accumulates.
 

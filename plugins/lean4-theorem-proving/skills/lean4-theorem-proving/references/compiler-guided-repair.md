@@ -37,7 +37,7 @@ python3 scripts/parseLeanErrors.py errors.txt > context.json
 
 Extracts: error type, location, goal state, local context, code snippet
 
-### 2. Try Solver Cascade (40-60% success, free!)
+### 2. Try Solver Cascade (many simple cases, free!)
 ```bash
 python3 scripts/solverCascade.py context.json FILE.lean
 ```
@@ -78,7 +78,7 @@ If success → done! If fail → next iteration (max 24 attempts)
 
 ## Repair Strategies by Error Type
 
-### type_mismatch (70-85% success)
+### type_mismatch
 
 **Strategies:**
 1. `convert _ using N` (N = unification depth 1-3)
@@ -94,7 +94,7 @@ If success → done! If fail → next iteration (max 24 attempts)
 +  simp
 ```
 
-### unsolved_goals (60-75% success)
+### unsolved_goals
 
 **Strategies:**
 1. Try automation: `simp?`, `apply?`, `exact?`, `aesop`
@@ -114,7 +114,7 @@ If success → done! If fail → next iteration (max 24 attempts)
 +  exact h
 ```
 
-### unknown_ident (85-95% success)
+### unknown_ident
 
 **Strategies:**
 1. Search mathlib: `bash .claude/tools/lean4/search_mathlib.sh "ident" name`
@@ -130,7 +130,7 @@ If success → done! If fail → next iteration (max 24 attempts)
 +  Real.continuous
 ```
 
-### synth_implicit / synth_instance (50-70% success)
+### synth_implicit / synth_instance
 
 **Strategies:**
 1. Provide instance: `haveI : Instance := ...`
@@ -147,7 +147,7 @@ If success → done! If fail → next iteration (max 24 attempts)
 ### sorry_present
 
 **Strategies:**
-1. Search mathlib (60% exist!)
+1. Search mathlib (many already exist)
 2. Automated solvers (cascade handles this)
 3. Compositional proof from mathlib lemmas
 4. Break into subgoals
@@ -174,17 +174,17 @@ If success → done! If fail → next iteration (max 24 attempts)
 ### Low Sampling Budgets
 - K=1 per attempt (not K=100)
 - Strong compiler feedback guides next attempt
-- Avg 3-8 attempts to success
+- Efficient iteration to success
 
 ### Solver-First Strategy
-- 40-60% of errors solved by automation
+- Many errors solved by automation
 - Zero LLM cost for simple cases
 - Only escalate to agent when needed
 
 ### Multi-Stage Escalation
-- Fast model (Haiku) for 80% of cases
-- Strong model (Sonnet) only for 20%
-- Cost: ~$0.05-0.15 per successful repair
+- Fast model (Haiku) for most cases
+- Strong model (Sonnet) only when needed
+- Cost-effective repair process
 
 ### Early Stopping
 - Bail after 3 identical errors
@@ -200,24 +200,19 @@ If success → done! If fail → next iteration (max 24 attempts)
 
 ## Expected Outcomes
 
-**Success rates:**
-- Overall: ~70%
-- type_mismatch: 70-85%
-- unsolved_goals: 60-75%
-- unknown_ident: 85-95%
-- synth_instance: 50-70%
+Success improves over time as structured logging enables learning from repair attempts.
 
-**Efficiency:**
-- Avg attempts to success: 3-8
-- Solver cascade hit rate: 40-60%
-- Stage 1 resolution: 80%
-- Stage 2 needed: 20%
+**Efficiency benefits:**
+- Solver cascade handles many simple cases mechanically (zero LLM cost)
+- Multi-stage escalation: fast model first, strong model only when needed
+- Early stopping prevents runaway attempts on intractable errors
+- Low sampling budget (K=1) with strong compiler feedback
 
-**Cost:**
-- Solver cascade: $0 (automated)
-- Stage 1 (Haiku): ~$0.001 per attempt
-- Stage 2 (Sonnet): ~$0.01 per attempt
-- Avg per repair: $0.05-0.15 (vs $2-5 blind sampling)
+**Cost optimization:**
+- Solver cascade: Free (automated tactics)
+- Stage 1 (Haiku): Low cost, handles most common cases
+- Stage 2 (Sonnet): Higher cost, reserved for complex cases
+- Much more cost-effective than blind best-of-N sampling
 
 ---
 
@@ -318,10 +313,10 @@ theorem qux : a + b = b + a := by
 ## Best Practices
 
 ### 1. Start with Solver Cascade
-Always try automated solvers before LLM. 40-60% success rate, zero cost.
+Always try automated solvers before LLM. Many cases succeed with zero cost.
 
 ### 2. Search Mathlib First
-60% of proofs already exist. Use search tools before generating novel proofs.
+Many proofs already exist. Use search tools before generating novel proofs.
 
 ### 3. Minimal Diffs
 Change only 1-5 lines. Preserve existing proof structure and style.
@@ -377,9 +372,9 @@ Track which error types are common in your codebase and which fixes work best.
 
 **Cost concerns:**
 - Solver cascade is free (use it!)
-- Stage 1 very cheap (~$0.001/attempt)
+- Stage 1 (Haiku) very low cost
 - Early stopping prevents runaway costs
-- Avg ~$0.05-0.15 per successful repair
+- Much more cost-effective than blind sampling
 
 ---
 
