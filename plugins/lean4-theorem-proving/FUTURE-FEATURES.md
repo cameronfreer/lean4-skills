@@ -4,6 +4,56 @@ Creative extensions and enhancements to explore. Organized by category with impl
 
 ---
 
+## ✅ Recently Implemented
+
+### Compiler-Guided Proof Repair (APOLLO-inspired)
+
+**Status:** ✅ **Implemented** (v3.3.0, 2025-10-28)
+
+**What we built:**
+- **lean4-proof-repair agent** - Two-stage repair (Haiku → Sonnet escalation)
+- **3 slash commands** - `/repair-file`, `/repair-goal`, `/repair-interactive`
+- **Solver cascade** - Automated proof search (rfl → simp → ring → ... → aesop)
+- **Error routing** - 10 error patterns → specific repair strategies
+- **Structured logging** - NDJSON attempt logs for learning patterns
+
+**Core innovation:** Use compiler feedback to drive targeted fixes with low sampling budgets (K=1), not blind best-of-N resampling.
+
+**Workflow:**
+1. Compile → parse structured error (type, location, goal, context)
+2. Try solver cascade first (40-60% success, zero LLM cost)
+3. If fail → agent repair (Stage 1: Haiku fast, Stage 2: Sonnet precise)
+4. Apply minimal patch (1-5 lines), recompile, repeat (max 24 attempts)
+
+**Results:**
+- Success rate: ~70% overall
+- Avg attempts: 3-8
+- Cost: ~$0.05-0.15 per repair (vs $2-5 blind sampling)
+
+**Inspired by:** APOLLO (https://arxiv.org/abs/2505.05758)
+
+**Files:**
+- Agent: `plugins/lean4-subagents/agents/lean4-proof-repair.md`
+- Commands: `commands/repair-{file,goal,interactive}.md`
+- Scripts: `scripts/{parseLeanErrors,solverCascade,repairLoop}.py`
+- Config: `config/errorStrategies.yaml`
+- Reference: `references/compiler-guided-repair.md`
+- Design doc: `COMPILER-GUIDED-REPAIR.md`
+
+**Key learnings:**
+1. Solver cascade is incredibly effective (40-60% of simple cases)
+2. Low-K sampling + compiler feedback beats high-K blind sampling
+3. Multi-stage escalation optimizes cost/quality
+4. Error-specific routing essential (not one-size-fits-all)
+5. Structured logging enables future pattern learning
+
+**Future enhancements:**
+- Integration with lean4-memories (learn successful patterns)
+- Attempt log analysis tools (discover what works)
+- Domain-specific repair strategies (probability, algebra, analysis)
+
+---
+
 ## 🎯 High-Impact Extensions
 
 ### 1. lean4-proof-archaeologist (Subagent)

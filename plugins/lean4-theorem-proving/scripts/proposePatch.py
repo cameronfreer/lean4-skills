@@ -6,8 +6,21 @@ Two-stage approach: Stage 1 (Haiku, fast) → Stage 2 (Sonnet, precise)
 Inspired by APOLLO's multi-stage repair strategy
 https://arxiv.org/abs/2505.05758
 
-TODO: Implement agent integration
-This is currently a stub that documents the interface.
+NOTE: This script is currently a stub that documents the interface.
+
+In practice, the repair workflow is orchestrated by the slash commands
+(/repair-file, /repair-goal, /repair-interactive), which:
+1. Parse errors using parseLeanErrors.py
+2. Try solverCascade.py first
+3. If cascade fails, call lean4-proof-repair agent via Task tool
+4. Apply returned diff
+
+This standalone script would be used for:
+- Command-line repair automation (future)
+- Testing the agent interface
+- Direct API integration (future)
+
+For now, use the slash commands for actual repair work.
 """
 
 import json
