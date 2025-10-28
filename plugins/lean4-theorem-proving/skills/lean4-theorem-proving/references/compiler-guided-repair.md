@@ -8,6 +8,33 @@
 
 ---
 
+## Philosophy
+
+**Traditional Approach (Blind Sampling):**
+```
+Generate 100 proof attempts → Test all → Pick best
+❌ Wasteful: Most attempts fail identically
+❌ No learning: Same error repeated many times
+❌ Expensive: Large model × high K
+```
+
+**Compiler-Guided Approach:**
+```
+Generate attempt → Lean error → Route to specific fix → Retry (max 24 attempts)
+✅ Efficient: Error-driven action selection
+✅ Adaptive: Different fix strategies per error type
+✅ Economical: Small K (often K=1), fast model first, escalate only when needed
+✅ Learning: Log attempts, avoid repeating dead ends
+```
+
+**Key wins:**
+- **Low sampling budgets** (K=1 or K=3) with compiler guidance beat high-K blind sampling
+- **Multi-stage approach** (fast model → escalate to strong model) optimizes cost/quality
+- **Solver cascade** (try automation before resampling) handles many cases mechanically
+- **Early stopping** (bail after 3 identical errors) prevents runaway costs
+
+---
+
 ## Quick Start
 
 **Repair entire file:**
