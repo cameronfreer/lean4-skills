@@ -461,8 +461,8 @@ lean_leanfinder("⊢ |re z| ≤ ‖z‖ + transform to squared norm inequality")
 - **Verification:** Always check returned snippets with `lean_declaration_file` and test with `lean_multi_attempt`
 
 **References:**
-- Paper: [Lean Finder on arXiv](https://arxiv.org/abs/2501.02447)
-- Public UI: [Lean Finder on Hugging Face](https://huggingface.co/spaces/InternLM/Lean-Finder)
+- Paper: [Lean Finder on arXiv](https://arxiv.org/pdf/2510.15940)
+- Public UI: [Lean Finder on Hugging Face](https://huggingface.co/spaces/delta-lab-ai/Lean-Finder)
 - Implementation: lean-lsp-mcp server (feature/lean-finder-support branch)
 
 ---
