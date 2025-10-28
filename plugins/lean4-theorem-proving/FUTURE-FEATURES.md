@@ -38,7 +38,6 @@ Creative extensions and enhancements to explore. Organized by category with impl
 - Scripts: `scripts/{parseLeanErrors,solverCascade,repairLoop}.py`
 - Config: `config/errorStrategies.yaml`
 - Reference: `references/compiler-guided-repair.md`
-- Design doc: `COMPILER-GUIDED-REPAIR.md`
 
 **Key learnings:**
 1. Solver cascade is incredibly effective for simple cases
