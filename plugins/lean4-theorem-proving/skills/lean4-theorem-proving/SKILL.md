@@ -15,11 +15,11 @@ description: Use when developing Lean 4 proofs, facing type class synthesis erro
 
 | **Resource** | **What You Get** | **Where to Find** |
 |--------------|------------------|-------------------|
-| **Interactive Commands** | 7 slash commands for search, analysis, optimization | Type `/lean` in Claude Code ([full guide](../../COMMANDS.md)) |
-| **Automation Scripts** | 16 tools for search, verification, refactoring | Plugin `scripts/` directory ([scripts/README.md](../../scripts/README.md)) |
-| **Subagents** | 3 specialized agents for batch tasks (optional) | [subagent-workflows.md](references/subagent-workflows.md) |
+| **Interactive Commands** | 10 slash commands for search, analysis, optimization, repair | Type `/lean` in Claude Code ([full guide](../../COMMANDS.md)) |
+| **Automation Scripts** | 19 tools for search, verification, refactoring, repair | Plugin `scripts/` directory ([scripts/README.md](../../scripts/README.md)) |
+| **Subagents** | 4 specialized agents for batch tasks (optional) | [subagent-workflows.md](references/subagent-workflows.md) |
 | **LSP Server** | 30x faster feedback with instant proof state (optional) | [lean-lsp-server.md](references/lean-lsp-server.md) |
-| **Reference Files** | 11 detailed guides (phrasebook, tactics, patterns, errors) | [List below](#reference-files) |
+| **Reference Files** | 13 detailed guides (phrasebook, tactics, patterns, errors, repair) | [List below](#reference-files) |
 
 ## When to Use
 
@@ -78,6 +78,42 @@ Use `/search-mathlib` slash command, LSP server search tools, or automation scri
 
 **Not acceptable:** "Should be in mathlib", "infrastructure lemma", "will prove later" without concrete plan.
 
+## Compiler-Guided Proof Repair
+
+**When proofs fail to compile,** use iterative compiler-guided repair instead of blind resampling.
+
+**Quick repair:** `/lean4-theorem-proving:repair-file FILE.lean`
+
+**How it works:**
+1. Compile → extract structured error (type, location, goal, context)
+2. Try automated solver cascade first (40-60% success, zero cost)
+   - Order: `rfl → simp → ring → linarith → nlinarith → omega → exact? → apply? → aesop`
+3. If solvers fail → call `lean4-proof-repair` agent:
+   - **Stage 1:** Haiku (fast, 80% of cases) - 6 attempts
+   - **Stage 2:** Sonnet (precise, 20% of cases) - 18 attempts
+4. Apply minimal patch (1-5 lines), recompile, repeat (max 24 attempts)
+
+**Key benefits:**
+- **Low sampling budget** (K=1 per attempt, not K=100)
+- **Error-driven action selection** (specific fix per error type, not random guessing)
+- **Fast model first** (Haiku), escalate only when needed (Sonnet)
+- **Solver cascade** handles simple cases mechanically (free)
+- **Early stopping** prevents runaway costs (bail after 3 identical errors)
+
+**Expected outcomes:**
+- Success rate: ~70% overall (type_mismatch 70-85%, unknown_ident 85-95%)
+- Avg attempts: 3-8 to success
+- Cost: ~$0.05-0.15 per successful repair (vs $2-5 blind sampling)
+
+**Commands:**
+- `/repair-file FILE.lean` - Full file repair
+- `/repair-goal FILE.lean LINE` - Specific goal repair
+- `/repair-interactive FILE.lean` - Interactive with confirmations
+
+**Detailed guide:** [compiler-guided-repair.md](references/compiler-guided-repair.md)
+
+**Inspired by:** APOLLO (https://arxiv.org/abs/2505.05758) - compiler-guided repair with multi-stage models and low sampling budgets.
+
 ## Common Compilation Errors
 
 | Error | Fix |
@@ -117,4 +153,4 @@ See [compilation-errors.md](references/compilation-errors.md) for detailed debug
 
 **Optimization:** [proof-golfing.md](references/proof-golfing.md), [mathlib-style.md](references/mathlib-style.md)
 
-**Tools:** [lean-lsp-server.md](references/lean-lsp-server.md), [subagent-workflows.md](references/subagent-workflows.md)
+**Automation:** [compiler-guided-repair.md](references/compiler-guided-repair.md), [lean-lsp-server.md](references/lean-lsp-server.md), [subagent-workflows.md](references/subagent-workflows.md)

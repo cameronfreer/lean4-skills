@@ -100,7 +100,7 @@ do
 done
 
 if [[ -n "${REFS_DIR}" && -d "${REFS_DIR}" ]]; then
-  for doc in proof-golfing.md sorry-filling.md axiom-elimination.md; do
+  for doc in proof-golfing.md sorry-filling.md axiom-elimination.md compiler-guided-repair.md; do
     if [[ -f "${REFS_DIR}/${doc}" ]]; then
       cp -f "${REFS_DIR}/${doc}" "${DOC_STAGE}/${doc}"
       DOC_STAGED_COUNT=$((DOC_STAGED_COUNT + 1))
