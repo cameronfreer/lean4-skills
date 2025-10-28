@@ -112,7 +112,8 @@ The plugin includes 16 automation scripts organized by category:
 - [measure-theory.md](skills/lean4-theorem-proving/references/measure-theory.md) - Sub-σ-algebras and conditional expectation
 - [compilation-errors.md](skills/lean4-theorem-proving/references/compilation-errors.md) - Error debugging and solutions
 - [proof-golfing.md](skills/lean4-theorem-proving/references/proof-golfing.md) - Simplifying proofs after compilation
-- [lean-lsp-server.md](skills/lean4-theorem-proving/references/lean-lsp-server.md) - Lean LSP server tools (Claude Code users)
+- [lean-lsp-server.md](skills/lean4-theorem-proving/references/lean-lsp-server.md) - Lean LSP server quick reference (Claude Code users)
+- [lean-lsp-tools-api.md](skills/lean4-theorem-proving/references/lean-lsp-tools-api.md) - Lean LSP tools detailed API (Claude Code users)
 - [subagent-workflows.md](skills/lean4-theorem-proving/references/subagent-workflows.md) - Subagent delegation patterns (Claude Code users)
 
 ## When to Use
@@ -177,7 +178,8 @@ lean4-theorem-proving/
         ├── measure-theory.md      # Sub-σ-algebras, conditional expectation
         ├── compilation-errors.md  # Error solutions
         ├── proof-golfing.md       # Proof simplification
-        ├── lean-lsp-server.md     # LSP tools (Claude Code)
+        ├── lean-lsp-server.md     # LSP quick reference (Claude Code)
+        ├── lean-lsp-tools-api.md  # LSP API reference (Claude Code)
         └── subagent-workflows.md  # Subagent patterns (Claude Code)
 ```
 

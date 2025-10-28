@@ -1,0 +1,580 @@
+# Lean LSP Tools - API Reference
+
+**Detailed API documentation for all Lean LSP MCP server tools.**
+
+For workflow patterns and quick reference, see [lean-lsp-server.md](lean-lsp-server.md).
+
+---
+
+## Tool Categories
+
+**Local tools (unlimited, instant):**
+- Direct LSP queries against your project files
+- No rate limits, < 1 second response time
+- Tools: `lean_goal`, `lean_local_search`, `lean_multi_attempt`, `lean_diagnostic_messages`, `lean_hover_info`
+
+**External tools (rate-limited to 3 req/30s):**
+- Remote API calls to loogle.lean-lang.org, leansearch.net
+- Managed by LSP server to avoid overwhelming services
+- Tools: `lean_loogle`, `lean_leansearch`, `lean_state_search`
+
+**Best practice:** Always use local tools first (especially `lean_local_search`), then external tools only when local search doesn't find what you need.
+
+---
+
+## Local Tools (Unlimited)
+
+### `lean_goal` - Check Proof State
+
+**When to use:**
+- Before writing ANY tactic
+- After each tactic to see progress
+- To understand what remains to be proved
+
+**Parameters:**
+- `file_path` (required): Absolute path to Lean file
+- `line` (required): Line number (1-indexed)
+- `column` (optional): Usually omit - shows both before/after line
+
+**Example:**
+```lean
+lemma test_add_comm (n m : ℕ) : n + m = m + n := by
+  sorry  -- <- Check goal here (line 12)
+```
+
+**Call:** `lean_goal(file, line=12)`
+
+**Output:**
+```
+Goals on line:
+lemma test_add_comm (n m : ℕ) : n + m = m + n := by
+Before:
+No goals at line start.
+After:
+n m : ℕ
+⊢ n + m = m + n
+```
+
+**What this tells you:**
+- Context: `n m : ℕ` (variables in scope)
+- Goal: `⊢ n + m = m + n` (what you need to prove)
+- Now you know exactly what tactic to search for!
+
+**Pro tip:** Call `lean_goal` on a line WITH a tactic to see before/after states - shows exactly what that tactic accomplishes.
+
+**Success signal:**
+```
+After:
+no goals
+```
+← Proof complete!
+
+---
+
+### `lean_diagnostic_messages` - Instant Error Checking
+
+**When to use:** After EVERY edit, before building
+
+**Advantage:** Instant (< 1s) vs build (10-30s)
+
+**Parameters:**
+- `file_path` (required): Absolute path to Lean file
+
+**Example - Errors found:**
+```
+lean_diagnostic_messages(file)
+→ ["l13c9-l13c17, severity: 1\nUnknown identifier `add_comm`",
+   "l20c30-l20c49, severity: 1\nFunction expected at StrictMono"]
+```
+- Line 13, columns 9-17: `add_comm` not in scope
+- Line 20, columns 30-49: Syntax error with `StrictMono`
+- Severity 1 = error, Severity 2 = warning
+
+**Example - Success:**
+```
+lean_diagnostic_messages(file)
+→ []
+```
+← Empty array = no errors!
+
+**Critical:** Empty diagnostics means no errors, but doesn't mean proof complete. Always verify with `lean_goal` to confirm "no goals".
+
+---
+
+### `lean_local_search` - Find Declarations
+
+**Why use this FIRST:**
+- ✅ **Unlimited** - no rate limits
+- ✅ **Instant** - fastest search option
+- ✅ **Comprehensive** - searches workspace + mathlib
+- ✅ **Structured** - returns name/kind/file
+
+**When to use:**
+- Checking if a declaration exists before hallucinating
+- Finding project-specific lemmas
+- Understanding what's available
+
+**Parameters:**
+- `query` (required): Search term (e.g., "add_zero", "StrictMono")
+- `limit` (optional): Max results (default 10)
+
+**Example:**
+```
+lean_local_search("add_zero", limit=5)
+→ [{"name": "add_zero", "kind": "theorem", "file": "Init/Grind/Ring/Envelope.lean"},
+   {"name": "add_zero", "kind": "theorem", "file": "Init/Grind/Module/Envelope.lean"}]
+```
+
+**Return structure:**
+```json
+[
+  {
+    "name": "declaration_name",
+    "kind": "theorem" | "def" | "axiom" | "structure" | ...,
+    "file": "relative/path/to/file.lean"
+  },
+  ...
+]
+```
+
+**Pro tips:**
+- Start with partial matches. Search "add" to see all addition-related lemmas.
+- Results include both your project and mathlib
+- Fast enough to search liberally
+
+**Requirements:**
+- ripgrep installed and in PATH
+- macOS: `brew install ripgrep`
+- Linux: `apt install ripgrep` or see https://github.com/BurntSushi/ripgrep#installation
+- Windows: See https://github.com/BurntSushi/ripgrep#installation
+
+**If not installed:** The tool will fail with an error. Install ripgrep to enable fast local search.
+
+---
+
+### `lean_multi_attempt` - Parallel Tactic Testing
+
+**This is the most powerful workflow tool.** Test multiple tactics at once and see EXACTLY why each succeeds or fails.
+
+**When to use:**
+- A/B test 3-5 candidate tactics
+- Understand why approaches fail (exact error messages)
+- Compare clarity/directness
+- Explore proof strategies
+
+**Parameters:**
+- `file_path` (required): Absolute path to Lean file
+- `line` (required): Line number where tactic should go (1-indexed)
+- `snippets` (required): Array of tactic strings to test
+
+**Example 1: Choosing between working tactics**
+```
+lean_multi_attempt(file, line=13, snippets=[
+  "  simp [Nat.add_comm]",
+  "  omega",
+  "  apply Nat.add_comm"
+])
+
+→ Output:
+["  simp [Nat.add_comm]:\n no goals\n\n",
+ "  omega:\n no goals\n\n",
+ "  apply Nat.add_comm:\n no goals\n\n"]
+```
+All work! Pick simplest: `omega`
+
+**Example 2: Learning from failures**
+```
+lean_multi_attempt(file, line=82, snippets=[
+  "  exact Nat.lt_succ_self n",
+  "  apply Nat.lt_succ_self",
+  "  simp"
+])
+
+→ Output:
+["  exact Nat.lt_succ_self n:\n Unknown identifier `n`",
+ "  apply Nat.lt_succ_self:\n Could not unify...",
+ "  simp:\n no goals\n\n"]
+```
+**Key insight:** Errors tell you WHY tactics fail - `n` out of scope, wrong unification, etc.
+
+**Example 3: Multi-step tactics (single line)**
+```
+lean_multi_attempt(file, line=97, snippets=[
+  "  intro i j hij; exact hij",
+  "  intro i j; exact id",
+  "  unfold StrictMono; simp"
+])
+```
+Chain tactics with `;` - still single line!
+
+**Critical constraints:**
+- **Single-line snippets only** - no multi-line proofs
+- **Must be fully indented** - `"  omega"` not `"omega"`
+- **No comments** - avoid `--` in snippets
+- **For testing only** - edit file properly after choosing
+
+**Return structure:**
+Array of strings, one per snippet:
+```
+["<snippet>:\n<goal_state_or_error>\n\n", ...]
+```
+
+Success: `"no goals"`
+Failure: Error message explaining why
+
+**Workflow:**
+1. `lean_goal` to see what you need
+2. Think of 3-5 candidate tactics
+3. Test ALL with `lean_multi_attempt`
+4. Pick winner, edit file
+5. Verify with `lean_diagnostic_messages`
+
+---
+
+### `lean_hover_info` - Get Documentation
+
+**When to use:**
+- Unsure about function signature
+- Need to see implicit arguments
+- Want to check type of a term
+- Debugging syntax errors
+
+**Parameters:**
+- `file_path` (required): Absolute path to Lean file
+- `line` (required): Line number (1-indexed)
+- `column` (required): Column number - must point to START of identifier (0-indexed)
+
+**Example:**
+```
+lean_hover_info(file, line=20, column=30)
+→ Shows definition, type, diagnostics at that location
+```
+
+**Return structure:**
+```json
+{
+  "range": {"start": {"line": 20, "character": 30}, "end": {...}},
+  "contents": "Type signature and documentation",
+  "diagnostics": ["error messages if any"]
+}
+```
+
+**Pro tips:**
+- Use hover on error locations for detailed information about what went wrong
+- Column must point to the first character of the identifier
+- Returns both type information and any errors at that location
+
+---
+
+## External Search Tools (Rate-Limited)
+
+**Use these when `lean_local_search` doesn't find what you need.**
+
+These tools call external APIs (loogle.lean-lang.org, leansearch.net). The **LSP server rate-limits all external tools to 3 requests per 30 seconds** to avoid overwhelming the services.
+
+**Why rate-limited:** These tools make HTTP requests to external services, not your local Lean project. The LSP server manages the rate limiting automatically.
+
+---
+
+### `lean_loogle` - Type Pattern Search
+
+**Best for:** You know input/output types but not the name
+
+**When to use:**
+- Have a type pattern: `(α → β) → List α → List β`
+- Know the structure but not the lemma name
+- Search by type shape
+
+**Parameters:**
+- `query` (required): Type pattern string
+- `num_results` (optional): Max results (default 6)
+
+**Example:**
+```
+lean_loogle("(?a -> ?b) -> List ?a -> List ?b", num_results=5)
+→ Returns: List.map, List.mapIdx
+```
+
+**Type pattern syntax:**
+- `?a`, `?b`, `?c` - Type variables
+- `_` - Wildcards
+- `->` or `→` - Function arrow
+- `|- pattern` - Search by conclusion
+
+**Most useful patterns:**
+- By type shape: `(?a -> ?b) -> List ?a -> List ?b` ✅
+- By constant: `Real.sin`
+- By subexpression: `_ * (_ ^ _)`
+- By conclusion: `|- _ + 0 = _`
+
+**IMPORTANT:** Loogle searches by *type structure*, not names.
+- ❌ `"Measure.map"` - no results (searching by name)
+- ✅ `"Measure ?X -> (?X -> ?Y) -> Measure ?Y"` - finds Measure.map
+
+**Decision tree:**
+```
+Know exact name? → lean_local_search
+Know concept/description? → lean_leansearch
+Know input/output types? → lean_loogle ✅
+```
+
+**Return structure:**
+```json
+[
+  {
+    "name": "List.map",
+    "type": "(α → β) → List α → List β",
+    "module": "Init.Data.List.Basic",
+    "doc": "Map a function over a list"
+  },
+  ...
+]
+```
+
+**Pro tips:**
+- Use `?` for type variables you want to unify
+- Use `_` for parts you don't care about
+- Start general, then refine if too many results
+
+---
+
+### `lean_leansearch` - Natural Language Search
+
+**Best for:** Conceptual/description-based search
+
+**When to use:**
+- You have a concept: "Cauchy Schwarz inequality"
+- Natural language description of what you need
+- Don't know exact type or name
+
+**Parameters:**
+- `query` (required): Natural language or Lean identifier
+- `num_results` (optional): Max results (default 6)
+
+**Query patterns:**
+- Natural language: "Cauchy Schwarz inequality"
+- Mixed: "natural numbers. from: n < m, to: n + 1 < m + 1"
+- Lean identifiers: "List.sum", "Finset induction"
+- Descriptions: "if a list is empty then its length is zero"
+
+**Example:**
+```
+lean_leansearch("Cauchy Schwarz inequality", num_results=5)
+→ Returns theorems related to Cauchy-Schwarz
+```
+
+**Return structure:**
+```json
+[
+  {
+    "name": "inner_mul_le_norm_mul_norm",
+    "type": "⟪x, y⟫ ≤ ‖x‖ * ‖y‖",
+    "module": "Analysis.InnerProductSpace.Basic",
+    "docString": "Cauchy-Schwarz inequality",
+    "relevance": 0.95
+  },
+  ...
+]
+```
+
+**Pro tips:**
+- Be descriptive but concise
+- Include key mathematical terms
+- Can mix natural language with Lean syntax
+- Results ranked by relevance
+
+---
+
+### `lean_state_search` - Proof State Search
+
+**Best for:** Finding lemmas that apply to your current proof state
+
+**Use when stuck on a specific goal.**
+
+**When to use:**
+- You're stuck at a specific proof state
+- Want to see what lemmas apply
+- Looking for similar proofs
+
+**Parameters:**
+- `file_path` (required): Absolute path to Lean file
+- `line` (required): Line number (1-indexed)
+- `column` (required): Column number (0-indexed)
+- `num_results` (optional): Max results (default 6)
+
+**Example:**
+```
+lean_state_search(file, line=42, column=2, num_results=5)
+→ Returns lemmas that might apply to the goal at that location
+```
+
+**How it works:**
+1. Extracts the proof state (goal) at the given location
+2. Searches for similar goals in mathlib proofs
+3. Returns lemmas that were used in similar situations
+
+**Return structure:**
+```json
+[
+  {
+    "name": "lemma_name",
+    "state": "Similar goal state",
+    "nextTactic": "Tactic used in mathlib",
+    "relevance": 0.88
+  },
+  ...
+]
+```
+
+**Pro tips:**
+- Point to the tactic line, not the lemma line
+- Works best with canonical goal shapes
+- Shows what tactics succeeded in similar proofs
+- Particularly useful when standard searches don't help
+
+---
+
+## Rate Limit Management
+
+**External tools share a rate limit:** 3 requests per 30 seconds total (not per tool).
+
+**The LSP server handles this automatically:**
+- Tracks requests across all external tools
+- Returns error if rate limit exceeded
+- Resets counter every 30 seconds
+
+**If you hit the limit:**
+```
+Error: Rate limit exceeded. Try again in X seconds.
+```
+
+**Best practices:**
+1. Always use `lean_local_search` first (unlimited!)
+2. Batch your external searches - think about what you need before calling
+3. If multiple searches needed, prioritize by likelihood
+4. Wait 30 seconds before retrying if rate-limited
+
+**Priority order:**
+1. `lean_local_search` - Always first, unlimited
+2. `lean_loogle` - When you have type patterns
+3. `lean_leansearch` - When you have descriptions
+4. `lean_state_search` - When really stuck
+
+---
+
+## Advanced Tips
+
+### Combining Tools
+
+**Pattern: Search → Test → Apply**
+```
+1. lean_goal(file, line)           # What to prove?
+2. lean_local_search("keyword")    # Find candidates
+3. lean_multi_attempt([            # Test them all
+     "  apply candidate1",
+     "  exact candidate2",
+     "  simp [candidate3]"
+   ])
+4. [Edit with winner]
+5. lean_diagnostic_messages(file)  # Confirm
+```
+
+### When Local Search Fails
+
+**Escalation path:**
+```
+1. lean_local_search("exact_name")   # Try exact
+2. lean_local_search("partial")       # Try partial
+3. lean_loogle("?a -> ?b")            # Try type pattern
+4. lean_leansearch("description")     # Try natural language
+5. lean_state_search(file, line, col) # Try state-based
+```
+
+### Debugging Multi-Step Proofs
+
+**Check goals between every tactic:**
+```
+lemma foo : P := by
+  tactic1  -- Check with lean_goal
+  tactic2  -- Check with lean_goal
+  tactic3  -- Check with lean_goal
+```
+
+See exactly what each tactic accomplishes!
+
+### Understanding Failures
+
+**Use `lean_multi_attempt` to diagnose:**
+```
+lean_multi_attempt(file, line, [
+  "  exact h",           # "Unknown identifier h"
+  "  apply theorem",     # "Could not unify..."
+  "  simp"               # Works!
+])
+```
+
+Errors tell you exactly why tactics fail - invaluable for learning!
+
+---
+
+## Common Patterns
+
+### Pattern 1: Finding and Testing Lemmas
+```
+lean_local_search("add_comm")
+→ Found candidates
+
+lean_multi_attempt(file, line, [
+  "  apply Nat.add_comm",
+  "  simp [Nat.add_comm]",
+  "  omega"
+])
+→ Test which approach works best
+```
+
+### Pattern 2: Stuck on Unknown Type
+```
+lean_hover_info(file, line, col)
+→ See what the type actually is
+
+lean_loogle("?a -> ?b matching that type")
+→ Find lemmas with that type signature
+```
+
+### Pattern 3: Multi-Step Proof
+```
+For each step:
+  lean_goal(file, line)           # See current goal
+  lean_local_search("keyword")    # Find lemma
+  lean_multi_attempt([tactics])   # Test
+  [Edit file]
+  lean_diagnostic_messages(file)  # Verify
+```
+
+Repeat until "no goals"!
+
+---
+
+## Performance Notes
+
+**Local tools (instant):**
+- `lean_goal`: < 100ms typically
+- `lean_local_search`: < 500ms with ripgrep
+- `lean_multi_attempt`: < 1s for 3-5 snippets
+- `lean_diagnostic_messages`: < 100ms
+- `lean_hover_info`: < 100ms
+
+**External tools (variable):**
+- `lean_loogle`: 500ms-2s (type search is fast)
+- `lean_leansearch`: 2-5s (semantic search is slower)
+- `lean_state_search`: 1-3s (moderate complexity)
+
+**Total workflow:** < 10 seconds for complete proof iteration (vs 30+ seconds with build)
+
+---
+
+## See Also
+
+- [lean-lsp-server.md](lean-lsp-server.md) - Quick reference and workflow patterns
+- [mathlib-guide.md](mathlib-guide.md) - Finding and using mathlib lemmas
+- [tactics-reference.md](tactics-reference.md) - Lean tactic documentation
