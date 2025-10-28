@@ -396,19 +396,28 @@ lean_leansearch("Cauchy Schwarz inequality", num_results=5)
 - **Returns paired results:** Formal snippet + informal summary
 
 **When to use:**
-- You have a math question: "Does y being a root of minpoly(x) imply minpoly(x)=minpoly(y)?"
-- You have an informal description: "algebraic elements with same minimal polynomial"
-- You have a goal state and want semantically relevant facts
-- Use it before `lean_loogle` when query is natural/fuzzy
-- Combine with `lean_state_search` for goal-conditioned premises
+- **Searching Mathlib:** Best first choice for semantic search across Mathlib
+- **You have a goal:** Paste proof states (⊢ ...) directly for goal-aware search
+- **Math questions:** "Does y being a root of minpoly(x) imply minpoly(x)=minpoly(y)?"
+- **Informal descriptions:** "algebraic elements with same minimal polynomial"
+- **Natural/fuzzy queries:** Use before `lean_loogle` when query is conceptual
+
+**Rule of thumb:**
+- Searching your own repo? → Try `lean_local_search` first (unlimited, instant)
+- Searching Mathlib or have a goal? → Try `lean_leanfinder` first (semantic, goal-aware)
 
 **Parameters:**
 - `query` (required): Natural language, statement fragment, or goal text
   - Can paste Lean goal exactly as shown (e.g., beginning with ⊢)
+  - No need to ASCII-escape Unicode (⊢, ‖z‖, etc.) - paste directly!
   - Can add short hints: "⊢ |re z| ≤ ‖z‖ + transform to squared norm inequality"
 
-**Return structure:**
-Array of results, each result is a 2-element array:
+**Returns:**
+```typescript
+Array<[formal_snippet: string, informal_summary: string]>
+```
+
+Each result is a 2-element array:
 1. Formal snippet (Lean theorem/lemma as formatted)
 2. Informal summary of what it states
 
@@ -423,25 +432,36 @@ Array of results, each result is a 2-element array:
 ```
 
 **Example 1: Informal math question**
+```python
+lean_leanfinder(query="Does y being a root of minpoly(x) imply minpoly(x)=minpoly(y)?")
 ```
-lean_leanfinder("Does y being a root of minpoly(x) imply minpoly(x)=minpoly(y)?")
-→ Returns pairs of [formal_snippet, informal_summary]
-```
+Returns pairs of `[formal_snippet, informal_summary]`
 
 **Example 2: Using current goal (recommended in proofs!)**
-```
-Step 1 - Get the goal:
-lean_goal(file, line=24)
+```python
+# Step 1 - Get the goal:
+lean_goal(file_path="/path/to/file.lean", line=24)
+# Output: ⊢ |re z| ≤ ‖z‖
 
-Step 2 - Feed goal (with optional hint) to Lean Finder:
-lean_leanfinder("⊢ |re z| ≤ ‖z‖ + transform to squared norm inequality")
+# Step 2 - Feed goal (with optional hint) to Lean Finder:
+lean_leanfinder(query="⊢ |re z| ≤ ‖z‖ + transform to squared norm inequality")
+```
+
+**Example 3: Statement fragment**
+```python
+lean_leanfinder(query="theorem restrict Ioi: restrict Ioi e = restrict Ici e")
+```
+
+**Example 4: Informal description**
+```python
+lean_leanfinder(query="algebraic elements x,y over K with same minimal polynomial")
 ```
 
 **Good query styles:**
-- Informal: "algebraic elements x,y over K with same minimal polynomial"
-- Q&A: "Does y being a root of minpoly(x) imply minpoly(x)=minpoly(y)?"
-- Goal-based: Paste `⊢ ...` (optionally add 3-6 word cue like "use triangle inequality")
-- Fragment: "theorem restrict Ioi: restrict Ioi e = restrict Ioi e"
+- Informal: `"algebraic elements x,y over K with same minimal polynomial"`
+- Q&A: `"Does y being a root of minpoly(x) imply minpoly(x)=minpoly(y)?"`
+- Goal-based: Paste `"⊢ ..."` (optionally add 3-6 word cue like `"⊢ ... use triangle inequality"`)
+- Fragment: `"theorem restrict Ioi: restrict Ioi e = restrict Ici e"`
 
 **Workflow pattern:**
 1. `lean_goal` to get current goal
@@ -455,10 +475,22 @@ lean_leanfinder("⊢ |re z| ≤ ‖z‖ + transform to squared norm inequality")
 - Rephrase in plain English if results are weak
 - Always verify hits by attempting the tactic
 
+**⚠️ Common gotchas:**
+- **Rate limits:** Unlike `lean_local_search` (unlimited), this tool is rate-limited to 3 req/30s shared with other external tools
+- **Partial snippets:** Returned snippets may be partial or need adaptation - always verify with `lean_multi_attempt` before committing
+- **Over-hinting:** Sometimes less is more - Lean Finder can often infer intent from goal alone without extra hints
+- **Not checking local first:** For project-specific declarations, `lean_local_search` is faster and unlimited
+
+**Rate limiting:**
+- **Shared 3 req/30s limit** with all external tools (`lean_loogle`, `lean_leansearch`, `lean_state_search`)
+- **Unlike `lean_local_search`** which is unlimited and instant
+- If rate-limited: Wait 30 seconds or use `lean_local_search` for local declarations
+
 **Troubleshooting:**
 - **Empty/weak results:** Rephrase in plain English, include goal line with ⊢, add 3-6 word direction
 - **Latency:** Queries external service; brief delays possible. Use `lean_local_search` for strictly local behavior
 - **Verification:** Always check returned snippets with `lean_declaration_file` and test with `lean_multi_attempt`
+- **Rate limit exceeded:** Wait 30 seconds, or search locally with `lean_local_search` instead
 
 **References:**
 - Paper: [Lean Finder on arXiv](https://arxiv.org/pdf/2510.15940)
@@ -563,34 +595,44 @@ Error: Rate limit exceeded. Try again in X seconds.
 
 ### Which Search Tool to Use?
 
-**Decision tree:**
+**Two-path rule:**
 ```
+PATH 1: Searching your own repo
+  → lean_local_search("name")        # Superpower: Unlimited, instant
+
+PATH 2: Searching Mathlib / have a goal
+  → lean_leanfinder("goal or query") # Superpower: Semantic, goal-aware
+```
+
+**Detailed decision tree:**
+```
+Searching own project/workspace?
+  → lean_local_search("name")        # Unlimited, instant, comprehensive
+
 Have goal state (⊢ ...)?
-  → lean_leanfinder("⊢ ... + hint")  # Best for goals! (semantic)
-  → lean_state_search(file, line)    # Also good (goal-conditioned)
+  → lean_leanfinder("⊢ ... + hint")  # Superpower: Goal-aware semantic search
+  → lean_state_search(file, line)    # Alternative: Goal-conditioned premises
+
+Searching Mathlib with informal query?
+  → lean_leanfinder("description")   # Superpower: >30% better semantic search
+  → lean_leansearch("description")   # Alternative: Natural language
+
+Know exact type pattern?
+  → lean_loogle("?a -> ?b")          # Superpower: Type structure matching
 
 Know exact/partial name?
-  → lean_local_search("name")        # Always try first (unlimited!)
-
-Know type pattern?
-  → lean_loogle("?a -> ?b")          # Type structure search
-
-Have informal description?
-  → lean_leanfinder("description")   # Semantic (30% better!)
-  → lean_leansearch("description")   # Natural language (alternative)
-
-Unsure?
-  → lean_leanfinder("question")      # Best general-purpose semantic search
+  → lean_local_search("name")        # Try local first (unlimited!)
+  → If not found → lean_leanfinder("name") or lean_leansearch("name")
 ```
 
 **Full escalation path:**
 ```
-1. lean_local_search("exact_name")    # Try local first (unlimited)
+1. lean_local_search("exact_name")    # Local first (unlimited)
 2. lean_local_search("partial")       # Try partial match
-3. lean_leanfinder("goal or query")   # Semantic search (best!)
+3. lean_leanfinder("goal or query")   # Semantic search (>30% improvement!)
 4. lean_loogle("?a -> ?b")            # Type pattern if known
-5. lean_leansearch("description")     # Natural language alternative
-6. lean_state_search(file, line, col) # Goal-conditioned premises
+5. lean_leansearch("description")     # Natural language (alternative)
+6. lean_state_search(file, line, col) # Goal-conditioned (when really stuck)
 ```
 
 ### Debugging Multi-Step Proofs
@@ -636,18 +678,25 @@ lean_multi_attempt(file, line, [
 ```
 
 ### Pattern 2: Goal-Based Semantic Search
-```
-lean_goal(file, line)
-→ Get current goal: ⊢ |re z| ≤ ‖z‖
+```python
+# Get current goal:
+lean_goal(file_path="/path/to/file.lean", line=42)
+# → Output: ⊢ |re z| ≤ ‖z‖
 
-lean_leanfinder("⊢ |re z| ≤ ‖z‖ + transform to squared norm")
-→ Get semantically relevant lemmas with informal summaries
+# Search with goal + hint:
+lean_leanfinder(query="⊢ |re z| ≤ ‖z‖ + transform to squared norm")
+# → Returns: [[formal_snippet1, informal_summary1], [formal_snippet2, ...], ...]
 
-lean_multi_attempt(file, line, [
-  "  apply lemma_from_result1",
-  "  rw [lemma_from_result2]"
-])
-→ Test candidates
+# Test candidates:
+lean_multi_attempt(
+    file_path="/path/to/file.lean",
+    line=43,
+    snippets=[
+        "  apply lemma_from_result1",
+        "  rw [lemma_from_result2]"
+    ]
+)
+# → Shows which tactics work
 ```
 
 ### Pattern 3: Stuck on Unknown Type
