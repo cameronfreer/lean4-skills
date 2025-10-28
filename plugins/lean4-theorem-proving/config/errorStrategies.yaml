@@ -1,0 +1,138 @@
+# Error Strategy Routing Table for Compiler-Guided Proof Repair
+#
+# Maps Lean error patterns → ordered list of repair actions
+# Actions are tried in sequence until one succeeds
+#
+# Inspired by APOLLO's compiler-feedback-driven repair approach
+# https://arxiv.org/abs/2505.05758
+
+strategies:
+  - pattern: "type mismatch"
+    errorHash: "type_mismatch"
+    actions:
+      - action: "solverCascade"
+        solvers: ["simp", "rfl", "ring"]
+        timeout: 2
+      - action: "refineSkeleton"
+        addUnderscores: true
+      - action: "insertHave"
+        inferType: true
+      - action: "convert"
+        depth: 2
+      - action: "agentRepair"
+        agent: "lean4-proof-repair"
+        stage: 1
+
+  - pattern: "don't know how to synthesize implicit argument"
+    errorHash: "synth_implicit"
+    actions:
+      - action: "openNamespace"
+        candidates: ["scope", "parent"]
+      - action: "provideInstance"
+        inferFrom: "context"
+      - action: "simpAll"
+      - action: "agentRepair"
+        agent: "lean4-proof-repair"
+        stage: 1
+
+  - pattern: "unsolved goals"
+    errorHash: "unsolved_goals"
+    actions:
+      - action: "solverCascade"
+        solvers: ["simp?", "apply?", "exact?", "aesop"]
+        timeout: 5
+      - action: "refineWithUnderscores"
+      - action: "intro"
+        autoNames: true
+      - action: "cases"
+        onFirstHypothesis: true
+      - action: "agentRepair"
+        agent: "lean4-proof-repair"
+        stage: 1
+
+  - pattern: "unknown identifier"
+    errorHash: "unknown_ident"
+    actions:
+      - action: "searchMathlib"
+        fuzzy: true
+      - action: "openScoped"
+        inferFrom: "errorMessage"
+      - action: "importNamespace"
+        suggestions: true
+      - action: "agentRepair"
+        agent: "lean4-proof-repair"
+        stage: 1
+
+  - pattern: "failed to synthesize instance"
+    errorHash: "synth_instance"
+    actions:
+      - action: "haveI"
+        inferFrom: "goal"
+      - action: "letI"
+        inferFrom: "context"
+      - action: "openScoped"
+        namespace: ["MeasureTheory", "Topology"]
+      - action: "agentRepair"
+        agent: "lean4-proof-repair"
+        stage: 2  # Escalate immediately (complex)
+
+  - pattern: "tactic 'sorry' has not been implemented"
+    errorHash: "sorry_present"
+    actions:
+      - action: "searchMathlib"
+        byType: true
+      - action: "solverCascade"
+        solvers: ["simp?", "ring", "linarith", "nlinarith", "omega"]
+      - action: "agentRepair"
+        agent: "lean4-sorry-filler"
+        stage: 1
+
+  - pattern: "maximum recursion depth"
+    errorHash: "recursion_depth"
+    actions:
+      - action: "simplifyContext"
+        dropUnused: true
+      - action: "clearLocals"
+      - action: "revertIntros"
+      - action: "agentRepair"
+        agent: "lean4-proof-repair"
+        stage: 2
+
+  - pattern: "deterministic timeout"
+    errorHash: "timeout"
+    actions:
+      - action: "simpOnly"
+        explicitLemmas: true
+      - action: "narrowSimpScope"
+      - action: "replaceDecide"
+        with: "native_decide"
+      - action: "agentRepair"
+        agent: "lean4-proof-repair"
+        stage: 2
+
+  - pattern: "expected type"
+    errorHash: "type_expected"
+    actions:
+      - action: "addTypeAnnotation"
+        inferFrom: "context"
+      - action: "agentRepair"
+        agent: "lean4-proof-repair"
+        stage: 1
+
+  - pattern: "application type mismatch"
+    errorHash: "app_type_mismatch"
+    actions:
+      - action: "checkArgumentOrder"
+      - action: "insertInstanceArgument"
+      - action: "agentRepair"
+        agent: "lean4-proof-repair"
+        stage: 1
+
+# Default fallback for unclassified errors
+default:
+  actions:
+    - action: "solverCascade"
+      solvers: ["simp?", "aesop", "exact?"]
+    - action: "agentRepair"
+      agent: "lean4-proof-repair"
+      stage: 1
