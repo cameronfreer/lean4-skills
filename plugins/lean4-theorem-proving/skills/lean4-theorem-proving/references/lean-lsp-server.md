@@ -64,7 +64,7 @@
 - No rate limits, < 1 second response time
 
 **External tools (rate-limited to 3 req/30s):**
-- Remote API calls to loogle.lean-lang.org, leansearch.net
+- Remote API calls to loogle.lean-lang.org, leansearch.net, Lean Finder service
 - Managed by LSP server to avoid overwhelming services
 
 **Best practice:** Always use local tools first (especially `lean_local_search`), then external tools only when local search doesn't find what you need.
@@ -78,6 +78,7 @@
 | `lean_hover_info` | **Local** | None | Instant | Check syntax/types |
 | `lean_loogle` | **External** | 3/30s | Fast | Type patterns |
 | `lean_leansearch` | **External** | 3/30s | Slower | Natural language |
+| `lean_leanfinder` | **External** | 3/30s | Fast | Semantic search (best for goals!) |
 | `lean_state_search` | **External** | 3/30s | Fast | Proof state |
 
 **See [lean-lsp-tools-api.md](lean-lsp-tools-api.md) for detailed API documentation.**
@@ -89,9 +90,10 @@
 ### When stuck on a proof
 ```
 1. lean_goal(file, line)              # See exact state
-2. lean_loogle("pattern")             # Type search
-3. lean_leansearch("description")     # Natural language
-4. lean_state_search(file, line, col) # Proof state
+2. lean_leanfinder("⊢ ... + hint")    # Semantic search (paste goal!)
+3. lean_loogle("pattern")             # Type pattern search
+4. lean_leansearch("description")     # Natural language search
+5. lean_state_search(file, line, col) # Proof state search
 ```
 
 ### Emergency debugging
