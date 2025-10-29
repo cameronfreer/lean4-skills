@@ -95,44 +95,52 @@ theorem test (Ω β : Type*) [MeasurableSpace Ω] [MeasurableSpace β]
 
 ---
 
-### Solution 2: Do Ambient Work First, Then Define Local Instances
+### Solution 2: Pin Ambient + Use `@` for Ambient Facts ⭐ RECOMMENDED
 
-**When to use**: When you need to work with both ambient and sub-σ-algebras.
+**When to use**: Default approach for most cases.
 
 ```lean
 theorem test (Ω β : Type*) [MeasurableSpace Ω] [MeasurableSpace β]
     (Z : Ω → β) (hZ : Measurable Z) (B : Set β) (hB : MeasurableSet B) : ... := by
 
-  -- ✅ STEP 1: Do ALL ambient instance work FIRST
-  have hBpre : MeasurableSet (Z ⁻¹' B) := hB.preimage hZ
-  have hCpre : MeasurableSet (W ⁻¹' C) := hC.preimage hW
+  -- ✅ STEP 0: PIN the ambient instance with a name
+  let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›
+
+  -- ✅ STEP 1: Do ALL ambient work using m0 explicitly with @
+  have hZ_m0 : @Measurable Ω β m0 _ Z := by simpa [m0] using hZ
+  have hBpre : @MeasurableSet Ω m0 (Z ⁻¹' B) := hB.preimage hZ_m0
+  have hCpre : @MeasurableSet Ω m0 (W ⁻¹' C) := hC.preimage hW_m0
   -- ... all other ambient facts
 
-  -- ✅ STEP 2: THEN define local sub-σ-algebras
-  let mSub : MeasurableSpace Ω := MeasurableSpace.comap Z inferInstance
+  -- ✅ STEP 2: NOW define local instances (safe!)
+  let mSub : MeasurableSpace Ω := MeasurableSpace.comap Z m0
 
-  -- ✅ STEP 3: Work with mSub (will use it correctly from now on)
-  have : mSub ≤ (inferInstance : MeasurableSpace Ω) := by
-    intro s hs
-    exact hs.preimage hZ
+  -- ✅ STEP 3: Work with mSub
+  have : @MeasurableSet Ω mSub s := ...
 ```
 
 **Pros**:
-- Clean separation of concerns
-- Can name sub-σ-algebras for readability
-- No `@` notation needed
+- Robust to outer scope pollution
+- Explicit control over which instance is used
+- Works even when parent scopes have conflicting instances
 
 **Cons**:
-- Requires restructuring proof
-- Can't interleave ambient and sub-σ-algebra work
+- Requires `@` notation for ambient facts
+- More verbose than naive approach
 
-**Key Principle**: Once you define `let mSub : MeasurableSpace Ω`, ALL subsequent `MeasurableSet`/`Measurable` etc. will preferentially use `mSub`. So do ambient work BEFORE defining it.
+**Critical insight**: Even if you "do ambient work first," if ANY outer scope has `let mOther : MeasurableSpace Ω`, your ambient work will pick that unless you explicitly pin with `m0` and use `@` notation.
+
+**Why pin `m0`?** If you skip this and just do:
+```lean
+have hBpre : MeasurableSet (Z ⁻¹' B) := ...  -- ❌ Picks wrong instance!
+```
+Lean will pick a recently-defined instance from ANY scope (including outer scopes), not the ambient typeclass instance.
 
 ---
 
-### Solution 3: Force with `@` Notation (Pattern A - Complex but Precise)
+### Solution 3: Force with `@` Everywhere (Fallback When You Can't Pin)
 
-**When to use**: When you can't restructure and need both instances in scope simultaneously.
+**When to use**: When you can't pin `m0` at the start (e.g., instances defined in outer scope you can't change).
 
 ```lean
 theorem test (Ω β : Type*) [inst : MeasurableSpace Ω] [MeasurableSpace β]
@@ -202,7 +210,10 @@ end MySection
 - Still can't use in middle of proof
 - Variables must be shared across all theorems in section
 
-**IMPORTANT**: Even with section-level `abbrev`, you should STILL do ambient work before referencing `mSub` in each individual theorem. The `abbrev` doesn't prevent the pollution once you reference it!
+**⚠️ CRITICAL WARNING**: Even with section-level `abbrev`, you MUST:
+1. Pin ambient instance: `let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›`
+2. Use `@` notation for ALL ambient facts in each theorem
+3. The `abbrev` only reduces repetition - it does NOT prevent pollution once referenced!
 
 ---
 
@@ -210,27 +221,29 @@ end MySection
 
 ### For New Code:
 
-1. **Default**: Use **Solution 2** (ambient work first, then define locals)
-   - Cleanest and most maintainable
-   - No `@` notation needed
-   - Clear proof structure
+1. **Default**: Use **Solution 2** (pin ambient + use `@`)
+   - Most robust to outer scope pollution
+   - Explicit control over instances
+   - Works in nested contexts
 
-2. **If sub-σ-algebra used rarely**: Use **Solution 1** (no local bindings)
+2. **If alternative instance used rarely**: Use **Solution 1** (no local bindings)
    - Even simpler
    - Just write out the expression when needed
 
 3. **For shared definitions**: Use **Solution 4** (section-level `abbrev`)
-   - When multiple theorems need the same sub-σ-algebra
-   - Still follow Solution 2 pattern within each proof
+   - When multiple theorems need the same alternative instance
+   - Still use Solution 2 pattern (pin + `@`) within each theorem
 
 ### For Fixing Existing Code:
 
-1. **If possible, restructure**: Move ambient work before local definitions (Solution 2)
+1. **If you can add code at the start**: Use **Solution 2** (pin `m0` + use `@`)
+   - Pin ambient at start: `let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›`
+   - Use `@` for all ambient facts
 
-2. **If can't restructure**: Use **Solution 3** (force with `@`)
-   - Add type annotations to results: `have h : @MeasurableSet Ω inst s := ...`
+2. **If you can't modify the start**: Use **Solution 3** (force with `@` everywhere)
+   - Name the ambient instance in signature: `[inst : MeasurableSpace Ω]`
+   - Use `@MeasurableSet Ω inst ...` for every ambient fact
    - Create conversion helpers if needed
-   - Be systematic - mark every ambient fact clearly
 
 ---
 
@@ -246,7 +259,7 @@ theorem test : ... := by
 
 **Fix**: Don't bind `abbrev` results to local `let` variables.
 
-### ❌ Mistake 2: Mixing ambient and sub-σ-algebra work
+### ❌ Mistake 2: Mixing ambient and alternative instance work without `@`
 ```lean
 theorem test : ... := by
   let mSub : MeasurableSpace Ω := ...
@@ -256,7 +269,16 @@ theorem test : ... := by
   have h3 : MeasurableSet s2 := ...  -- ❌ Still uses mSub!
 ```
 
-**Fix**: Do ALL ambient work before `let mSub`, or use `@` notation.
+**Fix**: Pin ambient and use `@` notation:
+```lean
+theorem test : ... := by
+  let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›  -- ✅ Pin it!
+  let mSub : MeasurableSpace Ω := ...
+
+  have h1 : @MeasurableSet Ω m0 s1 := ...  -- ✅ Forces m0
+  have h2 : @MeasurableSet Ω mSub s2 := ... -- ✅ Explicit about mSub
+  have h3 : @MeasurableSet Ω m0 s3 := ...   -- ✅ Forces m0
+```
 
 ### ❌ Mistake 3: Using `letI` for non-instance data
 ```lean
@@ -272,10 +294,10 @@ have : MeasurableSet s := ...  -- Now EVERYTHING uses mSub
 
 | Situation | Solution | Complexity |
 |-----------|----------|------------|
-| Sub-σ-algebra used 1-2 times | Solution 1: No local binding | ⭐ Simple |
-| Sub-σ-algebra used many times, can restructure | Solution 2: Ambient work first | ⭐⭐ Medium |
-| Multiple theorems need same sub-σ-algebra | Solution 4: Section `abbrev` | ⭐⭐ Medium |
-| Can't restructure, need both instances | Solution 3: Force with `@` | ⭐⭐⭐ Complex |
+| Alternative instance used 1-2 times | Solution 1: No local binding | ⭐ Simple |
+| Need both ambient and alternative instances | Solution 2: Pin `m0` + use `@` | ⭐⭐ Medium (RECOMMENDED) |
+| Multiple theorems need same alternative | Solution 4: Section `abbrev` | ⭐⭐ Medium |
+| Can't modify start of proof | Solution 3: Force with `@` everywhere | ⭐⭐⭐ Complex |
 
 ---
 
@@ -283,10 +305,13 @@ have : MeasurableSet s := ...  -- Now EVERYTHING uses mSub
 
 - **`let`/`set` always create local constants that pollute instance inference** for ANY typeclass
 - **`abbrev` only works at top-level, not in proofs**
-- **Best practice**: Do ambient instance work BEFORE defining alternative instances
-- **If stuck**: Use `@` notation to force the ambient instance
+- **Best practice**: Pin ambient instance (`let m0 := ‹...›`) + use `@` notation for ALL ambient facts
+- **`@` notation is NOT optional**: Even if you do ambient work "first," outer scope pollution requires explicit `@`
 - **Never use**: `letI` for data (only for actual instance replacement)
 
-The key insight: **Instance pollution is about WHEN you create the binding, not HOW**. The solution is to control the order of your proof steps, not to find a magic binding syntax.
+The key insights:
+1. **Instance pollution is about SCOPE, not ORDER**: If ANY outer scope has a conflicting instance, you're polluted
+2. **Pin + `@` is the solution**: Pin the ambient instance and explicitly force it with `@` notation
+3. **No magic syntax exists**: You can't avoid `@` notation when pollution exists anywhere in scope
 
 **This applies to all typeclasses:** While examples use `MeasurableSpace Ω`, the same patterns prevent pollution with `Metric α`, `LinearOrder β`, `Group G`, etc.
