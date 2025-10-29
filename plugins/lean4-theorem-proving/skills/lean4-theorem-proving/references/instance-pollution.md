@@ -138,6 +138,55 @@ Lean will pick a recently-defined instance from ANY scope (including outer scope
 
 ---
 
+### Performance Optimization: Three-Tier Instance Strategy
+
+**Problem:** Even with pinning `m0` and using `@`, calling mathlib lemmas that infer instances can cause **timeout errors** due to expensive type unification (500k+ heartbeats).
+
+**Why it happens:** When you have `@MeasurableSet Ω m0 (Z ⁻¹' B)` but call a mathlib lemma expecting the ambient instance, Lean spends massive time reconciling `m0` with the inferred instance.
+
+**Solution:** Maintain THREE versions of key facts:
+
+```lean
+theorem test : ... := by
+  -- ✅ Tier 1: Pin the ambient instance
+  let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›
+
+  -- ✅ Tier 2: m0 versions (for explicit @ notation)
+  have hZ_m0 : @Measurable Ω β m0 _ Z := by simpa [m0] using hZ
+  have hBpre_m0 : @MeasurableSet Ω m0 (Z ⁻¹' B) := hB.preimage hZ_m0
+  have hCpre_m0 : @MeasurableSet Ω m0 (W ⁻¹' C) := hC.preimage hW_m0
+
+  -- ✅ Tier 3: Ambient versions (for mathlib lemmas that infer instances)
+  have hBpre : MeasurableSet (Z ⁻¹' B) := by simpa [m0] using hBpre_m0
+  have hCpre : MeasurableSet (W ⁻¹' C) := by simpa [m0] using hCpre_m0
+
+  -- Use the right version for each context:
+  have integral1 := integral_indicator hBpre ...  -- Uses ambient version
+  have explicit : @MeasurableSet Ω m0 s := ...    -- Uses m0 version
+```
+
+**Usage rules:**
+- **Use `_m0` versions** when you need explicit `@` annotations or work with sub-instances
+- **Use ambient versions** when calling mathlib lemmas that infer instances (`integral_indicator`, `setIntegral_condExp`, etc.)
+- **Convert between them** with `simpa [m0] using ...`
+
+**Why this works:**
+1. **Definitional equality:** `m0 := ‹MeasurableSpace Ω›` means `m0` equals the ambient instance definitionally
+2. **Cheap conversion:** `simpa [m0]` unfolds the definition quickly (not expensive unification)
+3. **Avoids unification:** Mathlib lemmas get facts with the instance they expect, no search needed
+
+**Performance impact:**
+- **Before:** 500k+ heartbeats on unification → timeout errors
+- **After:** Compiles within normal limits
+- **Result:** Timeout errors eliminated ✅
+
+**When to use this pattern:**
+- Multiple instances in scope (e.g., `m0`, `mW`, `mZW`)
+- Calling mathlib lemmas that infer instances
+- Experiencing timeout errors during type checking
+
+---
+
 ### Solution 3: Force with `@` Everywhere (Fallback When You Can't Pin)
 
 **When to use**: When you can't pin `m0` at the start (e.g., instances defined in outer scope you can't change).
@@ -313,5 +362,6 @@ The key insights:
 1. **Instance pollution is about SCOPE, not ORDER**: If ANY outer scope has a conflicting instance, you're polluted
 2. **Pin + `@` is the solution**: Pin the ambient instance and explicitly force it with `@` notation
 3. **No magic syntax exists**: You can't avoid `@` notation when pollution exists anywhere in scope
+4. **Performance optimization**: Use three-tier strategy (`_m0` versions + ambient versions) to avoid expensive unification when calling mathlib lemmas
 
 **This applies to all typeclasses:** While examples use `MeasurableSpace Ω`, the same patterns prevent pollution with `Metric α`, `LinearOrder β`, `Group G`, etc.

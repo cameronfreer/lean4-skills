@@ -134,7 +134,21 @@ theorem my_theorem ... := by
 
 **Why `@` is required:** Even if you do ambient work "first," outer scope pollution (e.g., `mW` defined in parent scope) makes Lean pick the wrong instance unless you explicitly force `m0` with `@` notation.
 
-**📚 For full details:** See [instance-pollution.md](instance-pollution.md) - explains scope pollution and 4 solutions
+**⚡ Performance optimization:** If calling mathlib lemmas causes timeout errors, use the **three-tier strategy**:
+```lean
+-- Tier 2: m0 versions (for @ notation)
+have hBpre_m0 : @MeasurableSet Ω m0 (Z ⁻¹' B) := hB.preimage hZ_m0
+
+-- Tier 3: Ambient versions (for mathlib lemmas that infer instances)
+have hBpre : MeasurableSet (Z ⁻¹' B) := by simpa [m0] using hBpre_m0
+
+-- Use ambient version with mathlib:
+have := integral_indicator hBpre ...  -- No expensive unification!
+```
+
+This eliminates timeout errors (500k+ heartbeats → normal) by avoiding expensive type unification.
+
+**📚 For full details:** See [instance-pollution.md](instance-pollution.md) - explains scope pollution, 4 solutions, and performance optimization
 
 ---
 
