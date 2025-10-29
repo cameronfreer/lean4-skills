@@ -16,7 +16,7 @@ When working with sub-σ-algebras and conditional expectation:
 1. **Make ambient space explicit:** `{m₀ : MeasurableSpace Ω}` (never `‹_›`)
 2. **Correct binder order:** All instance parameters first, THEN plain parameters
 3. **Use `haveI`** to provide trimmed measure instances before calling mathlib
-4. **Freeze ambient instance:** `let m0 : MeasurableSpace Ω := ‹_›` prevents drift
+4. **Avoid instance pollution:** Do ambient work FIRST, then define sub-σ-algebras (see [instance-pollution.md](instance-pollution.md))
 5. **Prefer set-integral projection:** Use `set_integral_condexp` instead of proving `μ[g|m] = g`
 6. **Rewrite products to indicators:** `f * indicator` → `indicator f` avoids measurability issues
 7. **Follow condExpWith pattern** for conditional expectation (see below)
@@ -32,9 +32,9 @@ When working with sub-σ-algebras and conditional expectation:
    - Bug: Resolves to `m` instead of ambient, giving `hm : m ≤ m`
    - Fix: Explicit `{m₀ : MeasurableSpace Ω}` and `hm : m ≤ m₀`
 
-2. **❌ Don't `letI` to sub-σ-algebra for entire proof**
-   - Bug: Instance drift makes Lean treat Ω as σ(W) unexpectedly
-   - Fix: `let m0 : MeasurableSpace Ω := ‹_›` then use `@` or local `haveI`
+2. **❌ Don't define sub-σ-algebras before doing ambient work**
+   - Bug: Instance pollution makes Lean pick local `mW` over ambient instance
+   - Fix: Do ALL ambient work first, THEN define `let mW := ...`
 
 3. **❌ Don't prove CE idempotence when you need set-integral equality**
    - Hard: Proving `μ[g|m] = g` a.e.
@@ -107,26 +107,34 @@ lemma good {Ω : Type*} [inst : MeasurableSpace Ω]
 
 ## Advanced Patterns (Battle-Tested from Real Projects)
 
-### 1. Freeze Ambient to Stop Instance Drift
+### 1. Avoid Instance Pollution (Do Ambient Work First)
+
+**Problem:** When you define `let mW : MeasurableSpace Ω := ...`, Lean picks `mW` over the ambient instance, causing type mismatches.
+
+**⭐ PREFERRED: Do ambient work FIRST, then define locals**
 
 ```lean
--- Freeze ambient once at start
-let m0 : MeasurableSpace Ω := ‹_›
+theorem my_theorem ... := by
+  -- ✅ STEP 1: ALL ambient instance work FIRST
+  have hBpre : MeasurableSet (Z ⁻¹' B) := hB.preimage hZ
+  have hCpre : MeasurableSet (W ⁻¹' C) := hC.preimage hW
+  -- ... all other ambient facts
 
--- Build sub-σ-algebras explicitly (NO letI)
-let mW  : MeasurableSpace Ω := MeasurableSpace.comap W  m0
-let mZW : MeasurableSpace Ω := MeasurableSpace.comap (fun ω => (Z ω, W ω)) m0
+  -- ✅ STEP 2: NOW define sub-σ-algebras (safe!)
+  let mW  : MeasurableSpace Ω := MeasurableSpace.comap W inferInstance
+  let mZW : MeasurableSpace Ω := MeasurableSpace.comap (fun ω => (Z ω, W ω)) inferInstance
 
--- Pin ambient measurability to m0
-have hZ_amb : @Measurable Ω m0 _ Z := by simpa using hZ
+  -- ✅ STEP 3: Work with sub-σ-algebras
+  have hmW_le : mW ≤ ‹MeasurableSpace Ω› := hW.comap_le
 ```
 
-**When lemma needs ambient instance:**
+**⚠️ If you can't restructure:** Force ambient instance with `@`
 ```lean
-have hBpre : MeasurableSet (Z ⁻¹' B) := by
-  haveI : MeasurableSpace Ω := m0  -- Local override
-  simpa using hB.preimage hZ
+let mW : MeasurableSpace Ω := ...  -- Creates pollution
+have hBpre : @MeasurableSet Ω inst (Z ⁻¹' B) := hB.preimage hZ  -- Force with @
 ```
+
+**📚 For full details:** See [instance-pollution.md](instance-pollution.md) for 4 solutions to instance pollution
 
 ---
 
