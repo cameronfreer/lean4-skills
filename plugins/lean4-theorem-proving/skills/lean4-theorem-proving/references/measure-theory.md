@@ -206,6 +206,199 @@ have hs_m₀ : MeasurableSet[m₀] s := hm _ hs_m  -- hm : m ≤ m₀
 **"failed to synthesize instance IsFiniteMeasure ?m.104"**
 → Make ambient space explicit and provide trimmed measure instances
 
+## ❌ DON'T USE THIS HERE (Common Anti-Patterns)
+
+**These patterns cause subtle bugs. Avoid them:**
+
+1. **❌ Don't `letI` the whole goal to a sub-σ-algebra instance**
+   - Problem: Instance drift makes Lean treat Ω's instance as σ(W) unexpectedly
+   - Fix: Freeze ambient with `let m0 : MeasurableSpace Ω := ‹_›` and use `@` or local `haveI`
+
+2. **❌ Don't prove idempotence of CE when you only need set-integral equality**
+   - Problem: Proving `μ[g|m] = g` a.e. is harder than needed
+   - Fix: Use `set_integral_condexp` for s ∈ m instead
+
+3. **❌ Don't force measurability of products directly**
+   - Problem: `AEStronglyMeasurable (fun ω => f ω * g ω)` synthesis is fragile
+   - Fix: Rewrite to indicator form and use `Integrable.indicator`
+
+---
+
+## Advanced Patterns from Real Projects
+
+### 1. Freeze the Ambient σ-Algebra (Stop Instance Drift)
+
+**Problem:** `letI` or implicit inference can make Lean treat Ω's instance as σ(W) or σ(Z,W) unexpectedly, causing type mismatches.
+
+**Solution:** Freeze the ambient measurable space once at the start:
+
+```lean
+-- Freeze the ambient measurable space once
+let m0 : MeasurableSpace Ω := ‹_›
+
+-- Build sub-σ-algebras explicitly (NO letI)
+let mW  : MeasurableSpace Ω := MeasurableSpace.comap W  m0
+let mZW : MeasurableSpace Ω := MeasurableSpace.comap (fun ω => (Z ω, W ω)) m0
+
+-- Ambient measurability pinned to m0
+have hZ_amb : @Measurable Ω m0 _ Z := by simpa using hZ
+have hBpre_amb : @MeasurableSet Ω m0 (Z ⁻¹' B) := hB.preimage hZ_amb
+```
+
+**When a lemma must use the ambient instance,** force it with `@… Ω m0 …` or a tiny local block:
+
+```lean
+have hBpre_amb : MeasurableSet (Z ⁻¹' B) := by
+  haveI : MeasurableSpace Ω := m0
+  simpa using hB.preimage hZ
+```
+
+---
+
+### 2. Always Prefer Set-Integral Projection Over CE Idempotence
+
+**Instead of proving** `μ[g|m] = g` a.e. (hard), **do this:**
+
+```lean
+-- For s ∈ m, Integrable g:
+have hset : ∫ x in s, μ[g|m] x ∂μ = ∫ x in s, g x ∂μ :=
+  set_integral_condexp (μ := μ) (m := m) (hm := hm_le) (hs := hs) (hf := hg)
+```
+
+**Recommended wrapper** to avoid mathlib name/order drift:
+
+```lean
+lemma setIntegral_condExp_eq
+    (μ : Measure Ω) (m : MeasurableSpace Ω) (hm : m ≤ ‹_›)
+    {s : Set Ω} (hs : MeasurableSet s) {g : Ω → ℝ} (hg : Integrable g μ) :
+  ∫ x in s, μ[g|m] x ∂μ = ∫ x in s, g x ∂μ := by
+  simpa using (set_integral_condexp (μ := μ) (m := m) (hm := hm) (hs := hs) (hf := hg))
+```
+
+---
+
+### 3. Product vs Indicator: Rewrite, Don't Fight Measurability
+
+**Pattern:** When you have `f * indicator`, rewrite to `indicator f` and use `Integrable.indicator` instead of proving product measurability.
+
+**Canonical pointwise identity:**
+
+```lean
+-- gB := (Z ⁻¹' B).indicator (fun _ => (1 : ℝ))
+have hMulAsInd :
+  (fun ω => μ[f|mW] ω * gB ω) = (Z ⁻¹' B).indicator (μ[f|mW]) := by
+  funext ω; by_cases hω : ω ∈ Z ⁻¹' B
+  · simp [gB, hω, Set.indicator_of_mem, mul_one]
+  · simp [gB, hω, Set.indicator_of_notMem, mul_zero]
+
+-- Integrability of the product without touching product measurability:
+have hIntProd : Integrable (fun ω => μ[f|mW] ω * gB ω) μ := by
+  have hIntCE : Integrable (μ[f|mW]) μ := integrable_condexp
+  have hBpre_amb : MeasurableSet (Z ⁻¹' B) := hB.preimage hZ
+  simpa [hMulAsInd] using hIntCE.indicator hBpre_amb
+```
+
+**Restricted integral identity:**
+
+```
+∫_{W⁻¹ C} (μ[f|mW] * gB) = ∫_{W⁻¹ C} (Z⁻¹ B).indicator (μ[f|mW])
+                          = ∫_{W⁻¹ C ∩ Z⁻¹ B} μ[f|mW]
+```
+
+---
+
+### 4. Bounding CE Pointwise: Use the A.E. Boundedness Lemma
+
+**Pattern:** Go from `|f| ≤ 1` to `|μ[f|m]| ≤ 1` a.e. with friction-free NNReal casting:
+
+```lean
+-- Start with a real bound
+have hbdd_f : ∀ᵐ ω ∂μ, |f ω| ≤ (1 : ℝ) := …
+
+-- Coerce inside the event to avoid LE synthesis errors
+have hbdd_f' : ∀ᵐ ω ∂μ, |f ω| ≤ ((1 : ℝ≥0) : ℝ) :=
+  hbdd_f.mono (by intro ω h; simpa [NNReal.coe_one] using h)
+
+-- Then apply the lemma and switch abs↔norm
+have hCE_le_one : ∀ᵐ ω ∂μ, ‖μ[f|m] ω‖ ≤ (1 : ℝ) := by
+  simpa [Real.norm_eq_abs, NNReal.coe_one] using
+    (MeasureTheory.ae_bdd_condExp_of_ae_bdd
+      (μ := μ) (m := m) (R := (1 : ℝ≥0)) (f := f) hbdd_f')
+```
+
+**Recommended wrapper** with a real bound `R : ℝ, 0 ≤ R`:
+
+```lean
+lemma ae_bdd_condExp_real
+    (μ : Measure Ω) (m : MeasurableSpace Ω)
+    {f : Ω → ℝ} {R : ℝ} (hR : 0 ≤ R) (hbdd : ∀ᵐ ω ∂μ, |f ω| ≤ R) :
+  ∀ᵐ ω ∂μ, ‖μ[f|m] ω‖ ≤ R := by
+  have hR_nn : R = ((⟨R, hR⟩ : ℝ≥0) : ℝ) := by simp
+  have hbdd' : ∀ᵐ ω ∂μ, |f ω| ≤ ((⟨R, hR⟩ : ℝ≥0) : ℝ) :=
+    hbdd.mono (by intro ω h; simpa [hR_nn] using h)
+  simpa [Real.norm_eq_abs, hR_nn] using
+    (MeasureTheory.ae_bdd_condExp_of_ae_bdd
+      (μ := μ) (m := m) (R := ⟨R, hR⟩) (f := f) hbdd')
+```
+
+---
+
+### 5. σ-Algebra Relations: Ready-to-Paste Facts
+
+**Copy these whenever you need σ-algebra relations:**
+
+```lean
+-- σ(W) ≤ ambient
+have hmW_le  : mW ≤ ‹MeasurableSpace Ω› := hW.comap_le
+
+-- σ(Z,W) ≤ ambient
+have hmZW_le : mZW ≤ ‹MeasurableSpace Ω› := (hZ.prod_mk hW).comap_le
+
+-- σ(W) ≤ σ(Z,W)
+have hmW_le_mZW : mW ≤ mZW :=
+  (measurable_snd.comp (hZ.prod_mk hW)).comap_le
+
+-- Measurability transport
+have hsm_ce    : StronglyMeasurable[mW] (μ[f|mW]) := stronglyMeasurable_condexp
+have hsm_ceAmb : StronglyMeasurable (μ[f|mW])     := hsm_ce.mono hmW_le
+have haesm_ce  : AEStronglyMeasurable (μ[f|mW]) μ := hsm_ceAmb.aestronglyMeasurable
+```
+
+---
+
+### 6. Indicator-Integration Cookbook (Direction Matters)
+
+**Two rewrites that always work:**
+
+```lean
+-- Unrestricted integral:
+∫ (Z⁻¹ B).indicator h = ∫ h * ((Z⁻¹ B).indicator (fun _ => (1:ℝ)))
+
+-- Restricted integral by S:
+∫_{S} (Z⁻¹ B).indicator h = ∫_{S ∩ Z⁻¹ B} h
+```
+
+**Example with `by_cases` + `simp`** to avoid fragile lemma names:
+
+```lean
+have hRewrite : (fun ω => h ω * indicator (Z⁻¹' B) (fun _ => (1:ℝ)) ω)
+              = indicator (Z⁻¹' B) h := by
+  funext ω
+  by_cases hω : ω ∈ Z⁻¹' B
+  · simp [hω, Set.indicator_of_mem, mul_one]
+  · simp [hω, Set.indicator_of_notMem, mul_zero]
+
+-- Then use integral_congr_ae or rw [hRewrite]
+```
+
+**Key lemmas for indicator manipulation:**
+- `integral_indicator` - convert indicator to restricted integral
+- `Integrable.indicator` - integrability from measurability + integrability
+- `Set.indicator_of_mem`, `Set.indicator_of_notMem` - pointwise simplification
+- `Set.indicator_indicator` - nested indicators (S ∩ T pattern)
+
+---
+
 ## TL;DR
 
 When working with sub-σ-algebras and conditional expectation:
@@ -214,5 +407,36 @@ When working with sub-σ-algebras and conditional expectation:
 3. **Use `haveI`** to provide trimmed measure instances
 4. **Correct binder order:** All instances first, then plain parameters
 5. **Follow condExpWith pattern** for conditional expectation work
+6. **Freeze ambient instance** with `let m0 : MeasurableSpace Ω := ‹_›`
+7. **Prefer set-integral projection** over CE idempotence proofs
+8. **Rewrite products to indicators** instead of proving product measurability
 
 This prevents type class inference failures and is essential for any serious work with conditional expectation in Lean 4.
+
+---
+
+## Mathlib Lemma Quick Reference
+
+**Conditional expectation basics:**
+- `integrable_condexp` - CE is integrable
+- `stronglyMeasurable_condexp` - CE is strongly measurable in sub-σ-algebra
+- `aestronglyMeasurable_condexp` - CE is a.e. strongly measurable
+
+**Set-integral projection:**
+- `set_integral_condexp` - `∫_{s} μ[f|m] = ∫_{s} f` for s ∈ m
+- Wrap as `setIntegral_condExp_eq` to avoid parameter order changes
+
+**A.E. boundedness:**
+- `MeasureTheory.ae_bdd_condExp_of_ae_bdd` - bound CE from bound on f (NNReal version)
+- Wrap as `ae_bdd_condExp_real` for real bounds
+
+**Indicator helpers:**
+- `integral_indicator` - `∫ s.indicator f = ∫_{s} f`
+- `Integrable.indicator` - integrability of indicator functions
+- `Set.indicator_of_mem` - `indicator s f x = f x` when `x ∈ s`
+- `Set.indicator_of_notMem` - `indicator s f x = 0` when `x ∉ s`
+- `Set.indicator_indicator` - nested indicators collapse to intersection
+
+**Trimmed measures:**
+- `isFiniteMeasure_trim` - transfer finite measure to trimmed measure
+- `sigmaFinite_trim` - transfer σ-finiteness to trimmed measure
