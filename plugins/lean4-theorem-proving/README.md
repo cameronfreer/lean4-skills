@@ -284,6 +284,14 @@ This plugin includes a `SessionStart` hook (`hooks/bootstrap.sh`) that runs once
 
 This staging approach allows slash commands to reference scripts reliably without triggering Claude Code's parameter substitution security filter.
 
+### Optional CLI Helpers
+
+The skills work without external tools, but installing **`ripgrep`** and **`timeout`** improves performance:
+- **ripgrep:** Much faster searches (required for Lean LSP's `lean_local_search`)
+- **timeout:** Reliably aborts long-running processes
+
+See [INSTALLATION.md](../../INSTALLATION.md#optional-cli-helpers-ripgrep--timeout) for platform-specific installation instructions.
+
 ## Contributing
 
 Contributions welcome! See [main README](../README.md#contributing) for guidelines.

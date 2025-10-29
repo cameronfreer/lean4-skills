@@ -66,6 +66,92 @@ No special setup required. Use Terminal with the installation commands above.
 
 No special setup required. Use your preferred shell with the installation commands above.
 
+## Optional CLI Helpers: ripgrep & timeout
+
+The skills work without these tools, but installing them makes searches **much faster** (`ripgrep`) and keeps long tasks **well-behaved** (`timeout`).
+
+- **`ripgrep` (`rg`)**: Fast recursive search used by scripts and local searches
+  - Core skills: optional (faster searches)
+  - Lean LSP workflow: **required** (for `lean_local_search` tool)
+- **GNU `timeout`**: Cleanly aborts subprocesses after a time limit
+  - If missing, a portable fallback is used (less reliable with deep process trees)
+
+### Installation
+
+**macOS:**
+```bash
+brew install ripgrep coreutils
+# GNU timeout installed as `gtimeout`. Optionally alias:
+echo 'alias timeout="gtimeout"' >> ~/.zshrc && exec $SHELL -l
+```
+
+Alternative (no `gtimeout` prefix):
+```bash
+brew install aisk/homebrew-tap/timeout
+```
+
+**Linux:**
+```bash
+# Debian/Ubuntu
+sudo apt-get update && sudo apt-get install -y ripgrep coreutils
+
+# Fedora/RHEL/CentOS
+sudo dnf install -y ripgrep coreutils
+
+# Arch/Manjaro
+sudo pacman -S --noconfirm ripgrep coreutils
+```
+
+**Windows:**
+
+Choose one path:
+
+- **winget + MSYS2 (recommended)**
+  ```powershell
+  winget install BurntSushi.ripgrep.MSVC
+  winget install MSYS2.MSYS2
+  # In MSYS2 shell:
+  pacman -S --noconfirm coreutils
+  # Add to PATH: C:\msys64\usr\bin
+  ```
+
+- **Scoop**
+  ```powershell
+  scoop install ripgrep msys2
+  # then in MSYS2: pacman -S --noconfirm coreutils
+  ```
+
+- **Chocolatey**
+  ```powershell
+  choco install ripgrep msys2
+  # then in MSYS2: pacman -S --noconfirm coreutils
+  ```
+
+⚠️ Windows' built-in `timeout.exe` only *waits*; it does **not** kill processes. Use MSYS2/coreutils `timeout.exe`.
+
+### Verification
+
+```bash
+rg --version
+timeout --version   # macOS may be `gtimeout --version`
+```
+
+Windows (PowerShell):
+```powershell
+Get-Command rg
+Get-Command timeout   # should resolve to MSYS2\usr\bin\timeout.exe
+```
+
+### PATH Notes
+
+- **macOS with coreutils:** Either call `gtimeout` explicitly or alias `timeout="gtimeout"`
+- **Windows:** Ensure `C:\msys64\usr\bin` is **before** `C:\Windows\System32` in PATH
+
+### If Missing
+
+- Search falls back to `grep` (slower)
+- A portable timer is used (may not reliably kill deep process trees on all shells)
+
 ## Lean LSP Server
 
 **The LSP server provides 30x faster feedback than build-only workflows.**
