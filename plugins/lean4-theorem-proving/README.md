@@ -110,7 +110,7 @@ The plugin includes 16 automation scripts organized by category:
 - [calc-patterns.md](skills/lean4-theorem-proving/references/calc-patterns.md) - Calc chain patterns and simp optimization
 - [domain-patterns.md](skills/lean4-theorem-proving/references/domain-patterns.md) - Math domain-specific patterns
 - [measure-theory.md](skills/lean4-theorem-proving/references/measure-theory.md) - Sub-σ-algebras and conditional expectation
-- [instance-pollution.md](skills/lean4-theorem-proving/references/instance-pollution.md) - Avoiding instance pollution with sub-σ-algebras
+- [instance-pollution.md](skills/lean4-theorem-proving/references/instance-pollution.md) - Avoiding instance pollution when working with multiple typeclass instances
 - [compilation-errors.md](skills/lean4-theorem-proving/references/compilation-errors.md) - Error debugging and solutions
 - [proof-golfing.md](skills/lean4-theorem-proving/references/proof-golfing.md) - Simplifying proofs after compilation
 - [lean-lsp-server.md](skills/lean4-theorem-proving/references/lean-lsp-server.md) - Lean LSP server quick reference (Claude Code users)
@@ -177,7 +177,7 @@ lean4-theorem-proving/
         ├── calc-patterns.md       # Calc chain patterns
         ├── domain-patterns.md     # Math patterns
         ├── measure-theory.md      # Sub-σ-algebras, conditional expectation
-        ├── instance-pollution.md  # Avoiding instance pollution
+        ├── instance-pollution.md  # Typeclass instance pollution
         ├── compilation-errors.md  # Error solutions
         ├── proof-golfing.md       # Proof simplification
         ├── lean-lsp-server.md     # LSP quick reference (Claude Code)
