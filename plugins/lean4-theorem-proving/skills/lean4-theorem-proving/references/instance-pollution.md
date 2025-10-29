@@ -2,7 +2,15 @@
 
 ## The Problem
 
-When you have multiple `MeasurableSpace Ω` instances in scope, Lean's elaborator preferentially selects **recently-defined local constants** over the ambient typeclass instance.
+When you have multiple instances of the same typeclass in scope (e.g., multiple `MeasurableSpace Ω`, `Metric α`, or `LinearOrder β` instances), Lean's elaborator preferentially selects **recently-defined local constants** over the ambient typeclass instance.
+
+**Common scenarios:**
+- Working with sub-σ-algebras in measure theory (`MeasurableSpace`)
+- Different metrics on the same space (`Metric`, `PseudoMetricSpace`)
+- Alternative orderings (`Preorder`, `PartialOrder`, `LinearOrder`)
+- Custom group structures (`Group`, `AddGroup`)
+
+**Key example throughout this guide:** `MeasurableSpace Ω` (measure theory), but the patterns apply to any typeclass.
 
 ### Example of the Problem
 
@@ -273,10 +281,12 @@ have : MeasurableSet s := ...  -- Now EVERYTHING uses mSub
 
 ## Summary
 
-- **`let`/`set` always create local constants that pollute instance inference**
+- **`let`/`set` always create local constants that pollute instance inference** for ANY typeclass
 - **`abbrev` only works at top-level, not in proofs**
-- **Best practice**: Do ambient instance work BEFORE defining sub-σ-algebras
+- **Best practice**: Do ambient instance work BEFORE defining alternative instances
 - **If stuck**: Use `@` notation to force the ambient instance
 - **Never use**: `letI` for data (only for actual instance replacement)
 
 The key insight: **Instance pollution is about WHEN you create the binding, not HOW**. The solution is to control the order of your proof steps, not to find a magic binding syntax.
+
+**This applies to all typeclasses:** While examples use `MeasurableSpace Ω`, the same patterns prevent pollution with `Metric α`, `LinearOrder β`, `Group G`, etc.
