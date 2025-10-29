@@ -431,37 +431,54 @@ Each result is a 2-element array:
 ]
 ```
 
-**Example 1: Informal math question**
-```python
-lean_leanfinder(query="Does y being a root of minpoly(x) imply minpoly(x)=minpoly(y)?")
-```
-Returns pairs of `[formal_snippet, informal_summary]`
+**Effective query types** (proven on Putnam benchmark problems):
 
-**Example 2: Using current goal (recommended in proofs!)**
+**1. Math + API** - Mix math terms with Lean identifiers:
 ```python
-# Step 1 - Get the goal:
+lean_leanfinder(query="setAverage Icc interval")
+lean_leanfinder(query="integral_pow symmetric bounds")
+```
+Best for: When you know the math concept AND suspect which Lean API area it's in
+
+**2. Conceptual** - Pure mathematical concepts:
+```python
+lean_leanfinder(query="algebraic elements same minimal polynomial")
+lean_leanfinder(query="quadrature nodes")
+```
+Best for: Abstract math ideas without knowing Lean names
+
+**3. Structure** - Mathlib structures with operations:
+```python
+lean_leanfinder(query="Finset expect sum commute")
+lean_leanfinder(query="polynomial degree bounded eval")
+```
+Best for: Combining type names with operations/properties
+
+**4. Natural** - Plain English statements:
+```python
+lean_leanfinder(query="average equals point values")
+lean_leanfinder(query="root implies equal polynomials")
+```
+Best for: Translating informal math to formal theorems
+
+**5. Goal-based** (recommended in proofs!):
+```python
+# Get current goal:
 lean_goal(file_path="/path/to/file.lean", line=24)
 # Output: ⊢ |re z| ≤ ‖z‖
 
-# Step 2 - Feed goal (with optional hint) to Lean Finder:
-lean_leanfinder(query="⊢ |re z| ≤ ‖z‖ + transform to squared norm inequality")
+# Use goal with optional hint:
+lean_leanfinder(query="⊢ |re z| ≤ ‖z‖ + transform to squared norm")
 ```
+Best for: Finding lemmas that directly help your current proof state
 
-**Example 3: Statement fragment**
+**6. Q&A style** - Direct questions:
 ```python
-lean_leanfinder(query="theorem restrict Ioi: restrict Ioi e = restrict Ici e")
+lean_leanfinder(query="Does y being a root of minpoly(x) imply minpoly(x)=minpoly(y)?")
 ```
+Best for: Exploring if a mathematical property holds
 
-**Example 4: Informal description**
-```python
-lean_leanfinder(query="algebraic elements x,y over K with same minimal polynomial")
-```
-
-**Good query styles:**
-- Informal: `"algebraic elements x,y over K with same minimal polynomial"`
-- Q&A: `"Does y being a root of minpoly(x) imply minpoly(x)=minpoly(y)?"`
-- Goal-based: Paste `"⊢ ..."` (optionally add 3-6 word cue like `"⊢ ... use triangle inequality"`)
-- Fragment: `"theorem restrict Ioi: restrict Ioi e = restrict Ici e"`
+**Key insight:** Mix informal math terms with Lean identifiers. **Multiple targeted queries beat one complex query.**
 
 **Workflow pattern:**
 1. `lean_goal` to get current goal
@@ -470,10 +487,12 @@ lean_leanfinder(query="algebraic elements x,y over K with same minimal polynomia
 4. Test with `lean_multi_attempt`
 
 **Pro tips:**
+- **Multiple targeted queries beat one complex query** - break down your search
 - Goal text works best - paste directly from `lean_goal` output
+- Mix informal math with Lean API terms (e.g., "setAverage Icc interval")
 - Add 3-6 word hints for direction ("rewrite with minpoly equality")
-- Rephrase in plain English if results are weak
-- Always verify hits by attempting the tactic
+- Try different query types if first attempt yields weak results
+- Always verify hits with `lean_multi_attempt` before committing
 
 **⚠️ Common gotchas:**
 - **Rate limits:** Unlike `lean_local_search` (unlimited), this tool is rate-limited to 3 req/30s shared with other external tools
