@@ -54,6 +54,7 @@
 4. **Check goals between tactics** - see intermediate progress
 5. **Use `lean_multi_attempt` liberally** - test multiple tactics at once
 6. **Respect rate limits** - `lean_local_search` is unlimited, others are 3 req/30s
+7. **NEVER use `lean_file_contents` on large files** - wastes tokens, use `Read` tool instead (see warning below)
 
 ---
 
@@ -76,12 +77,36 @@
 | `lean_multi_attempt` | **Local** | None | Instant | Test tactics in parallel |
 | `lean_diagnostic_messages` | **Local** | None | Instant | Check errors |
 | `lean_hover_info` | **Local** | None | Instant | Check syntax/types |
+| `lean_file_contents` | **Local** | None | Fast | Read files ⚠️ See warning below |
 | `lean_loogle` | **External** | 3/30s | Fast | Type patterns |
 | `lean_leansearch` | **External** | 3/30s | Slower | Natural language |
 | `lean_leanfinder` | **External** | 3/30s | Fast | Semantic search (best for goals!) |
 | `lean_state_search` | **External** | 3/30s | Fast | Proof state |
 
 **See [lean-lsp-tools-api.md](lean-lsp-tools-api.md) for detailed API documentation.**
+
+---
+
+## ⚠️ Important: Avoid `lean_file_contents` on Large Files
+
+**DO NOT use `lean_file_contents` directly on large files** - it wastes tokens and will error if file exceeds 25000 tokens:
+
+```
+Error: MCP tool "lean_file_contents" response (36863 tokens) exceeds
+maximum allowed tokens (25000). Please use pagination, filtering, or
+limit parameters to reduce the response size.
+```
+
+**Instead, use:**
+- **`Read` tool** (Claude Code built-in) - optimized for large files, supports offset/limit
+- **`lean_goal`** - for specific line's proof state (< 1% of file size)
+- **`lean_hover_info`** - for specific term's type
+- **`lean_diagnostic_messages`** - for errors only
+- **`lean_local_search`** - to find specific definitions without reading entire file
+
+**Why:** `lean_file_contents` loads the entire file with annotations, consuming tokens proportional to file size. Most proof development tasks only need targeted information (goals, errors, specific definitions), not the whole file.
+
+**Rule of thumb:** If you need to read a file, use `Read` tool. Only use `lean_file_contents` on small files (<100 lines) when you specifically need LSP annotations.
 
 ---
 
