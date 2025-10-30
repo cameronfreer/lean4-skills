@@ -10,7 +10,9 @@ This reference provides detailed explanations and fixes for the most common comp
 | **"maximum recursion depth"** | Type class loop/complex search | Provide manually: `letI := instance` or increase: `set_option synthInstance.maxHeartbeats 40000` |
 | **"type mismatch"** (has type ℕ but expected ℝ) | Wrong type | Use coercion: `(x : ℝ)` or `↑x` |
 | **"tactic 'exact' failed"** | Goal/term type mismatch | Use `apply` for unification or restructure: `⟨h.2, h.1⟩` |
-| **"unknown identifier 'ring'"** | Missing import | Add: `import Mathlib.Tactic.Ring` |
+| **"unknown identifier"** | Missing import OR unqualified name | Import tactic OR qualify: `Filter.Tendsto` |
+| **"unexpected token/identifier"** | Section comment in proof | Replace `/-! -/` with `--` in tactic mode |
+| **"no goals to be solved"** | Tactic already finished | Remove redundant tactics after `simp` |
 | **"equation compiler failed"** | Can't prove termination | Add `termination_by my_rec n => n` clause |
 
 ## Detailed Error Explanations
@@ -196,14 +198,17 @@ have h2 := part2
 exact ⟨h1, h2⟩
 ```
 
-### 5. Unknown Identifier (Missing Tactic)
+### 5. Unknown Identifier (Missing Tactic or Qualification)
 
 **Full error message:**
 ```
 unknown identifier 'ring'
+unknown identifier 'Tendsto'
 ```
 
-**What it means:** Tactic not imported.
+**What it means:** Tactic not imported OR identifier needs qualification.
+
+**Cause 1: Missing tactic import**
 
 **Common missing imports:**
 ```lean
@@ -219,6 +224,24 @@ import Mathlib.Tactic.Positivity    -- positivity
 1. See error for tactic name
 2. Add `import Mathlib.Tactic.TacticName`
 3. Rebuild
+
+**Cause 2: Bare identifier needs qualification**
+
+Lean 4 requires fully qualified names where Lean 3 allowed bare names:
+
+```lean
+-- ❌ WRONG: Bare identifiers
+have h : Tendsto f atTop (𝓝 x) := ...
+
+-- ✅ CORRECT: Qualified names
+have h : Filter.Tendsto f Filter.atTop (nhds x) := ...
+```
+
+**Common qualifications:**
+- `Tendsto` → `Filter.Tendsto`
+- `atTop` → `Filter.atTop`
+- `𝓝 x` → `nhds x`
+- `eventually` → `Filter.Eventually`
 
 ### 6. Equation Compiler Failed (Termination)
 
@@ -312,6 +335,96 @@ have hm_pos' : m > 0 := Nat.pos_of_ne_zero (by
 - `linarith`: Linear inequalities with variables (`a + b ≤ c`, `x > 0 → x + 1 > 0`)
 - `omega`: Integer linear arithmetic (Lean 4.13+, works on `ℕ` and `ℤ`)
 
+### 8. Unexpected Token/Identifier in Proof (Section Doc Comments)
+
+**Full error message:**
+```
+unexpected identifier; expected command
+unexpected token 'have'; expected command
+```
+
+**What it means:** Section doc comments `/-! ... -/` in tactic mode can terminate proof parsing.
+
+**CRITICAL:** Section doc comments terminate proof context, causing everything after to be interpreted as top-level declarations.
+
+```lean
+-- ❌ WRONG: Section comments break proof
+lemma my_proof := by
+  classical
+  set mW := ... with hmW
+
+  /-! ### Step 0: documentation -/
+
+  set φp := ... with hφp  -- ERROR: unexpected identifier
+  have h := ...           -- ERROR: unexpected token 'have'
+
+-- ✅ CORRECT: Use regular comments
+lemma my_proof := by
+  classical
+  set mW := ... with hmW
+  -- Step 0: documentation
+  set φp := ... with hφp  -- ✓ Works
+  have h := ...           -- ✓ Works
+```
+
+**Best practice:** Use `--` for in-proof comments, reserve `/-! -/` for top-level documentation only.
+
+### 9. Variable Shadowing in Lambda
+
+**Full error message:**
+```
+type mismatch
+  a
+has type
+  Set ℝ≥0∞
+but is expected to have type
+  α
+```
+
+**What it means:** Lambda variable shadows outer variable, causing type confusion.
+
+```lean
+-- ❌ WRONG: 'a' in lambda shadows outer 'a'
+have h_sp_le : ∀ n a, (sp n a) ≤ φp a := by
+  intro n a
+  have := SimpleFunc.iSup_eapprox_apply
+    (fun a => ENNReal.ofReal (max (φ a) 0))  -- 'a' shadows!
+    ... a  -- ERROR: which 'a'?
+
+-- ✅ CORRECT: Rename lambda variable or add type annotation
+have h_sp_le : ∀ n a, (sp n a) ≤ φp a := by
+  intro n a
+  have := SimpleFunc.iSup_eapprox_apply
+    (fun (x : α) => ENNReal.ofReal (max (φ x) 0))
+    ... a  -- ✓ Clear: outer 'a'
+```
+
+**Prevention:** Use different variable names in nested lambdas or add explicit type annotations.
+
+### 10. No Goals After Tactic
+
+**Full error message:**
+```
+no goals to be solved
+```
+
+**What it means:** Previous tactic already completed the proof, but another tactic remains.
+
+```lean
+-- ❌ WRONG: simp already solved goal
+have hφp_nn : ∀ a, 0 ≤ φp a := by
+  intro a
+  simp [φp]
+  exact le_max_right _ _  -- ERROR: no goals left
+
+-- ✅ CORRECT: Remove redundant tactic
+have hφp_nn : ∀ a, 0 ≤ φp a := by
+  intro a
+  simp [φp]  -- ✓ simp completes proof
+```
+
+**Debug:** Check goal state after each tactic. If "no goals" appears, proof is done.
+
 ## Quick Debug Workflow
 
 When encountering any error:
@@ -321,6 +434,17 @@ When encountering any error:
 3. **Simplify** - Try to create minimal example that fails
 4. **Search mathlib** - Error might be documented in lemma comments
 5. **Ask Zulip** - Lean community is very helpful
+
+### Quick Checklist for "Unexpected" Errors in Proofs
+
+When facing "unexpected identifier/token" in long proofs:
+
+1. ☐ Search for `/-! ... -/` section comments → replace with `--`
+2. ☐ Check for bare identifiers (`Tendsto`, `atTop`) → add qualification (`Filter.Tendsto`)
+3. ☐ Look for lambda shadowing → rename variables or add type annotations
+4. ☐ Check for "no goals" after `simp` → remove redundant tactics
+5. ☐ For section variables + explicit params → rely on section, use `(by infer_instance)`
+6. ☐ For sub-σ-algebra work → ensure `hmW_le : mW ≤ _` proof exists
 
 ## Type Class Debugging Commands
 

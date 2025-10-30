@@ -337,6 +337,30 @@ have : MeasurableSet s := ...  -- Now EVERYTHING uses mSub
 
 **Fix**: Only use `letI` when you actually want to replace the instance. For data, use plain `let` (but follow Solution 2 pattern).
 
+### ❌ Mistake 4: Explicit parameter when section provides instance
+
+**Problem:** When section has `variable [MeasurableSpace γ]`, adding explicit `{mγ : MeasurableSpace γ}` parameter creates duplicate instances.
+
+```lean
+-- ❌ WRONG: Duplicate instances
+section
+variable [MeasurableSpace γ]
+
+lemma foo {mγ : MeasurableSpace γ}  -- Creates TWO instances!
+    (hm : m ≤ mγ) := by
+  sorry  -- Error shows "inst✝¹ mγ : MeasurableSpace γ"
+
+-- ✅ CORRECT: Rely on section variable
+section
+variable [MeasurableSpace γ]
+
+lemma foo (W : Ω → γ) (hW : Measurable W) := by
+  set mW := MeasurableSpace.comap W (by infer_instance : MeasurableSpace γ)
+  have hmW_le : mW ≤ _ := hW.comap_le  -- ✓ Infers section instance
+```
+
+**Use `(by infer_instance)` to reference the section's typeclass instance explicitly.**
+
 ---
 
 ## Quick Reference
