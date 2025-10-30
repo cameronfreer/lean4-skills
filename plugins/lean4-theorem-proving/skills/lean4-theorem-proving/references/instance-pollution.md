@@ -361,6 +361,36 @@ lemma foo (W : Ω → γ) (hW : Measurable W) := by
 
 **Use `(by infer_instance)` to reference the section's typeclass instance explicitly.**
 
+### ❌ Mistake 5: Using `(by infer_instance)` in lemma signatures
+
+**Problem:** Mixing instance synthesis `(by infer_instance)` with plain definitions creates elaboration mismatches that can't be resolved with `rw`, `simp`, `convert`, or `@` notation.
+
+```lean
+-- ❌ WRONG: Instance synthesis in signature
+lemma foo (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (W : Ω → γ) (hCI : SomeProperty W) :
+    μ[ ... | MeasurableSpace.comap W (by infer_instance) ] = ...
+
+-- Caller context:
+set mW := MeasurableSpace.comap W (by infer_instance : MeasurableSpace γ)
+apply foo  -- ERROR: synthesized mW, inferred inst✝⁴ (distinct!)
+
+-- ✅ CORRECT: Explicit parameter
+lemma foo {Ω : Type*} {m₀ : MeasurableSpace Ω}  -- Explicit ambient
+    {γ : Type*} [MeasurableSpace γ]
+    {μ : Measure Ω} [IsProbabilityMeasure μ]     -- All instances first
+    (W : Ω → γ) (hCI : SomeProperty W)           -- Plain parameters
+    {m : MeasurableSpace Ω} (hm : m ≤ m₀) :      -- Explicit sub-σ-algebra
+    μ[ ... | m ] = ...                           -- Use plain parameter
+
+-- Caller context:
+set mW := MeasurableSpace.comap W (by infer_instance : MeasurableSpace γ)
+have hmW : mW ≤ _ := hW.comap_le
+apply foo (m := mW) (hm := hmW)  -- ✓ Works
+```
+
+**General principle:** Avoid `(by infer_instance)` in signatures when the instance will be constructed differently by callers. Use explicit parameters instead.
+
 ---
 
 ## Quick Reference
@@ -381,11 +411,13 @@ lemma foo (W : Ω → γ) (hW : Measurable W) := by
 - **Best practice**: Pin ambient instance (`let m0 := ‹...›`) + use `@` notation for ALL ambient facts
 - **`@` notation is NOT optional**: Even if you do ambient work "first," outer scope pollution requires explicit `@`
 - **Never use**: `letI` for data (only for actual instance replacement)
+- **Lemma signatures**: Avoid `(by infer_instance)` in signatures when callers construct instances differently; use explicit parameters
 
 The key insights:
 1. **Instance pollution is about SCOPE, not ORDER**: If ANY outer scope has a conflicting instance, you're polluted
 2. **Pin + `@` is the solution**: Pin the ambient instance and explicitly force it with `@` notation
 3. **No magic syntax exists**: You can't avoid `@` notation when pollution exists anywhere in scope
 4. **Performance optimization**: Use three-tier strategy (`_m0` versions + ambient versions) to avoid expensive unification when calling mathlib lemmas
+5. **Elaboration vs definitional equality**: `(by infer_instance)` and `set m := ...` are definitionally equal but elaborator treats them as distinct
 
 **This applies to all typeclasses:** While examples use `MeasurableSpace Ω`, the same patterns prevent pollution with `Metric α`, `LinearOrder β`, `Group G`, etc.
