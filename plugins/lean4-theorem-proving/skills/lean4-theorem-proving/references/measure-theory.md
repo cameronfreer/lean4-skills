@@ -24,6 +24,26 @@ When working with sub-σ-algebras and conditional expectation:
 
 ---
 
+## ⚡ CRITICAL: Instance Pollution Prevention
+
+**If you're working with sub-σ-algebras, READ THIS FIRST:**
+
+**📚 [instance-pollution.md](instance-pollution.md)** - Complete guide to preventing instance pollution bugs
+
+**Why critical:**
+- **Subtle bugs:** Lean picks wrong `MeasurableSpace` instance (even from outer scopes!)
+- **Timeout errors:** Can cause 500k+ heartbeat explosions in type unification
+- **Hard to debug:** Synthesized vs inferred type mismatches are cryptic
+
+**Quick fix:** Pin ambient instance FIRST before defining sub-σ-algebras:
+```lean
+let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›  -- Pin ambient
+-- Now safe to define sub-σ-algebras
+let mW : MeasurableSpace Ω := MeasurableSpace.comap W m0
+```
+
+---
+
 ## ❌ Common Anti-Patterns (DON'T)
 
 **Avoid these - they cause subtle bugs:**

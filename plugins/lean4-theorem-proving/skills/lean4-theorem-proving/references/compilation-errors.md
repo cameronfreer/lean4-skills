@@ -16,7 +16,23 @@ This reference provides detailed explanations and fixes for the most common comp
 | **"unexpected token/identifier"** | Section comment in proof | Replace `/-! -/` with `--` in tactic mode |
 | **"no goals to be solved"** | Tactic already finished | Remove redundant tactics after `simp` |
 | **"equation compiler failed"** | Can't prove termination | Add `termination_by my_rec n => n` clause |
+| **"synthesized: m, inferred: inst✝"** | Instance pollution (sub-σ-algebras) | ⚡ **READ [instance-pollution.md](instance-pollution.md)** - pin ambient first! |
 | **Error at line N** | Actual error before line N | Check 5-10 lines before reported location |
+
+---
+
+## ⚡ WORKING WITH SUB-σ-ALGEBRAS?
+
+**If you're defining multiple `MeasurableSpace` instances (sub-σ-algebras), STOP and read this first:**
+
+**📚 [instance-pollution.md](instance-pollution.md)** - Essential guide to prevent:
+- **Subtle bugs:** Lean picks wrong instance (even from outer scopes!)
+- **Timeout errors:** 500k+ heartbeat explosions
+- **Cryptic errors:** "synthesized: m, inferred: inst✝⁴"
+
+**Quick fix:** Pin ambient instance BEFORE defining sub-σ-algebras (see [instance-pollution.md](instance-pollution.md) for details).
+
+---
 
 ## Detailed Error Explanations
 
@@ -67,7 +83,9 @@ lemma my_lemma : Statement := by
 - Common when section variables cause unwanted instance requirements
 - Can omit multiple: `omit [inst1] [inst2] in`
 
-**For deep patterns with sub-σ-algebras, conditional expectation, and measure theory type class issues, see:** `measure-theory.md`
+**⚡ CRITICAL for sub-σ-algebras:** If working with multiple `MeasurableSpace` instances, **read [instance-pollution.md](instance-pollution.md) FIRST** to avoid subtle bugs and timeout errors!
+
+**For deep patterns with sub-σ-algebras, conditional expectation, and measure theory type class issues, see:** [measure-theory.md](measure-theory.md)
 
 **Debug with:**
 ```lean
