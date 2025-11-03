@@ -105,6 +105,83 @@ lemma good {Ω : Type*} [inst : MeasurableSpace Ω]
 
 ---
 
+## API Distinctions and Conversions
+
+**Key measure theory API patterns that cause compiler errors.**
+
+### AEMeasurable vs AEStronglyMeasurable
+
+**Problem:** Integral operations require `AEStronglyMeasurable`, but you have `AEMeasurable`.
+
+**Error message:** `expected AEStronglyMeasurable f μ but got AEMeasurable f μ`
+
+**Solution:** For real-valued functions with second-countable topology, use `.aestronglyMeasurable`:
+
+```lean
+-- You have:
+theorem foo (hf : AEMeasurable f μ) : ... := by
+  have : AEStronglyMeasurable f μ := hf.aestronglyMeasurable  -- ✓ Conversion
+  ...
+```
+
+**When this works:**
+- Function returns `ℝ`, `ℂ`, or any second-countable topological space
+- Common for integration, Lp spaces, conditional expectation
+
+**Rule of thumb:** If integral API complains about `AEStronglyMeasurable`, check if your type has second-countable topology and use `.aestronglyMeasurable` converter.
+
+### Set Integrals vs Full Integrals
+
+**Problem:** Set integral lemmas have different names than full integral lemmas.
+
+**Error pattern:** Trying to use `integral_map` for `∫ x in s, f x ∂μ`
+
+**Solution:** Search for `setIntegral_*` variants:
+
+```lean
+-- ❌ Wrong: Full integral API for set integral
+have := integral_map  -- Doesn't apply to ∫ x in s, ...
+
+-- ✅ Correct: Set integral API
+have := setIntegral_map  -- ✓ Works for ∫ x in s, f x ∂μ
+```
+
+**Pattern:** When working with `∫ x in s, f x ∂μ`, use LeanFinder with:
+- "setIntegral change of variables"
+- "setIntegral map pushforward"
+- NOT just "integral ..." (finds full integral APIs)
+
+**Common set integral APIs:**
+```lean
+setIntegral_map       -- Change of variables for set integrals
+setIntegral_const     -- Integral of constant over set
+setIntegral_congr_ae  -- a.e. equality for set integrals
+```
+
+### Synthesized vs Inferred Type Mismatches
+
+**Problem:** Error says "synthesized: m, inferred: inst✝⁴" with `MeasurableSpace`.
+
+**Meaning:** Sub-σ-algebra annotation mismatch - elaborator resolves to different measurable space structures.
+
+**Example error:**
+```
+type mismatch
+  synthesized type:  @MeasurableSet Ω m s
+  inferred type:     @MeasurableSet Ω inst✝⁴ s
+```
+
+**This indicates:** You have multiple `MeasurableSpace Ω` instances in scope and Lean picked the wrong one.
+
+**Solutions:**
+1. **Pin ambient and use `@`** (see Pattern 1 below: Avoid Instance Pollution)
+2. **Check binder order** - instances before plain parameters
+3. **Consider using `sorry` and moving on** - fighting the elaborator rarely wins
+
+**When to give up:** If you've tried pinning ambient and fixing binder order but still get synthesized/inferred mismatches, this is often a deep elaboration issue. Document with `sorry` and note the issue - coming back later with fresh eyes often helps.
+
+---
+
 ## Advanced Patterns (Battle-Tested from Real Projects)
 
 ### 1. Avoid Instance Pollution (Pin Ambient + Use `@`)

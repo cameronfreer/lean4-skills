@@ -9,11 +9,14 @@ This reference provides detailed explanations and fixes for the most common comp
 | **"failed to synthesize instance"** | Missing type class | Add `haveI : IsProbabilityMeasure μ := ⟨proof⟩` |
 | **"maximum recursion depth"** | Type class loop/complex search | Provide manually: `letI := instance` or increase: `set_option synthInstance.maxHeartbeats 40000` |
 | **"type mismatch"** (has type ℕ but expected ℝ) | Wrong type | Use coercion: `(x : ℝ)` or `↑x` |
+| **"expected Filter got Measure"** | Dot notation namespace confusion | Use standalone: `EventuallyEq.lemma h` not `h.EventuallyEq.lemma` |
+| **"numerals are data but expected Prop"** | Value where proof expected | Use proof term: `tendsto_const_nhds` not `1` |
 | **"tactic 'exact' failed"** | Goal/term type mismatch | Use `apply` for unification or restructure: `⟨h.2, h.1⟩` |
 | **"unknown identifier"** | Missing import OR unqualified name | Import tactic OR qualify: `Filter.Tendsto` |
 | **"unexpected token/identifier"** | Section comment in proof | Replace `/-! -/` with `--` in tactic mode |
 | **"no goals to be solved"** | Tactic already finished | Remove redundant tactics after `simp` |
 | **"equation compiler failed"** | Can't prove termination | Add `termination_by my_rec n => n` clause |
+| **Error at line N** | Actual error before line N | Check 5-10 lines before reported location |
 
 ## Detailed Error Explanations
 
@@ -445,6 +448,124 @@ When facing "unexpected identifier/token" in long proofs:
 4. ☐ Check for "no goals" after `simp` → remove redundant tactics
 5. ☐ For section variables + explicit params → rely on section, use `(by infer_instance)`
 6. ☐ For sub-σ-algebra work → ensure `hmW_le : mW ≤ _` proof exists
+
+---
+
+## Additional Common Errors
+
+### 9. Dot Notation Namespace Confusion
+
+**Error message:**
+```
+type mismatch
+  expected Filter
+  got Measure
+```
+
+**What it means:** You're using dot notation for a lemma name that conflicts with a type constructor.
+
+**Example:**
+```lean
+-- ❌ Wrong: Interpreted as EventuallyEq constructor call
+have := h.EventuallyEq.comp_measurePreserving
+--        ^ EventuallyEq constructor called with μ as first argument
+--          Expected Filter but got Measure
+```
+
+**Solution:** Use snake_case standalone names instead of dot notation:
+
+```lean
+-- ✅ Correct: Call the lemma function
+have := EventuallyEq.comp_measurePreserving h ...
+```
+
+**Pattern:** If you see type errors where:
+- A `Measure` is expected to be a `Filter`
+- A `Set` is expected to be a different type
+- "Expected X but got Y" for completely unrelated types
+
+Check if you're using dot notation for a lemma that shares a name with a type constructor.
+
+**Rule:** For private helper lemmas extending common type names (`EventuallyEq`, `Tendsto`, `Continuous`, etc.), use standalone function call syntax, not dot notation.
+
+### 10. Numerals in Propositional Contexts
+
+**Error message:**
+```
+numerals are data but expected type is Prop
+```
+
+**What it means:** You're passing a value (numeral) where a proof term is expected.
+
+**Example:**
+```lean
+-- ❌ Wrong: 1 is a numeral (data), not a proof
+have := h1.atTop_add 1
+--                    ^ Expected: Tendsto proof
+--                      Got: numeral 1
+```
+
+**Solution:** For constant function limits, use `tendsto_const_nhds`:
+
+```lean
+-- ✅ Correct: Pass a proof term
+have := h1.atTop_add (tendsto_const_nhds : Tendsto (fun _ => (1 : ℝ)) atTop (nhds 1))
+```
+
+**Pattern:** Functions like `atTop_add` work on limits and need proof terms:
+- `Tendsto f atTop (nhds a)` ← This is a Prop (needs proof)
+- `1` ← This is data (ℕ or ℝ)
+
+**Common fixes:**
+```lean
+-- For constant functions
+tendsto_const_nhds : Tendsto (fun _ => c) filter (nhds c)
+
+-- For simple expressions
+use lemmas like Filter.tendsto_id, Filter.tendsto_const_pure
+```
+
+### 11. Error Location Can Be Misleading
+
+**Problem:** Lean reports errors where elaboration fails, not always where the mistake is.
+
+**Example:**
+```
+error: type mismatch at line 4238
+```
+But the actual mistake is at line 4231.
+
+**Why:** Elaborator processes code sequentially and reports failure at the point where it can't continue, which may be several lines after the actual error.
+
+**Strategy:**
+
+**When investigating an error:**
+1. Read 5-10 lines **before** the reported location
+2. Look for recent changes (especially new `let` bindings, `have` statements, or tactic calls)
+3. Check for missing hypotheses or incorrect variable names
+4. Verify that all previous lines actually compile in isolation
+
+**Example workflow:**
+```lean
+-- Error reported at line 4238
+-- Start reading from line 4228-4230
+
+-- Line 4231: Ah! Wrong variable name here
+let μX := pathLaw μ X  -- Should be Y not X
+
+-- Lines 4232-4237: These all assumed μX was correct
+-- Line 4238: Where elaboration finally failed
+```
+
+**Pattern:** The mistake is often in:
+- Most recent `let` or `have` before error (wrong RHS)
+- Most recent tactic (applied wrong lemma)
+- Missing hypothesis from 2-5 lines before
+
+**Don't:** Assume the error line is where you need to fix.
+**Do:** Trace backwards from error to find the root cause.
+
+---
 
 ## Type Class Debugging Commands
 
