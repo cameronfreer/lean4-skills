@@ -80,6 +80,14 @@ no goals
 **Parameters:**
 - `file_path` (required): Absolute path to Lean file
 
+**⚠️ IMPORTANT:** Do NOT pass `severity` parameter - it will cause error `'severity'`. The tool only accepts `file_path` and returns ALL diagnostics (errors + warnings). Severity appears IN the response, not as a filter.
+
+**Correct usage:**
+```python
+lean_diagnostic_messages(file_path="/path/to/file.lean")
+# NOT: lean_diagnostic_messages(file_path="/path/to/file.lean", severity=1)
+```
+
 **Example - Errors found:**
 ```
 lean_diagnostic_messages(file)
@@ -88,7 +96,7 @@ lean_diagnostic_messages(file)
 ```
 - Line 13, columns 9-17: `add_comm` not in scope
 - Line 20, columns 30-49: Syntax error with `StrictMono`
-- Severity 1 = error, Severity 2 = warning
+- Severity 1 = error, Severity 2 = warning (returned in response, not a parameter)
 
 **Example - Success:**
 ```
