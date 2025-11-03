@@ -393,11 +393,11 @@ theorem main_result ... := by
 
 **Why:** Each helper uses only tools from its domain, main theorem reads at correct abstraction level, helpers highly reusable.
 
-#### 1.3. Repetitive Structure (lhs/rhs)
+#### 1.3. Repetitive Structure (lhs/rhs and Case Splits)
 
 **Trigger:** Nearly identical proofs for both sides of equation, or multiple cases with same structure.
 
-**Example:**
+**Basic pattern (literal repetition):**
 ```lean
 have hlhs : P lhs := by [20 lines]
 have hrhs : P rhs := by [20 lines, nearly identical!]
@@ -405,9 +405,55 @@ have hrhs : P rhs := by [20 lines, nearly identical!]
 
 **Action:** Extract `private lemma has_property_P (expr : α) : P expr`
 
-**Why:** Write logic once not twice, changes apply automatically, helper reusable.
+**Advanced pattern (abstract structural repetition):**
 
-**Rule:** Copy-paste with only variable names changed → extract.
+When the same case-split structure appears multiple times for slightly different goals, extract the shared structure. The key is recognizing that the *proof pattern* is the same even if the specific goals differ.
+
+**Example: Same 4-case structure for different goals**
+```lean
+-- First occurrence: proving product of indicators = single indicator for A×B
+have h1 : (A.indicator 1 * B.indicator 1) x = (A ×ˢ B).indicator 1 x := by
+  by_cases ha : x ∈ A <;> by_cases hb : x ∈ B
+  · -- Case 1: x ∈ A, x ∈ B → both sides = 1
+    simp [ha, hb]
+  · -- Case 2: x ∈ A, x ∉ B → both sides = 0
+    simp [ha, hb]
+  · -- Case 3: x ∉ A, x ∈ B → both sides = 0
+    simp [ha, hb]
+  · -- Case 4: x ∉ A, x ∉ B → both sides = 0
+    simp [ha, hb]
+
+-- Second occurrence: proving intersection of preimages for indicators
+have h2 : (f⁻¹'A.indicator 1 * g⁻¹'B.indicator 1) x = (f⁻¹'A ∩ g⁻¹'B).indicator 1 x := by
+  by_cases ha : x ∈ f⁻¹'A <;> by_cases hb : x ∈ g⁻¹'B
+  · -- Same 4-case structure!
+    simp [ha, hb]
+  · simp [ha, hb]
+  · simp [ha, hb]
+  · simp [ha, hb]
+```
+
+**Extract the abstract pattern:**
+```lean
+-- Captures: product of indicators = indicator of combined set
+private lemma indicator_mul_eq_indicator {α : Type*} (s t : Set α) (x : α) :
+    s.indicator (1 : α → ℝ) x * t.indicator 1 x = (s ∩ t).indicator 1 x := by
+  by_cases hs : x ∈ s <;> by_cases ht : x ∈ t <;> simp [hs, ht]
+
+-- Now both uses become one-liners
+have h1 := indicator_mul_eq_indicator A B x
+have h2 := indicator_mul_eq_indicator (f⁻¹'A) (g⁻¹'B) x
+```
+
+**Why this works:**
+- The mathematical structure (4-case split on membership) is identical
+- Only the specific sets differ (A×B vs A∩B, direct sets vs preimages)
+- Helper captures the abstract pattern, works for any sets
+- Main theorem reads at higher level of abstraction
+
+**Recognition pattern:** If you find yourself writing the same `by_cases` structure multiple times with the same number of cases and similar reasoning in each case, even if the goals look different on the surface, there's likely an abstract pattern to extract.
+
+**Rule:** Copy-paste with only variable names changed → extract (literal repetition). Same case-split structure for different goals → extract abstract pattern (structural repetition).
 
 #### 1.4. Witness Extraction
 
