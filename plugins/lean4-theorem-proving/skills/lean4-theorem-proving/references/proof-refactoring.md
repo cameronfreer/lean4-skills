@@ -454,9 +454,22 @@ have (h_last_eq : last.val + 1 = m) : m ≤ k last + 1 := by
 
 #### 4.1. Named Steps with Comments
 
-**Pattern:** Use `step1`, `step2`, ... with comments explaining what each achieves mathematically.
+**Pattern:** Use semantically meaningful names for intermediate results. Only use generic names like `step1`, `step2` when there's no better alternative and the results are private to this proof.
 
-**Example:**
+**Prefer meaningful names:**
+```lean
+theorem main_result ... := by
+  -- Variance formula: E(∑cᵢξᵢ)² = E(∑cᵢ(ξᵢ-m))² using ∑cⱼ = 0
+  have variance_formula : ... := by ...
+
+  -- Covariance expansion: = ∑ᵢⱼ cᵢcⱼ cov(ξᵢ, ξⱼ)
+  have covariance_expansion : ... := by ...
+
+  -- Final: Combine steps
+  calc ...
+```
+
+**When meaningful names aren't obvious, use generic sequence:**
 ```lean
 theorem main_result ... := by
   -- Step 1: E(∑cᵢξᵢ)² = E(∑cᵢ(ξᵢ-m))² using ∑cⱼ = 0
@@ -469,7 +482,13 @@ theorem main_result ... := by
   calc ...
 ```
 
-**Benefits:** Reads like textbook proof, mathematical narrative clear, easy to locate issues, reviewers understand structure without parsing tactics.
+**Use `step1`, `step2` only when:**
+- Results are private to this proof (not extracted as helpers)
+- Used sequentially in a linear chain
+- No clear mathematical names suggest themselves
+- Proof is exploratory and may be refactored later
+
+**Benefits:** Meaningful names aid comprehension, generic names show sequencing. Reads like textbook proof either way, mathematical narrative clear, easy to locate issues.
 
 #### 4.2. Structural Comments Explain "Why"
 
@@ -638,49 +657,49 @@ private lemma strictMono_length_le_max_succ ...
 Is the proof 60-200 lines? (sweet spot for refactoring)
 ├─ Yes: Look for natural boundaries (use lean_goal at 4-5 key points)
 │   ├─ Repetitive structure (lhs/rhs with near-identical proofs)?
-│   │   └─ Extract common pattern to helper (Pattern 21)
+│   │   └─ Extract common pattern to helper (Pattern 1.3)
 │   ├─ Multiple properties proven separately, used together?
-│   │   └─ Bundle with ∧, use obtain (Pattern 22)
+│   │   └─ Bundle with ∧, use obtain (Pattern 1.5)
 │   ├─ Mixes multiple mathematical domains (combinatorics + analysis)?
-│   │   └─ Extract each domain's logic separately (Pattern 18)
+│   │   └─ Extract each domain's logic separately (Pattern 1.2)
 │   ├─ Starts with 50+ line preliminary calculation?
-│   │   └─ Extract preliminary fact to helper (Pattern 19)
+│   │   └─ Extract preliminary fact to helper (Pattern 1.1)
 │   ├─ Same 5-10 line notation conversion repeated?
-│   │   └─ Extract conversion helper (Pattern 24)
+│   │   └─ Extract conversion helper (Pattern 1.6)
 │   ├─ Found witness extraction (choose/obtain)?
-│   │   └─ Extract to helper (clear input/output contract)
+│   │   └─ Extract to helper (Pattern 1.4 - clear input/output contract)
 │   ├─ Found arithmetic bounds?
-│   │   ├─ Can extract without `let` bindings? → Extract to private helper
-│   │   └─ Uses complex `let` bindings? → Consider inlining
+│   │   ├─ Can extract without `let` bindings? → Extract to private helper (Pattern 3.1)
+│   │   └─ Uses complex `let` bindings? → Consider inlining (Pattern 2.3)
 │   ├─ Found permutation construction?
-│   │   └─ Reusable pattern? → Extract (ensure parameter clarity)
+│   │   └─ Reusable pattern? → Extract (ensure parameter clarity, Pattern 2.1)
 │   ├─ Found "all equal, pick one" pattern?
-│   │   ├─ Equality proof → Extract to helper (mathematical content)
+│   │   ├─ Equality proof → Extract to helper (Pattern 2.4 - mathematical content)
 │   │   └─ Choice of representative → Keep in main (proof engineering)
 │   └─ Found measure manipulations?
-│       └─ Uses `let` bindings? → Prefer inlining (definitional issues)
-├─ > 200 lines? → Multiple refactorings needed (start with largest prelims)
+│       └─ Uses `let` bindings? → Prefer inlining (Pattern 3.4 - definitional issues)
+├─ > 200 lines? → Multiple refactorings needed (start with largest prelims, Pattern 1.1)
 └─ < 60 lines? → Probably fine as-is (unless heavily repetitive)
 
 When extracting:
-1. Make helper `private` if proof-specific (use regular -- comments, not /-- -/)
-2. **Generic is better** (Pattern 23): Remove proof-specific constraints
+1. Make helper `private` if proof-specific (Pattern 3.1: use regular -- comments, not /-- -/)
+2. **Generic is better** (Pattern 2.1): Remove proof-specific constraints
    - Relax equality to inequality (n = 42 → 1 ≤ n)
    - Weaken hypotheses to minimum needed
    - Broaden types when possible
-3. Avoid `let` bindings in helper signatures:
+3. Avoid `let` bindings in helper signatures (Pattern 2.3):
    - Option A: Use explicit parameters with equality proofs (param + hparam : param = expr)
-   - Option B: Inline the proof if measure theory manipulation
-4. If omega fails, add explicit intermediate steps (use calc)
-5. Prefix unused but required parameters with underscore (_hS)
-6. Add structural comments that explain "why", not "what"
-7. Isolate hypothesis usage—extract with minimal assumptions first
-8. Document what the helper proves and why
-9. Test compilation after each extraction with lean_diagnostic_messages
-10. Check goal states at 4-5 key points to find natural boundaries
+   - Option B: Inline the proof if measure theory manipulation (Pattern 3.4)
+4. If omega fails, add explicit intermediate steps (Pattern 3.3: use calc)
+5. Prefix unused but required parameters with underscore (Pattern 3.2: _hS)
+6. Add structural comments that explain "why", not "what" (Pattern 4.2)
+7. Isolate hypothesis usage—extract with minimal assumptions first (Pattern 2.2)
+8. Document what the helper proves and why (Pattern 6.1, 6.2, 6.3)
+9. Test compilation after each extraction (Pattern 5.1: lean_diagnostic_messages)
+10. Check goal states at 4-5 key points to find natural boundaries (Pattern 5.2)
 
 After refactoring:
-11. Use named steps (step1, step2, ...) with comments (Pattern 20)
+11. Use meaningful names (Pattern 4.1: variance_formula, not step1 - unless no better alternative)
 ```
 
 ---
