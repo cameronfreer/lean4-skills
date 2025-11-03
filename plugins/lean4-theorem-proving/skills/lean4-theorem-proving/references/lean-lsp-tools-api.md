@@ -749,6 +749,103 @@ Repeat until "no goals"!
 
 ---
 
+## Advanced Workflow: Refactoring Long Proofs
+
+**Goal:** Break a monolithic proof (>100 lines) into smaller helper lemmas.
+
+**Strategy:** Use `lean_goal` to inspect proof state at different locations, then subdivide at natural breakpoints where intermediate goals are clean and reusable.
+
+### The Refactoring Pattern
+
+**Step 1: Survey the proof**
+
+Walk through the proof checking goals at different points:
+
+```python
+# Check goals at various locations in the long proof
+lean_goal(file, line=15)   # After initial setup
+lean_goal(file, line=45)   # After first major step
+lean_goal(file, line=78)   # After second major step
+lean_goal(file, line=120)  # Near end
+```
+
+**Step 2: Identify extraction points**
+
+Look for locations where:
+- Goal is a clean, self-contained statement
+- Goal depends only on earlier hypotheses (no forward references)
+- Goal would be useful in other contexts
+- Intermediate state has a natural mathematical meaning
+
+**Step 3: Extract helper lemma**
+
+```lean
+-- BEFORE: Monolithic proof
+theorem big_result : Conclusion := by
+  intro x hx
+  have h1 : IntermediateGoal1 := by
+    [30 lines of tactics...]
+  have h2 : IntermediateGoal2 := by
+    [40 lines of tactics...]
+  [30 more lines...]
+
+-- AFTER: Extracted helpers
+lemma helper1 (x : α) (hx : Property x) : IntermediateGoal1 := by
+  [30 lines - extracted from h1]
+
+lemma helper2 (x : α) (h1 : IntermediateGoal1) : IntermediateGoal2 := by
+  [40 lines - extracted from h2]
+
+theorem big_result : Conclusion := by
+  intro x hx
+  have h1 := helper1 x hx
+  have h2 := helper2 x h1
+  [30 lines - much clearer now]
+```
+
+**Step 4: Verify with LSP**
+
+After each extraction:
+```python
+lean_diagnostic_messages(file)  # Check for errors
+lean_goal(file, line)           # Confirm goals match
+```
+
+### Tips for Smart Subdivision
+
+**Good breakpoints:**
+- After establishing key inequalities or bounds
+- After case splits (before/after `by_cases`)
+- After measurability/integrability proofs
+- Where intermediate result has a clear name
+
+**Bad breakpoints:**
+- Mid-calculation (no clear intermediate goal)
+- Where helper would need too many parameters
+- Where context is too tangled to separate cleanly
+
+**Verify extraction is correct:**
+```python
+# Original line number where `have h1 : ...` was
+lean_goal(file, line=old_h1_line)
+# → Should match helper1's conclusion
+
+# New line number after extraction
+lean_goal(file, line=new_h1_line)
+# → Should show `h1 : IntermediateGoal1` available
+```
+
+### Example Workflow (will be populated with real code)
+
+*This section will be updated with a detailed example from actual refactoring work, showing:*
+- *Initial monolithic proof with specific line numbers*
+- *Goal states at different points*
+- *Decision process for where to extract*
+- *Final extracted structure*
+- *Verification steps*
+
+---
+
 ## Performance Notes
 
 **Local tools (instant):**
