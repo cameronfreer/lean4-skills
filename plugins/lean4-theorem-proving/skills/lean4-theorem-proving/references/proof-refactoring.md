@@ -586,6 +586,136 @@ have T_all : ∀ i, T i = T0 := fun i => Tall i i₀
 
 ---
 
+## Lessons from Fourth Refactoring: Domain Separation
+
+**Context:** 130-line proof mixing finite probability distribution arithmetic (combinatorics) with L² variance bounds (functional analysis).
+
+**Extracted helper:** 56-line lemma proving L¹ distance between probability distributions is ≤ 2.
+
+**Result:** 130 lines → 79 lines (39% reduction)
+
+### 18. Separate Domain-Specific Concerns
+
+**Pattern:** When a proof mixes independent mathematical domains, extract each domain's logic into separate helpers.
+
+**This proof had two distinct parts:**
+1. **Finite probability distribution combinatorics** (51 lines): Pure finite sum manipulation, no measure theory
+2. **L² variance-covariance calculation** (55 lines): Integration, measure theory, inequalities
+
+**By extracting #1:**
+```lean
+-- Helper: Pure combinatorics (highly reusable)
+private lemma prob_dist_diff_abs_sum_le_two
+    (p q : Fin n → ℝ) (hp : ∑ i, p i = 1) (hq : ∑ i, q i = 1)
+    (hp_nn : ∀ i, 0 ≤ p i) (hq_nn : ∀ i, 0 ≤ q i) :
+    ∑ i, |p i - q i| ≤ 2 := by
+  -- Self-contained proof using positive/negative partition
+  ...
+
+-- Main theorem: Now shows probabilistic content clearly
+theorem l2_contractability_bound ... := by
+  have hL1 := prob_dist_diff_abs_sum_le_two ...
+  -- L² calculation now dominates (as it should)
+  ...
+```
+
+**Benefits:**
+- Main theorem reads at correct abstraction level (measure theory + probability)
+- Helper is reusable in any context involving probability distribution distances
+- Each proof uses only the tools from its domain
+- Much easier to understand and maintain
+
+**General principle:** Different mathematical domains → different helpers. Don't mix combinatorics with analysis, algebra with topology, etc.
+
+### 19. Large Preliminary Calculations Are Prime Refactoring Targets
+
+**Pattern:** If a proof starts with 50+ lines proving an auxiliary fact before the main argument, extract it.
+
+**Anti-pattern:**
+```lean
+theorem main_result ... := by
+  -- 51 lines proving preliminary combinatorial bound
+  have hAux : ∑ i, |p i - q i| ≤ 2 := by
+    [massive calculation with positive/negative partitions]
+    ...
+    [50 more lines]
+
+  -- Now the actual L² calculation (obscured by above clutter!)
+  calc ...
+```
+
+**Better:**
+```lean
+private lemma prob_dist_diff_abs_sum_le_two ... := by
+  [massive calculation]
+  ...
+
+theorem main_result ... := by
+  have hAux := prob_dist_diff_abs_sum_le_two ...
+  -- Main argument immediately visible
+  calc ...
+```
+
+**Why this signals a refactoring opportunity:**
+- The preliminary fact has independent mathematical interest
+- It's conceptually separate from the main argument
+- Readers need to wade through 50 lines before seeing the "real" proof
+- Testing/debugging is harder (can't isolate the preliminary fact)
+
+**Rule of thumb:** If a `have` statement's proof exceeds 20 lines and establishes a fact with a clear mathematical name, extract it.
+
+### 20. Named Steps with Comments Tell the Mathematical Story
+
+**Pattern:** After refactoring, use named intermediate results with comments to make the proof read like a textbook.
+
+**After refactoring, the main proof shows clear structure:**
+```lean
+theorem l2_contractability_bound ... := by
+  -- Step 1: E(∑cᵢξᵢ)² = E(∑cᵢ(ξᵢ-m))² using ∑cⱼ = 0
+  have step1 : ... := by ...
+
+  -- Step 2: = ∑ᵢⱼ cᵢcⱼ cov(ξᵢ, ξⱼ) by expanding square
+  have step2 : ... := by ...
+
+  -- Step 3: = σ²ρ(∑cᵢ)² + σ²(1-ρ)∑cᵢ² by variance/covariance
+  have step3 : ... := by ...
+
+  -- Step 4: L¹ distance bound from helper (combinatorics)
+  have step4 := prob_dist_diff_abs_sum_le_two ...
+
+  -- Final: Combine steps to get L² bound
+  calc ...
+```
+
+**This reads like a proof in a mathematics paper:**
+- Each step has a clear mathematical meaning
+- Comments explain the technique or justification
+- The overall strategy is immediately visible
+- Can be understood by reading only the step comments
+
+**Contrast with original:**
+```lean
+theorem l2_contractability_bound ... := by
+  have h1 : ... := by [10 lines]
+  have h2 : ... := by [15 lines]
+  have hAux : ... := by [51 lines of combinatorics!]
+  have h3 : ... := by [8 lines]
+  calc ... [complex expression]
+```
+
+**Benefits of named steps:**
+- Mathematical narrative is clear
+- Easy to locate where things go wrong
+- Can test/verify each step independently with LSP (`lean_goal` after each step)
+- Reviewers can understand proof structure without parsing every tactic
+
+**Best practice:** After extracting helpers, reorganize the main proof with:
+1. Named steps (`step1`, `step2`, ...) for major milestones
+2. Comments explaining what each step achieves mathematically
+3. Clear progression from hypotheses to conclusion
+
+---
+
 ## Summary: When Witness Extraction Appears
 
 **If your proof has this pattern:**
@@ -614,6 +744,10 @@ obtain ⟨y, hy⟩ := witnesses_helper ...
 ```
 Is the proof > 50 lines?
 ├─ Yes: Look for natural boundaries (use lean_goal to inspect states)
+│   ├─ Mixes multiple mathematical domains (combinatorics + analysis, algebra + topology)?
+│   │   └─ Extract each domain's logic separately (Pattern 18: Domain separation)
+│   ├─ Starts with 50+ line preliminary calculation?
+│   │   └─ Extract preliminary fact to helper (Pattern 19: Large prelims)
 │   ├─ Found witness extraction (choose/obtain)?
 │   │   └─ Extract to helper (clear input/output contract)
 │   ├─ Found arithmetic bounds?
@@ -640,6 +774,9 @@ When extracting:
 7. Document what the helper proves and why
 8. Test compilation after each extraction with lean_diagnostic_messages
 9. Examine goal states every 5-10 lines to find natural boundaries
+
+After refactoring:
+10. Use named steps (step1, step2, ...) with comments (Pattern 20)
 ```
 
 ---
