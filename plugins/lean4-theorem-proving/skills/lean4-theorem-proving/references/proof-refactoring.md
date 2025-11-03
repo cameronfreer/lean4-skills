@@ -19,7 +19,39 @@ Guide for breaking monolithic proofs into maintainable helper lemmas.
 - Proof is short and linear (< 50 lines, no repetition)
 - No natural intermediate milestones
 - Extraction would require too many parameters
-- Proof is already well-structured with `have` statements and helpers
+- **Proof is already well-factored** (see signs below)
+
+**Signs of a well-factored proof (skip these):**
+- **Clear section comments** delineate logical steps (e.g., "-- Step 1: Establish bounds", "-- Step 2: Apply induction")
+- **Natural linear flow** without tangents or backtracking
+- **Core mathematical argument dominates** (e.g., induction structure, case analysis, algebraic manipulation is the bulk)
+- **No large extractable blocks** - all `have` statements are short (< 20 lines) or inherently tied to the main flow
+- **Readable without refactoring** - you can follow the proof logic by reading comments and goals
+
+**Example of already-clean proof:**
+```lean
+theorem foo : Result := by
+  -- Step 1: Base case
+  have base : P 0 := by simp
+
+  -- Step 2: Inductive step
+  suffices ∀ n, P n → P (n + 1) by
+    intro n; induction n <;> assumption
+
+  -- Main induction argument (this IS the proof)
+  intro n hn
+  cases n with
+  | zero => exact base
+  | succ n' =>
+    have ih := hn n' (Nat.lt_succ_self n')
+    calc P (n' + 1) = ... := by ...
+                  _ = ... := by ih
+
+  -- Conclusion follows immediately
+  exact result
+```
+
+**Why not refactor:** The induction structure IS the content. Extracting pieces would obscure the mathematical flow. Comments already clarify structure.
 
 ---
 
