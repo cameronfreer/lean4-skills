@@ -350,6 +350,133 @@ private lemma strictMono_length_le_max_succ ...
 
 ---
 
+## Additional Lessons from Second Refactoring
+
+### 7. Private Lemmas Use Regular Comments, Not Doc Comments
+
+**Problem:**
+```lean
+/-- For an exchangeable sequence, the finite marginals... -/
+private lemma exchangeable_finite_marginals_eq_reindexed ...
+```
+
+**Error:** `unexpected token '/--'; expected 'lemma'`
+
+**Solution:**
+```lean
+-- For an exchangeable sequence, the finite marginals...
+private lemma exchangeable_finite_marginals_eq_reindexed ...
+```
+
+**Why:** Doc comment syntax (`/-- -/`) is reserved for public API documentation. Private declarations don't appear in generated docs, so use regular `--` comments.
+
+### 8. Unused Required Parameters Need Underscore Prefix
+
+**Problem:**
+```lean
+∀ n (S : Set (Fin n → α)) (hS : MeasurableSet S), ...
+-- Parameter hS required in signature but unused in proof
+-- Linter warning: unused variable `hS`
+```
+
+**Solution:**
+```lean
+∀ n (S : Set (Fin n → α)) (_hS : MeasurableSet S), ...
+```
+
+**Why:** The parameter is needed in the type signature (to quantify over measurable sets), but the proof uses measure equality without explicitly referencing measurability. The underscore signals "intentionally unused."
+
+### 9. Explicit Parameters with Equality Proofs Avoid Let Binding Issues
+
+**First refactoring:** Helper with `let` bindings didn't unify with main theorem's `let` bindings (definitional inequality).
+
+**This refactoring:** No issues! **Why?**
+
+```lean
+-- Helper: Pass as explicit parameter with equality proof
+private lemma exchangeable_finite_marginals_eq_reindexed
+    (μX : Measure (ℕ → α)) (hμX : μX = pathLaw μ X) ...
+
+-- Main theorem: Pass with rfl
+let μX := pathLaw μ X
+have hMarg := exchangeable_finite_marginals_eq_reindexed hX hEx μX rfl π
+```
+
+**Key insight:** The helper takes `μX` as a parameter with explicit equality proof `hμX : μX = pathLaw μ X`. The main theorem passes `rfl` for this proof, which unifies perfectly because `μX` is definitionally equal to `pathLaw μ X` at the call site.
+
+**General pattern:** When extracting helpers from proofs with `let` bindings, prefer explicit parameters with equality proofs over recreating the bindings internally.
+
+### 10. Structural Comments Create Proof Table of Contents
+
+**Pattern:** Add high-level comments to guide readers through proof strategy:
+
+```lean
+-- Define path law and establish probability measure properties
+let μX := pathLaw (α:=α) μ X
+...
+
+-- Apply helper: finite marginals are equal
+have hMarg := exchangeable_finite_marginals_eq_reindexed ...
+
+-- Apply measure uniqueness from finite marginals
+have hEq := measure_eq_of_fin_marginals_eq_prob ...
+
+-- Relate back to original form using path law commutation
+have hmap₁ := pathLaw_map_reindex_comm ...
+```
+
+**Why it matters:** These comments create a "table of contents" for the proof. Readers can quickly understand the structure without parsing every tactic.
+
+### 11. LSP Diagnostics Work Even When Full Build Fails
+
+**Observation:** `lake build` failed due to Batteries dependency issues (toolchain compatibility), but:
+```python
+mcp__lean-lsp__lean_diagnostic_messages(file)
+# ✅ Still worked! Returned [] (no errors)
+```
+
+**Why useful:** You can verify refactoring correctness locally using LSP tools even when the broader build system has issues. The LSP server works at the file/module level, not the full project level.
+
+**Practical implication:** Don't wait for a full clean build to verify refactorings—use LSP diagnostics for fast feedback.
+
+### 12. Different Proof Types Need Different Refactoring Strategies
+
+**First refactoring (constructive proof):**
+- Proof type: Build permutation → apply it → verify equality
+- Helpers: Computational bounds and structural properties
+- Pattern: Build pieces → Assemble → Use
+
+**This refactoring (uniqueness theorem application):**
+- Proof type: Establish conditions → apply uniqueness → transform result
+- Helpers: Conceptual properties (marginals equality, commutation)
+- Pattern: Establish conditions → Apply theorem → Transform result
+
+**Lesson:** The nature of the proof suggests what kinds of helpers make sense:
+- **Constructive proofs** → Extract construction steps
+- **Uniqueness/existence proofs** → Extract condition-checking lemmas
+- **Computational proofs** → Extract calculation helpers
+
+### 13. Examine Goal States Every 5-10 Lines
+
+**What we did:** Checked goal states at 5 different lines (654, 659, 666, 683, 690) rather than just boundaries.
+
+**What this revealed:**
+- Lines 654-665: Probability measure instances established
+- Lines 666-682: Marginals equality proved ← Natural helper boundary
+- Line 683: Uniqueness theorem applied
+- Lines 686-695: Result transformed back ← Another helper boundary
+
+**Lesson:** Don't just look at start and end of proof. Examine goal states every 5-10 lines to understand logical flow and find natural refactoring boundaries.
+
+**LSP workflow:**
+```python
+# Survey proof at regular intervals
+for line in [654, 659, 666, 673, 680, 683, 690]:
+    lean_goal(file, line)  # See proof state evolution
+```
+
+---
+
 ## Refactoring Decision Tree
 
 ```
@@ -365,11 +492,16 @@ Is the proof > 50 lines?
 └─ No: Probably fine as-is
 
 When extracting:
-1. Make helper `private` if proof-specific
-2. Avoid `let` bindings in helper signatures (use explicit parameters)
+1. Make helper `private` if proof-specific (use regular -- comments, not /-- -/)
+2. Avoid `let` bindings in helper signatures:
+   - Option A: Use explicit parameters with equality proofs (param + hparam : param = expr)
+   - Option B: Inline the proof if measure theory manipulation
 3. If omega fails, add explicit intermediate steps (use calc)
-4. Document what the helper proves and why
-5. Test compilation after each extraction with lean_diagnostic_messages
+4. Prefix unused but required parameters with underscore (_hS)
+5. Add structural comments to create proof "table of contents"
+6. Document what the helper proves and why
+7. Test compilation after each extraction with lean_diagnostic_messages
+8. Examine goal states every 5-10 lines to find natural boundaries
 ```
 
 ---
