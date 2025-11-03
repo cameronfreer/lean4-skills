@@ -477,16 +477,153 @@ for line in [654, 659, 666, 673, 680, 683, 690]:
 
 ---
 
+## Lessons from Third Refactoring: Witness Extraction Patterns
+
+### 14. Witness Extraction Deserves Its Own Helpers
+
+**Pattern:** When a proof uses `choose` (Lean's axiom of choice) to extract witnesses from existentials, this is often a natural refactoring boundary.
+
+**Before (inline):**
+```lean
+have : ∀ i, ∃ (T : Set β), MeasurableSet[m i] T ∧ s = f ⁻¹' T := by
+  intro i
+  have hi := hs_all i
+  rw [MeasurableSpace.measurableSet_comap] at hi
+  rcases hi with ⟨T, hT, hpre⟩
+  exact ⟨T, hT, hpre.symm⟩
+choose T hTmeas hspre using this
+```
+
+**After (helper):**
+```lean
+obtain ⟨T, hTmeas, hspre⟩ := comap_iInf_witnesses m s hs_all
+```
+
+**Why it works:** Witness extraction has clear inputs (hypotheses) and outputs (chosen witnesses), making it naturally modular.
+
+**Key insight:** `choose` creates a natural boundary—everything before produces the existential proof, everything after uses the witnesses.
+
+### 15. Isolate Hypothesis Usage for Reusability
+
+**Observation:** In this refactoring, only ONE helper uses the surjectivity hypothesis:
+
+```lean
+private lemma comap_witnesses_eq_of_surjective {ι : Type*} {α β : Type*}
+    {f : α → β} (hf : Function.Surjective f) ...
+    -- ← Only place surjectivity appears
+
+-- Other helpers work without surjectivity
+private lemma comap_iInf_witnesses ...  -- No surjectivity needed
+```
+
+**Why this matters:** The other helpers are potentially reusable in contexts without surjectivity.
+
+**General principle:** When refactoring, identify which helpers need which hypotheses. Minimize hypothesis dependencies to maximize reusability.
+
+**Practice:**
+- Extract helper with minimal assumptions first
+- Build more specialized helpers on top
+- This creates a reusability hierarchy
+
+### 16. "Pick Canonical Representative" Is a Common Pattern
+
+**Pattern:** "All things are equal, so pick one"
+
+```lean
+-- Pick canonical witness T₀
+rcases ‹Nonempty ι› with ⟨i₀⟩
+let T0 : Set β := T i₀
+have T_all : ∀ i, T i = T0 := fun i => Tall i i₀
+```
+
+**After refactoring, this pattern is isolated:**
+- **Mathematical content** (witnesses are equal) → helper lemma
+- **Proof engineering** (choice of which to use) → main proof
+
+**Why separate:** The equality proof has mathematical content worth reusing. The choice of `i₀` is arbitrary proof engineering that doesn't generalize.
+
+**General pattern:**
+1. Prove all candidates equal (extract to helper)
+2. Pick one arbitrarily (keep in main proof)
+3. Use the fact they're all equal (proven by helper)
+
+### 17. Structure Comments Tell "Why", Not "What"
+
+**Compare comment styles:**
+
+**❌ Bad (describes what code does):**
+```lean
+-- Choose the witnesses Tᵢ along with measurability and the preimage identity
+```
+
+**✅ Good (describes proof strategy):**
+```lean
+-- Extract witnesses Tᵢ such that s = f ⁻¹' Tᵢ for each i
+```
+
+**After refactoring, main proof has high-level strategy comments:**
+```lean
+-- (≥) direction holds unconditionally (monotonicity)
+-- (≤) direction uses surjectivity to unify witnesses
+-- Extract witnesses Tᵢ such that s = f ⁻¹' Tᵢ for each i
+-- All witnesses are equal by surjectivity
+-- Pick canonical witness T₀
+-- Conclude measurability
+```
+
+**These guide the reader through:**
+- Mathematical strategy (why each step)
+- Proof structure (how steps fit together)
+- Key insights (where hypotheses are used)
+
+**Not just tactical details** (what each line does).
+
+**Best practice for structure comments:**
+- Start each major section with a comment
+- Explain the mathematical goal, not the Lean syntax
+- Highlight where key hypotheses are used
+- Make it possible to understand the proof by reading only the comments
+
+---
+
+## Summary: When Witness Extraction Appears
+
+**If your proof has this pattern:**
+```lean
+have : ∀ x, ∃ y, P x y := ...
+choose y hy using this
+```
+
+**Consider extracting to:**
+```lean
+obtain ⟨y, hy⟩ := witnesses_helper ...
+```
+
+**Benefits:**
+- Clear input/output contract (hypotheses → witnesses)
+- Helper is testable independently
+- Main proof reads at higher level
+- Witness construction logic is reusable
+
+**This refactoring achieved the best reduction** because witness extraction was very self-contained, making extraction especially clean.
+
+---
+
 ## Refactoring Decision Tree
 
 ```
 Is the proof > 50 lines?
 ├─ Yes: Look for natural boundaries (use lean_goal to inspect states)
+│   ├─ Found witness extraction (choose/obtain)?
+│   │   └─ Extract to helper (clear input/output contract)
 │   ├─ Found arithmetic bounds?
 │   │   ├─ Can extract without `let` bindings? → Extract to private helper
 │   │   └─ Uses complex `let` bindings? → Consider inlining
 │   ├─ Found permutation construction?
 │   │   └─ Reusable pattern? → Extract (ensure parameter clarity)
+│   ├─ Found "all equal, pick one" pattern?
+│   │   ├─ Equality proof → Extract to helper (mathematical content)
+│   │   └─ Choice of representative → Keep in main (proof engineering)
 │   └─ Found measure manipulations?
 │       └─ Uses `let` bindings? → Prefer inlining (definitional issues)
 └─ No: Probably fine as-is
@@ -498,10 +635,11 @@ When extracting:
    - Option B: Inline the proof if measure theory manipulation
 3. If omega fails, add explicit intermediate steps (use calc)
 4. Prefix unused but required parameters with underscore (_hS)
-5. Add structural comments to create proof "table of contents"
-6. Document what the helper proves and why
-7. Test compilation after each extraction with lean_diagnostic_messages
-8. Examine goal states every 5-10 lines to find natural boundaries
+5. Add structural comments that explain "why", not "what"
+6. Isolate hypothesis usage—extract with minimal assumptions first
+7. Document what the helper proves and why
+8. Test compilation after each extraction with lean_diagnostic_messages
+9. Examine goal states every 5-10 lines to find natural boundaries
 ```
 
 ---
