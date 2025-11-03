@@ -115,6 +115,7 @@ The plugin includes 16 automation scripts organized by category:
 - [sorry-filling.md](skills/lean4-theorem-proving/references/sorry-filling.md) - Systematic sorry filling workflows
 - [axiom-elimination.md](skills/lean4-theorem-proving/references/axiom-elimination.md) - Axiom elimination strategies
 - [proof-golfing.md](skills/lean4-theorem-proving/references/proof-golfing.md) - Simplifying proofs after compilation
+- [proof-refactoring.md](skills/lean4-theorem-proving/references/proof-refactoring.md) - Breaking monolithic proofs into helpers
 - [compiler-guided-repair.md](skills/lean4-theorem-proving/references/compiler-guided-repair.md) - APOLLO-inspired automated repair
 - [lean-lsp-server.md](skills/lean4-theorem-proving/references/lean-lsp-server.md) - Lean LSP server quick reference (Claude Code users)
 - [lean-lsp-tools-api.md](skills/lean4-theorem-proving/references/lean-lsp-tools-api.md) - Lean LSP tools detailed API (Claude Code users)
@@ -172,7 +173,7 @@ lean4-theorem-proving/
 │   └── minimize_imports.py        # Import minimization
 └── skills/lean4-theorem-proving/  # Skill content
     ├── SKILL.md                   # Core workflow (loaded by Claude)
-    └── references/                # Detailed guides (16 files)
+    └── references/                # Detailed guides (17 files)
         ├── lean-phrasebook.md     # Math English to Lean
         ├── mathlib-guide.md       # mathlib integration
         ├── mathlib-style.md       # Mathlib style conventions
@@ -185,6 +186,7 @@ lean4-theorem-proving/
         ├── sorry-filling.md       # Sorry filling workflows
         ├── axiom-elimination.md   # Axiom elimination strategies
         ├── proof-golfing.md       # Proof simplification
+        ├── proof-refactoring.md   # Breaking monolithic proofs into helpers
         ├── compiler-guided-repair.md # APOLLO-inspired automated repair
         ├── lean-lsp-server.md     # LSP quick reference (Claude Code)
         ├── lean-lsp-tools-api.md  # LSP API reference (Claude Code)
