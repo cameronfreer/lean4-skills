@@ -169,14 +169,208 @@ Repeat until proof is manageable.
 
 ---
 
-## Example Workflow (To Be Populated)
+## Real Refactoring Example
 
-*This section will be updated with a detailed example from actual refactoring work, showing:*
-- *Initial monolithic proof with specific line numbers*
-- *Goal states at different points (from `lean_goal`)*
-- *Decision process for where to extract*
-- *Final extracted structure*
-- *Verification steps*
+**Context:** 63-line monolithic proof about exchangeable measures with strict monotone functions.
+
+**Step 1: Identify natural boundaries**
+
+Using `lean_goal` at different points revealed:
+- Line 15: After establishing `hk_bound : ∀ i, k i < n` (clean arithmetic result)
+- Line 35: After constructing permutation (conceptually distinct)
+- Line 50: After projection proof (measure theory manipulation)
+
+**Step 2: Extract arithmetic helper**
+
+Found this embedded calculation:
+```lean
+have hk_bound : ∀ i : Fin (m' + 1), k i < n := by
+  intro i
+  simp only [n]
+  have : k i ≤ k ⟨m', Nat.lt_succ_self m'⟩ := by
+    apply StrictMono.monotone hk_mono
+    exact Fin.le_last i
+  omega
+```
+
+Extracted to:
+```lean
+/-- Strictly monotone functions satisfy k(i) ≤ k(last) for all i -/
+private lemma strictMono_all_lt_succ_last {m : ℕ} (k : Fin m → ℕ)
+    (hk : StrictMono k) (i : Fin m) (last : Fin m)
+    (h_last : ∀ j, j ≤ last) :
+    k i ≤ k last := by
+  apply StrictMono.monotone hk
+  exact h_last i
+```
+
+**Result:** Main proof now just calls helper, much clearer.
+
+**Step 3: Verify with LSP**
+
+```python
+lean_diagnostic_messages(file)  # No errors ✓
+lean_goal(file, line=15)        # Shows helper available ✓
+```
+
+**Final structure:**
+- Original: 63 lines monolithic
+- Refactored: 45 lines main + 33 lines helpers = 78 lines total
+- **Success:** Much clearer structure, each piece testable independently
+
+**Key insight:** Success measured by clarity, not brevity.
+
+---
+
+## Critical Patterns from Real Refactoring
+
+### 1. Use `private` for Proof-Specific Helpers
+
+**Pattern:** Mark helper lemmas as `private` when they're only used in one theorem and have very specific signatures.
+
+```lean
+/-- Helper lemma: strictly monotone functions satisfy k(i) ≤ k(last) -/
+private lemma strictMono_all_lt_succ_last {m : ℕ} (k : Fin m → ℕ)
+    (hk : StrictMono k) (i : Fin m) (last : Fin m)
+    (h_last : ∀ j, j ≤ last) :
+    k i ≤ k last := by
+  apply StrictMono.monotone hk
+  exact h_last i
+```
+
+**Why:** This signals "internal scaffolding" - too specific to be generally useful, but clarifies the main proof.
+
+### 2. ⚠️ CRITICAL: Let Bindings Create Definitional Inequality
+
+**Problem:** When extracting a helper that uses `let` bindings, those bindings create new definitional contexts that don't unify with the main proof's `let` bindings, even if syntactically identical.
+
+**What happened:**
+```lean
+-- In main theorem:
+let ι : Fin (m' + 1) → Fin n := fun i => ⟨i.val, ...⟩
+let proj : (Fin n → α) → (Fin (m' + 1) → α) := fun f i => f (ι i)
+
+-- In helper lemma (also uses let):
+private lemma helper ... :=
+  let ι : Fin m → Fin n := fun i => ⟨i.val, ...⟩
+  let proj : (Fin n → α) → (Fin m → α) := fun f i => f (ι i)
+  Measure.map (proj ∘ ...) μ = Measure.map (proj ∘ ...) μ := by ...
+
+-- Error when using helper:
+-- "Did not find an occurrence of the pattern (proj ∘ fun ω j => ...)"
+-- Main theorem's `proj` ≠ helper's `proj` definitionally!
+```
+
+**Solutions:**
+- **Option A:** Inline the proof directly (what we did for measure theory manipulations)
+- **Option B:** Pass `ι` and `proj` as explicit parameters instead of `let` bindings
+- **Option C:** Use `show` to change the goal explicitly
+
+**Takeaway:** Avoid `let` bindings in helper signatures when the caller also uses `let`. Use explicit parameters instead.
+
+### 3. Omega Has Limits - Provide Intermediate Steps
+
+**Problem:** `omega` can fail on arithmetic goals that humans find obvious.
+
+**Original failing attempt:**
+```lean
+private lemma strictMono_length_le_max_succ {m : ℕ} (k : Fin m → ℕ)
+    (hk : StrictMono k) (last : Fin m) :
+    m ≤ k last + 1 := by
+  have h_last_val : last.val < m := last.isLt
+  have h_mono : last.val ≤ k last := strictMono_Fin_ge_id hk last
+  omega  -- ERROR: "omega could not prove the goal"
+```
+
+**Successful fix:**
+```lean
+private lemma strictMono_length_le_max_succ {m : ℕ} (k : Fin m → ℕ)
+    (hk : StrictMono k) (last : Fin m)
+    (h_last_is_max : last.val + 1 = m) :  -- Explicit equality
+    m ≤ k last + 1 := by
+  have h_mono : last.val ≤ k last := strictMono_Fin_ge_id hk last
+  calc m = last.val + 1 := h_last_is_max.symm
+       _ ≤ k last + 1 := Nat.add_le_add_right h_mono 1
+```
+
+**Why it helps:** Making `last.val + 1 = m` an explicit assumption (proven as `rfl` at call site) gives `omega` less to figure out. Use `calc` for clarity.
+
+### 4. Measure Theory Extraction Requires Exact Alignment
+
+**Lesson:** When extracting lemmas involving `Measure.map` and compositions, ensure types and compositions align exactly. Measure theory lemmas are sensitive to definitional equality.
+
+**What didn't work:**
+```lean
+-- Helper returned: Measure.map (proj ∘ f) μ = Measure.map (proj ∘ g) μ
+-- Main theorem had different `proj` definition (via let)
+-- Rewrite failed even though they looked the same
+```
+
+**What worked:**
+```lean
+-- Inline the projection proof directly in main theorem:
+have hproj_eq : Measure.map (proj ∘ fun ω j => X (σ j).val ω) μ =
+                Measure.map (proj ∘ fun ω j => X j.val ω) μ := by
+  rw [← Measure.map_map hproj_meas (measurable_pi_lambda _ ...),
+      ← Measure.map_map hproj_meas (measurable_pi_lambda _ ...)]
+  exact congrArg (Measure.map proj) hexch
+```
+
+**Takeaway:** For measure theory manipulations with `let` bindings, prefer inlining over extraction.
+
+### 5. Document What and Why
+
+**Pattern:** Every helper lemma should explain:
+1. What it proves (in mathematical terms)
+2. Why it's true (key insight)
+3. How it's used (if not obvious)
+
+**Good example:**
+```lean
+/--
+Helper lemma: The length of the domain is bounded by the maximum value plus one.
+
+For a strictly monotone function `k : Fin m → ℕ`, we have `m ≤ k(m-1) + 1`.
+This uses the fact that strictly monotone functions satisfy `i ≤ k(i)` for all `i`.
+-/
+private lemma strictMono_length_le_max_succ ...
+```
+
+### 6. Test After Every Extraction
+
+**Workflow with LSP:**
+1. Extract helper lemma
+2. `lean_diagnostic_messages(file)` on helper
+3. Update main theorem to use helper
+4. `lean_diagnostic_messages(file)` on main theorem
+5. Fix any type mismatches
+6. Repeat
+
+**Don't:** Make multiple changes then check - errors compound!
+
+---
+
+## Refactoring Decision Tree
+
+```
+Is the proof > 50 lines?
+├─ Yes: Look for natural boundaries (use lean_goal to inspect states)
+│   ├─ Found arithmetic bounds?
+│   │   ├─ Can extract without `let` bindings? → Extract to private helper
+│   │   └─ Uses complex `let` bindings? → Consider inlining
+│   ├─ Found permutation construction?
+│   │   └─ Reusable pattern? → Extract (ensure parameter clarity)
+│   └─ Found measure manipulations?
+│       └─ Uses `let` bindings? → Prefer inlining (definitional issues)
+└─ No: Probably fine as-is
+
+When extracting:
+1. Make helper `private` if proof-specific
+2. Avoid `let` bindings in helper signatures (use explicit parameters)
+3. If omega fails, add explicit intermediate steps (use calc)
+4. Document what the helper proves and why
+5. Test compilation after each extraction with lean_diagnostic_messages
+```
 
 ---
 
