@@ -19,7 +19,7 @@ description: Use when developing Lean 4 proofs, facing type class synthesis erro
 | **Automation Scripts** | 19 tools for search, verification, refactoring, repair | Plugin `scripts/` directory ([scripts/README.md](../../scripts/README.md)) |
 | **Subagents** | 4 specialized agents for batch tasks (optional) | [subagent-workflows.md](references/subagent-workflows.md) |
 | **LSP Server** | 30x faster feedback with instant proof state (optional) | [lean-lsp-server.md](references/lean-lsp-server.md) |
-| **Reference Files** | 13 detailed guides (phrasebook, tactics, patterns, errors, repair) | [List below](#reference-files) |
+| **Reference Files** | 16 detailed guides (phrasebook, tactics, patterns, errors, repair) | [List below](#reference-files) |
 
 ## When to Use
 
@@ -146,8 +146,10 @@ See [compilation-errors.md](references/compilation-errors.md) for detailed debug
 
 **Core references:** [lean-phrasebook.md](references/lean-phrasebook.md), [mathlib-guide.md](references/mathlib-guide.md), [tactics-reference.md](references/tactics-reference.md), [compilation-errors.md](references/compilation-errors.md)
 
-**Domain-specific:** [domain-patterns.md](references/domain-patterns.md), [measure-theory.md](references/measure-theory.md), [calc-patterns.md](references/calc-patterns.md)
+**Domain-specific:** [domain-patterns.md](references/domain-patterns.md), [measure-theory.md](references/measure-theory.md), [instance-pollution.md](references/instance-pollution.md), [calc-patterns.md](references/calc-patterns.md)
+
+**Incomplete proofs:** [sorry-filling.md](references/sorry-filling.md), [axiom-elimination.md](references/axiom-elimination.md)
 
 **Optimization:** [proof-golfing.md](references/proof-golfing.md), [mathlib-style.md](references/mathlib-style.md)
 
-**Automation:** [compiler-guided-repair.md](references/compiler-guided-repair.md), [lean-lsp-server.md](references/lean-lsp-server.md), [subagent-workflows.md](references/subagent-workflows.md)
+**Automation:** [compiler-guided-repair.md](references/compiler-guided-repair.md), [lean-lsp-server.md](references/lean-lsp-server.md), [lean-lsp-tools-api.md](references/lean-lsp-tools-api.md), [subagent-workflows.md](references/subagent-workflows.md)
