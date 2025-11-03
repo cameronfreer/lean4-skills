@@ -62,8 +62,10 @@ theorem foo : Result := by
 ```
 Is the proof 60-200 lines? (sweet spot for refactoring)
 ├─ Yes: Look for natural boundaries (use lean_goal at 4-5 key points)
-│   ├─ Repetitive structure (lhs/rhs with near-identical proofs)?
+│   ├─ Repetitive structure (lhs/rhs, symmetric args, or repeated case splits)?
 │   │   └─ Extract common pattern to helper (Pattern 1.3)
+│   ├─ Single large case split (30+ lines proving reusable fact)?
+│   │   └─ Extract even if not repeated (Pattern 1.3 - single large case split)
 │   ├─ Multiple properties proven separately, used together?
 │   │   └─ Bundle with ∧, use obtain (Pattern 1.5)
 │   ├─ Mixes multiple mathematical domains (combinatorics + analysis)?
@@ -117,7 +119,7 @@ After refactoring:
 1. **Identify opportunities** (Pattern 1): What signals extraction?
    - 50+ line preliminary? → 1.1
    - Mixing domains? → 1.2
-   - Repetitive lhs/rhs? → 1.3
+   - Repetitive structure (lhs/rhs, symmetric args, large case splits)? → 1.3
    - Witness extraction? → 1.4
    - Properties always together? → 1.5
    - Recurring conversion? → 1.6
@@ -395,15 +397,49 @@ theorem main_result ... := by
 
 #### 1.3. Repetitive Structure (lhs/rhs and Case Splits)
 
-**Trigger:** Nearly identical proofs for both sides of equation, or multiple cases with same structure.
+**Trigger:** Nearly identical proofs for both sides of equation, symmetric arguments, or multiple cases with same structure.
 
 **Basic pattern (literal repetition):**
 ```lean
+-- Symmetric sides of equation
 have hlhs : P lhs := by [20 lines]
 have hrhs : P rhs := by [20 lines, nearly identical!]
+
+-- Symmetric objects/arguments (P and Q, left and right, forward and backward)
+have hP : Property P := by [14 lines]
+have hQ : Property Q := by [14 lines, exact duplicate!]
 ```
 
 **Action:** Extract `private lemma has_property_P (expr : α) : P expr`
+
+**Single large case split (even if not repeated):**
+
+Even a SINGLE 30+ line case split should be extracted if it proves a standalone mathematical fact.
+
+**Trigger:** One large case analysis (30+ lines) that proves a reusable identity.
+
+**Example:**
+```lean
+-- Before: 37-line case split inline
+have h := by
+  by_cases hY : ω ∈ Y ⁻¹' A <;> by_cases hZ : ω ∈ Z ⁻¹' B
+  · -- 9 lines for case 1
+    ...
+  · -- 9 lines for case 2
+    ...
+  · -- 9 lines for case 3
+    ...
+  · -- 9 lines for case 4
+    ...
+
+-- After: Clean one-liner
+have h := prod_indicators_eq_indicator_intersection X k B
+```
+
+**When to extract single case splits:** The case analysis proves a fact that:
+- Could be stated as a standalone lemma with clear mathematical meaning
+- Doesn't depend on specific context of the current proof
+- Would be reusable in other proofs
 
 **Advanced pattern (abstract structural repetition):**
 
@@ -453,7 +489,11 @@ have h2 := indicator_mul_eq_indicator (f⁻¹'A) (g⁻¹'B) x
 
 **Recognition pattern:** If you find yourself writing the same `by_cases` structure multiple times with the same number of cases and similar reasoning in each case, even if the goals look different on the surface, there's likely an abstract pattern to extract.
 
-**Rule:** Copy-paste with only variable names changed → extract (literal repetition). Same case-split structure for different goals → extract abstract pattern (structural repetition).
+**Summary rules:**
+- **Literal repetition**: Copy-paste with only variable names changed (lhs/rhs, P/Q) → extract
+- **Single large case split**: 30+ line case analysis proving reusable fact → extract even if not repeated
+- **Abstract structural repetition**: Same case-split structure for different goals → extract abstract pattern
+- **Why:** Write logic once, changes apply automatically, helpers reusable, main proof reads at higher abstraction level
 
 #### 1.4. Witness Extraction
 
