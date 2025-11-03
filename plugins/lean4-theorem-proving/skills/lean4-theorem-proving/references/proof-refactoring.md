@@ -431,7 +431,7 @@ have hmap₁ := pathLaw_map_reindex_comm ...
 
 **Observation:** `lake build` failed due to Batteries dependency issues (toolchain compatibility), but:
 ```python
-mcp__lean-lsp__lean_diagnostic_messages(file)
+lean_diagnostic_messages(file_path)
 # ✅ Still worked! Returned [] (no errors)
 ```
 
