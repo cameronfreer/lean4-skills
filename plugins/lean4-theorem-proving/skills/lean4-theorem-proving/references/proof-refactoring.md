@@ -4,18 +4,22 @@ Guide for breaking monolithic proofs into maintainable helper lemmas.
 
 ## When to Refactor
 
+**Sweet spot:** Proofs between 60-200 lines benefit most from refactoring. Under 60 lines, overhead exceeds benefit. Over 200 lines, multiple refactorings needed.
+
 **Refactor when:**
-- Proof exceeds 100 lines
+- Proof exceeds 100 lines (or 60+ with repetitive structure)
 - Multiple conceptually distinct steps
 - Intermediate results would be useful elsewhere
 - Hard to understand/maintain
-- Repeated patterns
+- Repeated patterns (especially lhs/rhs with near-identical proofs)
+- Large preliminary calculations (50+ line `have` statements)
+- Property bundling opportunities (multiple properties proven separately, used together)
 
 **Don't refactor when:**
-- Proof is short and linear
+- Proof is short and linear (< 50 lines, no repetition)
 - No natural intermediate milestones
 - Extraction would require too many parameters
-- Proof is already well-structured with `have` statements
+- Proof is already well-structured with `have` statements and helpers
 
 ---
 
@@ -25,20 +29,22 @@ Guide for breaking monolithic proofs into maintainable helper lemmas.
 
 ### Step 1: Survey the Proof
 
-Walk through the proof checking goals at different points:
+Walk through the proof checking goals at 4-5 key points:
 
 ```python
-# Check goals at various locations in the long proof
+# Check goals at 4-5 key locations in the long proof
 lean_goal(file, line=15)   # After initial setup
 lean_goal(file, line=45)   # After first major step
 lean_goal(file, line=78)   # After second major step
-lean_goal(file, line=120)  # Near end
+lean_goal(file, line=120)  # After third major step
+lean_goal(file, line=155)  # Near end
 ```
 
 **What to look for:**
 - Clean, self-contained intermediate goals
 - Natural mathematical milestones
-- Points where context is manageable
+- Points where context significantly changes
+- Repetitive structure (same proof pattern for lhs/rhs)
 
 ### Step 2: Identify Extraction Points
 
@@ -739,15 +745,234 @@ obtain ⟨y, hy⟩ := witnesses_helper ...
 
 ---
 
+## Additional Refactoring Patterns
+
+### 21. Repetitive Structure (lhs/rhs Patterns)
+
+**Pattern:** When proving both sides of an equation or multiple cases with nearly identical logic, extract the common pattern.
+
+**What to look for:**
+- Proofs with `have hlhs : ... := by [proof]` and `have hrhs : ... := by [similar proof]`
+- Case splits where each branch has identical structure
+- Multiple applications of the same technique to different objects
+
+**Before (repetitive):**
+```lean
+theorem foo : lhs = rhs := by
+  -- Prove lhs has property P (20 lines)
+  have hlhs : P lhs := by
+    intro x
+    simp [complex_lemma]
+    apply measurability_tactic
+    ... [15 more lines]
+
+  -- Prove rhs has property P (20 lines, nearly identical!)
+  have hrhs : P rhs := by
+    intro x
+    simp [complex_lemma]
+    apply measurability_tactic
+    ... [15 more lines]
+
+  -- Use both
+  exact property_equality_from_P hlhs hrhs
+```
+
+**After (extracted helper):**
+```lean
+private lemma has_property_P (expr : α → β) (h : SomeCondition expr) : P expr := by
+  intro x
+  simp [complex_lemma]
+  apply measurability_tactic
+  ... [15 lines - written once]
+
+theorem foo : lhs = rhs := by
+  have hlhs := has_property_P lhs hlhs_cond
+  have hrhs := has_property_P rhs hrhs_cond
+  exact property_equality_from_P hlhs hrhs
+```
+
+**Benefits:**
+- Write the proof logic once, not twice
+- Changes apply to both sides automatically
+- Main proof shows structure clearly: "Both sides satisfy P, therefore equal"
+- Helper is reusable for future lhs/rhs proofs
+
+**Rule of thumb:** If you copy-paste proof code with only variable names changed, extract a helper.
+
+### 22. Property Bundling with Conjunctions
+
+**Pattern:** When multiple related properties are proven separately but always used together, bundle them with `∧` and use `obtain` to destructure.
+
+**Before (properties scattered):**
+```lean
+theorem bar : FinalGoal := by
+  have h1 : Property1 x := by [proof]
+  have h2 : Property2 x := by [proof]
+  have h3 : Property3 x := by [proof]
+  -- Later: use all three together
+  exact final_lemma h1 h2 h3
+```
+
+**After (bundled helper):**
+```lean
+private lemma bundle_properties (x : α) (hx : Condition x) :
+    Property1 x ∧ Property2 x ∧ Property3 x := by
+  constructor
+  · [proof of Property1]
+  constructor
+  · [proof of Property2]
+  · [proof of Property3]
+
+theorem bar : FinalGoal := by
+  obtain ⟨h1, h2, h3⟩ := bundle_properties x hx
+  exact final_lemma h1 h2 h3
+```
+
+**Benefits:**
+- Clear relationship: These properties belong together
+- Single lemma name documents the bundling
+- `obtain` destructures cleanly
+- Easier to reuse the bundle elsewhere
+
+**When to bundle:**
+- Properties share same hypotheses
+- Always proven together in a sequence
+- Conceptually related (e.g., "measurability + integrability", "probability measure properties")
+- No independent use cases for individual properties
+
+**When NOT to bundle:**
+- Properties have different hypotheses
+- Sometimes used independently
+- No conceptual relationship (just happen to be nearby)
+
+### 23. Generic is Better
+
+**Pattern:** When extracting helpers, remove proof-specific constraints to maximize reusability.
+
+**Before (too specific):**
+```lean
+-- Extracted from one specific proof about our particular function f
+private lemma helper_for_my_proof (n : ℕ) (hn : n = 42) : Property n := by
+  rw [hn]
+  exact specific_lemma_for_42
+```
+
+**After (generic):**
+```lean
+-- Works for any n ≥ 1, not just 42
+private lemma helper_general (n : ℕ) (hn : 1 ≤ n) : Property n := by
+  cases n with
+  | zero => omega  -- contradicts 1 ≤ n
+  | succ n' => exact general_lemma
+```
+
+**How to generalize:**
+1. **Relax equality to inequality:** `n = 42` → `1 ≤ n`
+2. **Remove specific values:** `f = our_function` → any `f` satisfying the condition
+3. **Weaken hypotheses:** Use only what's actually needed in the proof
+4. **Broaden types:** `Fin 10` → `Fin n` if the bound doesn't matter
+
+**Example from measure theory:**
+```lean
+-- ❌ Too specific (only for product measures)
+private lemma rectangle_measurable_product (s : Set (α × β)) : ... := by
+  ...
+
+-- ✅ Generic (works for any MeasurableSpace structure)
+private lemma rectangle_as_pi_measurable (s : Set (∀ i : Fin 2, α i)) : ... := by
+  ...
+```
+
+**Benefits:**
+- Helper works in future proofs with similar structure
+- Easier to understand (fewer arbitrary constraints)
+- Forces you to identify the essential conditions
+- Builds a reusable library of project-specific lemmas
+
+**Balance:** Don't over-generalize to the point where the proof becomes much harder or the helper needs 10+ parameters.
+
+### 24. Notation Conversion Helpers
+
+**Pattern:** Proofs often need to convert between equivalent notations. Extract conversion helpers that are reusable.
+
+**Common conversions:**
+- Set builder ↔ pi notation: `{x | ∀ i, x i ∈ s i}` ↔ `Set.univ.pi s`
+- Membership ↔ function application: `x ∈ S` ↔ `S x = true`
+- Measure ↔ integral: `μ s` ↔ `∫⁻ x, s.indicator 1 ∂μ`
+- Preimage ↔ set comprehension: `f ⁻¹' t` ↔ `{x | f x ∈ t}`
+
+**Before (conversion inline):**
+```lean
+theorem qux : MeasurableSet s := by
+  -- Want: s is measurable
+  -- Have: s = Set.univ.pi (fun i => t i)
+
+  -- Inline conversion (10 lines)
+  unfold Set.pi
+  simp only [Set.mem_univ, true_and]
+  rw [Set.setOf_forall]
+  apply MeasurableSet.iInter
+  intro i
+  ... [more conversion logic]
+
+  -- Now apply measurability
+  exact measurable_cylinder
+```
+
+**After (extracted conversion):**
+```lean
+private lemma pi_notation_measurable (t : ∀ i, Set (α i))
+    (ht : ∀ i, MeasurableSet (t i)) :
+    MeasurableSet (Set.univ.pi t) := by
+  unfold Set.pi
+  simp only [Set.mem_univ, true_and]
+  rw [Set.setOf_forall]
+  apply MeasurableSet.iInter
+  intro i
+  exact ht i
+
+theorem qux : MeasurableSet s := by
+  rw [hs]  -- s = Set.univ.pi (fun i => t i)
+  exact pi_notation_measurable t ht
+```
+
+**Benefits:**
+- Conversion logic written once, used everywhere
+- Main proof focuses on mathematics, not notation
+- Helper has clear purpose: "convert representation X to Y"
+- Highly reusable across similar proofs
+
+**Common helpers to extract:**
+```lean
+-- Rectangle notation for measure theory
+private lemma rectangle_as_pi : s = Set.univ.pi t ↔ ∀ x, x ∈ s ↔ ∀ i, x i ∈ t i
+
+-- Measurability under conversion
+private lemma measurable_pi_iff : MeasurableSet (Set.univ.pi t) ↔ ∀ i, MeasurableSet (t i)
+
+-- Measure preservation under pushforward
+private lemma pushforward_preserves_prob : IsProbabilityMeasure μ → IsProbabilityMeasure (μ.map f)
+```
+
+**Rule of thumb:** If you're doing the same 5-10 line conversion in multiple places, extract it.
+
+---
+
 ## Refactoring Decision Tree
 
 ```
-Is the proof > 50 lines?
-├─ Yes: Look for natural boundaries (use lean_goal to inspect states)
-│   ├─ Mixes multiple mathematical domains (combinatorics + analysis, algebra + topology)?
-│   │   └─ Extract each domain's logic separately (Pattern 18: Domain separation)
+Is the proof 60-200 lines? (sweet spot for refactoring)
+├─ Yes: Look for natural boundaries (use lean_goal at 4-5 key points)
+│   ├─ Repetitive structure (lhs/rhs with near-identical proofs)?
+│   │   └─ Extract common pattern to helper (Pattern 21)
+│   ├─ Multiple properties proven separately, used together?
+│   │   └─ Bundle with ∧, use obtain (Pattern 22)
+│   ├─ Mixes multiple mathematical domains (combinatorics + analysis)?
+│   │   └─ Extract each domain's logic separately (Pattern 18)
 │   ├─ Starts with 50+ line preliminary calculation?
-│   │   └─ Extract preliminary fact to helper (Pattern 19: Large prelims)
+│   │   └─ Extract preliminary fact to helper (Pattern 19)
+│   ├─ Same 5-10 line notation conversion repeated?
+│   │   └─ Extract conversion helper (Pattern 24)
 │   ├─ Found witness extraction (choose/obtain)?
 │   │   └─ Extract to helper (clear input/output contract)
 │   ├─ Found arithmetic bounds?
@@ -760,23 +985,28 @@ Is the proof > 50 lines?
 │   │   └─ Choice of representative → Keep in main (proof engineering)
 │   └─ Found measure manipulations?
 │       └─ Uses `let` bindings? → Prefer inlining (definitional issues)
-└─ No: Probably fine as-is
+├─ > 200 lines? → Multiple refactorings needed (start with largest prelims)
+└─ < 60 lines? → Probably fine as-is (unless heavily repetitive)
 
 When extracting:
 1. Make helper `private` if proof-specific (use regular -- comments, not /-- -/)
-2. Avoid `let` bindings in helper signatures:
+2. **Generic is better** (Pattern 23): Remove proof-specific constraints
+   - Relax equality to inequality (n = 42 → 1 ≤ n)
+   - Weaken hypotheses to minimum needed
+   - Broaden types when possible
+3. Avoid `let` bindings in helper signatures:
    - Option A: Use explicit parameters with equality proofs (param + hparam : param = expr)
    - Option B: Inline the proof if measure theory manipulation
-3. If omega fails, add explicit intermediate steps (use calc)
-4. Prefix unused but required parameters with underscore (_hS)
-5. Add structural comments that explain "why", not "what"
-6. Isolate hypothesis usage—extract with minimal assumptions first
-7. Document what the helper proves and why
-8. Test compilation after each extraction with lean_diagnostic_messages
-9. Examine goal states every 5-10 lines to find natural boundaries
+4. If omega fails, add explicit intermediate steps (use calc)
+5. Prefix unused but required parameters with underscore (_hS)
+6. Add structural comments that explain "why", not "what"
+7. Isolate hypothesis usage—extract with minimal assumptions first
+8. Document what the helper proves and why
+9. Test compilation after each extraction with lean_diagnostic_messages
+10. Check goal states at 4-5 key points to find natural boundaries
 
 After refactoring:
-10. Use named steps (step1, step2, ...) with comments (Pattern 20)
+11. Use named steps (step1, step2, ...) with comments (Pattern 20)
 ```
 
 ---
