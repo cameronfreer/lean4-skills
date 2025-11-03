@@ -33,46 +33,56 @@ Describe what you need: [wait for user]
 
 ### 2. Choose Search Strategy
 
-**Based on query type, construct ONE of these commands with user's actual query:**
+**IMPORTANT: Use LSP tools when available - they are faster and more powerful than bash scripts.**
 
-**A) Know approximate name:**
+**Based on query type, choose ONE of these approaches:**
 
-For example, searching for "continuous_compact":
-```bash
-bash .claude/tools/lean4/search_mathlib.sh "continuous_compact" name
-```
-Finds lemmas like `Continuous.isCompact_image`
+**A) Natural language/semantic search (PREFERRED):**
 
-**Fallback:** Use Grep to search local mathlib if cloned, or use WebFetch with mathlib docs
-
-**B) Know type signature pattern:**
-
-For example, searching for continuous function properties:
-```bash
-bash .claude/tools/lean4/smart_search.sh "(?f : ?α → ?β) → Continuous ?f → IsCompact ?s → IsCompact (?f '' ?s)" --source=loogle
+**Best choice:** Use `lean_leanfinder` (LSP tool) - semantic search with >30% improvement over alternatives:
+```python
+lean_leanfinder(query="continuous functions preserve compactness")
+lean_leanfinder(query="conditional expectation tower property")
+lean_leanfinder(query="⊢ |re z| ≤ ‖z‖")  # Can paste goals directly!
 ```
 
-**Fallback:** Use WebFetch to loogle API directly with the type pattern
-
-**C) Natural language description:**
-
-For example, searching for compactness properties:
+**Fallback (if LSP unavailable):** Use bash script with leansearch:
 ```bash
 bash .claude/tools/lean4/smart_search.sh "continuous functions preserve compactness" --source=leansearch
 ```
 
-**Fallback:** Use WebFetch to leansearch API directly with the description
+**B) Type signature pattern search:**
 
-**D) Specific mathematical property:**
-
-For example, searching for conditional expectation:
-```bash
-bash .claude/tools/lean4/search_mathlib.sh "conditional expectation tower property" content
+**Best choice:** Use `lean_loogle` (LSP tool):
+```python
+lean_loogle(query="(?f : ?α → ?β) → Continuous ?f → IsCompact ?s → IsCompact (?f '' ?s)")
 ```
 
-**Fallback:** Use Grep to search local mathlib content if available
+**Fallback (if LSP unavailable):** Use bash script with loogle:
+```bash
+bash .claude/tools/lean4/smart_search.sh "(?f : ?α → ?β) → Continuous ?f → IsCompact ?s → IsCompact (?f '' ?s)" --source=loogle
+```
+
+**C) Name pattern search:**
+
+**Best choice:** Use `lean_local_search` (LSP tool) if searching your repo, or `lean_leanfinder` for mathlib:
+```python
+lean_local_search(query="continuous.*compact")  # For local repo
+lean_leanfinder(query="continuous compact")     # For mathlib
+```
+
+**Fallback (if LSP unavailable):** Use bash script:
+```bash
+bash .claude/tools/lean4/search_mathlib.sh "continuous_compact" name
+```
 
 **IMPORTANT:** Replace example queries with user's actual search terms. Never use placeholders like `<pattern>` in executed commands.
+
+**Why prioritize LSP tools:**
+- **lean_leanfinder**: >30% better semantic search, goal-aware, tuned for mathematician queries
+- **lean_loogle**: Same functionality as bash loogle but integrated with LSP
+- **lean_local_search**: Unlimited searches (no rate limits), instant results for local repo
+- **Integrated workflow**: Results work seamlessly with other LSP tools like `lean_multi_attempt`
 
 ### 3. Run Search
 
@@ -203,45 +213,45 @@ Time saved: ~[estimate] minutes
 
 ## Search Modes
 
-### Mode 1: Quick Name Search (Fastest)
+**PRIORITY ORDER: Always try LSP tools first, fall back to bash scripts only if LSP unavailable.**
 
-**When:** You know roughly what the lemma is called
+### Mode 1: Semantic Search with LeanFinder (BEST - Use First!)
 
-```bash
-./scripts/search_mathlib.sh "continuous.*compact" name
+**When:** Natural language description, goal states, or informal queries
+
+**Preferred (LSP):**
+```python
+lean_leanfinder(query="continuous functions on compact spaces")
+lean_leanfinder(query="⊢ |re z| ≤ ‖z‖")  # Paste goals directly!
 ```
 
-**Pros:**
-- Fastest (grep-based)
-- Works offline
-- No rate limits
-
-**Cons:**
-- Need to guess naming convention
-- May miss lemmas with different names
-
-### Mode 2: Semantic Search (Most Intuitive)
-
-**When:** You can describe what you need in natural language
-
+**Fallback (bash):**
 ```bash
 ./scripts/smart_search.sh "continuous functions on compact spaces" --source=leansearch
 ```
 
 **Pros:**
+- **>30% better** than alternatives (arXiv evaluation)
+- Goal-aware (paste ⊢ ... directly)
+- Tuned for mathematician queries
 - No need to know Lean syntax
-- Finds conceptually related lemmas
 - Best for exploration
 
 **Cons:**
 - Requires internet
-- Rate limited (~3 requests/30 seconds)
+- Rate limited (~3 requests/30 seconds) shared with other external tools
 - May return conceptually related but technically different results
 
-### Mode 3: Type Pattern Search (Most Precise)
+### Mode 2: Type Pattern Search (Most Precise)
 
 **When:** You know the type signature structure
 
+**Preferred (LSP):**
+```python
+lean_loogle(query="(?f : ?α → ?β) → Continuous ?f → IsCompact (?f '' ?s)")
+```
+
+**Fallback (bash):**
 ```bash
 ./scripts/smart_search.sh "(?f : ?α → ?β) → Continuous ?f → IsCompact (?f '' ?s)" --source=loogle
 ```
@@ -256,10 +266,40 @@ Time saved: ~[estimate] minutes
 - Rate limited (~3 requests/30 seconds)
 - Requires internet
 
+### Mode 3: Local Name Search (Fastest for Your Repo)
+
+**When:** Searching your own repository or you know roughly what the lemma is called
+
+**Preferred (LSP):**
+```python
+lean_local_search(query="continuous.*compact")  # Your repo - unlimited!
+lean_leanfinder(query="continuous compact")     # Mathlib - semantic
+```
+
+**Fallback (bash):**
+```bash
+./scripts/search_mathlib.sh "continuous.*compact" name
+```
+
+**Pros:**
+- **Unlimited searches** (lean_local_search only, no rate limits)
+- Fastest (grep-based for bash, instant for LSP)
+- Works offline (bash only)
+
+**Cons:**
+- Need to guess naming convention (bash)
+- May miss lemmas with different names (bash)
+
 ### Mode 4: Content Search (Most Comprehensive)
 
 **When:** Searching by mathematical concept or technique
 
+**Preferred (LSP):**
+```python
+lean_leanfinder(query="monotone convergence")  # Better semantic understanding
+```
+
+**Fallback (bash):**
 ```bash
 ./scripts/search_mathlib.sh "monotone convergence" content
 ```
@@ -267,11 +307,10 @@ Time saved: ~[estimate] minutes
 **Pros:**
 - Finds lemmas using specific techniques
 - Good for discovering related results
-- Works offline
 
 **Cons:**
-- Slower (searches file contents)
-- More false positives
+- Slower (searches file contents for bash)
+- More false positives (bash)
 - Need to know mathematical terminology
 
 ## Common Search Patterns
@@ -380,22 +419,50 @@ For each documented sorry:
 ## Best Practices
 
 ✅ **Do:**
+- **Use `lean_leanfinder` first** - >30% better than alternatives, goal-aware
 - Search before proving ANYTHING
-- Try multiple search strategies
-- Use specific search for known patterns
-- Use semantic search for exploration
-- Verify found lemmas with #check before using
+- Try LSP tools before bash scripts (faster, better integrated)
+- Use `lean_local_search` for unlimited searches in your repo
+- Try multiple search strategies if first attempt fails
+- Verify found lemmas with `lean_multi_attempt` or #check before using
+- Paste goal states directly into `lean_leanfinder` (works great!)
 
 ❌ **Don't:**
+- Skip `lean_leanfinder` and go straight to bash scripts
 - Assume mathlib doesn't have it
 - Give up after one search
 - Forget to add imports
-- Use lemmas without checking their types
+- Use lemmas without verifying their types
 - Skip reading lemma documentation
+- Use bash scripts when LSP tools are available
 
 ## Advanced Tips
 
-**Tip 1: Use mathlib naming conventions**
+**Tip 1: LeanFinder with goal states (SUPERPOWER!)**
+```python
+# Get your current goal
+lean_goal(file_path="/path/to/file.lean", line=24)
+# Output: ⊢ |re z| ≤ ‖z‖
+
+# Paste goal directly into LeanFinder (works amazingly well!)
+lean_leanfinder(query="⊢ |re z| ≤ ‖z‖")
+
+# Or add a hint to guide the search
+lean_leanfinder(query="⊢ |re z| ≤ ‖z‖ + transform to squared norm inequality")
+```
+
+**Tip 2: Multiple targeted queries beat one complex query**
+```python
+# Instead of one complex query:
+lean_leanfinder(query="continuous function on compact space image is compact")
+
+# Try 2-3 simpler queries:
+lean_leanfinder(query="continuous compact image")
+lean_leanfinder(query="image compact set")
+lean_leanfinder(query="Continuous.isCompact")
+```
+
+**Tip 3: Use mathlib naming conventions**
 ```
 Pattern: [type].[property]_[operation]
 Examples:
@@ -404,20 +471,20 @@ Examples:
   - IsProbabilityMeasure.measure_univ
 ```
 
-**Tip 2: Search for dual/opposite**
+**Tip 4: Search for dual/opposite**
 ```
 Can't find: "surjective implies has right inverse"
 Try: "right inverse implies surjective" (might be easier to find)
 ```
 
-**Tip 3: Search by field**
+**Tip 5: Search by field**
 ```
 Need topology result: Search with "continuous", "compact", "open", "closed"
 Need measure theory: Search with "measurable", "integral", "measure"
 Need probability: Search with "probability", "expectation", "independent"
 ```
 
-**Tip 4: Use imports to navigate**
+**Tip 6: Use imports to navigate**
 ```
 Found lemma in: Mathlib.Topology.Compactness.Compact
 Explore that file for related lemmas about compactness
@@ -431,6 +498,10 @@ Explore that file for related lemmas about compactness
 
 ## References
 
-- [mathlib-guide.md](../references/mathlib-guide.md) - Detailed search strategies
-- [scripts/README.md](../scripts/README.md#search_mathlibsh) - Tool documentation
+- [lean-lsp-tools-api.md](../skills/lean4-theorem-proving/references/lean-lsp-tools-api.md#lean_leanfinder---semantic-search-for-mathlib) - **lean_leanfinder documentation (USE THIS FIRST!)**
+- [lean-lsp-tools-api.md](../skills/lean4-theorem-proving/references/lean-lsp-tools-api.md) - Complete LSP tools reference
+- [mathlib-guide.md](../skills/lean4-theorem-proving/references/mathlib-guide.md) - Detailed search strategies
+- [scripts/README.md](../scripts/README.md#search_mathlibsh) - Bash script documentation (fallback)
 - [Mathlib docs](https://leanprover-community.github.io/mathlib4_docs/) - Official documentation
+- [Lean Finder Paper](https://arxiv.org/pdf/2510.15940) - Research on >30% improvement
+- [Lean Finder UI](https://huggingface.co/spaces/delta-lab-ai/Lean-Finder) - Public web interface
