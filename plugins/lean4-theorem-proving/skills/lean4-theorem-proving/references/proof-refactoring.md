@@ -228,110 +228,357 @@ lean_goal(file, line=15)        # Shows helper available ✓
 
 ---
 
-## Critical Patterns from Real Refactoring
+## Refactoring Patterns
 
-### 1. Use `private` for Proof-Specific Helpers
+**6 high-level patterns** cover all refactoring scenarios. Each contains specific sub-patterns you can apply directly.
 
-**Pattern:** Mark helper lemmas as `private` when they're only used in one theorem and have very specific signatures.
+---
 
+### Pattern 1: Identify Extraction Opportunities
+
+**What to look for:** These signals indicate a helper should be extracted.
+
+#### 1.1. Large Preliminary Calculations
+
+**Trigger:** Proof starts with 50+ line `have` statement before the main argument.
+
+**Example:**
 ```lean
-/-- Helper lemma: strictly monotone functions satisfy k(i) ≤ k(last) -/
-private lemma strictMono_all_lt_succ_last {m : ℕ} (k : Fin m → ℕ)
-    (hk : StrictMono k) (i : Fin m) (last : Fin m)
-    (h_last : ∀ j, j ≤ last) :
-    k i ≤ k last := by
-  apply StrictMono.monotone hk
-  exact h_last i
+theorem main_result ... := by
+  -- 51 lines proving preliminary bound
+  have hAux : ∑ i, |p i - q i| ≤ 2 := by
+    [massive calculation]
+  -- Main argument obscured above
+  calc ...
 ```
 
-**Why:** This signals "internal scaffolding" - too specific to be generally useful, but clarifies the main proof.
+**Action:** Extract to `private lemma preliminary_bound ...`
 
-### 2. ⚠️ CRITICAL: Let Bindings Create Definitional Inequality
+**Why:** Preliminary fact has independent mathematical interest, makes main proof immediately visible, enables testing the preliminary calculation separately.
 
-**Problem:** When extracting a helper that uses `let` bindings, those bindings create new definitional contexts that don't unify with the main proof's `let` bindings, even if syntactically identical.
+#### 1.2. Domain Separation
 
-**What happened:**
+**Trigger:** Proof mixes independent mathematical domains (combinatorics + functional analysis, algebra + topology).
+
+**Example:** 130-line proof mixing finite probability distributions (combinatorics) with L² bounds (functional analysis).
+
+**Action:** Extract each domain's logic into separate helpers.
+
+**Why:** Each helper uses only tools from its domain, main theorem reads at correct abstraction level, helpers highly reusable.
+
+#### 1.3. Repetitive Structure (lhs/rhs)
+
+**Trigger:** Nearly identical proofs for both sides of equation, or multiple cases with same structure.
+
+**Example:**
 ```lean
--- In main theorem:
-let ι : Fin (m' + 1) → Fin n := fun i => ⟨i.val, ...⟩
-let proj : (Fin n → α) → (Fin (m' + 1) → α) := fun f i => f (ι i)
-
--- In helper lemma (also uses let):
-private lemma helper ... :=
-  let ι : Fin m → Fin n := fun i => ⟨i.val, ...⟩
-  let proj : (Fin n → α) → (Fin m → α) := fun f i => f (ι i)
-  Measure.map (proj ∘ ...) μ = Measure.map (proj ∘ ...) μ := by ...
-
--- Error when using helper:
--- "Did not find an occurrence of the pattern (proj ∘ fun ω j => ...)"
--- Main theorem's `proj` ≠ helper's `proj` definitionally!
+have hlhs : P lhs := by [20 lines]
+have hrhs : P rhs := by [20 lines, nearly identical!]
 ```
+
+**Action:** Extract `private lemma has_property_P (expr : α) : P expr`
+
+**Why:** Write logic once not twice, changes apply automatically, helper reusable.
+
+**Rule:** Copy-paste with only variable names changed → extract.
+
+#### 1.4. Witness Extraction
+
+**Trigger:** `choose` or multiple `obtain` extracting witnesses from existentials.
+
+**Example:**
+```lean
+have : ∀ i, ∃ T, MeasurableSet T ∧ s = f ⁻¹' T := by [proof]
+choose T hTmeas hspre using this
+```
+
+**Action:** Extract `obtain ⟨T, hTmeas, hspre⟩ := witnesses_helper ...`
+
+**Why:** Clear input/output contract (hypotheses → witnesses), helper testable independently, construction logic reusable.
+
+#### 1.5. Property Bundling
+
+**Trigger:** Multiple related properties proven separately but always used together.
+
+**Example:**
+```lean
+have h1 : Property1 x := by [proof]
+have h2 : Property2 x := by [proof]
+have h3 : Property3 x := by [proof]
+exact final_lemma h1 h2 h3  -- Always used together
+```
+
+**Action:** Bundle with `∧`, extract `obtain ⟨h1, h2, h3⟩ := bundle_properties x`
+
+**When to bundle:** Properties share hypotheses, always proven together, conceptually related.
+
+**When NOT:** Different hypotheses, sometimes used independently.
+
+#### 1.6. Notation Conversions
+
+**Trigger:** Same 5-10 line conversion between notations repeated multiple times.
+
+**Common conversions:**
+- Set builder ↔ pi notation: `{x | ∀ i, x i ∈ s i}` ↔ `Set.univ.pi s`
+- Measure ↔ integral: `μ s` ↔ `∫⁻ x, s.indicator 1 ∂μ`
+- Preimage ↔ set comprehension
+
+**Action:** Extract conversion helper with clear purpose.
+
+**Why:** Conversion written once, main proof focuses on mathematics not notation.
+
+---
+
+### Pattern 2: Design Reusable Helpers
+
+**How to extract:** Make helpers generic and broadly applicable.
+
+#### 2.1. Generic is Better
+
+**Principle:** Remove proof-specific constraints when extracting.
+
+**Techniques:**
+1. **Relax equality to inequality:** `n = 42` → `1 ≤ n`
+2. **Remove specific values:** Use parameters instead of constants
+3. **Weaken hypotheses:** Use only what's needed in proof
+4. **Broaden types:** `Fin 10` → `Fin n` if bound doesn't matter
+
+**Example:**
+```lean
+-- ❌ Too specific
+private lemma helper (n : ℕ) (hn : n = 42) : Property n
+
+-- ✅ Generic
+private lemma helper (n : ℕ) (hn : 1 ≤ n) : Property n
+```
+
+**Balance:** Don't over-generalize to 10+ parameters.
+
+#### 2.2. Isolate Hypothesis Usage
+
+**Principle:** Extract helpers with minimal assumptions for maximum reusability.
+
+**Example:** In a proof using surjectivity, only ONE helper needs it - others work without.
+
+**Practice:**
+- Extract helper with minimal assumptions first
+- Build specialized helpers on top
+- Creates reusability hierarchy
+
+#### 2.3. Avoid Let Bindings in Helper Signatures
+
+**Problem:** Let bindings create definitional inequality - helper's `let proj` ≠ main's `let proj` even if syntactically identical.
 
 **Solutions:**
-- **Option A:** Inline the proof directly (what we did for measure theory manipulations)
-- **Option B:** Pass `ι` and `proj` as explicit parameters instead of `let` bindings
-- **Option C:** Use `show` to change the goal explicitly
+- **Option A:** Explicit parameters with equality proofs
+  ```lean
+  private lemma helper (μX : Measure α) (hμX : μX = pathLaw μ X) ...
+  -- Call site: helper μX rfl  -- ✓ Unifies perfectly
+  ```
+- **Option B:** Inline the proof (for measure theory manipulations)
 
-**Takeaway:** Avoid `let` bindings in helper signatures when the caller also uses `let`. Use explicit parameters instead.
+**Why:** Definitional inequality causes rewrite failures even with identical-looking expressions.
 
-### 3. Omega Has Limits - Provide Intermediate Steps
+#### 2.4. "All Equal, Pick One" Pattern
 
-**Problem:** `omega` can fail on arithmetic goals that humans find obvious.
+**Pattern:** "All things are equal, so pick one canonical representative."
 
-**Original failing attempt:**
+**Structure:**
+1. **Mathematical content** (all candidates equal) → Extract to helper
+2. **Proof engineering** (choice of which to use) → Keep in main
+3. Use equality from helper → Main proof
+
+**Why separate:** Equality proof has mathematical content worth reusing. Choice is arbitrary proof engineering.
+
+---
+
+### Pattern 3: Lean-Specific Conventions
+
+**Code quality:** Follow Lean syntax and style conventions.
+
+#### 3.1. Private Lemmas Use Regular Comments
+
+**Rule:** `private` declarations use `--` comments, not `/-- -/` doc comments.
+
 ```lean
-private lemma strictMono_length_le_max_succ {m : ℕ} (k : Fin m → ℕ)
-    (hk : StrictMono k) (last : Fin m) :
-    m ≤ k last + 1 := by
-  have h_last_val : last.val < m := last.isLt
-  have h_mono : last.val ≤ k last := strictMono_Fin_ge_id hk last
-  omega  -- ERROR: "omega could not prove the goal"
+-- ✅ Correct
+-- Helper for extracting witnesses
+private lemma helper ...
+
+-- ❌ Wrong
+/-- Helper for extracting witnesses -/  -- Error: unexpected token '/--'
+private lemma helper ...
 ```
 
-**Successful fix:**
+**Why:** Doc comments are for public API. Private declarations don't appear in generated docs.
+
+#### 3.2. Unused Parameters Need Underscore
+
+**Rule:** Intentionally unused parameters get underscore prefix.
+
 ```lean
-private lemma strictMono_length_le_max_succ {m : ℕ} (k : Fin m → ℕ)
-    (hk : StrictMono k) (last : Fin m)
-    (h_last_is_max : last.val + 1 = m) :  -- Explicit equality
-    m ≤ k last + 1 := by
-  have h_mono : last.val ≤ k last := strictMono_Fin_ge_id hk last
-  calc m = last.val + 1 := h_last_is_max.symm
+-- Parameter needed in type signature but unused in proof
+∀ n (S : Set (Fin n → α)) (_hS : MeasurableSet S), ...
+```
+
+**Why:** Signals "intentionally unused" to linter. Parameter required in signature but proof doesn't explicitly reference it.
+
+#### 3.3. Omega Limitations
+
+**Problem:** `omega` fails on arithmetic goals that seem obvious.
+
+**Solution:** Provide intermediate steps with `calc` or explicit equalities as hypotheses.
+
+**Example:**
+```lean
+-- ❌ Fails
+have : m ≤ k last + 1 := by omega
+
+-- ✅ Works
+have (h_last_eq : last.val + 1 = m) : m ≤ k last + 1 := by
+  calc m = last.val + 1 := h_last_eq.symm
        _ ≤ k last + 1 := Nat.add_le_add_right h_mono 1
 ```
 
-**Why it helps:** Making `last.val + 1 = m` an explicit assumption (proven as `rfl` at call site) gives `omega` less to figure out. Use `calc` for clarity.
+#### 3.4. Measure Theory Requires Exact Alignment
 
-### 4. Measure Theory Extraction Requires Exact Alignment
+**Problem:** Measure theory lemmas sensitive to definitional equality. `Measure.map` compositions must align exactly.
 
-**Lesson:** When extracting lemmas involving `Measure.map` and compositions, ensure types and compositions align exactly. Measure theory lemmas are sensitive to definitional equality.
+**Solution:** For measure manipulations with `let` bindings, prefer inlining over extraction (definitional inequality issues).
 
-**What didn't work:**
+---
+
+### Pattern 4: Structure the Main Proof
+
+**After extraction:** Reorganize main proof for clarity.
+
+#### 4.1. Named Steps with Comments
+
+**Pattern:** Use `step1`, `step2`, ... with comments explaining what each achieves mathematically.
+
+**Example:**
 ```lean
--- Helper returned: Measure.map (proj ∘ f) μ = Measure.map (proj ∘ g) μ
--- Main theorem had different `proj` definition (via let)
--- Rewrite failed even though they looked the same
+theorem main_result ... := by
+  -- Step 1: E(∑cᵢξᵢ)² = E(∑cᵢ(ξᵢ-m))² using ∑cⱼ = 0
+  have step1 : ... := by ...
+
+  -- Step 2: = ∑ᵢⱼ cᵢcⱼ cov(ξᵢ, ξⱼ) by expanding square
+  have step2 : ... := by ...
+
+  -- Final: Combine steps
+  calc ...
 ```
 
-**What worked:**
+**Benefits:** Reads like textbook proof, mathematical narrative clear, easy to locate issues, reviewers understand structure without parsing tactics.
+
+#### 4.2. Structural Comments Explain "Why"
+
+**Good comments:**
+- Explain mathematical goal (not Lean syntax)
+- Highlight where key hypotheses are used
+- Make proof understandable from comments alone
+
+**Examples:**
 ```lean
--- Inline the projection proof directly in main theorem:
-have hproj_eq : Measure.map (proj ∘ fun ω j => X (σ j).val ω) μ =
-                Measure.map (proj ∘ fun ω j => X j.val ω) μ := by
-  rw [← Measure.map_map hproj_meas (measurable_pi_lambda _ ...),
-      ← Measure.map_map hproj_meas (measurable_pi_lambda _ ...)]
-  exact congrArg (Measure.map proj) hexch
+-- ✅ Good: Explains proof strategy
+-- Extract witnesses Tᵢ such that s = f ⁻¹' Tᵢ for each i
+
+-- ❌ Bad: Describes what code does
+-- Choose the witnesses Tᵢ along with measurability
 ```
 
-**Takeaway:** For measure theory manipulations with `let` bindings, prefer inlining over extraction.
+---
 
-### 5. Document What and Why
+### Pattern 5: Safe Refactoring Workflow
 
-**Pattern:** Every helper lemma should explain:
-1. What it proves (in mathematical terms)
-2. Why it's true (key insight)
-3. How it's used (if not obvious)
+**Process:** Refactor incrementally with continuous verification.
 
-**Good example:**
+#### 5.1. Test After Every Extraction
+
+**Rule:** Build after EACH extraction, not in batches.
+
+**With LSP (fast):**
+```python
+# After each edit
+lean_diagnostic_messages(file_path)
+lean_goal(file_path, line)
+```
+
+**Without LSP:**
+```bash
+lake build FILE.lean  # After each extraction
+```
+
+**Why:** Errors compound. One error at a time is faster than five mixed together.
+
+#### 5.2. Examine Goal States at Key Points
+
+**Strategy:** Use `lean_goal` at 4-5 strategic locations (not every line).
+
+```python
+lean_goal(file, line=15)   # After initial setup
+lean_goal(file, line=45)   # After first major step
+lean_goal(file, line=78)   # After second major step
+lean_goal(file, line=120)  # After third major step
+lean_goal(file, line=155)  # Near end
+```
+
+**What to look for:**
+- Clean, self-contained intermediate goals
+- Natural mathematical milestones
+- Points where context significantly changes
+- Repetitive structure (same pattern for lhs/rhs)
+
+#### 5.3. One Helper at a Time
+
+**Workflow:**
+1. Extract one helper
+2. Verify with `lean_diagnostic_messages`
+3. Update main theorem
+4. Verify again
+5. Commit if successful
+6. Repeat
+
+**Don't:** Make multiple changes then check - errors compound!
+
+#### 5.4. LSP Works Even When Build Fails
+
+**Observation:** `lean_diagnostic_messages` works even when `lake build` fails due to dependency issues.
+
+**Why useful:** Verify refactoring locally using LSP at file/module level, don't wait for full project build.
+
+---
+
+### Pattern 6: Document Helpers
+
+**Every helper should explain:**
+
+#### 6.1. What It Proves
+
+In mathematical terms, what does this lemma establish?
+
+```lean
+-- For a strictly monotone function k : Fin m → ℕ, we have m ≤ k(m-1) + 1
+private lemma strictMono_length_le_max_succ ...
+```
+
+#### 6.2. Why It's True
+
+Key insight or technique used.
+
+```lean
+-- This uses the fact that strictly monotone functions satisfy i ≤ k(i) for all i
+```
+
+#### 6.3. How It's Used
+
+If not obvious from context.
+
+```lean
+-- Used to bound the domain length in the permutation construction
+```
+
+**Full example:**
 ```lean
 /--
 Helper lemma: The length of the domain is bounded by the maximum value plus one.
@@ -342,619 +589,46 @@ This uses the fact that strictly monotone functions satisfy `i ≤ k(i)` for all
 private lemma strictMono_length_le_max_succ ...
 ```
 
-### 6. Test After Every Extraction
-
-**Workflow with LSP:**
-1. Extract helper lemma
-2. `lean_diagnostic_messages(file)` on helper
-3. Update main theorem to use helper
-4. `lean_diagnostic_messages(file)` on main theorem
-5. Fix any type mismatches
-6. Repeat
-
-**Don't:** Make multiple changes then check - errors compound!
-
 ---
 
-## Additional Lessons from Second Refactoring
-
-### 7. Private Lemmas Use Regular Comments, Not Doc Comments
-
-**Problem:**
-```lean
-/-- For an exchangeable sequence, the finite marginals... -/
-private lemma exchangeable_finite_marginals_eq_reindexed ...
-```
-
-**Error:** `unexpected token '/--'; expected 'lemma'`
-
-**Solution:**
-```lean
--- For an exchangeable sequence, the finite marginals...
-private lemma exchangeable_finite_marginals_eq_reindexed ...
-```
-
-**Why:** Doc comment syntax (`/-- -/`) is reserved for public API documentation. Private declarations don't appear in generated docs, so use regular `--` comments.
-
-### 8. Unused Required Parameters Need Underscore Prefix
-
-**Problem:**
-```lean
-∀ n (S : Set (Fin n → α)) (hS : MeasurableSet S), ...
--- Parameter hS required in signature but unused in proof
--- Linter warning: unused variable `hS`
-```
-
-**Solution:**
-```lean
-∀ n (S : Set (Fin n → α)) (_hS : MeasurableSet S), ...
-```
-
-**Why:** The parameter is needed in the type signature (to quantify over measurable sets), but the proof uses measure equality without explicitly referencing measurability. The underscore signals "intentionally unused."
-
-### 9. Explicit Parameters with Equality Proofs Avoid Let Binding Issues
-
-**First refactoring:** Helper with `let` bindings didn't unify with main theorem's `let` bindings (definitional inequality).
-
-**This refactoring:** No issues! **Why?**
-
-```lean
--- Helper: Pass as explicit parameter with equality proof
-private lemma exchangeable_finite_marginals_eq_reindexed
-    (μX : Measure (ℕ → α)) (hμX : μX = pathLaw μ X) ...
-
--- Main theorem: Pass with rfl
-let μX := pathLaw μ X
-have hMarg := exchangeable_finite_marginals_eq_reindexed hX hEx μX rfl π
-```
-
-**Key insight:** The helper takes `μX` as a parameter with explicit equality proof `hμX : μX = pathLaw μ X`. The main theorem passes `rfl` for this proof, which unifies perfectly because `μX` is definitionally equal to `pathLaw μ X` at the call site.
-
-**General pattern:** When extracting helpers from proofs with `let` bindings, prefer explicit parameters with equality proofs over recreating the bindings internally.
-
-### 10. Structural Comments Create Proof Table of Contents
-
-**Pattern:** Add high-level comments to guide readers through proof strategy:
-
-```lean
--- Define path law and establish probability measure properties
-let μX := pathLaw (α:=α) μ X
-...
-
--- Apply helper: finite marginals are equal
-have hMarg := exchangeable_finite_marginals_eq_reindexed ...
-
--- Apply measure uniqueness from finite marginals
-have hEq := measure_eq_of_fin_marginals_eq_prob ...
-
--- Relate back to original form using path law commutation
-have hmap₁ := pathLaw_map_reindex_comm ...
-```
-
-**Why it matters:** These comments create a "table of contents" for the proof. Readers can quickly understand the structure without parsing every tactic.
-
-### 11. LSP Diagnostics Work Even When Full Build Fails
-
-**Observation:** `lake build` failed due to Batteries dependency issues (toolchain compatibility), but:
-```python
-lean_diagnostic_messages(file_path)
-# ✅ Still worked! Returned [] (no errors)
-```
-
-**Why useful:** You can verify refactoring correctness locally using LSP tools even when the broader build system has issues. The LSP server works at the file/module level, not the full project level.
-
-**Practical implication:** Don't wait for a full clean build to verify refactorings—use LSP diagnostics for fast feedback.
-
-### 12. Different Proof Types Need Different Refactoring Strategies
-
-**First refactoring (constructive proof):**
-- Proof type: Build permutation → apply it → verify equality
-- Helpers: Computational bounds and structural properties
-- Pattern: Build pieces → Assemble → Use
-
-**This refactoring (uniqueness theorem application):**
-- Proof type: Establish conditions → apply uniqueness → transform result
-- Helpers: Conceptual properties (marginals equality, commutation)
-- Pattern: Establish conditions → Apply theorem → Transform result
-
-**Lesson:** The nature of the proof suggests what kinds of helpers make sense:
-- **Constructive proofs** → Extract construction steps
-- **Uniqueness/existence proofs** → Extract condition-checking lemmas
-- **Computational proofs** → Extract calculation helpers
-
-### 13. Examine Goal States Every 5-10 Lines
-
-**What we did:** Checked goal states at 5 different lines (654, 659, 666, 683, 690) rather than just boundaries.
-
-**What this revealed:**
-- Lines 654-665: Probability measure instances established
-- Lines 666-682: Marginals equality proved ← Natural helper boundary
-- Line 683: Uniqueness theorem applied
-- Lines 686-695: Result transformed back ← Another helper boundary
-
-**Lesson:** Don't just look at start and end of proof. Examine goal states every 5-10 lines to understand logical flow and find natural refactoring boundaries.
-
-**LSP workflow:**
-```python
-# Survey proof at regular intervals
-for line in [654, 659, 666, 673, 680, 683, 690]:
-    lean_goal(file, line)  # See proof state evolution
-```
-
----
-
-## Lessons from Third Refactoring: Witness Extraction Patterns
-
-### 14. Witness Extraction Deserves Its Own Helpers
-
-**Pattern:** When a proof uses `choose` (Lean's axiom of choice) to extract witnesses from existentials, this is often a natural refactoring boundary.
-
-**Before (inline):**
-```lean
-have : ∀ i, ∃ (T : Set β), MeasurableSet[m i] T ∧ s = f ⁻¹' T := by
-  intro i
-  have hi := hs_all i
-  rw [MeasurableSpace.measurableSet_comap] at hi
-  rcases hi with ⟨T, hT, hpre⟩
-  exact ⟨T, hT, hpre.symm⟩
-choose T hTmeas hspre using this
-```
-
-**After (helper):**
-```lean
-obtain ⟨T, hTmeas, hspre⟩ := comap_iInf_witnesses m s hs_all
-```
-
-**Why it works:** Witness extraction has clear inputs (hypotheses) and outputs (chosen witnesses), making it naturally modular.
-
-**Key insight:** `choose` creates a natural boundary—everything before produces the existential proof, everything after uses the witnesses.
-
-### 15. Isolate Hypothesis Usage for Reusability
-
-**Observation:** In this refactoring, only ONE helper uses the surjectivity hypothesis:
-
-```lean
-private lemma comap_witnesses_eq_of_surjective {ι : Type*} {α β : Type*}
-    {f : α → β} (hf : Function.Surjective f) ...
-    -- ← Only place surjectivity appears
-
--- Other helpers work without surjectivity
-private lemma comap_iInf_witnesses ...  -- No surjectivity needed
-```
-
-**Why this matters:** The other helpers are potentially reusable in contexts without surjectivity.
-
-**General principle:** When refactoring, identify which helpers need which hypotheses. Minimize hypothesis dependencies to maximize reusability.
-
-**Practice:**
-- Extract helper with minimal assumptions first
-- Build more specialized helpers on top
-- This creates a reusability hierarchy
-
-### 16. "Pick Canonical Representative" Is a Common Pattern
-
-**Pattern:** "All things are equal, so pick one"
-
-```lean
--- Pick canonical witness T₀
-rcases ‹Nonempty ι› with ⟨i₀⟩
-let T0 : Set β := T i₀
-have T_all : ∀ i, T i = T0 := fun i => Tall i i₀
-```
-
-**After refactoring, this pattern is isolated:**
-- **Mathematical content** (witnesses are equal) → helper lemma
-- **Proof engineering** (choice of which to use) → main proof
-
-**Why separate:** The equality proof has mathematical content worth reusing. The choice of `i₀` is arbitrary proof engineering that doesn't generalize.
-
-**General pattern:**
-1. Prove all candidates equal (extract to helper)
-2. Pick one arbitrarily (keep in main proof)
-3. Use the fact they're all equal (proven by helper)
-
-### 17. Structure Comments Tell "Why", Not "What"
-
-**Compare comment styles:**
-
-**❌ Bad (describes what code does):**
-```lean
--- Choose the witnesses Tᵢ along with measurability and the preimage identity
-```
-
-**✅ Good (describes proof strategy):**
-```lean
--- Extract witnesses Tᵢ such that s = f ⁻¹' Tᵢ for each i
-```
-
-**After refactoring, main proof has high-level strategy comments:**
-```lean
--- (≥) direction holds unconditionally (monotonicity)
--- (≤) direction uses surjectivity to unify witnesses
--- Extract witnesses Tᵢ such that s = f ⁻¹' Tᵢ for each i
--- All witnesses are equal by surjectivity
--- Pick canonical witness T₀
--- Conclude measurability
-```
-
-**These guide the reader through:**
-- Mathematical strategy (why each step)
-- Proof structure (how steps fit together)
-- Key insights (where hypotheses are used)
-
-**Not just tactical details** (what each line does).
-
-**Best practice for structure comments:**
-- Start each major section with a comment
-- Explain the mathematical goal, not the Lean syntax
-- Highlight where key hypotheses are used
-- Make it possible to understand the proof by reading only the comments
-
----
-
-## Lessons from Fourth Refactoring: Domain Separation
-
-**Context:** 130-line proof mixing finite probability distribution arithmetic (combinatorics) with L² variance bounds (functional analysis).
-
-**Extracted helper:** 56-line lemma proving L¹ distance between probability distributions is ≤ 2.
-
-**Result:** 130 lines → 79 lines (39% reduction)
-
-### 18. Separate Domain-Specific Concerns
-
-**Pattern:** When a proof mixes independent mathematical domains, extract each domain's logic into separate helpers.
-
-**This proof had two distinct parts:**
-1. **Finite probability distribution combinatorics** (51 lines): Pure finite sum manipulation, no measure theory
-2. **L² variance-covariance calculation** (55 lines): Integration, measure theory, inequalities
-
-**By extracting #1:**
-```lean
--- Helper: Pure combinatorics (highly reusable)
-private lemma prob_dist_diff_abs_sum_le_two
-    (p q : Fin n → ℝ) (hp : ∑ i, p i = 1) (hq : ∑ i, q i = 1)
-    (hp_nn : ∀ i, 0 ≤ p i) (hq_nn : ∀ i, 0 ≤ q i) :
-    ∑ i, |p i - q i| ≤ 2 := by
-  -- Self-contained proof using positive/negative partition
-  ...
-
--- Main theorem: Now shows probabilistic content clearly
-theorem l2_contractability_bound ... := by
-  have hL1 := prob_dist_diff_abs_sum_le_two ...
-  -- L² calculation now dominates (as it should)
-  ...
-```
-
-**Benefits:**
-- Main theorem reads at correct abstraction level (measure theory + probability)
-- Helper is reusable in any context involving probability distribution distances
-- Each proof uses only the tools from its domain
-- Much easier to understand and maintain
-
-**General principle:** Different mathematical domains → different helpers. Don't mix combinatorics with analysis, algebra with topology, etc.
-
-### 19. Large Preliminary Calculations Are Prime Refactoring Targets
-
-**Pattern:** If a proof starts with 50+ lines proving an auxiliary fact before the main argument, extract it.
-
-**Anti-pattern:**
-```lean
-theorem main_result ... := by
-  -- 51 lines proving preliminary combinatorial bound
-  have hAux : ∑ i, |p i - q i| ≤ 2 := by
-    [massive calculation with positive/negative partitions]
-    ...
-    [50 more lines]
-
-  -- Now the actual L² calculation (obscured by above clutter!)
-  calc ...
-```
-
-**Better:**
-```lean
-private lemma prob_dist_diff_abs_sum_le_two ... := by
-  [massive calculation]
-  ...
-
-theorem main_result ... := by
-  have hAux := prob_dist_diff_abs_sum_le_two ...
-  -- Main argument immediately visible
-  calc ...
-```
-
-**Why this signals a refactoring opportunity:**
-- The preliminary fact has independent mathematical interest
-- It's conceptually separate from the main argument
-- Readers need to wade through 50 lines before seeing the "real" proof
-- Testing/debugging is harder (can't isolate the preliminary fact)
-
-**Rule of thumb:** If a `have` statement's proof exceeds 20 lines and establishes a fact with a clear mathematical name, extract it.
-
-### 20. Named Steps with Comments Tell the Mathematical Story
-
-**Pattern:** After refactoring, use named intermediate results with comments to make the proof read like a textbook.
-
-**After refactoring, the main proof shows clear structure:**
-```lean
-theorem l2_contractability_bound ... := by
-  -- Step 1: E(∑cᵢξᵢ)² = E(∑cᵢ(ξᵢ-m))² using ∑cⱼ = 0
-  have step1 : ... := by ...
-
-  -- Step 2: = ∑ᵢⱼ cᵢcⱼ cov(ξᵢ, ξⱼ) by expanding square
-  have step2 : ... := by ...
-
-  -- Step 3: = σ²ρ(∑cᵢ)² + σ²(1-ρ)∑cᵢ² by variance/covariance
-  have step3 : ... := by ...
-
-  -- Step 4: L¹ distance bound from helper (combinatorics)
-  have step4 := prob_dist_diff_abs_sum_le_two ...
-
-  -- Final: Combine steps to get L² bound
-  calc ...
-```
-
-**This reads like a proof in a mathematics paper:**
-- Each step has a clear mathematical meaning
-- Comments explain the technique or justification
-- The overall strategy is immediately visible
-- Can be understood by reading only the step comments
-
-**Contrast with original:**
-```lean
-theorem l2_contractability_bound ... := by
-  have h1 : ... := by [10 lines]
-  have h2 : ... := by [15 lines]
-  have hAux : ... := by [51 lines of combinatorics!]
-  have h3 : ... := by [8 lines]
-  calc ... [complex expression]
-```
-
-**Benefits of named steps:**
-- Mathematical narrative is clear
-- Easy to locate where things go wrong
-- Can test/verify each step independently with LSP (`lean_goal` after each step)
-- Reviewers can understand proof structure without parsing every tactic
-
-**Best practice:** After extracting helpers, reorganize the main proof with:
-1. Named steps (`step1`, `step2`, ...) for major milestones
-2. Comments explaining what each step achieves mathematically
-3. Clear progression from hypotheses to conclusion
-
----
-
-## Summary: When Witness Extraction Appears
-
-**If your proof has this pattern:**
-```lean
-have : ∀ x, ∃ y, P x y := ...
-choose y hy using this
-```
-
-**Consider extracting to:**
-```lean
-obtain ⟨y, hy⟩ := witnesses_helper ...
-```
-
-**Benefits:**
-- Clear input/output contract (hypotheses → witnesses)
-- Helper is testable independently
-- Main proof reads at higher level
-- Witness construction logic is reusable
-
-**This refactoring achieved the best reduction** because witness extraction was very self-contained, making extraction especially clean.
-
----
-
-## Additional Refactoring Patterns
-
-### 21. Repetitive Structure (lhs/rhs Patterns)
-
-**Pattern:** When proving both sides of an equation or multiple cases with nearly identical logic, extract the common pattern.
-
-**What to look for:**
-- Proofs with `have hlhs : ... := by [proof]` and `have hrhs : ... := by [similar proof]`
-- Case splits where each branch has identical structure
-- Multiple applications of the same technique to different objects
-
-**Before (repetitive):**
-```lean
-theorem foo : lhs = rhs := by
-  -- Prove lhs has property P (20 lines)
-  have hlhs : P lhs := by
-    intro x
-    simp [complex_lemma]
-    apply measurability_tactic
-    ... [15 more lines]
-
-  -- Prove rhs has property P (20 lines, nearly identical!)
-  have hrhs : P rhs := by
-    intro x
-    simp [complex_lemma]
-    apply measurability_tactic
-    ... [15 more lines]
-
-  -- Use both
-  exact property_equality_from_P hlhs hrhs
-```
-
-**After (extracted helper):**
-```lean
-private lemma has_property_P (expr : α → β) (h : SomeCondition expr) : P expr := by
-  intro x
-  simp [complex_lemma]
-  apply measurability_tactic
-  ... [15 lines - written once]
-
-theorem foo : lhs = rhs := by
-  have hlhs := has_property_P lhs hlhs_cond
-  have hrhs := has_property_P rhs hrhs_cond
-  exact property_equality_from_P hlhs hrhs
-```
-
-**Benefits:**
-- Write the proof logic once, not twice
-- Changes apply to both sides automatically
-- Main proof shows structure clearly: "Both sides satisfy P, therefore equal"
-- Helper is reusable for future lhs/rhs proofs
-
-**Rule of thumb:** If you copy-paste proof code with only variable names changed, extract a helper.
-
-### 22. Property Bundling with Conjunctions
-
-**Pattern:** When multiple related properties are proven separately but always used together, bundle them with `∧` and use `obtain` to destructure.
-
-**Before (properties scattered):**
-```lean
-theorem bar : FinalGoal := by
-  have h1 : Property1 x := by [proof]
-  have h2 : Property2 x := by [proof]
-  have h3 : Property3 x := by [proof]
-  -- Later: use all three together
-  exact final_lemma h1 h2 h3
-```
-
-**After (bundled helper):**
-```lean
-private lemma bundle_properties (x : α) (hx : Condition x) :
-    Property1 x ∧ Property2 x ∧ Property3 x := by
-  constructor
-  · [proof of Property1]
-  constructor
-  · [proof of Property2]
-  · [proof of Property3]
-
-theorem bar : FinalGoal := by
-  obtain ⟨h1, h2, h3⟩ := bundle_properties x hx
-  exact final_lemma h1 h2 h3
-```
-
-**Benefits:**
-- Clear relationship: These properties belong together
-- Single lemma name documents the bundling
-- `obtain` destructures cleanly
-- Easier to reuse the bundle elsewhere
-
-**When to bundle:**
-- Properties share same hypotheses
-- Always proven together in a sequence
-- Conceptually related (e.g., "measurability + integrability", "probability measure properties")
-- No independent use cases for individual properties
-
-**When NOT to bundle:**
-- Properties have different hypotheses
-- Sometimes used independently
-- No conceptual relationship (just happen to be nearby)
-
-### 23. Generic is Better
-
-**Pattern:** When extracting helpers, remove proof-specific constraints to maximize reusability.
-
-**Before (too specific):**
-```lean
--- Extracted from one specific proof about our particular function f
-private lemma helper_for_my_proof (n : ℕ) (hn : n = 42) : Property n := by
-  rw [hn]
-  exact specific_lemma_for_42
-```
-
-**After (generic):**
-```lean
--- Works for any n ≥ 1, not just 42
-private lemma helper_general (n : ℕ) (hn : 1 ≤ n) : Property n := by
-  cases n with
-  | zero => omega  -- contradicts 1 ≤ n
-  | succ n' => exact general_lemma
-```
-
-**How to generalize:**
-1. **Relax equality to inequality:** `n = 42` → `1 ≤ n`
-2. **Remove specific values:** `f = our_function` → any `f` satisfying the condition
-3. **Weaken hypotheses:** Use only what's actually needed in the proof
-4. **Broaden types:** `Fin 10` → `Fin n` if the bound doesn't matter
-
-**Example from measure theory:**
-```lean
--- ❌ Too specific (only for product measures)
-private lemma rectangle_measurable_product (s : Set (α × β)) : ... := by
-  ...
-
--- ✅ Generic (works for any MeasurableSpace structure)
-private lemma rectangle_as_pi_measurable (s : Set (∀ i : Fin 2, α i)) : ... := by
-  ...
-```
-
-**Benefits:**
-- Helper works in future proofs with similar structure
-- Easier to understand (fewer arbitrary constraints)
-- Forces you to identify the essential conditions
-- Builds a reusable library of project-specific lemmas
-
-**Balance:** Don't over-generalize to the point where the proof becomes much harder or the helper needs 10+ parameters.
-
-### 24. Notation Conversion Helpers
-
-**Pattern:** Proofs often need to convert between equivalent notations. Extract conversion helpers that are reusable.
-
-**Common conversions:**
-- Set builder ↔ pi notation: `{x | ∀ i, x i ∈ s i}` ↔ `Set.univ.pi s`
-- Membership ↔ function application: `x ∈ S` ↔ `S x = true`
-- Measure ↔ integral: `μ s` ↔ `∫⁻ x, s.indicator 1 ∂μ`
-- Preimage ↔ set comprehension: `f ⁻¹' t` ↔ `{x | f x ∈ t}`
-
-**Before (conversion inline):**
-```lean
-theorem qux : MeasurableSet s := by
-  -- Want: s is measurable
-  -- Have: s = Set.univ.pi (fun i => t i)
-
-  -- Inline conversion (10 lines)
-  unfold Set.pi
-  simp only [Set.mem_univ, true_and]
-  rw [Set.setOf_forall]
-  apply MeasurableSet.iInter
-  intro i
-  ... [more conversion logic]
-
-  -- Now apply measurability
-  exact measurable_cylinder
-```
-
-**After (extracted conversion):**
-```lean
-private lemma pi_notation_measurable (t : ∀ i, Set (α i))
-    (ht : ∀ i, MeasurableSet (t i)) :
-    MeasurableSet (Set.univ.pi t) := by
-  unfold Set.pi
-  simp only [Set.mem_univ, true_and]
-  rw [Set.setOf_forall]
-  apply MeasurableSet.iInter
-  intro i
-  exact ht i
-
-theorem qux : MeasurableSet s := by
-  rw [hs]  -- s = Set.univ.pi (fun i => t i)
-  exact pi_notation_measurable t ht
-```
-
-**Benefits:**
-- Conversion logic written once, used everywhere
-- Main proof focuses on mathematics, not notation
-- Helper has clear purpose: "convert representation X to Y"
-- Highly reusable across similar proofs
-
-**Common helpers to extract:**
-```lean
--- Rectangle notation for measure theory
-private lemma rectangle_as_pi : s = Set.univ.pi t ↔ ∀ x, x ∈ s ↔ ∀ i, x i ∈ t i
-
--- Measurability under conversion
-private lemma measurable_pi_iff : MeasurableSet (Set.univ.pi t) ↔ ∀ i, MeasurableSet (t i)
-
--- Measure preservation under pushforward
-private lemma pushforward_preserves_prob : IsProbabilityMeasure μ → IsProbabilityMeasure (μ.map f)
-```
-
-**Rule of thumb:** If you're doing the same 5-10 line conversion in multiple places, extract it.
+## Pattern Quick Reference
+
+**When refactoring, ask yourself:**
+
+1. **Identify opportunities** (Pattern 1): What signals extraction?
+   - 50+ line preliminary? → 1.1
+   - Mixing domains? → 1.2
+   - Repetitive lhs/rhs? → 1.3
+   - Witness extraction? → 1.4
+   - Properties always together? → 1.5
+   - Recurring conversion? → 1.6
+
+2. **Design helpers** (Pattern 2): How to make them reusable?
+   - Generalize constraints → 2.1
+   - Minimize assumptions → 2.2
+   - Avoid let bindings → 2.3
+   - Separate math from engineering → 2.4
+
+3. **Follow conventions** (Pattern 3): Lean-specific rules?
+   - Private? Use `--` not `/-- -/` → 3.1
+   - Unused param? Add `_` prefix → 3.2
+   - Omega failing? Add intermediate steps → 3.3
+   - Measure theory? Watch definitional equality → 3.4
+
+4. **Structure main proof** (Pattern 4): After extraction?
+   - Named steps with comments → 4.1
+   - Explain "why" not "what" → 4.2
+
+5. **Safe workflow** (Pattern 5): How to refactor safely?
+   - Test after each extraction → 5.1
+   - Check goals at 4-5 points → 5.2
+   - One at a time → 5.3
+   - Use LSP for fast feedback → 5.4
+
+6. **Document** (Pattern 6): What to explain?
+   - What it proves → 6.1
+   - Why it's true → 6.2
+   - How it's used → 6.3
 
 ---
 
