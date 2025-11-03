@@ -54,6 +54,61 @@ Generate attempt → Lean error → Route to specific fix → Retry (max 24 atte
 
 ---
 
+## API Discovery Workflow
+
+**Core principle:** Search before guessing. LeanFinder + LSP tools prevent 80% of API-related errors.
+
+### The "LeanFinder First" Rule
+
+Before writing ANY Lean API call:
+
+1. **Search with natural language** (`lean_leanfinder`):
+   ```python
+   lean_leanfinder(query="Lp space membership predicate measure theory")
+   # → Finds: MemLp (not Memℒp, not memLp)
+   ```
+
+2. **Confirm locally** (`lean_local_search`):
+   ```python
+   lean_local_search("MemLp", limit=5)
+   # → Verify it exists in your imports
+   ```
+
+3. **Check signature** (`lean_hover_info`):
+   ```python
+   lean_hover_info(file, line, col)
+   # → See: MemLp f p μ (expects ENNReal, not ℝ!)
+   ```
+
+4. **THEN write the code**
+
+**Why this matters:**
+- Mathematical notation ≠ Lean API names (ℒp → MemLp, not Memℒp)
+- Type signatures have subtle requirements (ENNReal.ofReal 2 vs 2)
+- Field vs function matters (x.foo vs Foo.bar x)
+
+### Example: Lp Space API Discovery
+
+**❌ Wrong (guessing from math notation):**
+```lean
+theorem foo (f g : α → ℝ) (h : f =ᵐ[μ] g) : f ∈ Memℒp 2 μ := by
+  exact h.memLp  -- Multiple errors: Memℒp doesn't exist, memLp is not a field, 2 has wrong type
+```
+
+**✅ Correct (LeanFinder → hover → verify):**
+```lean
+theorem foo (f g : α → ℝ) (hf : MemLp f (ENNReal.ofReal 2) μ) (h : f =ᵐ[μ] g) :
+    MemLp g (ENNReal.ofReal 2) μ := by
+  exact MemLp.ae_eq hf h.symm  -- Correct API name, correct type, correct direction
+```
+
+**How LeanFinder helped:**
+1. Query: "Lp space membership predicate" → Found `MemLp` (not `Memℒp`)
+2. Hover on `MemLp` → Saw signature expects `ENNReal` for p parameter
+3. Local search: "ae_eq" → Found `MemLp.ae_eq` takes `f =ᵐ[μ] g` (not `g =ᵐ[μ] f`)
+
+---
+
 ## Core Workflow
 
 ### 1. Compile → Extract Error
@@ -144,10 +199,12 @@ If success → done! If fail → next iteration (max 24 attempts)
 ### unknown_ident
 
 **Strategies:**
-1. Search mathlib: `bash .claude/tools/lean4/search_mathlib.sh "ident" name`
-2. Add namespace: `open Foo` or `open scoped Bar`
-3. Add import: `import Mathlib.Foo.Bar`
-4. Check for typo
+1. **Use LeanFinder FIRST:** `lean_leanfinder(query="natural language description of what you want")`
+2. Check for ASCII vs Unicode naming (ℒp → MemLp, not Memℒp)
+3. Search locally: `lean_local_search("ident", limit=10)`
+4. Add namespace: `open Foo` or `open scoped Bar`
+5. Add import: `import Mathlib.Foo.Bar`
+6. Check for typo
 
 **Example:**
 ```diff
@@ -156,6 +213,11 @@ If success → done! If fail → next iteration (max 24 attempts)
 -  continuous_real
 +  Real.continuous
 ```
+
+**Why LeanFinder first:**
+- Mathematical notation ≠ API names (use natural language instead)
+- Finds correct spelling and namespace immediately
+- Much faster than trial-and-error with imports
 
 ### synth_implicit / synth_instance
 
@@ -192,6 +254,203 @@ If success → done! If fail → next iteration (max 24 attempts)
 ```diff
 -  simp [*]
 +  simp only [foo_lemma, bar_lemma]
+```
+
+---
+
+## Common Pitfalls
+
+### Pitfall 1: Type Coercion Assumptions (ENNReal vs ℝ)
+
+**The trap:** In Lean 4, `2` and `ENNReal.ofReal 2` are not interchangeable, even though mathematically they represent the same value.
+
+**❌ What fails:**
+```lean
+-- Lp spaces expect ENNReal for the p parameter
+theorem bar (f : α → ℝ) : MemLp f 2 μ := by  -- ❌ Type mismatch: expected ENNReal, got ℕ
+  ...
+```
+
+**✅ What works:**
+```lean
+theorem bar (f : α → ℝ) : MemLp f (ENNReal.ofReal 2) μ := by  -- ✓ Correct type
+  ...
+```
+
+**How to catch this:**
+1. Use `lean_goal` to see expected type
+2. Check API signature with `lean_hover_info`
+3. Look for `ENNReal`, `ℝ≥0∞`, or `ℝ≥0` in type signature
+
+**General pattern:** Measure theory APIs often expect:
+- `ENNReal` (ℝ≥0∞) for measures, Lp norms
+- `ℝ≥0` (NNReal) for nonnegative reals
+- `ℝ` for signed reals
+
+Don't assume automatic coercion—check the signature!
+
+### Pitfall 2: Field Access vs Function Call
+
+**The trap:** Coming from other languages, `x.foo` and `Foo.bar x` seem equivalent, but in Lean they're different.
+
+**❌ What fails:**
+```lean
+theorem baz (f : α → ℝ) (hf : MemLp f p μ) : Prop := by
+  have := hf.memLp  -- ❌ Invalid field 'memLp', type MemLp doesn't have a field named memLp
+  ...
+```
+
+**✅ What works:**
+```lean
+theorem baz (f g : α → ℝ) (hf : MemLp f p μ) (h : f =ᵐ[μ] g) : MemLp g p μ := by
+  exact MemLp.ae_eq hf h.symm  -- ✓ Function call, not field access
+  ...
+```
+
+**How to catch this:**
+1. Error message: "Invalid field 'X'" → It's a function, not a field
+2. Use `lean_hover_info` on the identifier to see if it's a field or function
+3. Use `lean_local_search` to find the correct namespace (e.g., `MemLp.ae_eq` not `hf.ae_eq`)
+
+**Rule of thumb:**
+- Fields: Data stored in a structure (e.g., `point.x`, `σ.carrier`)
+- Functions: Operations on types (e.g., `MemLp.ae_eq`, `Continuous.comp`)
+
+### Pitfall 3: Almost Everywhere Equality Direction
+
+**The trap:** `=ᵐ[μ]` has directionality. Lemmas expect specific order.
+
+**❌ What fails:**
+```lean
+theorem qux (hf : MemLp f p μ) (h : g =ᵐ[μ] f) : MemLp g p μ := by
+  exact MemLp.ae_eq hf h  -- ❌ Type mismatch: expected f =ᵐ[μ] g, got g =ᵐ[μ] f
+```
+
+**✅ What works:**
+```lean
+theorem qux (hf : MemLp f p μ) (h : g =ᵐ[μ] f) : MemLp g p μ := by
+  exact MemLp.ae_eq hf h.symm  -- ✓ Reverse with .symm
+```
+
+**How to catch this:**
+1. Error: "Type mismatch" with `EventuallyEq` → Check direction
+2. Use `lean_goal` to see expected `f =ᵐ[μ] g` vs actual `g =ᵐ[μ] f`
+3. Use `.symm` to reverse direction
+
+**General pattern:** Many equivalence relations have `.symm`:
+- `=ᵐ[μ]` (EventuallyEq)
+- `≈` (equivalence)
+- `↔` (iff)
+- `=` (equality - though usually inferred)
+
+### Pitfall 4: ASCII vs Unicode Naming
+
+**The trap:** Mathematical notation uses Unicode (ℒp), but Lean APIs use ASCII (MemLp).
+
+**❌ What fails:**
+```lean
+import Mathlib.MeasureTheory.Function.LpSpace
+
+theorem foo : Memℒp f p μ := by  -- ❌ Unknown identifier 'Memℒp'
+  ...
+```
+
+**✅ What works:**
+```lean
+import Mathlib.MeasureTheory.Function.LpSpace
+
+theorem foo : MemLp f p μ := by  -- ✓ ASCII name
+  ...
+```
+
+**How to catch this:**
+1. Error: "Unknown identifier" with Unicode → Try ASCII equivalent
+2. Use `lean_leanfinder` with natural language: "Lp space membership"
+3. Check mathlib documentation for canonical names
+
+**Common translations:**
+- ℒp → MemLp (Lp space membership)
+- ∞ → infinity or top (⊤)
+- ≥0 → NNReal or ENNReal
+- ∫ → integral
+
+---
+
+## Error Pattern Recognition
+
+**Quick diagnosis guide:** Match error message to likely cause and fix strategy.
+
+### "Invalid field 'X'"
+**Likely cause:** Trying to use function call syntax on a type that doesn't have that field.
+
+**Fix strategy:**
+1. Use `lean_hover_info` to check if it's a function
+2. Change `x.foo` to `Foo.bar x`
+3. Use `lean_local_search` to find correct namespace
+
+**Example:**
+```diff
+-  have := hf.memLp
++  have := MemLp.ae_eq hf h
+```
+
+### "Type mismatch: expected ENNReal, got ℕ" (or ℝ)
+**Likely cause:** Missing `ENNReal.ofReal` or `ENNReal.ofNat` coercion.
+
+**Fix strategy:**
+1. Check if API expects `ENNReal` (use `lean_hover_info`)
+2. Wrap numeric literals: `2` → `ENNReal.ofReal 2`
+3. For variables: `p` → `ENNReal.ofReal p` (if p : ℝ)
+
+**Example:**
+```diff
+-  theorem bar : MemLp f 2 μ := by
++  theorem bar : MemLp f (ENNReal.ofReal 2) μ := by
+```
+
+### "Application type mismatch" with EventuallyEq
+**Likely cause:** Wrong direction for `=ᵐ[μ]` argument.
+
+**Fix strategy:**
+1. Use `lean_goal` to see expected direction
+2. Add `.symm` to reverse: `h.symm`
+3. Check lemma signature with `lean_hover_info`
+
+**Example:**
+```diff
+-  exact MemLp.ae_eq hf h
++  exact MemLp.ae_eq hf h.symm
+```
+
+### "Unknown identifier 'X'"
+**Likely cause:** Unicode name, missing import, or wrong namespace.
+
+**Fix strategy:**
+1. **Try LeanFinder FIRST:** `lean_leanfinder(query="natural language description")`
+2. Check for ASCII equivalent (Memℒp → MemLp)
+3. Search locally: `lean_local_search("X")`
+4. Add import if found externally
+5. Check for typo
+
+**Example:**
+```diff
+-  exact Memℒp.ae_eq
++  exact MemLp.ae_eq  -- ASCII, not Unicode
+```
+
+### "Failed to synthesize instance"
+**Likely cause:** Missing type class instance in context.
+
+**Fix strategy:**
+1. Add instance: `haveI : Instance := inferInstance`
+2. Or: `letI : Instance := ...`
+3. Check import: may need `import Mathlib.X.Y`
+4. Reorder parameters (instances before regular params)
+
+**Example:**
+```diff
++  haveI : MeasurableSpace α := inferInstance
+   apply theorem_needing_instance
 ```
 
 ---
@@ -339,19 +598,68 @@ theorem qux : a + b = b + a := by
 
 ## Best Practices
 
-### 1. Start with Solver Cascade
+### 1. Build After Every Fix (Most Important!)
+
+**Rule:** Build after EVERY 1-2 fixes, not after "a batch of fixes."
+
+**Why:**
+- One error at a time is faster than five errors at once
+- Immediate feedback prevents cascading errors
+- Errors compound—fixing one may introduce another
+- Fast iteration loop beats careful batch processing
+
+**Anti-pattern:**
+```bash
+# ❌ BAD: Make many changes, then build
+fix error 1
+fix error 2
+fix error 3
+lake build  # Now you have errors from all three fixes mixing together!
+```
+
+**Better pattern:**
+```bash
+# ✅ GOOD: Build after each fix
+fix error 1 && lake build  # See result immediately
+fix error 2 && lake build  # Isolate issues
+fix error 3 && lake build  # Clean feedback
+```
+
+**With LSP (even better):**
+```python
+# After each edit, immediate verification:
+lean_diagnostic_messages(file_path)
+lean_goal(file_path, line)
+```
+
+### 2. LeanFinder First, Always
+
+Before writing ANY API call:
+1. `lean_leanfinder(query="natural language")`
+2. `lean_local_search("result")`
+3. `lean_hover_info` to check signature
+4. THEN write code
+
+**Prevents:** Wrong API names, wrong type signatures, wrong argument order.
+
+### 3. Start with Solver Cascade
+
 Always try automated solvers before LLM. Many cases succeed with zero cost.
 
-### 2. Search Mathlib First
+### 4. Search Mathlib First
+
 Many proofs already exist. Use search tools before generating novel proofs.
 
-### 3. Minimal Diffs
+### 5. Minimal Diffs
+
 Change only 1-5 lines. Preserve existing proof structure and style.
 
-### 4. Trust the Loop
+### 6. Trust the Loop
+
 Don't overthink individual attempts. The loop will iterate. Fast attempts beat perfect attempts.
 
-### 5. Learn from Logs
+### 7. Learn from Logs
+
 Review `.repair/attempts.ndjson` to see what strategies worked. Build intuition over time.
 
 ---
