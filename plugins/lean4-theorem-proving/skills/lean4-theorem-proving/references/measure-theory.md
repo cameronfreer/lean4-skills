@@ -7,6 +7,9 @@ Deep patterns and pitfalls for measure theory and probability in Lean 4.
 - Hitting type class synthesis errors with measures
 - Debugging "failed to synthesize instance" errors
 - Choosing between scalar `μ[·|m]` and kernel `condExpKernel` forms
+- Understanding Kernel vs Measure API distinctions
+- Using Measure.map for pushforward operations
+- Discovering measure theory lemmas with lean_leanfinder
 
 ---
 
@@ -443,6 +446,256 @@ IsMarkovKernel.condExpKernel : IsMarkovKernel (condExpKernel μ m)
 
 ---
 
+## Kernel and Measure API Patterns
+
+**Essential distinctions and common patterns when working with mathlib's kernel and measure APIs.**
+
+### 1. Kernel vs Measure Type Distinction
+
+**Critical insight:** `Kernel α β` and `Measure β` are fundamentally different types with different APIs.
+
+```lean
+-- Kernel: function with measurability properties
+Kernel α β = α → Measure β (with measurability)
+
+-- condExpKernel example
+condExpKernel μ (tailSigma X) : @Kernel Ω Ω (tailSigma X) inst
+-- Source uses tailSigma measurable space
+-- Target uses ambient space
+```
+
+**Problem:** Kernel.map requires source and target to have **the same measurable space structure**.
+
+```lean
+-- ❌ WRONG: Can't use Kernel.map when measurable spaces don't align
+Kernel.map (condExpKernel μ m) f  -- Type error!
+
+-- ✅ RIGHT: Evaluate kernel first, then map the resulting measure
+fun ω => (condExpKernel μ m ω).map f
+```
+
+**Lesson:** When your kernel changes measurable spaces (like `condExpKernel`), you can't use `Kernel.map`. Instead, evaluate the kernel at a point to get a `Measure`, then use `Measure.map`.
+
+### 2. Measure.map for Pushforward
+
+**API:** `Measure.map (f : α → β) (μ : Measure α) : Measure β`
+
+**Key properties:**
+```lean
+-- Pushforward characterization
+Measure.map_apply : (μ.map f) s = μ (f ⁻¹' s)
+  -- When f is measurable and s is measurable
+
+-- Automatic handling
+-- Returns 0 if f not AE measurable (fail-safe)
+
+-- Probability preservation
+isProbabilityMeasure_map : IsProbabilityMeasure μ → AEMeasurable f μ →
+  IsProbabilityMeasure (μ.map f)
+```
+
+**Pattern: Always use Measure.map for pushforward, not Kernel.map**
+
+```lean
+-- Given: μ_ω : Ω → Measure α, f : α → β
+-- Want: Pushforward each μ_ω along f
+
+-- Correct approach
+fun ω => (μ_ω ω).map f
+
+-- Search with lean_leanfinder:
+-- "Measure.map pushforward measurable function"
+-- "isProbabilityMeasure preserved by Measure.map"
+```
+
+### 3. Kernel Measurability Proofs
+
+**Pattern:** Proving `Measurable (fun ω => κ ω s)` where `κ : Kernel α β`.
+
+```lean
+-- Step 1: Recognize this is kernel evaluation at a set
+have : (fun ω => κ ω s) = fun ω => Kernel.eval κ s ω
+
+-- Step 2: Use Kernel.measurable_coe
+have : Measurable (fun a => κ a s) := Kernel.measurable_coe κ hs
+  -- where hs : MeasurableSet s
+```
+
+**Gotcha:** Type inference doesn't always work - you need to explicitly provide:
+- The kernel `κ`
+- The measurable set `s` with proof `hs : MeasurableSet s`
+
+**API lemmas:**
+```lean
+Kernel.measurable_coe : MeasurableSet s → Measurable (fun a => κ a s)
+```
+
+### 4. condExpKernel API Gaps
+
+**Discovery:** The `condExpKernel` API is relatively sparse in mathlib.
+
+**What exists:**
+- `condExp_ae_eq_integral_condExpKernel` - conversion from scalar to kernel
+- `Measurable.eval_condExpKernel` - kernel evaluation measurability
+- `IsMarkovKernel.condExpKernel` - Markov kernel typeclass
+
+**What's missing/hard to find:**
+- No obvious `isProbability_condExpKernel` lemma
+- Limited discoverability of probabilistic properties
+- Need to derive from first principles
+
+**Search strategy when stuck:**
+1. Look for `condDistrib` lemmas (underlying construction)
+2. Search for `IsMarkovKernel` or `IsCondKernel` instances
+3. Use `lean_leanfinder` with "conditional kernel probability measure"
+4. Be prepared to prove basic properties yourself
+
+**Example searches:**
+```python
+lean_leanfinder(query="condExpKernel IsProbabilityMeasure")
+lean_leanfinder(query="Markov kernel conditional expectation")
+```
+
+### 5. Indicator Function Integration
+
+**Standard pattern:**
+```lean
+∫ x, (indicator B 1 : α → ℝ) x ∂μ = (μ B).toReal
+```
+
+**API:** `integral_indicator_one` - but requires specific form.
+
+**Problem:** Indicators have multiple representations:
+```lean
+-- Different forms (not all recognized by API)
+if x ∈ B then 1 else 0           -- if-then-else
+Set.indicator B 1                 -- Set.indicator
+Set.indicator B (fun _ => 1)      -- Function form
+(B.indicator 1) ∘ f               -- Composed
+```
+
+**Lesson:** Integration lemmas expect specific forms. Use `simp` or `rw` to normalize before applying lemmas.
+
+**Pattern:**
+```lean
+-- Normalize to canonical form first
+have : (fun x => if x ∈ B then 1 else 0) = B.indicator 1 := by
+  funext x; by_cases hx : x ∈ B <;> simp [hx, Set.indicator]
+
+-- Now apply integration lemma
+rw [this, integral_indicator_one]
+```
+
+### 6. Function vs Method Syntax
+
+**Inconsistency in mathlib:** Some lemmas are functions, not methods.
+
+```lean
+-- ❌ WRONG: Trying method syntax
+have := (hf : Measurable f).measurableSet_preimage hs
+-- Error: unknown field 'measurableSet_preimage'
+
+-- ✅ RIGHT: Use function syntax
+have := measurableSet_preimage hf hs
+```
+
+**Pattern:** When you see "unknown field" errors:
+1. Try standalone function: `lemma_name hf hs` instead of `hf.lemma_name hs`
+2. Use `#check @lemma_name` to see the signature
+3. Search with `lean_leanfinder` to find the right form
+
+### 7. Type Class Synthesis Fragility
+
+**Common issues:**
+```lean
+-- Error: "type class instance expected"
+have := condExp_ae_eq_integral_condExpKernel
+-- Missing: implicit measure, sub-σ-algebra, or typeclass instance
+
+-- Error: "failed to synthesize IsProbabilityMeasure"
+-- Even when it should be inferrable from context
+```
+
+**Solutions:**
+
+**Explicit parameters:**
+```lean
+-- Pin everything explicitly
+have := condExp_ae_eq_integral_condExpKernel (μ := μ) (m := tailSigma X) (hm := hm)
+```
+
+**Manual instances:**
+```lean
+-- Provide instance explicitly
+haveI : IsProbabilityMeasure (μ.map f) := isProbabilityMeasure_map hf hμ
+```
+
+**Type annotations:**
+```lean
+-- Help elaborator with type
+((μ.map f : Measure β) : Type)
+```
+
+### 8. API Discovery with lean_leanfinder
+
+**What works well:**
+
+**Natural language + Lean identifiers:**
+```python
+lean_leanfinder(query="Measure.map pushforward measurable function")
+lean_leanfinder(query="IsProbabilityMeasure preserved map")
+```
+
+**Mathematical concepts:**
+```python
+lean_leanfinder(query="kernel composition measurability")
+lean_leanfinder(query="conditional expectation integral representation")
+```
+
+**When stuck on names:**
+```python
+# Instead of grepping, use semantic search
+lean_leanfinder(query="preimage measurable set is measurable")
+# Finds: measurableSet_preimage
+```
+
+**Pattern:** Combine mathematical intent with suspected Lean API terms. LeanFinder is much better than grep for discovery.
+
+### 9. Incremental Development with Sorries
+
+**Recommended workflow:**
+
+**Phase 1: Get architecture right**
+```lean
+-- Focus on types and structure
+def myKernel : Kernel Ω α := by
+  intro ω
+  exact (condExpKernel μ m ω).map f  -- Right structure
+  sorry  -- TODO: Prove measurability
+```
+
+**Phase 2: Add detailed TODOs**
+```lean
+-- Document proof strategy
+sorry  -- TODO: Need measurableSet_preimage hf hs
+       --       Then use Kernel.measurable_coe
+```
+
+**Phase 3: Fill incrementally**
+- Reduce errors from 10+ to 5 (commit)
+- Reduce from 5 to 2 (commit)
+- Complete all proofs (commit)
+
+**Why this works:**
+- Type errors caught early (architecture bugs)
+- TODOs capture proof strategy while fresh
+- Incremental commits preserve working states
+- Can get feedback on approach before full completion
+
+**Don't:** Try to perfect everything at once. Get the architecture right first.
+
+---
+
 ## Mathlib Lemma Quick Reference
 
 **Conditional expectation (scalar form):**
@@ -453,6 +706,12 @@ IsMarkovKernel.condExpKernel : IsMarkovKernel (condExpKernel μ m)
 - `condExp_ae_eq_integral_condExpKernel` - convert scalar to kernel form
 - `Measurable.eval_condExpKernel` - kernel evaluation is measurable
 - `IsMarkovKernel.condExpKernel` - kernel is Markov
+
+**Kernels and pushforward:**
+- `Kernel.measurable_coe` - kernel evaluation at measurable set is measurable
+- `Measure.map_apply` - pushforward characterization: `(μ.map f) s = μ (f ⁻¹' s)`
+- `isProbabilityMeasure_map` - probability preserved by pushforward
+- `measurableSet_preimage` - preimage of measurable set is measurable (function syntax!)
 
 **A.E. boundedness:**
 - `ae_bdd_condExp_of_ae_bdd` - bound CE from bound on f (NNReal version)
