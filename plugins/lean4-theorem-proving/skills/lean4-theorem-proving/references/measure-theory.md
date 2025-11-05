@@ -6,6 +6,7 @@ Deep patterns and pitfalls for measure theory and probability in Lean 4.
 - Working with sub-σ-algebras and conditional expectation
 - Hitting type class synthesis errors with measures
 - Debugging "failed to synthesize instance" errors
+- Choosing between scalar `μ[·|m]` and kernel `condExpKernel` forms
 
 ---
 
@@ -335,11 +336,123 @@ have : (fun ω => h ω * indicator (Z⁻¹' B) 1 ω) = indicator (Z⁻¹' B) h :
 
 ---
 
+### 7. Kernel Form vs Scalar Conditional Expectation
+
+**When to use `condExpKernel` instead of scalar notation `μ[·|m]`.**
+
+#### Problem: Type Class Ambiguity with Scalar Notation
+
+Scalar notation `μ[ψ | m]` relies on implicit instance resolution for `MeasurableSpace`, which gets confused when you have local bindings:
+
+```lean
+-- Ambiguous: Which MeasurableSpace instance?
+let 𝔾 : MeasurableSpace Ω := ...  -- Local binding
+have h : μ[ψ | m] = ... -- Error: Instance synthesis confused!
+```
+
+#### Solution: Kernel Form with Explicit Parameters
+
+```lean
+-- Explicit: condExpKernel takes μ and m as parameters
+μ[ψ | m] =ᵐ[μ] (fun ω => ∫ y, ψ y ∂(condExpKernel μ m ω))
+```
+
+**Why kernel form is better for complex cases:**
+- **No instance ambiguity:** `condExpKernel μ m` takes measure and sub-σ-algebra as explicit parameters
+- **Local bindings don't interfere:** No confusion with `let 𝔾 : MeasurableSpace Ω := ...`
+- **Multiple σ-algebras:** Work with several sub-σ-algebras without instance pollution
+- **Access to kernel lemmas:** Set integrals, measurability theorems, composition
+
+#### Axiom Elimination Pattern
+
+**Red flag:** Axiomatizing "a function returning measures with measurability properties"
+
+```lean
+-- ❌ DON'T: Reinvent condExpKernel
+axiom directingMeasure : Ω → Measure α
+axiom directingMeasure_measurable_eval : ∀ s, Measurable (fun ω => directingMeasure ω s)
+axiom directingMeasure_isProb : ∀ ω, IsProbabilityMeasure (directingMeasure ω)
+axiom directingMeasure_marginal : ...
+```
+
+**Mathlib already provides this!** These axioms are essentially `condExpKernel μ (tailSigma X)`:
+- `directingMeasure X : Ω → Measure α` ≈ `condExpKernel μ (tailSigma X)`
+- `directingMeasure_measurable_eval` ≈ built-in kernel measurability
+- `directingMeasure_isProb` ≈ `IsMarkovKernel` property
+- `directingMeasure_marginal` ≈ `condExp_ae_eq_integral_condExpKernel`
+
+**Lesson:** When tempted to axiomatize "function returning measures," check if mathlib's kernel API already provides it!
+
+#### Prerequisites for condExpKernel
+
+```lean
+-- Required instances
+[StandardBorelSpace Ω]  -- Ω is standard Borel
+[IsFiniteMeasure μ]      -- μ is finite
+```
+
+**Note:** More restrictive than scalar CE, but most probability spaces satisfy these conditions.
+
+#### Migration Strategy: Scalar → Kernel
+
+**Before (scalar, instance-dependent):**
+```lean
+have h : ∫ ω in s, φ ω * μ[ψ | m] ω ∂μ = ∫ ω in s, φ ω * V ω ∂μ
+```
+
+**After (kernel, explicit):**
+```lean
+-- Step 1: Convert scalar to kernel form
+have hCE : μ[ψ | m] =ᵐ[μ] (fun ω => ∫ y, ψ y ∂(condExpKernel μ m ω))
+
+-- Step 2: Work with kernel form
+have h : ∫ ω in s, φ ω * (∫ y, ψ y ∂(condExpKernel μ m ω)) ∂μ = ...
+```
+
+**Trade-off:** Notational simplicity → instance clarity + axiom elimination
+
+#### When to Use Which Form
+
+**Use scalar form `μ[·|m]` when:**
+- ✅ Only one σ-algebra in scope (no ambiguity)
+- ✅ Simple algebraic manipulations (pull-out lemmas, tower property)
+- ✅ No need for kernel-specific theorems
+- ✅ Working in measure-theory basics
+
+**Use kernel form `condExpKernel μ m` when:**
+- ✅ Multiple σ-algebras in scope (local bindings like `let 𝔾 := ...`)
+- ✅ Need explicit control over measure/σ-algebra binding
+- ✅ Want to eliminate custom axioms about "measures parametrized by Ω"
+- ✅ Need kernel composition or Markov kernel properties
+- ✅ Hitting instance synthesis errors with scalar notation
+
+#### Key Kernel Lemmas
+
+```lean
+-- Conversion between forms
+condExp_ae_eq_integral_condExpKernel : μ[f | m] =ᵐ[μ] (fun ω => ∫ y, f y ∂(condExpKernel μ m ω))
+
+-- Kernel measurability
+Measurable.eval_condExpKernel : Measurable (fun ω => condExpKernel μ m ω s)
+
+-- Markov kernel property
+IsMarkovKernel.condExpKernel : IsMarkovKernel (condExpKernel μ m)
+```
+
+**Bottom line:** `condExpKernel` is the explicit, principled alternative when you need fine-grained instance control or when you're tempted to axiomatize "functions returning measures."
+
+---
+
 ## Mathlib Lemma Quick Reference
 
-**Conditional expectation:**
+**Conditional expectation (scalar form):**
 - `integrable_condexp`, `stronglyMeasurable_condexp`, `aestronglyMeasurable_condexp`
 - `set_integral_condexp` - set-integral projection (wrap as `setIntegral_condExp_eq`)
+
+**Conditional expectation (kernel form):**
+- `condExp_ae_eq_integral_condExpKernel` - convert scalar to kernel form
+- `Measurable.eval_condExpKernel` - kernel evaluation is measurable
+- `IsMarkovKernel.condExpKernel` - kernel is Markov
 
 **A.E. boundedness:**
 - `ae_bdd_condExp_of_ae_bdd` - bound CE from bound on f (NNReal version)
