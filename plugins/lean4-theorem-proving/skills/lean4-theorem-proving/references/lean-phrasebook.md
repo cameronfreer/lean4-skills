@@ -773,6 +773,21 @@ set X := Y
 - Track equality: `set X := Y with h` gives `h : X = Y`
 - Make X independent variable: `generalize : Y = X` or `generalize h : Y = X`
 
+**"Name complex expression to avoid alpha/beta-equivalence issues"**
+```lean
+-- Problem: Binder name mismatch or beta-redex not reduced
+have h := integral_condExp (f := fun ω => μ[g|m] ω * ξ ω)
+-- h : ∫ (x : Ω), F x = ... (binder x doesn't match goal's binder ω)
+
+-- Solution: Name the integrand once
+set F : Ω → ℝ := fun ω => μ[g | m] ω * ξ ω with hF
+have h_goal := (integral_condExp (μ := μ) (m := m) (f := F)).symm
+simpa [hF] using h_goal
+```
+- **Why:** Avoids comparing different lambda expressions or binder name mismatches
+- **When:** Applying lemmas that return equalities with different binders
+- **Pattern:** `set F := <complex expr> with hF`, apply lemma to `F`, unfold with `simpa [hF]`
+
 ### Automation Tactics
 
 **"One is tempted to try..."**

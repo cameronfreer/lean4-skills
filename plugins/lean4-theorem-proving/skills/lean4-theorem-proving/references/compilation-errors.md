@@ -18,6 +18,7 @@ This reference provides detailed explanations and fixes for the most common comp
 | **"no goals to be solved"** | Tactic already finished | Remove redundant tactics after `simp` |
 | **"equation compiler failed"** | Can't prove termination | Add `termination_by my_rec n => n` clause |
 | **"synthesized: m, inferred: inst✝"** | Instance pollution (sub-σ-algebras) | ⚡ **READ [instance-pollution.md](instance-pollution.md)** - pin ambient first! |
+| **"binder x doesn't match goal's binder ω"** | Alpha/beta-equivalence issue | Use `set F := <expr> with hF`, apply to `F`, unfold with `simpa [hF]` |
 | **Error at line N** | Actual error before line N | Check 5-10 lines before reported location |
 
 ---
@@ -583,6 +584,56 @@ let μX := pathLaw μ X  -- Should be Y not X
 
 **Don't:** Assume the error line is where you need to fix.
 **Do:** Trace backwards from error to find the root cause.
+
+### 12. Alpha/Beta-Equivalence Issues (Binder Mismatches)
+
+**Problem:** Lean fails to match expressions because binder names differ (α-equivalence) or beta-redexes aren't reduced.
+
+**Error message:**
+```
+tactic 'simp' failed
+  binder x doesn't match goal's binder ω
+```
+
+**Example failure:**
+```lean
+have h := integral_condExp (f := fun ω => μ[g|m] ω * ξ ω)
+-- h : ∫ (x : Ω), F x ∂μ = ∫ (x : Ω), μ[F|m] x ∂μ
+-- Goal: ∫ (ω : Ω), μ[g|m] ω * ξ ω ∂μ = ...
+
+simpa using h.symm  -- Error: binder x ≠ binder ω
+```
+
+**Why it fails:** Lean doesn't automatically recognize that `fun x => F x` and `fun ω => F ω` are the same when comparing goal to hypothesis.
+
+**Solution: Use `set ... with` pattern to name expression once**
+
+```lean
+-- Name the integrand once and for all
+set F : Ω → ℝ := fun ω => μ[g | m] ω * ξ ω with hF
+
+-- Apply lemma to named function F
+have h_goal :
+    ∫ (ω : Ω), μ[g | m] ω * ξ ω ∂μ
+  = ∫ (ω : Ω), μ[(fun ω => μ[g | m] ω * ξ ω) | m] ω ∂μ := by
+  simpa [hF] using
+    (MeasureTheory.integral_condExp (μ := μ) (m := m) (hm := hm) (f := F)).symm
+
+exact h_goal.symm
+```
+
+**Why this works:**
+- `set F := ...` gives the expression an explicit name
+- Lean never compares different lambda expressions
+- `simpa [hF]` unfolds `F` uniformly in both places
+- No binder name mismatches because we use the same name throughout
+
+**Pattern:**
+1. `set F := <complex expr> with hF`
+2. Apply lemma to the named `F`
+3. Unfold with `simpa [hF]` or `rw [hF]`
+
+**See also:** [lean-phrasebook.md](lean-phrasebook.md) - "Name complex expression to avoid alpha/beta-equivalence issues"
 
 ---
 
