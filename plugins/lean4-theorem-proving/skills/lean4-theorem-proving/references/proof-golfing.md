@@ -20,6 +20,9 @@
 |---------|---------|------|----------|---------|-------|
 | **Linter-guided simp cleanup** | **2 lines** | **Zero** | **⭐⭐⭐⭐⭐** | **Performance** | **Remove unused simp args** |
 | **`by rfl` → `rfl`** | **1 line** | **Zero** | **⭐⭐⭐⭐⭐** | **Directness** | **Term mode for theorems** |
+| **`rw; simp_rw` → `rw; simpa`** | **1 line** | **Zero** | **⭐⭐⭐⭐⭐** | **Simplicity** | **Binder-aware simplification** |
+| **Eta-reduction `fun x => f x` → `f`** | **Tokens** | **Zero** | **⭐⭐⭐⭐⭐** | **Simplicity** | **Remove redundant lambda** |
+| **`.mpr` over `rwa` for trivial** | **1 line** | **Zero** | **⭐⭐⭐⭐⭐** | **Directness** | **Direct term application** |
 | `rw; exact` → `rwa` | 50% | Zero | ⭐⭐⭐⭐⭐ | Directness | Always safe, instant |
 | `ext + rfl` → `rfl` | 67% | Low | ⭐⭐⭐⭐⭐ | Directness | Test first, revert if fails |
 | **intro-dsimp-exact → lambda** | **75%** | **Low** | **⭐⭐⭐⭐⭐** | **Directness** | **Tactic → term mode** |
@@ -142,7 +145,45 @@ have h : f = g := rfl
 
 When terms are definitionally equal, `rfl` suffices. Low risk - test with build, revert if fails. Not all `ext + rfl` simplify!
 
-### Pattern 2A: `intro-dsimp-exact` → Lambda (Directness)
+### Pattern 2A: `rw; simp_rw` → `rw; simpa` (Simplicity)
+
+```lean
+-- Before
+have h := this.interior_compl
+rw [compl_iInter] at h
+simp_rw [compl_compl] at h
+exact h
+-- After
+have h := this.interior_compl
+rw [compl_iInter] at h
+simpa [compl_compl] using h
+```
+
+Use `simpa` for binder-aware simplification. `simpa` penetrates binders (inside unions/intersections) that `rw` cannot. Zero risk.
+
+### Pattern 2B: Eta-Reduction (Simplicity)
+
+```lean
+-- Before
+eq_empty_iff_forall_notMem.mpr (fun x hx => hU_sub_int hx)
+-- After
+eq_empty_iff_forall_notMem.mpr hU_sub_int
+```
+
+Pattern: `fun x => f x` is just `f`. Lean's eta-reduction eliminates unnecessary lambda abstraction. Zero risk.
+
+### Pattern 2C: Direct `.mpr`/`.mp` (Directness)
+
+```lean
+-- Before
+have h : U.Nonempty := by rwa [nonempty_iff_ne_empty]
+-- After
+have h : U.Nonempty := nonempty_iff_ne_empty.mpr h_ne
+```
+
+When `rwa` does trivial work (just `.mp` or `.mpr`), use direct term application. Zero risk.
+
+### Pattern 2D: `intro-dsimp-exact` → Lambda (Directness)
 
 ```lean
 -- Before
@@ -193,7 +234,7 @@ rw [← Measure.map_map hproj h_meas]
 rw [← Measure.map_map hproj (measurable_pi_lambda _ ...)]
 ```
 
-Inline `have` used exactly once if term < 40 chars and no semantic value. 30-50% reduction. Skip if name aids understanding or used ≥2 times.
+Inline `have` used once if term < 40 chars and no semantic value. 30-50% reduction. **Prime candidates: non-descriptive names like `h`, `this1`, `this2` vs descriptive names like `h_int_open`**. Skip if name aids understanding or used ≥2 times.
 
 ### Pattern 3B: Transport Operator ▸ (Conciseness)
 
