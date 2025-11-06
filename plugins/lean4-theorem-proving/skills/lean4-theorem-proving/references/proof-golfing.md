@@ -14,6 +14,7 @@
 
 | Pattern | Savings | Risk | Priority | Benefit | Notes |
 |---------|---------|------|----------|---------|-------|
+| **Linter-guided simp cleanup** | **2 lines** | **Zero** | **⭐⭐⭐⭐⭐** | **Performance** | **Remove unused simp args** |
 | **`by rfl` → `rfl`** | **1 line** | **Zero** | **⭐⭐⭐⭐⭐** | **Directness** | **Term mode for theorems** |
 | `rw; exact` → `rwa` | 50% | Zero | ⭐⭐⭐⭐⭐ | Directness | Always safe, instant |
 | `ext + rfl` → `rfl` | 67% | Low | ⭐⭐⭐⭐⭐ | Directness | Test first, revert if fails |
@@ -23,12 +24,17 @@
 | **Transport ▸ for rewrites** | **1-2 lines** | **Zero** | **⭐⭐⭐⭐⭐** | **Conciseness** | **Term-mode rewrite** |
 | **Single-use `have` inline (general)** | **30-50%** | **Low** | **⭐⭐⭐⭐** | **Clarity** | **Beyond calc blocks** |
 | **Inline single-use definitions** | **3-4 lines** | **Low** | **⭐⭐⭐⭐** | **Clarity** | **Used exactly once** |
+| **Multi-pattern match** | **7 lines** | **Low** | **⭐⭐⭐⭐** | **Simplicity** | **`\| 0 \| 1 \| 2 => ...`** |
+| **Successor pattern (n+k)** | **25 lines** | **Low** | **⭐⭐⭐⭐** | **Clarity** | **`\| n+3 =>` for ranges** |
 | **Remove redundant `show` wrappers** | **50-75%** | **Low** | **⭐⭐⭐⭐** | **Simplicity** | **`simp` handles it** |
 | **Convert-based helper inlining** | **30-40%** | **Medium** | **⭐⭐⭐⭐** | **Directness** | **`convert ... using N`** |
 | Redundant `ext` before `simp` | 50% | Medium | ⭐⭐⭐⭐ | Simplicity | Not all ext is redundant |
 | `congr; ext; rw` → `simp only` | 67% | Medium | ⭐⭐⭐⭐ | Simplicity | simp is smarter than you think |
 | **`simpa using` → `exact`** | **1 token** | **Zero** | **⭐⭐⭐** | **Clarity** | **When `simp` does nothing** |
 | **Unused lambda variables cleanup** | **0 lines** | **Zero** | **⭐⭐⭐** | **Quality** | **Eliminates linter warnings** |
+| **Inline omega for trivial arithmetic** | **2 lines** | **Zero** | **⭐⭐⭐** | **Conciseness** | **`by omega` inline** |
+| **Symmetric cases with `<;>`** | **11 lines** | **Low** | **⭐⭐⭐** | **Conciseness** | **`rcases ... <;>` when identical** |
+| **match after ext** | **3 lines** | **Low** | **⭐⭐⭐** | **Clarity** | **Direct match vs cases** |
 | **calc with rfl for definitions** | **Clarity** | **Zero** | **⭐⭐⭐** | **Performance** | **Faster than proof search** |
 | **refine with ?_ for term construction** | **Structure** | **Low** | **⭐⭐⭐** | **Clarity** | **Explicit construction** |
 | **Named arguments in obtain** | **0 lines** | **Zero** | **⭐⭐⭐** | **Safety** | **Prevents type errors** |
@@ -82,6 +88,28 @@ let μ_map := Measure.map (fun ω i => X (k i) ω) μ  -- 20 tokens
 **Benchmark:** Well-maintained codebases reach saturation after ~20-25 optimizations.
 
 ## High-Priority Patterns (⭐⭐⭐⭐⭐)
+
+### Pattern -1: Linter-Guided simp Cleanup (Performance)
+
+Remove unused arguments from `simp only` calls identified by linter warnings.
+
+```lean
+-- Before (linter warns: unused argument)
+simp only [decide_eq_false_iff_not, decide_eq_true_eq]
+simp only [s2, countMultiples, firstNTerms, List.range, List.map]
+
+-- After
+simp only [decide_eq_true_eq]
+simp only [s2, countMultiples, firstNTerms, List.range]
+```
+
+**When:** Linter warns about unused `simp` arguments
+**How:** Remove the specific unused lemmas from the list
+**Risk:** Zero (compiler-verified safety via linter)
+**Savings:** ~2 lines per warning, faster compilation
+**Benefit:** Performance - removes unnecessary work for type checker
+
+**Key insight:** Trust the linter - unused simp arguments are always safe to remove and improve elaboration speed.
 
 ### Pattern 0: `by rfl` → `rfl` (Directness)
 
@@ -743,6 +771,186 @@ exact hX m (fun i => k + i.val) (fun i j hij => Nat.add_lt_add_left hij k)
 - Automation overhead > direct application
 
 **Lesson:** omega with Fin coercions often fails
+
+### Pattern 11: Multi-Pattern Match for Exhaustive Cases (⭐⭐⭐⭐ Simplicity)
+
+Replace nested cases with flat match using multi-pattern syntax `| pat1 | pat2 => ...` for small finite cases.
+
+```lean
+-- Before (~11 lines, nested cases)
+cases n with
+| zero => contradiction
+| succ n' =>
+  cases n' with
+  | zero => linarith
+  | succ n'' =>
+    cases n'' with
+    | zero => linarith
+    | succ n''' => rfl
+
+-- After (4 lines, flat match)
+match n with
+| 0 | 1 | 2 => omega
+| _+3 => rfl
+```
+
+**When to apply:**
+- ✅ Small finite number of cases (≤5)
+- ✅ Cases have simple bodies
+- ✅ Clear exhaustion pattern
+- ✅ Omega can handle combined early cases
+
+**When NOT to apply:**
+- ❌ Cases have complex different proofs
+- ❌ Too many cases (readability suffers)
+
+**When:** Nested cases with simple bodies
+**Risk:** Low (test with build)
+**Savings:** ~7 lines per instance
+**Benefit:** Simplicity - flat structure clearer than nested
+
+### Pattern 12: Successor Pattern (n+k) for Ranges (⭐⭐⭐⭐ Clarity)
+
+Use `match` with `| n+k =>` pattern for "n ≥ k" cases instead of nested successor destructuring.
+
+```lean
+-- Before (~35 lines, deeply nested)
+cases i with
+| zero => linarith
+| succ i' =>
+  cases i' with
+  | zero => rfl
+  | succ i'' =>
+    cases i'' with
+    | zero => rfl
+    | succ i''' => [long proof using i''']
+
+-- After (~10 lines, direct indexing)
+match i with
+| 0 => omega
+| 1 | 2 => rfl
+| n+3 => [proof using n+3 directly]
+```
+
+**Pattern:** `| n+k =>` means "match values ≥ k, binding remainder as n"
+
+**When to apply:**
+- ✅ Proof needs "for all i ≥ k" case
+- ✅ Want to work with offset directly (n+3 vs i''')
+- ✅ Arithmetic clearer with offset notation
+
+**When NOT to apply:**
+- ❌ All cases need individual handling
+- ❌ Pattern doesn't capture the logic well
+
+**When:** Need "n ≥ k" case in natural number induction
+**Risk:** Low (compile checks exhaustiveness)
+**Savings:** ~25 lines per instance, clearer arithmetic
+**Benefit:** Clarity - direct offset notation vs nested variable names
+
+### Pattern 13: Symmetric Cases with `<;>` (⭐⭐⭐ Conciseness)
+
+Use `rcases with rfl | rfl <;>` when both branches are structurally identical.
+
+```lean
+-- Before (~12 lines, duplicated structure)
+cases ha with
+| inl h =>
+  rw [h]
+  intro hdiv
+  have : i''' + 3 ≤ 2 := Nat.le_of_dvd (by norm_num) hdiv
+  omega
+| inr h =>
+  rw [h]
+  intro hdiv
+  have : i''' + 3 ≤ 1 := Nat.le_of_dvd (by norm_num) hdiv
+  omega
+
+-- After (1 line)
+rcases ha with rfl | rfl <;> (intro h; have : n + 3 ≤ _ := Nat.le_of_dvd (by norm_num) h; omega)
+```
+
+**Key:** Use underscore `_` for values that differ between branches
+
+**When to apply:**
+- ✅ Both branches structurally identical
+- ✅ Only values differ, not proof structure
+- ✅ Combined proof fits one readable line
+
+**When NOT to apply:**
+- ❌ Branches have different structure
+- ❌ Combined line becomes unreadable
+- ❌ Branches are complex (keep separate for clarity)
+
+**When:** Symmetric case split with only values differing
+**Risk:** Low (test for readability)
+**Savings:** ~11 lines when applicable
+**Benefit:** Conciseness - avoids structural duplication
+
+### Pattern 14: Inline omega for Trivial Arithmetic (⭐⭐⭐ Conciseness)
+
+Replace explicit `have + omega` with inline `by omega` when arithmetic is trivial.
+
+```lean
+-- Before (3 lines)
+have : 2 < n''' + 3 := by omega
+have : a (n''' + 3) = 0 := hzero _ this
+exact this
+
+-- After (1 line)
+exact hzero _ (by omega)
+```
+
+**When to apply:**
+- ✅ Arithmetic bound is trivial (omega solves immediately)
+- ✅ Intermediate name adds no clarity
+- ✅ Only used once as argument
+
+**When NOT to apply:**
+- ❌ Bound is complex or non-obvious
+- ❌ Intermediate name clarifies proof
+- ❌ Bound used multiple times
+
+**When:** Trivial arithmetic used once as argument
+**Risk:** Zero (omega fails at compile if can't solve)
+**Savings:** ~2 lines per instance
+**Benefit:** Conciseness - removes needless intermediate
+
+### Pattern 15: Direct match After ext (⭐⭐⭐ Clarity)
+
+Use `match` directly after `ext` instead of `cases` for clearer extensionality proofs.
+
+```lean
+-- Before (~8 lines, nested cases)
+ext n
+cases n with
+| zero => exact ha0
+| succ n' =>
+  cases n' with
+  | zero => exact a1_2
+  | succ n'' => ...
+
+-- After (~5 lines, flat match)
+ext n
+match n with
+| 0 => exact ha0
+| 1 => exact a1_2
+| n+2 => exact hzero _ (by omega)
+```
+
+**When to apply:**
+- ✅ Extensionality proof over indexed type (Nat, Fin)
+- ✅ Multiple cases with clear index pattern
+- ✅ Benefits from successor pattern or multi-pattern syntax
+
+**When NOT to apply:**
+- ❌ Single case (no benefit over cases)
+- ❌ Cases don't fit match syntax naturally
+
+**When:** Extensionality proofs with indexed patterns
+**Risk:** Low (compile checks)
+**Savings:** ~3 lines per proof
+**Benefit:** Clarity - clearer indexing, combines with successor patterns
 
 ## Systematic Workflow
 
