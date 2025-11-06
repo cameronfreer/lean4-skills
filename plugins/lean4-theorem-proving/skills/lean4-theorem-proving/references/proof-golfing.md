@@ -208,7 +208,7 @@ have hf' := toHasDerivAt hfd
 have hg' := toHasDerivAt hgd
 ```
 
-Convert repeated tactic proofs to single reusable helper. 40% reduction when pattern appears 2+ times. Low risk.
+Convert repeated tactic proofs to single reusable helper. 40% reduction when pattern appears 2+ times. **Extract when:** used 3+ times (always), OR used 2 times + complex (>3 lines), OR used 1 time but needed for clarity. Low risk.
 
 ### Pattern 3: let+have+exact Inline (Conciseness)
 
@@ -480,6 +480,10 @@ ext n; match n with | 0 => exact ha0 | 1 => exact a1_2 | n+2 => exact hzero _ (b
 Use `match` after `ext` instead of nested `cases`. ~3 lines saved. Combines well with successor patterns. Low risk.
 
 ## Systematic Workflow
+
+### Phase 0: Pre-Optimization Audit (2 min)
+
+Before applying patterns: (1) Remove commented code and unused lemmas, (2) Fix linter warnings, (3) Run `lake build` for clean baseline. This cleanup often accounts for 60%+ of available savings.
 
 ### Phase 1: Pattern Discovery (5 min)
 
