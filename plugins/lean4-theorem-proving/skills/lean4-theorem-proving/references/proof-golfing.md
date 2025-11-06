@@ -17,6 +17,7 @@
 | `rw; exact` → `rwa` | 50% | Zero | ⭐⭐⭐⭐⭐ | Always safe, instant |
 | `ext + rfl` → `rfl` | 67% | Low | ⭐⭐⭐⭐⭐ | Test first, revert if fails |
 | **intro-dsimp-exact → lambda** | **75%** | **Low** | **⭐⭐⭐⭐⭐** | **Tactic proof → direct term** |
+| **Extract repeated tactic patterns to helpers** | **40%** | **Low** | **⭐⭐⭐⭐⭐** | **Reusable term with ∀** |
 | let+have+exact inline | 60-80% | HIGH | ⭐⭐⭐⭐⭐ | MUST verify usage ≤2x |
 | **Single-use `have` inline (general)** | **30-50%** | **Low** | **⭐⭐⭐⭐** | **Beyond calc blocks** |
 | **Remove redundant `show` wrappers** | **50-75%** | **Low** | **⭐⭐⭐⭐** | **`simp` handles it** |
@@ -25,6 +26,8 @@
 | `congr; ext; rw` → `simp only` | 67% | Medium | ⭐⭐⭐⭐ | simp is smarter than you think |
 | **`simpa using` → `exact`** | **1 token** | **Zero** | **⭐⭐⭐** | **When `simp` does nothing** |
 | **Unused lambda variables cleanup** | **0 lines** | **Zero** | **⭐⭐⭐** | **Eliminates linter warnings** |
+| **calc with rfl for definitions** | **Clarity** | **Zero** | **⭐⭐⭐** | **Faster than proof search** |
+| **refine with ?_ for term construction** | **Clarity** | **Low** | **⭐⭐⭐** | **Structure over separate have** |
 | Smart `ext` (nested) | 50% | Low | ⭐⭐⭐ | ext handles multiple layers |
 | `simp` closes goals directly | 67% | Low | ⭐⭐⭐ | Remove explicit `exact` |
 | have-calc single-use inline | 50% | Low | ⭐⭐⭐ | Only if used once in calc |
@@ -163,6 +166,47 @@ have hk_inj : Function.Injective k' := by
 have hk_inj : Function.Injective k' := fun i j hij =>
   Fin.val_injective (hk_inj hij)
 ```
+
+### Pattern 2B: Extract Repeated Tactic Patterns to Helpers
+
+**⭐⭐⭐⭐⭐ HIGH-IMPACT** - Eliminates duplication when same tactic proof appears multiple times.
+
+Convert repeated tactic proofs into single reusable helper using universal quantifier.
+
+```lean
+-- Before (8 lines, duplication)
+have hf' : ∀ x ∈ Ioo a b, HasDerivAt f (deriv f x) x := by
+  intro x hx
+  exact ((hfd x hx).differentiableAt (IsOpen.mem_nhds isOpen_Ioo hx)).hasDerivAt
+have hg' : ∀ x ∈ Ioo a b, HasDerivAt g (deriv g x) x := by
+  intro x hx
+  exact ((hgd x hx).differentiableAt (IsOpen.mem_nhds isOpen_Ioo hx)).hasDerivAt
+
+-- After (5 lines, single helper)
+have toHasDerivAt {h : ℝ → ℝ} (hd : DifferentiableOn ℝ h (Ioo a b)) :
+    ∀ x ∈ Ioo a b, HasDerivAt h (deriv h x) x :=
+  fun x hx => ((hd x hx).differentiableAt (IsOpen.mem_nhds isOpen_Ioo hx)).hasDerivAt
+have hf' := toHasDerivAt hfd
+have hg' := toHasDerivAt hgd
+```
+
+**Pattern recognition:**
+- Same tactic proof structure repeated for different functions
+- Only function/hypothesis changes between instances
+- Proof body is linear (intro → exact, no case analysis)
+
+**When to apply:**
+- ✅ Pattern appears 2+ times
+- ✅ Can abstract over changing parts (function, hypothesis)
+- ✅ Helper makes code clearer, not more complex
+
+**When NOT to apply:**
+- ❌ Pattern appears only once
+- ❌ Variations too different to unify cleanly
+- ❌ Helper would be more complex than duplication
+
+**Savings:** 40% reduction, improves maintainability
+**Risk:** Low (helper is just term-mode proof)
 
 ### Pattern 3: let+have+exact Inline
 
@@ -439,6 +483,69 @@ fun _ _ hij => proof_not_using_i_or_j
 **Savings:** 0 lines but eliminates linter noise and improves code quality
 
 **Note:** This is a code quality improvement, not a size optimization. However, eliminating linter warnings makes real issues more visible.
+
+### Pattern 7C: Use calc with rfl for Definitional Equalities
+
+Use `rfl` in calc chains for definitional unfolding steps - faster than proof search.
+
+```lean
+-- Before (multiple intermediate steps)
+have h0 : deriv f x * Δg - deriv g x * Δf = 0 := hF'0
+have eq' : (f b - f a) * (deriv g x) = (g b - g a) * (deriv f x) := by
+  have := (sub_eq_zero.mp h0).symm
+  simpa [Δf, Δg, mul_comm, mul_left_comm, mul_assoc] using this
+
+-- After (clean calc with rfl for definitions)
+calc (f b - f a) * deriv g x
+    = Δf * deriv g x := rfl
+  _ = Δg * deriv f x := by simpa [Δf, Δg, mul_comm] using (sub_eq_zero.mp hF'0).symm
+  _ = (g b - g a) * deriv f x := rfl
+```
+
+**When to apply:**
+- ✅ Step is definitional unfolding (let binding, def)
+- ✅ Makes transformation steps explicit
+- ✅ rfl is faster than any proof search
+
+**Pattern recognition:**
+- Intermediate variable that's just a definition
+- Can write `X = def_expansion` where equality is definitional
+- Using `by simp [def]` when `rfl` would work
+
+**When:** Definitional equalities in calc chains
+**Risk:** Zero (rfl fails if not definitional, caught at compile)
+**Savings:** Clarity + performance (rfl is instant)
+
+### Pattern 7D: Use refine with ?_ for Complex Term Construction
+
+Replace separate `have` with inline `refine` when constructing terms with one remaining proof obligation.
+
+```lean
+-- Before (separate equality proof)
+have eq' : (f b - f a) * deriv g x = (g b - g a) * deriv f x := by ...
+exact ⟨c, hc, deriv f c, deriv g c, hf', hg', eq'⟩
+
+-- After (refine with hole)
+refine ⟨c, hc, deriv f c, deriv g c, toHasDerivAt hfd c hc, toHasDerivAt hgd c hc, ?_⟩
+calc (f b - f a) * deriv g x
+    = Δf * deriv g x := rfl
+  _ = Δg * deriv f x := by ...
+  _ = (g b - g a) * deriv f x := rfl
+```
+
+**When to apply:**
+- ✅ Constructing term with multiple fields
+- ✅ Most fields are ready, one needs proof
+- ✅ Makes structure clearer - "building term with one piece left"
+
+**When NOT to apply:**
+- ❌ Multiple fields need proofs (too many holes)
+- ❌ Proof is trivial (just inline it)
+- ❌ Separate `have` with descriptive name aids understanding
+
+**When:** Complex term construction with one remaining proof
+**Risk:** Low (makes intent clearer)
+**Savings:** Clarity (similar line count but better structure)
 
 ### Pattern 8: have-calc Single-Use Inline
 
