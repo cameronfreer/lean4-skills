@@ -51,12 +51,13 @@
 
 **Common tactics:** `ring`, `field_simp`, `group`
 
-### Number Theory (2 Patterns)
+### Number Theory & Combinatorics (3 Patterns)
 
 | Pattern | Task | Key Tactic/Approach |
 |---------|------|---------------------|
 | 1. Induction | Lists/Nats | `induction` with cases |
 | 2. Divisibility | Prove n ∣ m | `cases' even_or_odd`, `use` |
+| 3. List Counting | Complex counting proofs | Positional splitting, complementary counting |
 
 **Common tactics:** `linarith`, `norm_num`, `omega`
 
@@ -458,6 +459,29 @@ lemma dvd_example (n : ℕ) : 2 ∣ n * (n + 1) := by
     obtain ⟨k, rfl⟩ := h
     use (2 * k + 1) * (k + 1); ring
 ```
+
+### Pattern 3: Complex List Counting
+
+**Key techniques:**
+
+**Positional splitting:** Use first/second position to decompose counting problems.
+
+```lean
+-- Example: Count pairs in list where first witness is at position i
+-- Split into: (1) second witness before i, (2) second witness after i
+have h := countElem_union l.take i l.drop (i+1)
+-- Then count each part separately
+```
+
+**Complementary counting:** Count what's NOT in a set when direct counting is hard.
+
+```lean
+-- Total pairs - pairs_with_property = pairs_without_property
+calc l.countPairs P
+    = l.length.choose 2 - l.countPairs (¬P ∘₂ ·) := by ...
+```
+
+**When to use:** Proofs requiring counting list elements with complex predicates, especially when witnesses appear at multiple positions.
 
 **Common tactics:** `linarith`, `norm_num`, `omega`
 
