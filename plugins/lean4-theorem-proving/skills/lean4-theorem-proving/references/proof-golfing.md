@@ -12,28 +12,32 @@
 
 ## Quick Reference: Pattern Priority
 
-| Pattern | Savings | Risk | Priority | Notes |
-|---------|---------|------|----------|-------|
-| `rw; exact` → `rwa` | 50% | Zero | ⭐⭐⭐⭐⭐ | Always safe, instant |
-| `ext + rfl` → `rfl` | 67% | Low | ⭐⭐⭐⭐⭐ | Test first, revert if fails |
-| **intro-dsimp-exact → lambda** | **75%** | **Low** | **⭐⭐⭐⭐⭐** | **Tactic proof → direct term** |
-| **Extract repeated tactic patterns to helpers** | **40%** | **Low** | **⭐⭐⭐⭐⭐** | **Reusable term with ∀** |
-| let+have+exact inline | 60-80% | HIGH | ⭐⭐⭐⭐⭐ | MUST verify usage ≤2x |
-| **Single-use `have` inline (general)** | **30-50%** | **Low** | **⭐⭐⭐⭐** | **Beyond calc blocks** |
-| **Remove redundant `show` wrappers** | **50-75%** | **Low** | **⭐⭐⭐⭐** | **`simp` handles it** |
-| **Convert-based helper inlining** | **30-40%** | **Medium** | **⭐⭐⭐⭐** | **`convert ... using N`** |
-| Redundant `ext` before `simp` | 50% | Medium | ⭐⭐⭐⭐ | Not all ext is redundant |
-| `congr; ext; rw` → `simp only` | 67% | Medium | ⭐⭐⭐⭐ | simp is smarter than you think |
-| **`simpa using` → `exact`** | **1 token** | **Zero** | **⭐⭐⭐** | **When `simp` does nothing** |
-| **Unused lambda variables cleanup** | **0 lines** | **Zero** | **⭐⭐⭐** | **Eliminates linter warnings** |
-| **calc with rfl for definitions** | **Clarity** | **Zero** | **⭐⭐⭐** | **Faster than proof search** |
-| **refine with ?_ for term construction** | **Clarity** | **Low** | **⭐⭐⭐** | **Structure over separate have** |
-| Smart `ext` (nested) | 50% | Low | ⭐⭐⭐ | ext handles multiple layers |
-| `simp` closes goals directly | 67% | Low | ⭐⭐⭐ | Remove explicit `exact` |
-| have-calc single-use inline | 50% | Low | ⭐⭐⭐ | Only if used once in calc |
-| **Remove duplicate inline comments** | **Lines** | **Zero** | **⭐⭐** | **If docstring is complete** |
-| ext-simp chain combination | Variable | Medium | ⭐⭐ | Only when saves ≥2 lines |
-| Arithmetic with automation | 30-50% | Medium | ⭐⭐ | Direct lemmas often better |
+| Pattern | Savings | Risk | Priority | Benefit | Notes |
+|---------|---------|------|----------|---------|-------|
+| **`by rfl` → `rfl`** | **1 line** | **Zero** | **⭐⭐⭐⭐⭐** | **Directness** | **Term mode for theorems** |
+| `rw; exact` → `rwa` | 50% | Zero | ⭐⭐⭐⭐⭐ | Directness | Always safe, instant |
+| `ext + rfl` → `rfl` | 67% | Low | ⭐⭐⭐⭐⭐ | Directness | Test first, revert if fails |
+| **intro-dsimp-exact → lambda** | **75%** | **Low** | **⭐⭐⭐⭐⭐** | **Directness** | **Tactic → term mode** |
+| **Extract repeated tactic patterns to helpers** | **40%** | **Low** | **⭐⭐⭐⭐⭐** | **Reusability** | **Single helper for pattern** |
+| let+have+exact inline | 60-80% | HIGH | ⭐⭐⭐⭐⭐ | Conciseness | MUST verify usage ≤2x |
+| **Transport ▸ for rewrites** | **1-2 lines** | **Zero** | **⭐⭐⭐⭐⭐** | **Conciseness** | **Term-mode rewrite** |
+| **Single-use `have` inline (general)** | **30-50%** | **Low** | **⭐⭐⭐⭐** | **Clarity** | **Beyond calc blocks** |
+| **Inline single-use definitions** | **3-4 lines** | **Low** | **⭐⭐⭐⭐** | **Clarity** | **Used exactly once** |
+| **Remove redundant `show` wrappers** | **50-75%** | **Low** | **⭐⭐⭐⭐** | **Simplicity** | **`simp` handles it** |
+| **Convert-based helper inlining** | **30-40%** | **Medium** | **⭐⭐⭐⭐** | **Directness** | **`convert ... using N`** |
+| Redundant `ext` before `simp` | 50% | Medium | ⭐⭐⭐⭐ | Simplicity | Not all ext is redundant |
+| `congr; ext; rw` → `simp only` | 67% | Medium | ⭐⭐⭐⭐ | Simplicity | simp is smarter than you think |
+| **`simpa using` → `exact`** | **1 token** | **Zero** | **⭐⭐⭐** | **Clarity** | **When `simp` does nothing** |
+| **Unused lambda variables cleanup** | **0 lines** | **Zero** | **⭐⭐⭐** | **Quality** | **Eliminates linter warnings** |
+| **calc with rfl for definitions** | **Clarity** | **Zero** | **⭐⭐⭐** | **Performance** | **Faster than proof search** |
+| **refine with ?_ for term construction** | **Structure** | **Low** | **⭐⭐⭐** | **Clarity** | **Explicit construction** |
+| **Named arguments in obtain** | **0 lines** | **Zero** | **⭐⭐⭐** | **Safety** | **Prevents type errors** |
+| Smart `ext` (nested) | 50% | Low | ⭐⭐⭐ | Simplicity | ext handles multiple layers |
+| `simp` closes goals directly | 67% | Low | ⭐⭐⭐ | Simplicity | Remove explicit `exact` |
+| have-calc single-use inline | 50% | Low | ⭐⭐⭐ | Clarity | Only if used once in calc |
+| **Remove duplicate inline comments** | **Lines** | **Zero** | **⭐⭐** | **Clarity** | **If docstring is complete** |
+| ext-simp chain combination | Variable | Medium | ⭐⭐ | Conciseness | Only when saves ≥2 lines |
+| Arithmetic with automation | 30-50% | Medium | ⭐⭐ | Simplicity | Direct lemmas often better |
 
 **New patterns in bold** - discovered from real-world optimization sessions.
 
@@ -78,6 +82,30 @@ let μ_map := Measure.map (fun ω i => X (k i) ω) μ  -- 20 tokens
 **Benchmark:** Well-maintained codebases reach saturation after ~20-25 optimizations.
 
 ## High-Priority Patterns (⭐⭐⭐⭐⭐)
+
+### Pattern 0: `by rfl` → `rfl` (Directness)
+
+Use term mode directly for definitional equalities in theorem/lemma statements.
+
+```lean
+-- Before (2 lines)
+theorem tiling_count : allTilings.length = 11 := by rfl
+theorem count_breakdown :
+    adjacentMonominoTilings.length = 9 ∧ diagonalMonominoTilings.length = 2 := by
+  constructor <;> rfl
+
+-- After (1 line + cleaner)
+theorem tiling_count : allTilings.length = 11 := rfl
+theorem count_breakdown :
+    adjacentMonominoTilings.length = 9 ∧ diagonalMonominoTilings.length = 2 :=
+  ⟨rfl, rfl⟩
+```
+
+**When:** Theorem/lemma proof is immediate by definition
+**Key:** Use `⟨_, _⟩` (anonymous constructor) instead of `constructor` tactic
+**Risk:** Zero (fails at compile if not definitional)
+**Savings:** 1 line per use, skip tactic overhead
+**Benefit:** Directness - term mode is more direct than tactic mode
 
 ### Pattern 1: `rw; exact` → `rwa`
 
@@ -282,6 +310,39 @@ rw [← Measure.map_map hproj_meas (measurable_pi_lambda _ ...),
 **Savings:** 30-50% per instance
 **Risk:** Low (if truly single-use and term is simple)
 
+### Pattern 3B: Transport Operator ▸ for Simple Rewrites (⭐⭐⭐⭐⭐ Conciseness)
+
+Replace `rw; exact` or `rw; lemma` with transport operator `▸` for concise term-mode proofs.
+
+```lean
+-- Before (2 lines)
+theorem domino_tiling_count : ValidData.card = 11 := by
+  rw [validdata_eq_all, all_card]
+
+-- After (1 line)
+theorem domino_tiling_count : ValidData.card = 11 :=
+  validdata_eq_all ▸ all_card
+```
+
+**Pattern:** `(equality : a = b) ▸ (proof_of_P_b) : P_a`
+
+**Read as:** "Transport `all_card` along the equality `validdata_eq_all`"
+
+**When to apply:**
+- ✅ Proof is just rewriting with equality then applying lemma
+- ✅ Single rewrite step (or chain with multiple ▸)
+- ✅ Staying in term mode
+
+**When NOT to apply:**
+- ❌ Multiple complex rewrites (use calc or rw chain)
+- ❌ Rewrite needs simp simplification
+- ❌ Already in tactic mode with complex logic
+
+**When:** Simple rewrite-then-apply in term mode
+**Risk:** Zero (type checks or fails)
+**Savings:** 1-2 lines per use
+**Benefit:** Conciseness - more concise than rw in term mode
+
 ## Medium-Priority Patterns (⭐⭐⭐⭐)
 
 ### Pattern 4: Redundant `ext` Before `simp`
@@ -399,6 +460,41 @@ simp [...]
 **When:** Helper equality just for rewriting once
 **Risk:** Medium (need right `using` level, may need trial-error)
 **Savings:** 30-40% reduction
+
+### Pattern 5C: Inline Single-Use Definitions (Clarity)
+
+When a definition exists solely to be passed to one other definition, inline it directly.
+
+```lean
+-- Before (2 definitions, duplicated docs)
+/-- Convert all explicit tilings to canonical data representation -/
+def allData : List (Finset (Finset Cell) × Finset Cell) :=
+  allTilings.map Tiling.data
+
+/-- The finite set of all tiling data (removes duplicates if any) -/
+def All : Finset (Finset (Finset Cell) × Finset Cell) :=
+  allData.toFinset
+
+-- After (1 definition, merged docs)
+/-- The finite set of all explicit tiling data (canonical representations) -/
+def All : Finset (Finset (Finset Cell) × Finset Cell) :=
+  (allTilings.map Tiling.data).toFinset
+```
+
+**When to apply:**
+- ✅ Definition used exactly once
+- ✅ No independent semantic value (just pipeline step)
+- ✅ Inline makes data flow clearer
+
+**When NOT to apply:**
+- ❌ Definition used multiple times
+- ❌ Definition has independent semantic meaning
+- ❌ Definition aids testing or modularity
+
+**When:** Definition exists solely for one other definition
+**Risk:** Low (compile checks usage)
+**Savings:** 3-4 lines, single source of truth for documentation
+**Benefit:** Clarity - fewer definitions to track, clearer data flow
 
 ### Pattern 6: Smart `ext`
 
@@ -546,6 +642,37 @@ calc (f b - f a) * deriv g x
 **When:** Complex term construction with one remaining proof
 **Risk:** Low (makes intent clearer)
 **Savings:** Clarity (similar line count but better structure)
+
+### Pattern 7E: Named Arguments in obtain (Safety)
+
+Use named arguments in complex `obtain` applications to prevent positional argument confusion and type errors.
+
+```lean
+-- Before (positional - fails with type error!)
+obtain ⟨c, hc, h⟩ := exists_ratio_hasDerivAt_eq_ratio_slope
+  hab hfc (toHasDerivAt hfd) hgc (toHasDerivAt hgd)
+-- Error: hab expected to be function, got Prop
+
+-- After (named - self-documenting, type-safe)
+obtain ⟨c, hc, h⟩ := exists_ratio_hasDerivAt_eq_ratio_slope
+  (f := f) (f' := fun x => deriv f x) (hab := hab) (hfc := hfc) (hff' := toHasDerivAt hfd)
+  (g := g) (g' := fun x => deriv g x) (hgc := hgc) (hgg' := toHasDerivAt hgd)
+```
+
+**When to apply:**
+- ✅ Multiple parameters that might be ambiguous
+- ✅ Function has implicit parameters (can cause position shifts)
+- ✅ Type error from positional arguments
+- ✅ Complex lemma with many hypotheses
+
+**When NOT to apply:**
+- ❌ Simple lemmas with 1-2 obvious arguments
+- ❌ Arguments are clearly unambiguous
+
+**When:** Complex obtain with implicit parameters or ambiguous args
+**Risk:** Zero (prevents errors, self-documenting)
+**Savings:** 0 lines but prevents type errors
+**Benefit:** Safety - prevents positional argument confusion
 
 ### Pattern 8: have-calc Single-Use Inline
 
