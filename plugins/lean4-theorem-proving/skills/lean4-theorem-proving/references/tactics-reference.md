@@ -349,7 +349,8 @@ group        -- Solve group equations
 linarith     -- Linear arithmetic over ordered rings
              -- Example: have : x ≤ y := by linarith
 nlinarith    -- Non-linear arithmetic
-norm_num     -- Normalize numerical expressions
+norm_num     -- Normalize numerical expressions (including angle comparisons)
+             -- Example: have h : angle_expr = 0 := by rw [lem]; norm_num at h
 omega        -- Integer linear arithmetic (Lean 4.13+)
              -- Example: have : n < m := by omega
 ```
