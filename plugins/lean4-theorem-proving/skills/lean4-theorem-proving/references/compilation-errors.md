@@ -181,6 +181,16 @@ f ↑n    -- Apply after coercion
 f (n : ℝ)  -- Explicit
 ```
 
+**Pattern 4: Bypass coercion unification with calc**
+
+When automatic coercion `(π/6 : Real.Angle)` won't unify with explicit `((π/6 : ℝ) : Real.Angle)`, use calc chain with coercion-free middle steps:
+```lean
+calc ((Real.pi / 6 : ℝ) : Real.Angle)
+    = ∠ A C H := by rw [← h_angle]  -- Explicit coercion matches helper signature
+  _ = ∠ A C B := by simp [h_eq]      -- Pure angle equality (no coercion!)
+  _ = ((4 * Real.pi / 9 : ℝ) : Real.Angle) := by rw [angle_ACB]
+```
+
 ### 4. Tactic 'exact' Failed
 
 **Full error message:**

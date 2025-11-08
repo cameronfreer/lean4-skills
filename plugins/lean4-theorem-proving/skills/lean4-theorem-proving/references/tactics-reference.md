@@ -501,6 +501,25 @@ by
   exact combined_lemma hx hy
 ```
 
+**Pattern 5: Work with what you have (avoid rearrangement)**
+
+When library gives `∠ B H C + ∠ H C B + ∠ C B H = π` but you want different order, don't fight commutativity - extract what you need directly:
+```lean
+have angle_sum : ∠ B H C + ∠ H C B + ∠ C B H = π := angle_add_angle_add_angle_eq_pi C ...
+have : ∠ H C B = π - ∠ B H C - ∠ C B H := by linarith [angle_sum]
+-- Then substitute known values in calc chain
+```
+
+**Pattern 6: by_contra + le_antisymm (squeeze theorem)**
+
+Prove `s ∈ Set.Ioo 0 1` from `s ∈ Set.Icc 0 1` and contradictions at endpoints:
+```lean
+by_contra hs_not_pos
+push_neg at hs_not_pos  -- gives s ≤ 0
+have : s = 0 := le_antisymm hs_not_pos hs_ge  -- hs_ge : 0 ≤ s
+-- Derive contradiction from s = 0 (e.g., H ≠ A)
+```
+
 ## Interactive Exploration Commands
 
 Not tactics but essential for development:
