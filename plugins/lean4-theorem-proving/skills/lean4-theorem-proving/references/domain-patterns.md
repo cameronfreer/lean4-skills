@@ -6,7 +6,7 @@
 
 **When to use:** When working in a specific domain (measure theory, analysis, algebra, etc.) and need proven patterns for common tasks.
 
-**Coverage:** Measure theory (12 patterns), analysis/geometry (5 patterns), algebra (3 patterns), number theory (3 patterns), plus cross-domain tactics.
+**Coverage:** Measure theory (12 patterns), analysis & topology (3 patterns), geometry (2 patterns), algebra (3 patterns), number theory (3 patterns), plus cross-domain tactics.
 
 **For deep measure theory patterns (sub-σ-algebras, conditional expectation, type class errors):** See `references/measure-theory.md`
 
@@ -31,17 +31,24 @@
 
 **Common tactics:** `measurability`, `positivity`, `ae_of_all`, `filter_upwards`
 
-### Analysis & Topology (5 Patterns)
+### Analysis & Topology (3 Patterns)
 
 | Pattern | Task | Key Tactic/Approach |
 |---------|------|---------------------|
 | 1. Continuity | Prove continuous | `continuity`, `continuous_def` |
 | 2. Compactness | Finite subcover, min/max | `IsCompact.exists_isMinOn` |
 | 3. Limits | ε-δ via filters | `Metric.tendsto_atTop` |
-| 4. Geometry - Betweenness | Strict betweenness proofs | `Sbtw.sbtw_lineMap_iff` |
-| 5. Geometry - Triangle angles | Angle sum at vertex | `angle_add_angle_add_angle_eq_pi` |
 
 **Common tactics:** `continuity`, `fun_prop`
+
+### Geometry (2 Patterns)
+
+| Pattern | Task | Key Tactic/Approach |
+|---------|------|---------------------|
+| 1. Betweenness | Strict betweenness proofs | `Sbtw.sbtw_lineMap_iff` |
+| 2. Triangle angles | Angle sum at vertex | `angle_add_angle_add_angle_eq_pi` |
+
+**Common tactics:** `norm_num` (for angle comparisons)
 
 ### Algebra (3 Patterns)
 
@@ -390,7 +397,13 @@ lemma tendsto_of_forall_eventually
   rw [Metric.tendsto_atTop]; exact h
 ```
 
-### Pattern 4: Geometry - Betweenness via Line Parameters
+**Common tactics:** `continuity`, `fun_prop`
+
+---
+
+## Geometry
+
+### Pattern 1: Betweenness via Line Parameters
 
 **Key lemma:** `Sbtw.sbtw_lineMap_iff` characterizes strict betweenness: `Sbtw ℝ A (lineMap A B s) B ↔ A ≠ B ∧ s ∈ Set.Ioo 0 1`. Eliminates manual field-by-field Sbtw proofs - parameter in (0,1) gives betweenness, then `Sbtw.angle₁₂₃_eq_pi` yields straight angle.
 
@@ -400,7 +413,7 @@ have h_sbtw : Sbtw ℝ A H B := Sbtw.sbtw_lineMap_iff.mpr ⟨h_ne_AB, hs_in_Ioo�
 have : ∠ A H B = π := h_sbtw.angle₁₂₃_eq_pi
 ```
 
-### Pattern 5: Geometry - Triangle Angle Sum
+### Pattern 2: Triangle Angle Sum
 
 `angle_add_angle_add_angle_eq_pi` gives sum at specified vertex. Order adapts to input - no canonical form fighting. Use directly without rearrangement.
 
@@ -408,7 +421,7 @@ have : ∠ A H B = π := h_sbtw.angle₁₂₃_eq_pi
 have angle_sum : ∠ B H C + ∠ H C B + ∠ C B H = π := angle_add_angle_add_angle_eq_pi C ⟨h_ne_BC, h_ne_CH, h_ne_HB⟩
 ```
 
-**Common tactics:** `continuity`, `fun_prop`
+**Common tactics:** `norm_num` (for angle comparisons)
 
 ---
 
