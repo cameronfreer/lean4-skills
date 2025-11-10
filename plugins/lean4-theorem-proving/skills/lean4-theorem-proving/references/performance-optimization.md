@@ -14,10 +14,11 @@ Advanced patterns for preventing elaboration timeouts and type-checking performa
 
 | Problem | Pattern | Expected Improvement |
 |---------|---------|---------------------|
-| WHNF timeout on `eLpNorm`/`MemLp` goals | Irreducible wrapper | 500k+ → <10k heartbeats |
-| `isDefEq` timeout on complex functions | Pin type parameters | 5-10min → <30sec |
-| Repeated measurability proofs | Pre-prove with wrapper | 28 lines → 8 lines |
-| Elaboration timeouts in polymorphic code | `@[irreducible]` + explicit params | Build success vs timeout |
+| WHNF timeout on `eLpNorm`/`MemLp` goals | Pattern 1: Irreducible wrapper | 500k+ → <10k heartbeats |
+| `isDefEq` timeout on complex functions | Pattern 1: Pin type parameters | 5-10min → <30sec |
+| Repeated measurability proofs | Pattern 1: Pre-prove with wrapper | 28 lines → 8 lines |
+| Elaboration timeouts in polymorphic code | Pattern 1: `@[irreducible]` + explicit params | Build success vs timeout |
+| Nested lemma applications timeout | Pattern 2: Break into focused helpers | Timeout → compiles |
 
 ---
 
@@ -201,7 +202,68 @@ have hn' : MemLp diff (2 : ℝ≥0∞) μ
 
 ---
 
-## When to Use This Pattern
+## Pattern 2: Break Nested Lemma Applications into Focused Helpers
+
+### Problem
+
+Nested applications of the same lemma in a single proof cause deterministic elaboration timeouts, even when each individual application is fast.
+
+**Example that times out:**
+```lean
+-- ❌ TIMEOUT: Nested applications of geometric_lemma
+have result : complex_property := by
+  have h1 := geometric_lemma ...
+  have h2 := geometric_lemma ...  -- Uses h1
+  have h3 := geometric_lemma ...  -- Uses h2
+  calc ...  -- Combines h1, h2, h3
+    -- Deterministic timeout at 200k heartbeats!
+```
+
+**Root cause:** Unification/type-checking complexity compounds with nesting, even though each application is individually simple.
+
+### Solution: One Lemma Application Per Helper
+
+```lean
+-- ✅ NO TIMEOUT: Break into focused helpers
+have helper1 : intermediate_fact1 := by
+  exact geometric_lemma ...  -- One application
+
+have helper2 : intermediate_fact2 := by
+  exact geometric_lemma ...  -- One application
+
+have helper3 : intermediate_fact3 := by
+  exact geometric_lemma ...  -- One application
+
+have result : complex_property := by
+  calc ...
+    _ = ... := by rw [helper1]
+    _ = ... := by rw [helper2, helper3]
+```
+
+**Key principles:**
+1. **One complex lemma call per helper** - avoid nesting multiple applications
+2. **Meaningful names** - `angle_DBH_eq_DBA`, not `h1`, `h2`, `h3`
+3. **Final proof is simple rewrite chain** - just combine the helpers
+4. **Each helper independently verifiable** - reduces unification complexity
+
+### Why This Works
+
+Breaking into smaller proofs:
+- Reduces complexity of each unification problem
+- Allows Lean to cache intermediate results
+- Makes each step independently type-checkable
+- Avoids compounding elaboration cost
+
+### When to Apply
+
+- Proof uses same complex lemma 3+ times
+- "Deterministic timeout" during compilation
+- Timeout disappears when you `sorry` intermediate steps
+- Proofs involving multiple geometric/algebraic transformations
+
+---
+
+## When to Use Pattern 1
 
 Apply irreducible wrappers when you see:
 

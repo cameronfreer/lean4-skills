@@ -14,6 +14,7 @@ Guide for breaking monolithic proofs into maintainable helper lemmas.
 - Repeated patterns (especially lhs/rhs with near-identical proofs)
 - Large preliminary calculations (50+ line `have` statements)
 - Property bundling opportunities (multiple properties proven separately, used together)
+- **Elaboration timeouts from nested lemma applications** (see [performance-optimization.md](performance-optimization.md) Pattern 2)
 
 **Don't refactor when:**
 - Proof is short and linear (< 50 lines, no repetition)
