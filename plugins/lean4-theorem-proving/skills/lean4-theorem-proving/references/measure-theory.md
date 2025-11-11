@@ -68,6 +68,11 @@ let mW : MeasurableSpace Ω := MeasurableSpace.comap W m0
    - Fragile: `AEStronglyMeasurable (fun ω => f ω * g ω)`
    - Robust: Rewrite to `indicator` and use `Integrable.indicator`
 
+5. **❌ Don't use `set` with `MeasurableSpace.comap ... inferInstance`**
+   - Bug: `inferInstance` captures snapshot that drifts from ambient, causing `inst✝⁶ vs inferInstance` errors
+   - Fix: Inline comaps everywhere, freeze ambient with `let` for explicit passing only
+   - Details: See "The `inferInstance` Drift Trap" pattern below
+
 ---
 
 ## Essential Pattern: condExpWith
@@ -253,7 +258,74 @@ This eliminates timeout errors (500k+ heartbeats → normal) by avoiding expensi
 
 ---
 
-### 2. Set-Integral Projection (Not Idempotence)
+### 2. The `inferInstance` Drift Trap (Inline Comaps Everywhere)
+
+**Problem:** Using `set mη := MeasurableSpace.comap η inferInstance` captures an instance snapshot that drifts from ambient parameters, causing `inst✝⁶ vs inferInstance` type errors.
+
+**The Error:**
+```lean
+Type mismatch:
+  hη ht has type @MeasurableSet Ω inst✝⁶ (η ⁻¹' t)
+but expected       @MeasurableSet Ω inferInstance (η ⁻¹' t)
+```
+
+**Root cause:** `inferInstance` inside `set` creates a fresh instance different from the ambient `inst✝⁶`.
+
+**❌ What DOESN'T work:**
+```lean
+-- Even freezing ambient doesn't help!
+let m0 : MeasurableSpace Ω := (by exact ‹MeasurableSpace Ω›)
+set mη := MeasurableSpace.comap η mγ  -- Creates new local instance
+set mζ := MeasurableSpace.comap ζ mγ
+
+-- Later: still fails with inst✝⁶ vs this✝ errors
+have hmη_le : mη ≤ m0 := by
+  intro s hs
+  exact hη ht  -- ❌ Type mismatch!
+```
+
+**✅ Solution - Pattern B: Inline comaps everywhere**
+
+```lean
+-- Freeze ambient instances for explicit passing ONLY
+let mΩ : MeasurableSpace Ω := (by exact ‹MeasurableSpace Ω›)
+let mγ : MeasurableSpace β := (by exact ‹MeasurableSpace β›)
+
+-- Inline comaps at every use - NEVER use `set`
+have hmη_le : MeasurableSpace.comap η mγ ≤ mΩ := by
+  intro s hs
+  rcases hs with ⟨t, ht, rfl⟩
+  exact (hη ht : @MeasurableSet Ω mΩ (η ⁻¹' t))
+
+have hmζ_le : MeasurableSpace.comap ζ mγ ≤ mΩ := by
+  intro s hs
+  rcases hs with ⟨t, ht, rfl⟩
+  exact (hζ ht : @MeasurableSet Ω mΩ (ζ ⁻¹' t))
+
+-- Use inlined comaps in all lemma applications
+have hCEη : μ[f | MeasurableSpace.comap η mγ] =ᵐ[μ]
+            (fun ω => ∫ y, f y ∂(condExpKernel μ (MeasurableSpace.comap η mγ) ω)) :=
+  condExp_ae_eq_integral_condExpKernel hmη_le hint
+```
+
+**Why it works:**
+- No intermediate names = no instance shadowing
+- Explicit `mΩ` and `mγ` ensure stable references
+- Lean's unification handles inlined comaps consistently
+- Type annotations like `@MeasurableSet Ω mΩ` force exact instances
+
+**Key takeaways:**
+1. Never use `set` with `MeasurableSpace.comap ... inferInstance`
+2. Freeze ambient with `let` only for explicit passing to lemmas
+3. Inline comaps at every use site - trust Lean's unification
+4. `haveI` adds MORE instances without fixing drift
+5. Use explicit type annotations when needed: `(hη ht : @MeasurableSet Ω mΩ ...)`
+
+**Real-world impact:** Resolved ALL instance synthesis errors in 150-line conditional expectation proofs (Kallenberg Lemma 1.3).
+
+---
+
+### 3. Set-Integral Projection (Not Idempotence)
 
 **Instead of proving** `μ[g|m] = g` a.e., **use this:**
 
@@ -273,7 +345,7 @@ lemma setIntegral_condExp_eq (μ : Measure Ω) (m : MeasurableSpace Ω) (hm : m 
 
 ---
 
-### 3. Product → Indicator (Avoid Product Measurability)
+### 4. Product → Indicator (Avoid Product Measurability)
 
 ```lean
 -- Rewrite product to indicator
@@ -291,7 +363,7 @@ have : Integrable (fun ω => μ[f|mW] ω * gB ω) μ := by
 
 ---
 
-### 4. Bounding CE Pointwise (NNReal Friction-Free)
+### 5. Bounding CE Pointwise (NNReal Friction-Free)
 
 ```lean
 -- From |f| ≤ R to ‖μ[f|m]‖ ≤ R a.e.
@@ -305,7 +377,7 @@ have : ∀ᵐ ω ∂μ, ‖μ[f|m] ω‖ ≤ (1 : ℝ) := by
 
 ---
 
-### 5. σ-Algebra Relations (Ready-to-Paste)
+### 6. σ-Algebra Relations (Ready-to-Paste)
 
 ```lean
 -- σ(W) ≤ ambient
@@ -324,7 +396,7 @@ have hsm_ceAmb : StronglyMeasurable (μ[f|mW]) := hsm_ce.mono hmW_le
 
 ---
 
-### 6. Indicator-Integration Cookbook
+### 7. Indicator-Integration Cookbook
 
 ```lean
 -- Unrestricted: ∫ (Z⁻¹ B).indicator h = ∫ h * ((Z⁻¹ B).indicator 1)
@@ -339,7 +411,7 @@ have : (fun ω => h ω * indicator (Z⁻¹' B) 1 ω) = indicator (Z⁻¹' B) h :
 
 ---
 
-### 7. Kernel Form vs Scalar Conditional Expectation
+### 8. Kernel Form vs Scalar Conditional Expectation
 
 **When to use `condExpKernel` instead of scalar notation `μ[·|m]`.**
 
