@@ -19,6 +19,7 @@ Advanced patterns for preventing elaboration timeouts and type-checking performa
 | Repeated measurability proofs | Pattern 1: Pre-prove with wrapper | 28 lines → 8 lines |
 | Elaboration timeouts in polymorphic code | Pattern 1: `@[irreducible]` + explicit params | Build success vs timeout |
 | Nested lemma applications timeout | Pattern 2: Break into focused helpers | Timeout → compiles |
+| Theorem declaration itself times out | Pattern 3: Monomorphization | Timeout → 15s build |
 
 ---
 
@@ -260,6 +261,91 @@ Breaking into smaller proofs:
 - "Deterministic timeout" during compilation
 - Timeout disappears when you `sorry` intermediate steps
 - Proofs involving multiple geometric/algebraic transformations
+
+---
+
+## Pattern 3: Monomorphization to Eliminate Instance Synthesis
+
+### Problem
+
+When theorem declarations with heavy type parameters timeout, the issue is often **instance synthesis at declaration time**, not the proof body. Generic types with many typeclass constraints cause Lean to synthesize instances for every combination of parameters.
+
+**Example that times out at declaration:**
+```lean
+-- ❌ TIMEOUT: Theorem declaration never completes
+theorem angle_AGH_eq_110_of_D
+    {V : Type*} {P : Type*}
+    [NormedAddCommGroup V] [InnerProductSpace ℝ V]
+    [MetricSpace P] [NormedAddTorsor V P]
+    [FiniteDimensional ℝ V] [Module.Oriented ℝ V (Fin 2)]
+    (h_dim : Module.finrank ℝ V = 2)
+    (A B C G H D : P)
+    (h_AB_ne : A ≠ B) (h_AC_ne : A ≠ C) (h_BC_ne : B ≠ C)
+    -- ... 20+ more parameters
+```
+
+**Root cause:** 25 parameters (20 type classes + 5 concrete) trigger combinatorial instance synthesis. Build never completes even for valid theorems.
+
+### Solution: Specialize to Concrete Types
+
+**Step 1: Define concrete type alias**
+```lean
+-- At file start
+abbrev P := EuclideanSpace ℝ (Fin 2)
+```
+
+**Step 2: Use concrete type in theorem**
+```lean
+-- ✅ BUILDS IN 15s: Only 12 concrete parameters
+theorem angle_AGH_eq_110_of_D
+    (A B C G H D : P)  -- Concrete type!
+    (h_AB_ne : A ≠ B) (h_AC_ne : A ≠ C) (h_BC_ne : B ≠ C)
+    (h_isosceles : dist A B = dist A C)
+    (h_angle_BAC : ∠ B A C = Real.pi / 9)
+    -- ... 6 more concrete hypotheses
+```
+
+### Key Benefits
+
+**Instance synthesis:** Eliminated - concrete type has all instances pre-computed
+**Compilation:** Theorem declaration instant, build completes in 15s
+**Code reduction:** 25 parameters → 12 parameters (296 lines saved in proof body)
+
+### When to Monomorphize
+
+**✅ Monomorphize when:**
+- Theorem declaration itself times out (instance synthesis problem)
+- >15 type parameters with heavy typeclass constraints
+- Proof >800 lines in deep context
+- Working with concrete mathematical objects (ℝ², ℝ³, specific spaces)
+
+**❌ Keep generic when:**
+- Proof <500 lines and compiles quickly
+- Genuinely polymorphic result (works for any field, any dimension)
+- No instance synthesis issues
+- Result intended for mathlib (prefer generality)
+
+### Progressive Simplification Metrics
+
+Track these to validate monomorphization success:
+
+```lean
+-- Before monomorphization:
+-- Parameters: 25 (20 type classes + 5 concrete)
+-- Compilation: Timeout (>1000s) or >400k heartbeats
+-- Lines: 1146 with ~300 lines of parametric machinery
+-- Sorries: 13 (scattered, poorly documented)
+
+-- After monomorphization:
+-- Parameters: 12 (all concrete points + hypotheses)
+-- Compilation: 15 seconds
+-- Lines: 850 (296 lines removed = -20%)
+-- Sorries: 11 (categorized, documented with strategies)
+```
+
+### The Golden Rule
+
+**Specialize first, prove it works, then consider generalization.** Don't pay the abstraction tax upfront when working with concrete objects.
 
 ---
 

@@ -6,7 +6,7 @@
 
 **When to use:** When working in a specific domain (measure theory, analysis, algebra, etc.) and need proven patterns for common tasks.
 
-**Coverage:** Measure theory (12 patterns), analysis & topology (3 patterns), geometry (2 patterns), algebra (3 patterns), number theory (3 patterns), plus cross-domain tactics.
+**Coverage:** Measure theory (12 patterns), analysis & topology (3 patterns), geometry (7 patterns), algebra (3 patterns), number theory (3 patterns), plus cross-domain tactics.
 
 **For deep measure theory patterns (sub-σ-algebras, conditional expectation, type class errors):** See `references/measure-theory.md`
 
@@ -41,12 +41,17 @@
 
 **Common tactics:** `continuity`, `fun_prop`
 
-### Geometry (2 Patterns)
+### Geometry (7 Patterns)
 
 | Pattern | Task | Key Tactic/Approach |
 |---------|------|---------------------|
 | 1. Betweenness | Strict betweenness proofs | `Sbtw.sbtw_lineMap_iff` |
 | 2. Triangle angles | Angle sum at vertex | `angle_add_angle_add_angle_eq_pi` |
+| 3. Segment to betweenness | Convert membership to Wbtw | `mem_segment_iff_wbtw` |
+| 4. Collinearity | Prove point in affine span | `Wbtw.mem_affineSpan` |
+| 5. Angles from betweenness | Straight angle at midpoint | `Sbtw.angle₁₂₃_eq_pi` |
+| 6. Missing lemmas | Document sorries with strategy | Thin wrappers with alternatives |
+| 7. Deep context timeouts | Accept technical limits | Document strategy, move on |
 
 **Common tactics:** `norm_num` (for angle comparisons)
 
@@ -420,6 +425,88 @@ have : ∠ A H B = π := h_sbtw.angle₁₂₃_eq_pi
 ```lean
 have angle_sum : ∠ B H C + ∠ H C B + ∠ C B H = π := angle_add_angle_add_angle_eq_pi C ⟨h_ne_BC, h_ne_CH, h_ne_HB⟩
 ```
+
+### Pattern 3: Segment Membership to Betweenness
+
+**Replace parametric obtains with direct mathlib conversion.** `mem_segment_iff_wbtw` converts `x ∈ segment ℝ A B` to `Wbtw ℝ A x B` in one step.
+
+```lean
+-- ❌ BAD: 70 lines extracting parameters, proving strict bounds
+obtain ⟨s, hs_ge, hs_le, hH_eq⟩ := h_H_on_AB
+-- ... 50+ lines proving 0 < s < 1 from H ≠ A, H ≠ B ...
+have : Sbtw ℝ A H B := ...
+
+-- ✅ GOOD: 1 line
+have : Sbtw ℝ A H B := ⟨mem_segment_iff_wbtw.mp h_H_on_AB, h_H_ne_A, h_H_ne_B⟩
+```
+
+### Pattern 4: Collinearity from Betweenness
+
+**Direct collinearity proof.** `Wbtw.mem_affineSpan` proves `G ∈ affineSpan ℝ {A, C}` from `Wbtw ℝ A G C` without parametric machinery.
+
+```lean
+-- ❌ BAD: Manual lineMap construction (10+ lines)
+obtain ⟨t, ht_ge, ht_le, hG_eq⟩ := h_G_on_AC
+have : G ∈ affineSpan ℝ {A, C} := by
+  rw [hG_eq]
+  -- Convert to lineMap, prove membership...
+
+-- ✅ GOOD: Direct
+have : G ∈ affineSpan ℝ {A, C} := (mem_segment_iff_wbtw.mp h_G_on_AC).mem_affineSpan
+```
+
+### Pattern 5: Angle Proofs from Betweenness
+
+**Combine with Pattern 3 for instant angle proofs.** Chain `mem_segment_iff_wbtw` → `Sbtw` → `Sbtw.angle₁₂₃_eq_pi`.
+
+```lean
+have angle_AHB_eq_pi : ∠ A H B = π :=
+  Sbtw.angle₁₂₃_eq_pi ⟨mem_segment_iff_wbtw.mp h_H_on_AB, h_H_ne_A, h_H_ne_B⟩
+```
+
+### Pattern 6: Infrastructure Wrappers for Missing Lemmas
+
+**Create thin wrappers with documented sorries.** When mathlib lacks domain-specific lemmas, isolate missing pieces with clear documentation and alternatives.
+
+```lean
+namespace AngleTools
+/-- Right subtraction: from `∠XTY = π`, get `∠TZY = ∠XZY − ∠XZT`.
+    Missing mathlib lemma for angle splitting at external vertex.
+    Alternative: Use Module.Oriented with oangle_add (complex). -/
+lemma sub_right (X T Y Z : P) (hπ : ∠ X T Y = Real.pi) :
+    ∠ T Z Y = ∠ X Z Y - ∠ X Z T := by
+  sorry
+end AngleTools
+
+-- Usage: Clean structure throughout proof
+have angle_ABD : ∠ A B D = π / 3 := by
+  calc ∠ A B D = ∠ A B C - ∠ D B C := AngleTools.sub_right A D C B angle_ADC_eq_pi
+    _ = 4 * π / 9 - π / 9 := by rw [angle_ABC, h_DBC]
+    _ = π / 3 := by ring
+```
+
+**Benefits:** Sorry is isolated, strategy documented, proof structure maintainable.
+
+### Pattern 7: Deep Context Timeouts
+
+**After ~1000 lines, accept technical limitations.** Non-trivial tactics can timeout even with sound logic. Document strategy and continue.
+
+```lean
+-- ❌ BAD: Fight timeout with increasingly complex rewrites
+have h_DB_ne : D ≠ B := by
+  intro h_eq
+  rw [h_eq] at h_angle_CBD
+  -- ... 20 lines that timeout anyway ...
+
+-- ✅ GOOD: Document and move on
+have h_DB_ne : D ≠ B := by
+  -- If D = B, then ∠CBD = ∠CBB = 0, contradicting h_angle_CBD : ∠CBD = π/9
+  -- Strategy: Use toReal to convert angle equation to real contradiction
+  -- Elaboration times out in deep context (>1000 lines)
+  sorry
+```
+
+**When to use:** Proof >1000 lines, simple logic times out, strategy is mathematically sound.
 
 **Common tactics:** `norm_num` (for angle comparisons)
 

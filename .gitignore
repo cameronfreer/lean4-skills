@@ -14,5 +14,5 @@
 *.tmp
 *.bak
 
-# Claude Code staged tools (generated at session start)
-.claude/tools/
+# Claude Code
+.claude
