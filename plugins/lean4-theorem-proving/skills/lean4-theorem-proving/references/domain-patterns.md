@@ -6,7 +6,7 @@
 
 **When to use:** When working in a specific domain (measure theory, analysis, algebra, etc.) and need proven patterns for common tasks.
 
-**Coverage:** Measure theory (12 patterns), analysis & topology (3 patterns), geometry (7 patterns), algebra (3 patterns), number theory (3 patterns), plus cross-domain tactics.
+**Coverage:** Measure theory (12 patterns), analysis & topology (3 patterns), geometry (8 patterns), algebra (3 patterns), number theory (3 patterns), plus cross-domain tactics.
 
 **For deep measure theory patterns (sub-σ-algebras, conditional expectation, type class errors):** See `references/measure-theory.md`
 
@@ -41,7 +41,7 @@
 
 **Common tactics:** `continuity`, `fun_prop`
 
-### Geometry (7 Patterns)
+### Geometry (8 Patterns)
 
 | Pattern | Task | Key Tactic/Approach |
 |---------|------|---------------------|
@@ -52,8 +52,9 @@
 | 5. Angles from betweenness | Straight angle at midpoint | `Sbtw.angle₁₂₃_eq_pi` |
 | 6. Missing lemmas | Document sorries with strategy | Thin wrappers with alternatives |
 | 7. Deep context timeouts | Accept technical limits | Document strategy, move on |
+| 8. Angle arithmetic | Work at quotient level | `linarith` + `ring` on Real.Angle |
 
-**Common tactics:** `norm_num` (for angle comparisons)
+**Common tactics:** `norm_num` (for angle comparisons), `linarith` (for angle algebra)
 
 ### Algebra (3 Patterns)
 
@@ -508,7 +509,42 @@ have h_DB_ne : D ≠ B := by
 
 **When to use:** Proof >1000 lines, simple logic times out, strategy is mathematically sound.
 
-**Common tactics:** `norm_num` (for angle comparisons)
+### Pattern 8: Angle Arithmetic at Quotient Level
+
+**Work with Real.Angle's group structure directly.** Don't unwrap to ℝ via `toReal` for arithmetic—the quotient handles algebra automatically.
+
+**Key insight:** Real.Angle ≃ ℝ / (2π) is a group. Addition, subtraction, and linear algebra work directly at the quotient level. Only use `toReal` when you need real number properties (like `< π`), not for algebra.
+
+```lean
+-- ❌ BAD: Unwrap to ℝ, prove bounds, wrap back up
+have E : ∠ABD + π/9 = 4*π/9 := split
+have toReal_E : (∠ABD).toReal + (π/9).toReal = (4*π/9).toReal := ... -- need bound proofs!
+have result : ∠ABD = π/3 := add_right_cancel ... -- manual group operation
+
+-- ✅ GOOD: Use group operations directly
+calc ∠ABD = (4*π/9 : Real.Angle) - (π/9 : Real.Angle) := by linarith [split]
+  _ = π/3 := by ring
+```
+
+**Why `linarith` works:** It operates on ANY additive group, not just ℝ. Given `a + b = c` in any group, `linarith` derives `a = c - b`, `b = c - a`, etc.
+
+**Type coercion spam = code smell:** If you need `((π/3 : ℝ) : Real.Angle)` everywhere, you're fighting the type system. Let Lean's coercion work—write `4*π/9 - π/9` and Lean infers Real.Angle from context.
+
+**Separation of concerns:**
+- **Group level** (Real.Angle): `+`, `-`, equality via `linarith`
+- **Arithmetic level** (ℝ component): `4*π/9 - π/9 = π/3` via `ring`
+
+```lean
+-- Clean pattern
+calc (x : Real.Angle)
+    = y - z := by linarith [group_fact]  -- group algebra
+  _ = a - b := by rw [substitutions]     -- still in quotient
+  _ = c := by ring                        -- arithmetic on ℝ component
+```
+
+**Infrastructure lemma strategy:** One infrastructure admit (e.g., `angle_split_external`) with clean pattern everywhere beats many scattered admits at call sites. Infrastructure admits are well-isolated, documented, and can be proven later without touching call sites.
+
+**Common tactics:** `norm_num` (for angle comparisons), `linarith` (for angle algebra)
 
 ---
 

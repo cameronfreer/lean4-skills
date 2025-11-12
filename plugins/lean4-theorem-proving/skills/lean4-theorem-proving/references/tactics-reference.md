@@ -346,8 +346,11 @@ group        -- Solve group equations
 
 **Arithmetic:**
 ```lean
-linarith     -- Linear arithmetic over ordered rings
+linarith     -- Linear arithmetic on ANY additive group (not just ℝ or ℚ)
+             -- Works on: ℝ, ℚ, ℤ, Real.Angle, any group with +/-
+             -- Given a + b = c, derives a = c - b, b = c - a, etc.
              -- Example: have : x ≤ y := by linarith
+             -- Example: calc (∠ABD : Real.Angle) = 4*π/9 - π/9 := by linarith [split]
 nlinarith    -- Non-linear arithmetic
 norm_num     -- Normalize numerical expressions (including angle comparisons)
              -- Example: have h : angle_expr = 0 := by rw [lem]; norm_num at h
