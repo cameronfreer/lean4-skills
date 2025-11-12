@@ -490,24 +490,76 @@ have angle_ABD : ∠ A B D = π / 3 := by
 
 ### Pattern 7: Deep Context Timeouts
 
-**After ~1000 lines, accept technical limitations.** Non-trivial tactics can timeout even with sound logic. Document strategy and continue.
+**After ~1000 lines, standard lemmas can timeout.** Use cheaper alternatives or document strategy.
+
+#### Technique A: Non-Degeneracy via `angle_self_right`
+
+**Problem:** In deep contexts, `angle_self_of_ne` times out in contradiction proofs.
+
+**Key insight:** The unoriented angle ∠ P X X = π/2 (not 0). This comes from `angle_self_right`, a cheap `[simp]` lemma that avoids the expensive `angle_self_of_ne`.
 
 ```lean
--- ❌ BAD: Fight timeout with increasingly complex rewrites
+-- General pattern: Given h_angle : ∠ P X Y = α where α ≠ π/2
+-- Goal: Prove Y ≠ X
+
+-- Example: h_angle_CBD : ∠ C B D = π/9, prove D ≠ B
 have h_DB_ne : D ≠ B := by
   intro h_eq
   rw [h_eq] at h_angle_CBD
-  -- ... 20 lines that timeout anyway ...
+  -- Now have: ∠ C B B = π/9
 
--- ✅ GOOD: Document and move on
+  -- Key step: Get the actual value of degenerate angle
+  have angle_CBB : ∠ C B B = ((π / 2 : ℝ) : Real.Angle) := by
+    simp [EuclideanGeometry.angle_self_right]  -- Fast! [simp] lemma
+
+  -- Derive the impossible equation: π/9 = π/2
+  have : ((π / 9 : ℝ) : Real.Angle) = ((π / 2 : ℝ) : Real.Angle) := by
+    rw [← h_angle_CBD, angle_CBB]
+
+  exact pi_div_nine_ne_pi_div_two this  -- Use helper lemma
+```
+
+**Helper lemma pattern** (prove once using `toReal_injective`):
+```lean
+lemma pi_div_nine_ne_pi_div_two :
+    ((π / 9 : ℝ) : Real.Angle) ≠ ((π / 2 : ℝ) : Real.Angle) := by
+  rw [← Real.Angle.toReal_injective.ne_iff]
+  -- Convert to -π < x ≤ π range
+  have h_range1 : -π < π/9 ∧ π/9 ≤ π := by constructor <;> linarith [Real.pi_pos]
+  have h_range2 : -π < π/2 ∧ π/2 ≤ π := by constructor <;> linarith [Real.pi_pos]
+  rw [Real.Angle.toReal_coe_eq_self_iff.mpr h_range1]
+  rw [Real.Angle.toReal_coe_eq_self_iff.mpr h_range2]
+  linarith [Real.pi_pos]
+```
+
+**Why this works:**
+- `angle_self_right` is marked `[simp]`, so `simp` resolves it instantly (no timeout)
+- Avoids expensive `angle_self_of_ne` which requires non-degeneracy proof
+- Works entirely in Real.Angle (quotient group), no `toReal` unwrapping
+- Helper lemmas (like `pi_div_nine_ne_pi_div_two`) proved once, reused everywhere
+
+**Applicability:** Works when α ≠ π/2. For most angle values this is true (π/9, π/3, π/4, 2π/3, etc.).
+
+**General pattern:** To prove Y ≠ X when you know ∠ P X Y = α:
+1. Assume Y = X for contradiction
+2. Substitute: get ∠ P X X = α
+3. Apply `angle_self_right`: get ∠ P X X = π/2
+4. Derive impossible equation: α = π/2 in Real.Angle
+5. Apply contradiction helper lemma that proves α ≠ π/2
+
+#### Technique B: Document and Continue
+
+When no cheap alternative exists, document the strategy:
+
+```lean
 have h_DB_ne : D ≠ B := by
-  -- If D = B, then ∠CBD = ∠CBB = 0, contradicting h_angle_CBD : ∠CBD = π/9
-  -- Strategy: Use toReal to convert angle equation to real contradiction
+  -- If D = B, then ∠CBD = ∠CBB = π/2 by angle_self_right,
+  -- contradicting h_angle_CBD : ∠CBD = π/9.
   -- Elaboration times out in deep context (>1000 lines)
   sorry
 ```
 
-**When to use:** Proof >1000 lines, simple logic times out, strategy is mathematically sound.
+**When to use:** Proof >1000 lines, simple logic times out. Try cheap lemmas first (Technique A), then document strategy.
 
 ### Pattern 8: Angle Arithmetic at Quotient Level
 
