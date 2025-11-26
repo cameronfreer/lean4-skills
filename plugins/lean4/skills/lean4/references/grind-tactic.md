@@ -422,6 +422,76 @@ example (x : Fin 4) (h : x ≠ 0) (h2 : x ≠ 1) (h3 : x ≠ 2) : x = 3 := by gr
 example (h : n = m ∨ n < m) (h2 : ¬(n < m)) : n = m := by grind
 ```
 
+### Example 6: AC (Associative-Commutative) Reasoning
+
+```lean
+-- grind's AC module handles reordering
+example (a b c : Nat) : a + b + c = c + b + a := by grind
+example (a b c : Nat) : a * b * c = c * a * b := by grind
+
+-- Combining AC with equality constraints
+example (a b c d : Nat) (h : a + b = c + d) : b + a = d + c := by grind
+```
+
+### Example 7: Integer Linear Systems (CUTSAT)
+
+```lean
+-- From cryptographic verification: solving simultaneous equations
+example (x y : Int) (h1 : 2*x + 3*y = 12) (h2 : x - y = 1) : x = 3 := by grind
+
+-- Proving infeasibility
+example (x y : Int) : 4*x + 6*y = 9 → 5*x - 2*y = 1 → False := by grind
+```
+
+---
+
+## Real-World Usage: Cryptographic Verification
+
+Based on the curve25519-dalek-lean-verify project, here are patterns for cryptographic proofs:
+
+### When `grind` Helps
+
+```lean
+-- Closing simple arithmetic branches after structure work
+theorem high_bit_zero_of_lt_L (bytes : Array U8 32) (h : U8x32_as_Nat bytes < L) :
+    bytes[31].val >>> 7 = 0 := by
+  refine high_bit_zero_of_lt_255 bytes ?_
+  have : L ≤ 2 ^ 255 := by decide
+  grind  -- Combines inequality transitivity
+
+-- After unfolding definitions and simplifying sums
+example : 2 ^ 255 ≤ some_sum := by
+  simp_all; grind  -- Handles the arithmetic
+```
+
+### When `grind` Doesn't Help (Use Alternatives)
+
+```lean
+-- BitVec bounds: use bv_decide or bvify
+theorem U64_shiftRight_le (a : U64) : a.val >>> 51 ≤ 2 ^ 13 - 1 := by
+  bvify 64 at *; bv_decide  -- NOT grind
+
+-- BitVec identities: use native_decide
+example : ∀ x : BitVec 64, (x &&& 0) = 0 := by native_decide  -- NOT grind
+
+-- Injectivity proofs: require structural reasoning
+lemma byte_array_injective : Function.Injective U8x32_as_Nat := by
+  -- Requires induction, not SMT-style reasoning
+  intro a b h
+  ext i
+  -- ... structural proof
+```
+
+### Combining `grind` with Domain Tactics
+
+```lean
+-- Pattern: Use domain tactics first, then grind for cleanup
+example : some_property := by
+  progress*  -- Aeneas framework unfolds definitions
+  simp_all   -- Simplify what we can
+  grind      -- Handle remaining arithmetic/propositional goals
+```
+
 ---
 
 ## Quick Reference
