@@ -18,6 +18,7 @@ This reference provides comprehensive guidance on essential Lean 4 tactics, when
 | Prove function equality | `ext` / `funext` |
 | Explore options | `exact?`, `apply?`, `simp?` |
 | Automate domain-specific | `ring`, `linarith`, `continuity`, `measurability` |
+| Cross-domain automation | `grind` (SMT-style) |
 
 The most important tactic is the one you understand!
 
@@ -468,6 +469,43 @@ have h : Measurable (fun ω => f (ω (-1))) := by
 have h : Measurable (fun ω => f (ω (-1))) := by
   fun_prop (disch := measurability)
 ```
+
+#### `grind` - SMT-Style Automation
+
+**What it does:** Coordinates multiple reasoning engines (congruence closure, constraint propagation, E-matching, case analysis, theory solvers) to construct proofs by contradiction.
+
+**Basic usage:**
+```lean
+example (h1 : a = b) (h2 : b = c) : a = c := by grind
+example [CommRing R] [NoZeroDivisors R] (h : x * y = 0) (hx : x ≠ 0) : y = 0 := by grind
+example : (5 : Fin 3) = 2 := by grind  -- Handles modular arithmetic
+```
+
+**When to use `grind` vs `simp`:**
+```
+simp: Sequential rewriting, pure normalization, known lemmas
+grind: Multiple constraint types, cross-domain reasoning, finite domains
+```
+
+| Goal Type | Use `simp` | Use `grind` |
+|-----------|------------|-------------|
+| Pure rewrites | ✅ | |
+| Transitive equalities | both work | ✅ (automatic) |
+| Algebra + constraints | | ✅ |
+| Fin/bounded domains | | ✅ |
+| Cross-domain reasoning | | ✅ |
+
+**When NOT to use `grind`:**
+- Combinatorial search (use `bv_decide`)
+- Pure integer arithmetic (use `omega`)
+- Simple rewrites (use `simp`)
+
+**With hints:**
+```lean
+grind [helpful_lemma]  -- Add specific lemmas
+```
+
+**For detailed guide:** See [grind-tactic.md](grind-tactic.md)
 
 ## Tactic Combinations
 

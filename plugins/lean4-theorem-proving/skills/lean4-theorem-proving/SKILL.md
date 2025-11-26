@@ -56,7 +56,9 @@ Use `/search-mathlib` slash command, LSP server search tools, or automation scri
 
 ## Essential Tactics
 
-**Key tactics:** `simp only`, `rw`, `apply`, `exact`, `refine`, `by_cases`, `rcases`, `ext`/`funext`. See [tactics-reference.md](references/tactics-reference.md) for comprehensive guide with examples and decision trees.
+**Key tactics:** `simp only`, `rw`, `apply`, `exact`, `refine`, `by_cases`, `rcases`, `ext`/`funext`, `grind` (SMT-style automation). See [tactics-reference.md](references/tactics-reference.md) for comprehensive guide with examples and decision trees.
+
+**`grind` vs `simp`:** Use `simp` for pure rewriting/normalization. Use `grind` when goals combine multiple constraint types, require cross-domain reasoning, or involve finite domains like `Fin`. See [grind-tactic.md](references/grind-tactic.md) for detailed comparison.
 
 ## Domain-Specific Patterns
 
@@ -144,7 +146,7 @@ See [compilation-errors.md](references/compilation-errors.md) for detailed debug
 
 ## Reference Files
 
-**Core references:** [lean-phrasebook.md](references/lean-phrasebook.md), [mathlib-guide.md](references/mathlib-guide.md), [tactics-reference.md](references/tactics-reference.md), [compilation-errors.md](references/compilation-errors.md)
+**Core references:** [lean-phrasebook.md](references/lean-phrasebook.md), [mathlib-guide.md](references/mathlib-guide.md), [tactics-reference.md](references/tactics-reference.md), [grind-tactic.md](references/grind-tactic.md), [compilation-errors.md](references/compilation-errors.md)
 
 **Domain-specific:** [domain-patterns.md](references/domain-patterns.md), [measure-theory.md](references/measure-theory.md), [instance-pollution.md](references/instance-pollution.md), [calc-patterns.md](references/calc-patterns.md)
 
