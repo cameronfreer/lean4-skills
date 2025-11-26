@@ -594,9 +594,33 @@ grind [extra_lemma]
 grind [-excluded_lemma]
 ```
 
+### What `grind` Handles Well
+
+Based on testing against cryptographic verification patterns:
+
+```lean
+-- PASS: Equality chain reasoning (congruence closure)
+example (a b c d : Nat) (h1 : a = b) (h2 : b = c) (h3 : c = d) : a = d := by grind
+
+-- PASS: Congruence under function application
+example (f : Nat → Nat) (a b : Nat) (h : a = b) : f a = f b := by grind
+
+-- PASS: Mixed inequality and equality
+example (x y z : Nat) (h1 : x < y) (h2 : y = z) : x < z := by grind
+
+-- PASS: Modular equality propagation
+example (x y z : Nat) (h : x = y) : x % z = y % z := by grind
+
+-- PASS: Multi-constraint integer solving
+example (x y : Nat) (h1 : x ≤ 10) (h2 : y ≤ 10) (h3 : x + y = 20) : x = 10 ∧ y = 10 := by grind
+
+-- PASS: Bounded arithmetic (no shifts)
+example (x y : Nat) (hx : x < 2^52) (hy : y < 2^52) : x + y < 2^53 := by grind
+```
+
 ### Known Limitations of `grind`
 
-Based on nightly testing (4.27.0-nightly-2025-11-25):
+Based on testing (4.25.1 stable and 4.27.0-nightly-2025-11-25):
 
 1. **E-matching doesn't iterate enough for nested applications:**
    ```lean
@@ -613,13 +637,30 @@ Based on nightly testing (4.27.0-nightly-2025-11-25):
      omega  -- Use omega for integer arithmetic
    ```
 
-3. **`@[grind]` requires discoverable patterns:**
+3. **CUTSAT doesn't understand bit-shift semantics:**
+   ```lean
+   -- Grind assigns x and (x >>> 51) independently without linking them
+   example (x : Nat) (hx : x < 2^64) : x >>> 51 < 2^13 := by
+     -- grind FAILS: CUTSAT assigns x := 0, x >>> 51 := 8192
+     omega  -- Use omega (understands x >>> n = x / 2^n)
+   ```
+   This is critical for cryptographic verification where bit-shifting bounds are common.
+
+4. **`@[grind]` requires discoverable patterns:**
    ```lean
    -- Fails: No usable pattern for iff
    @[grind] theorem bad : P ↔ Q := ...  -- Error: failed to find usable pattern
 
    -- Works: Function application gives clear pattern
    @[grind] theorem good (n : Nat) : n + n = 2 * n := by omega
+   ```
+
+5. **Function injectivity requires structural reasoning:**
+   ```lean
+   -- Grind can't prove injectivity of sum-based interpretations
+   lemma U8x32_as_Nat_injective : Function.Injective U8x32_as_Nat := by
+     -- Requires ext + induction, not SMT
+     intro a b hab; ext i; ...
    ```
 
 ---
