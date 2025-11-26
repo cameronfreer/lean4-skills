@@ -512,33 +512,74 @@ example : some_property := by
 
 ## Interactive Mode (Advanced)
 
-`grind` has an interactive DSL for step-by-step proof exploration. This is useful for debugging complex proofs or generating tactic scripts.
+`grind` has an interactive DSL accessed via `grind =>` for step-by-step proof exploration.
+
+### How to Use Interactive Mode
+
+```lean
+example (a b c : Nat) (h1 : a = b) (h2 : b = c) : a = c := by
+  grind =>
+    show_state  -- Inspect grind's internal state
+    done        -- Complete the proof
+```
 
 ### Interactive Commands
 
 | Command | Description |
 |---------|-------------|
-| `finish` | Try to close goal with default strategy |
-| `finish?` | Try to close and suggest a tactic script |
-| `show_state` | Display grind's internal state |
-| `show_eqcs` | Show equivalence classes |
-| `show_asserted` | Show asserted facts |
-| `show_true` | Show propositions known to be True |
-| `show_false` | Show propositions known to be False |
-| `show_cases` | Show case-split candidates |
-| `cases?` | Interactive case-split selection (code action) |
-| `cases_next` | Perform next case-split heuristically |
-| `instantiate` | Manual E-matching trigger |
+| `done` / `finish` | Complete the proof (fails if unsolved) |
+| `finish?` | Suggest a finishing tactic |
+| `show_state` | Display grind's internal state (facts, eqcs, patterns) |
+| `show_eqcs` | Show equivalence classes only |
+| `show_cases` | Show available case splits |
+| `cases?` | Suggest case splits |
+| `cases_next` | Perform the next case split |
+| `instantiate [thm]` | Trigger E-matching with a specific theorem |
 
-### Theory-Specific Commands
+### Key Limitation: `instantiate` Only Works with Constants
 
-| Command | Description |
-|---------|-------------|
-| `lia` | Linear integer arithmetic |
-| `ring` | Commutative ring reasoning |
-| `ac` | Associativity/commutativity |
-| `linarith` | Linear arithmetic |
-| `mbtc` | Model-based theory combination |
+**Critical:** `instantiate [thm]` expects `@[grind]`-registered theorems, NOT local hypotheses:
+
+```lean
+-- FAILS: h is a local hypothesis, not a constant
+example (f : Nat → Nat) (h : ∀ n, f n = n + 1) : f 0 = 1 := by
+  grind =>
+    instantiate [h]  -- Error: Unknown constant `h`
+    done
+
+-- WORKS: my_thm is a registered @[grind] theorem
+@[grind] theorem my_add : ∀ n : Nat, n + 0 = n := Nat.add_zero
+
+example (x : Nat) : x + 0 = x := by
+  grind =>
+    instantiate [my_add]
+    done
+```
+
+### When Interactive Mode Is (and Isn't) Useful
+
+**Limited utility in practice:**
+1. Most goals `grind` can solve, it solves IMMEDIATELY - no time for interaction
+2. Goals `grind` CAN'T solve stay unsolved even with `instantiate`
+3. Commands like `show_cases` often report "no case splits" because grind auto-solved
+
+**Main value is DEBUGGING:**
+```lean
+-- Use interactive mode to understand why grind fails
+set_option trace.grind true in
+example (f : Nat → Nat) (h : ∀ n, f n = n + 1) : f (f 0) = 2 := by
+  grind =>
+    show_state  -- See: pattern [f #0], CUTSAT assigns f(f 0):=1, f 0:=3
+  -- Grind fails! E-matching doesn't iterate enough. Use simp instead:
+  simp [h]
+```
+
+**For most proofs, use plain `grind` with trace options instead:**
+```lean
+set_option trace.grind.eqc true in
+example (a b c : Nat) (h1 : a = b) (h2 : b = c) : a = c := by
+  grind  -- Trace shows equivalence class merging
+```
 
 ### Configuration Modifiers
 
@@ -551,10 +592,35 @@ grind [extra_lemma]
 
 -- Exclude a lemma
 grind [-excluded_lemma]
-
--- Use anchor references (from show_local_thms)
-grind [#1a2b3c]
 ```
+
+### Known Limitations of `grind`
+
+Based on nightly testing (4.27.0-nightly-2025-11-25):
+
+1. **E-matching doesn't iterate enough for nested applications:**
+   ```lean
+   -- h : ∀ n, f n = n + 1 has pattern [f #0]
+   -- But grind won't instantiate twice to prove f (f 0) = 2
+   example (f : Nat → Nat) (h : ∀ n, f n = n + 1) : f (f 0) = 2 := by
+     simp [h]  -- Use simp for repeated rewriting
+   ```
+
+2. **CUTSAT has gaps in linear arithmetic reasoning:**
+   ```lean
+   -- CUTSAT finds satisfying assignments but misses conclusions
+   example (x y : Int) (h1 : x > 0) (h2 : y > 0) : x + y > 0 := by
+     omega  -- Use omega for integer arithmetic
+   ```
+
+3. **`@[grind]` requires discoverable patterns:**
+   ```lean
+   -- Fails: No usable pattern for iff
+   @[grind] theorem bad : P ↔ Q := ...  -- Error: failed to find usable pattern
+
+   -- Works: Function application gives clear pattern
+   @[grind] theorem good (n : Nat) : n + n = 2 * n := by omega
+   ```
 
 ---
 
