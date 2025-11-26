@@ -43,10 +43,13 @@ When facts are added:
 
 ### Theory Solvers Include
 
-- **Linear integer arithmetic (CUTSAT)** - Integer systems with linear constraints
-- **Commutative rings** - Polynomial reasoning with `CommRing` instances
+- **Linear integer arithmetic (`lia`)** - CUTSAT-based solver for integer systems with linear constraints, divisibility
+- **Linear arithmetic (`linarith`)** - General linear inequalities (inspired by Mathlib's `linarith`)
+- **Commutative rings (`ring`)** - Polynomial reasoning with `CommRing` instances
+- **Associative-commutative (`ac`)** - Normalization of AC operators like `+` and `*`
 - **Fields** - Division and field arithmetic
-- **Linear arithmetic** - General linear inequalities
+
+**Note:** `lia` and `linarith` are both enabled by default and work together. Disable with `grind -lia` or `grind -linarith`.
 
 ---
 
@@ -536,6 +539,28 @@ example (a b c : Nat) (h1 : a = b) (h2 : b = c) : a = c := by
 | `cases_next` | Perform the next case split |
 | `instantiate [thm]` | Trigger E-matching with a specific theorem |
 
+### Solver Actions (Lean 4.25.0+)
+
+The following solver actions can be invoked inside `grind =>` mode:
+
+| Action | Description |
+|--------|-------------|
+| `lia` | Invoke Linear Integer Arithmetic solver explicitly |
+| `linarith` | Invoke linarith-style linear arithmetic solver |
+| `ac` | Invoke associative-commutative normalization |
+| `ring` | Invoke ring solver for polynomial equations |
+
+**Note:** These solvers are also config options that are enabled by default. The interactive actions are useful for:
+- Debugging: Understanding which solver is handling a goal
+- Selective solving: When you want just one solver's reasoning
+
+```lean
+-- Config options to disable/enable solvers:
+grind -lia        -- Disable LIA solver (cutsat-based)
+grind -linarith   -- Disable linarith solver
+grind +qlia       -- Accept rational models (incomplete for ℤ)
+```
+
 ### Key Limitation: `instantiate` Only Works with Constants
 
 **Critical:** `instantiate [thm]` expects `@[grind]`-registered theorems, NOT local hypotheses:
@@ -630,14 +655,24 @@ Based on testing (4.25.1 stable and 4.27.0-nightly-2025-11-25):
      simp [h]  -- Use simp for repeated rewriting
    ```
 
-2. **CUTSAT has gaps in linear arithmetic reasoning:**
+2. **CUTSAT handles linear arithmetic well (updated finding):**
    ```lean
-   -- CUTSAT finds satisfying assignments but misses conclusions
-   example (x y : Int) (h1 : x > 0) (h2 : y > 0) : x + y > 0 := by
-     omega  -- Use omega for integer arithmetic
+   -- Plain grind with lia enabled (default) solves linear arithmetic
+   example (x y : Int) (h1 : x > 0) (h2 : y > 0) : x + y > 0 := by grind  -- Works!
+   example (x y : Int) (h1 : 2*x + 3*y ≤ 10) (h2 : x ≥ 0) (h3 : y ≥ 2) : x ≤ 2 := by grind  -- Works!
+
+   -- For complex cases or when grind fails, omega is the fallback
    ```
 
-3. **CUTSAT doesn't understand bit-shift semantics:**
+3. **Nonlinear arithmetic is outside scope:**
+   ```lean
+   -- CUTSAT treats x and x*x as independent variables
+   example (x : Int) (h : x ≥ 0) (h2 : x < 10) : x * x < 100 := by
+     -- grind FAILS: CUTSAT assigns x := 0, x^2 := 100
+     nlinarith [sq_nonneg x]  -- Use nlinarith for nonlinear bounds
+   ```
+
+4. **CUTSAT doesn't understand bit-shift semantics:**
    ```lean
    -- Grind assigns x and (x >>> 51) independently without linking them
    example (x : Nat) (hx : x < 2^64) : x >>> 51 < 2^13 := by
@@ -646,7 +681,7 @@ Based on testing (4.25.1 stable and 4.27.0-nightly-2025-11-25):
    ```
    This is critical for cryptographic verification where bit-shifting bounds are common.
 
-4. **`@[grind]` requires discoverable patterns:**
+5. **`@[grind]` requires discoverable patterns:**
    ```lean
    -- Fails: No usable pattern for iff
    @[grind] theorem bad : P ↔ Q := ...  -- Error: failed to find usable pattern
@@ -655,7 +690,7 @@ Based on testing (4.25.1 stable and 4.27.0-nightly-2025-11-25):
    @[grind] theorem good (n : Nat) : n + n = 2 * n := by omega
    ```
 
-5. **Function injectivity requires structural reasoning:**
+6. **Function injectivity requires structural reasoning:**
    ```lean
    -- Grind can't prove injectivity of sum-based interpretations
    lemma U8x32_as_Nat_injective : Function.Injective U8x32_as_Nat := by
