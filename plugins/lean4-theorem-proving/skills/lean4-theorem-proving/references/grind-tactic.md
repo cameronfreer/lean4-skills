@@ -190,11 +190,13 @@ example : a * (b + c) = a * b + a * c := by grind  -- Finds mul_add
 For your own lemmas:
 
 ```lean
-@[grind] lemma my_useful_fact : P → Q := ...
+@[grind] theorem my_useful_fact : ∀ x, f x = g x := ...
 
 -- Now grind can use it automatically
-example (hp : P) : Q := by grind
+example : f a = g a := by grind
 ```
+
+**Note:** Not all theorems can use `@[grind]`. The attribute requires the theorem to have a usable pattern for E-matching. Simple facts like `∀ n, n + 0 = n` may fail with "failed to find an usable pattern". In such cases, the lemma is likely already available through the standard library.
 
 ### Attribute Variants
 
@@ -276,6 +278,60 @@ calc a = b := by grind
 
 ---
 
+## Common Gotchas
+
+### Operator Precedence with Bool
+
+**Critical:** Boolean operators have lower precedence than equality!
+
+```lean
+-- WRONG: This parses as b && (false = false), which is b && true = b
+example (b : Bool) : b && false = false := by grind  -- FAILS!
+
+-- CORRECT: Use explicit parentheses
+example (b : Bool) : (b && false) = false := by grind  -- Works
+```
+
+### Local Hypotheses Are Automatic
+
+`grind` automatically uses all local hypotheses. Don't pass them explicitly:
+
+```lean
+-- Redundant (will warn in nightly):
+example (h : ∀ x, f x = x) : f a = a := by grind [h]  -- h is redundant
+
+-- Correct:
+example (h : ∀ x, f x = x) : f a = a := by grind  -- Uses h automatically
+```
+
+### NoZeroDivisors Requirement
+
+For `x * y = 0 → x = 0 ∨ y = 0` reasoning, `grind` needs a `NoZeroDivisors` instance:
+
+```lean
+-- Works: Type has NoZeroDivisors instance
+example [CommRing R] [NoZeroDivisors R] (h : x * y = 0) (hx : x ≠ 0) : y = 0 := by grind
+
+-- Fails: Int alone doesn't have NoZeroDivisors visible to grind
+example (x y : Int) (h : x * y = 0) (hx : x ≠ 0) : y = 0 := by grind  -- May fail
+```
+
+### BitVec Limitations
+
+`grind` struggles with some BitVec patterns that require bit-level reasoning:
+
+```lean
+-- May fail: Requires proving all bits of 0xFF are true
+example (x : BitVec 8) : x &&& 0xFF#8 = x := by grind  -- Use native_decide instead
+
+-- Works: Simple equality propagation
+example (x y : BitVec 8) (h : x = y) : x + 1 = y + 1 := by grind
+```
+
+For complex BitVec reasoning, prefer `bv_decide` or `native_decide`.
+
+---
+
 ## Debugging `grind`
 
 ### When `grind` Fails
@@ -283,7 +339,30 @@ calc a = b := by grind
 1. **Check if goal is actually provable** - `grind` fails on false goals too
 2. **Try adding hints** - Key lemmas might not be `@[grind]`
 3. **Simplify first** - Complex terms can hide simple facts
-4. **Check for missing instances** - Theory solvers need type class instances
+4. **Check for missing instances** - Theory solvers need type class instances (e.g., `NoZeroDivisors`)
+
+### Trace Options for Debugging
+
+Use trace options to see `grind`'s internal reasoning:
+
+```lean
+-- General grind tracing
+set_option trace.grind true in
+example ... := by grind
+
+-- Specific subsystems
+set_option trace.grind.split true in      -- Case split decisions
+set_option trace.grind.lia true in        -- Linear integer arithmetic
+set_option trace.grind.lia.model true in  -- Show satisfying models
+set_option trace.grind.ematch true in     -- E-matching
+set_option trace.grind.mbtc true in       -- Model-based theory combination
+```
+
+When `grind` fails, it shows a diagnostic summary including:
+- **Asserted facts**: What propositions grind is working with
+- **Equivalence classes**: Terms known to be equal
+- **CUTSAT assignment**: Variable assignments satisfying linear constraints
+- **Ring basis**: Polynomial constraints being tracked
 
 ### Diagnostic Approach
 
@@ -296,6 +375,10 @@ example : goal := by omega  -- or linarith, ring, etc.
 
 -- Step 3: What does grind need?
 example : goal := by grind [?_]  -- Add lemmas incrementally
+
+-- Step 4: Enable tracing to understand the failure
+set_option trace.grind true in
+example : goal := by grind
 ```
 
 ---
@@ -354,6 +437,54 @@ example (h : n = m ∨ n < m) (h2 : ¬(n < m)) : n = m := by grind
 | Finite domains | `grind` |
 | Combinatorial search | `bv_decide` |
 | "Just figure it out" | `grind` (but be prepared to fall back) |
+
+---
+
+## Interactive Mode (Advanced)
+
+`grind` has an interactive DSL for step-by-step proof exploration. This is useful for debugging complex proofs or generating tactic scripts.
+
+### Interactive Commands
+
+| Command | Description |
+|---------|-------------|
+| `finish` | Try to close goal with default strategy |
+| `finish?` | Try to close and suggest a tactic script |
+| `show_state` | Display grind's internal state |
+| `show_eqcs` | Show equivalence classes |
+| `show_asserted` | Show asserted facts |
+| `show_true` | Show propositions known to be True |
+| `show_false` | Show propositions known to be False |
+| `show_cases` | Show case-split candidates |
+| `cases?` | Interactive case-split selection (code action) |
+| `cases_next` | Perform next case-split heuristically |
+| `instantiate` | Manual E-matching trigger |
+
+### Theory-Specific Commands
+
+| Command | Description |
+|---------|-------------|
+| `lia` | Linear integer arithmetic |
+| `ring` | Commutative ring reasoning |
+| `ac` | Associativity/commutativity |
+| `linarith` | Linear arithmetic |
+| `mbtc` | Model-based theory combination |
+
+### Configuration Modifiers
+
+```lean
+-- Use only specified lemmas
+grind only [lemma1, lemma2]
+
+-- Add lemmas to default set
+grind [extra_lemma]
+
+-- Exclude a lemma
+grind [-excluded_lemma]
+
+-- Use anchor references (from show_local_thms)
+grind [#1a2b3c]
+```
 
 ---
 
