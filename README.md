@@ -1,5 +1,8 @@
 # Lean 4 Skills for Claude
 
+[![Run in Smithery](https://smithery.ai/badge/skills/cameronfreer)](https://smithery.ai/skills?ns=cameronfreer&utm_source=github&utm_medium=badge)
+
+
 Claude Skills, commands, and agents for systematic development of formal proofs in Lean 4.
 
 ## Plugins in This Repository
