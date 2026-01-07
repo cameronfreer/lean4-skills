@@ -5,6 +5,5 @@
   "author": {
     "name": "Cameron Freer",
     "email": "cameronfreer@gmail.com"
-  },
-  "hooks": "./hooks/hooks.json"
+  }
 }
