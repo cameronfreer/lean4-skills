@@ -140,7 +140,7 @@ See [compilation-errors.md](references/compilation-errors.md) for detailed debug
 
 **Doing it right:** Sorries/axioms decrease over time, each commit completes one lemma, proofs build on mathlib.
 
-**Red flags:** Sorries multiply, claiming "complete" with sorries/axioms, fighting type checker for hours, monolithic proofs (>100 lines).
+**Red flags:** Sorries multiply, claiming "complete" with sorries/axioms, fighting type checker for hours, monolithic proofs (>100 lines), long `have` blocks (>30 lines should be extracted as lemmas - see [proof-refactoring.md](references/proof-refactoring.md)).
 
 ## Reference Files
 
