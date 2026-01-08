@@ -44,20 +44,19 @@ lemma test_add_comm (n m : ℕ) : n + m = m + n := by
 
 **Call:** `lean_goal(file, line=12)`
 
-**Output:**
-```
-Goals on line:
-lemma test_add_comm (n m : ℕ) : n + m = m + n := by
-Before:
-No goals at line start.
-After:
-n m : ℕ
-⊢ n + m = m + n
+**Output (v0.17+):** Returns **structured goals list** (not just text):
+```json
+{
+  "goals_before": [],
+  "goals_after": [
+    {"goal": "n + m = m + n", "hypotheses": ["n : ℕ", "m : ℕ"]}
+  ]
+}
 ```
 
 **What this tells you:**
-- Context: `n m : ℕ` (variables in scope)
-- Goal: `⊢ n + m = m + n` (what you need to prove)
+- Context: `n : ℕ, m : ℕ` (hypotheses)
+- Goal: `n + m = m + n` (what you need to prove)
 - Now you know exactly what tactic to search for!
 
 **Pro tip:** Call `lean_goal` on a line WITH a tactic to see before/after states - shows exactly what that tactic accomplishes.
@@ -79,8 +78,9 @@ no goals
 
 **Parameters:**
 - `file_path` (required): Absolute path to Lean file
+- `declaration_name` (optional): Filter diagnostics to a specific declaration (e.g., "myLemma"). Useful for large files with many errors.
 
-**⚠️ IMPORTANT:** Do NOT pass `severity` parameter - it will cause error `'severity'`. The tool only accepts `file_path` and returns ALL diagnostics (errors + warnings). Severity appears IN the response, not as a filter.
+**⚠️ IMPORTANT:** Do NOT pass `severity` parameter - it will cause error `'severity'`. Severity appears IN the response, not as a filter.
 
 **Correct usage:**
 ```python
@@ -183,10 +183,10 @@ lean_multi_attempt(file, line=13, snippets=[
   "  apply Nat.add_comm"
 ])
 
-→ Output:
-["  simp [Nat.add_comm]:\n no goals\n\n",
- "  omega:\n no goals\n\n",
- "  apply Nat.add_comm:\n no goals\n\n"]
+→ Output (v0.17+): Returns **structured goals** for each snippet:
+[{"snippet": "  simp [Nat.add_comm]", "goals": []},  # no goals = success!
+ {"snippet": "  omega", "goals": []},
+ {"snippet": "  apply Nat.add_comm", "goals": []}]
 ```
 All work! Pick simplest: `omega`
 
@@ -296,6 +296,8 @@ These tools call external APIs (loogle.lean-lang.org, leansearch.net). The **LSP
 **Parameters:**
 - `query` (required): Type pattern string
 - `num_results` (optional): Max results (default 6)
+
+**Tip (v0.16+):** You can run Loogle locally to avoid the 3 req/30s rate limit. First run takes 5-10 min to build the index; subsequent runs start in seconds. See lean-lsp-mcp docs for setup.
 
 **Example:**
 ```
