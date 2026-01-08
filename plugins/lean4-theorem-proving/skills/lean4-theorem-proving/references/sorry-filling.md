@@ -10,6 +10,37 @@ Quick reference for filling Lean 4 sorries systematically.
 4. **Test Before Applying** - Use `lake build` or LSP multi_attempt
 5. **Apply Working Solution** - Shortest working proof wins
 
+## Todo-Based Workflow (For Multiple Sorries)
+
+**Problem:** When there are 10+ sorries, it's easy to get lost trying to work on all of them at once.
+
+**Solution:** Enumerate sorries, add each to a TODO list, and work on ONE at a time.
+
+**Step 1: Enumerate**
+```
+List all sorry's in the project, then add each as a single item to the TODO list.
+```
+
+**Step 2: Focus on ONE**
+```
+Fill in Sorry #01. DO NOT MOVE ON TO OTHER SORRY'S BEFORE THIS ONE IS FILLED.
+```
+
+**Step 3: Verify with `lake build`**
+```bash
+lake build ProjectName.FileName
+```
+**IMPORTANT:** LSP can sometimes mislead. Always run `lake build` explicitly after thinking everything works.
+
+**Step 4: Repeat**
+Continue with the next sorry in the TODO list.
+
+**Pro tip - Cache after clean:**
+```bash
+lake clean && lake exe cache get
+```
+Always run `lake exe cache get` after `lake clean` to avoid waiting for mathlib to recompile.
+
 ## Search Strategies
 
 **By name pattern:**
