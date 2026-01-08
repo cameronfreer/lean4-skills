@@ -1,6 +1,6 @@
 ---
 description: Extract long have-blocks into separate lemmas for cleaner proofs
-allowed-tools: Bash(bash:*)
+allowed-tools: Bash(lake:*), Bash(bash:*), mcp__lean-lsp__*
 ---
 
 # Extract Long Have-Blocks
@@ -67,32 +67,29 @@ c) **Check if extractable:**
 
 ### 3. Generate Helper Lemma
 
-**Propose extraction:**
+**Propose extraction (simplified pseudo-code):**
 
-```lean
+```
 -- BEFORE (inline):
 theorem main_theorem ... := by
   ...
   have h_bound : ∀ i, k i < n := by
     intro i
-    simp only [n]
-    have : k i ≤ k ⟨m', Nat.lt_succ_self m'⟩ := by
-      apply StrictMono.monotone hk_mono
-      exact Fin.le_last i
+    -- [30+ lines of proof here]
+    ...
     omega
   ...
 
 -- AFTER (extracted):
 
--- Helper for bounding strictly monotone function values
-private lemma strictMono_bound {m : ℕ} (k : Fin m → ℕ) (hk : StrictMono k)
-    (i : Fin m) : k i < k ⟨m - 1, by omega⟩ + 1 := by
-  have : k i ≤ k ⟨m - 1, by omega⟩ := StrictMono.monotone hk (Fin.le_last i)
+private lemma helper_bound {m : ℕ} (k : Fin m → ℕ) (hk : StrictMono k)
+    (i : Fin m) : k i < k (Fin.last m) + 1 := by
+  have : k i ≤ k (Fin.last m) := StrictMono.monotone hk (Fin.le_last i)
   omega
 
 theorem main_theorem ... := by
   ...
-  have h_bound : ∀ i, k i < n := fun i => strictMono_bound k hk_mono i
+  have h_bound : ∀ i, k i < n := fun i => helper_bound k hk_mono i
   ...
 ```
 

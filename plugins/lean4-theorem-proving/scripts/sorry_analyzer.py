@@ -109,8 +109,8 @@ def find_sorries(target: Path, include_deps: bool = False) -> List[Sorry]:
             return []
         return find_sorries_in_file(target)
     elif target.is_dir():
-        # Guard: Also exclude .lake directory itself unless --include-deps
-        if not include_deps and target.name == '.lake':
+        # Guard: Exclude .lake directory or any subpath unless --include-deps
+        if not include_deps and '.lake' in target.parts:
             print(f"Skipping dependency directory: {target} (use --include-deps to include)", file=sys.stderr)
             return []
         sorries = []
