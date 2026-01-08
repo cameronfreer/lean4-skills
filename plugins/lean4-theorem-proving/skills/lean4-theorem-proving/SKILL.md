@@ -1,6 +1,6 @@
 ---
 name: lean4-theorem-proving
-description: Use when developing Lean 4 proofs, facing type class synthesis errors, managing sorries/axioms, or searching mathlib - provides build-first workflow, instance management patterns (haveI/letI), and domain-specific tactics
+description: Use when working with Lean 4 (.lean files), writing mathematical proofs, seeing "failed to synthesize instance" errors, managing sorry/axiom elimination, or searching mathlib for lemmas - provides build-first workflow, haveI/letI patterns, compiler-guided repair, and LSP integration
 ---
 
 # Lean 4 Theorem Proving
