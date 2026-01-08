@@ -131,13 +131,13 @@ If any succeeds → apply diff, recompile
 ### 3. Agent Repair (if cascade fails)
 
 **Stage 1 (Haiku, fast):** First 6 attempts
-- Model: `haiku-4.5`, thinking OFF
+- Model: `haiku`, thinking OFF
 - Temperature: 0.2, K=1
 - Budget: ~2s per attempt
 - Strategy: Quick, obvious fixes
 
-**Stage 2 (Sonnet, precise):** After Stage 1 exhausted or complex errors
-- Model: `sonnet-4.5`, thinking ON
+**Stage 2 (Opus, precise):** After Stage 1 exhausted or complex errors
+- Model: `opus`, thinking ON
 - Temperature: 0.1, K=1
 - Budget: ~10s per attempt
 - Strategy: Strategic thinking, global context

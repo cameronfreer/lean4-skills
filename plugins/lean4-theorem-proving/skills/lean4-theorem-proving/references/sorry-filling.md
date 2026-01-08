@@ -10,6 +10,30 @@ Quick reference for filling Lean 4 sorries systematically.
 4. **Test Before Applying** - Use `lake build` or LSP multi_attempt
 5. **Apply Working Solution** - Shortest working proof wins
 
+## Todo-Based Workflow (For Multiple Sorries)
+
+**Problem:** When there are 10+ sorries, it's easy to get lost trying to work on all of them at once.
+
+**Solution:** Enumerate sorries, add each to a TODO list, and work on ONE at a time.
+
+**Step 1: Enumerate**
+```
+List all sorry's in the project, then add each as a single item to the TODO list.
+```
+
+**Step 2: Focus on ONE**
+```
+Fill in Sorry #01. DO NOT MOVE ON TO OTHER SORRY'S BEFORE THIS ONE IS FILLED.
+```
+
+**Step 3: Verify with `lake build`**
+```bash
+lake build ProjectName.FileName
+```
+
+**Step 4: Repeat**
+Continue with the next sorry in the TODO list.
+
 ## Search Strategies
 
 **By name pattern:**
@@ -116,11 +140,25 @@ mcp__lean-lsp__lean_multi_attempt(
 
 ## Best Practices
 
+**⚠️ Critical: Verify with `lake build` before moving on**
+LSP tools can sometimes show success when problems remain. After a sequence of changes, before moving on to something else entirely, verify with:
+```bash
+lake build ProjectName.FileName
+```
+This is the ground truth - catches issues that LSP may miss.
+
+**💡 Cache after clean**
+If you run `lake clean`, always follow up with:
+```bash
+lake exe cache get
+```
+Otherwise you'll wait 30+ minutes for mathlib to recompile from scratch.
+
 ✅ **Do:**
 - Search mathlib exhaustively before proving
 - Test all candidates if possible
 - Use shortest working proof
-- Verify with `lake build`
+- Verify with `lake build` (always!)
 - Add necessary imports
 
 ❌ **Don't:**

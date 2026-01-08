@@ -13,6 +13,8 @@ Run analysis on the entire project:
 
 !`python3 .claude/tools/lean4/sorry_analyzer.py . --format=text`
 
+**Note:** By default, `.lake/` directories (dependencies like mathlib) are excluded. To include them, add `--include-deps`.
+
 **Note:** If this fails, the SessionStart hook may not have staged the analyzer. Restart your session after reinstalling the plugin.
 
 ## Workflow

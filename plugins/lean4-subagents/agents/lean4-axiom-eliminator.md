@@ -2,26 +2,13 @@
 name: lean4-axiom-eliminator
 description: Remove nonconstructive axioms by refactoring proofs to structure (kernels, measurability, etc.). Use after checking axiom hygiene to systematically eliminate custom axioms.
 tools: Read, Grep, Glob, Edit, Bash, WebFetch
-model: sonnet-4.5
+model: opus
 thinking: on
 ---
 
 # Lean 4 Axiom Eliminator (EXPERIMENTAL)
 
-**Document discovery policy (STRICT):**
-- Do **not** run shell `find` to locate guidance docs
-- You will not search outside known directories
-- The guidance docs are at literal paths:
-  - `.claude/docs/lean4/axiom-elimination.md`
-  - `.claude/docs/lean4/sorry-filling.md` (for axiom → theorem with sorry conversion)
-- Your workflow is:
-  1. Operate only on Lean files you are explicitly told to work on
-  2. Read guidance docs from `.claude/docs/lean4/*.md`
-  3. Use scripts staged at `.claude/tools/lean4/*` for verification
-  4. Propose a migration plan (interfaces, lemmas, breakages expected)
-  5. Apply in small batches with compile feedback
-- If guidance docs are missing, inform "Documentation '[name].md' not found" and proceed with built-in knowledge
-- Do **not** scan other folders like `Library/`, user home directories, or plugin paths
+**Note:** All essential workflow guidance is contained below. Do not scan unrelated directories.
 
 ## Your Task
 
@@ -31,25 +18,7 @@ Systematically eliminate custom axioms from Lean 4 proofs by replacing them with
 
 ## Workflow
 
-### 1. Read Guidance Documentation
-
-**FIRST ACTION - Load the guidance:**
-```
-Read(".claude/docs/lean4/axiom-elimination.md")
-```
-
-**Also useful:**
-```
-Read(".claude/docs/lean4/sorry-filling.md")
-```
-
-These files contain:
-- Axiom elimination strategies by type
-- Search techniques (60% hit rate in mathlib!)
-- Dependency management
-- Migration planning templates
-
-### 2. Audit Current State
+### 1. Audit Current State
 
 **Check axiom usage:**
 ```bash
@@ -68,7 +37,7 @@ bash .claude/tools/lean4/check_axioms.sh FILE.lean
 bash .claude/tools/lean4/find_usages.sh axiom_name
 ```
 
-### 3. Propose Migration Plan
+### 2. Propose Migration Plan
 
 **Think through the approach FIRST:**
 
@@ -110,7 +79,7 @@ bash .claude/tools/lean4/find_usages.sh axiom_name
 - Document shims for backward compatibility
 ```
 
-### 4. Execute Elimination (Batch by Batch)
+### 3. Execute Elimination (Batch by Batch)
 
 **For each axiom:**
 
@@ -177,7 +146,7 @@ echo "Eliminated axiom: axiom_name"
 echo "Remaining custom axioms: K"
 ```
 
-### 5. Handle Dependencies
+### 4. Handle Dependencies
 
 **If axiom A depends on axiom B:**
 1. Eliminate B first (bottom-up)
@@ -194,7 +163,7 @@ Elimination order: B, then A
 
 **Document in migration plan.**
 
-### 6. Report Progress After Each Batch
+### 5. Report Progress After Each Batch
 
 **After eliminating each axiom:**
 ```markdown

@@ -185,6 +185,32 @@ Slash commands are interactive workflows you can invoke by typing `/` in Claude 
 
 ---
 
+### `/lean4-theorem-proving:refactor-have [file]`
+
+**Purpose:** Extract long have-blocks into separate helper lemmas
+
+**What it does:**
+- Scans file for `have` statements with proofs > 30 lines
+- Presents candidates with line numbers and goal types
+- Helps determine needed parameters
+- Generates helper lemma and updates main proof
+- Verifies extraction compiles
+
+**Example:**
+```
+/lean4-theorem-proving:refactor-have MyTheorems.lean
+```
+
+**When to use:**
+- Proofs have monolithic have-blocks (30+ lines)
+- Want to improve proof readability
+- Need to reuse intermediate results
+- Main proof structure is obscured by inline proofs
+
+**Note:** This is the inverse of proof golfing's "inline" patterns. Use `/golf-proofs` to inline short have-blocks; use `/refactor-have` to extract long ones.
+
+---
+
 ## Command Comparison
 
 | Command | Speed | Interactivity | Best For |
@@ -196,6 +222,7 @@ Slash commands are interactive workflows you can invoke by typing `/` in Claude 
 | `build-lean` | Medium | Low | Compilation + error analysis |
 | `golf-proofs` | Slow | High | Proof optimization (batch) |
 | `clean-warnings` | Slow | High | Warning cleanup (batch) |
+| `refactor-have` | Medium | High | Extract long have-blocks |
 
 ## Typical Workflows
 
@@ -211,10 +238,11 @@ Slash commands are interactive workflows you can invoke by typing `/` in Claude 
 ### Pre-Commit Quality Check
 ```
 1. /build-lean                # Ensure compilation
-2. /clean-warnings            # Clean up warnings
-3. /check-axioms              # Verify axiom hygiene
-4. /golf-proofs               # Optimize proof size (optional)
-5. Commit clean code
+2. /refactor-have             # Extract long have-blocks (optional)
+3. /clean-warnings            # Clean up warnings
+4. /check-axioms              # Verify axiom hygiene
+5. /golf-proofs               # Optimize proof size (optional)
+6. Commit clean code
 ```
 
 ### Stuck on a Proof

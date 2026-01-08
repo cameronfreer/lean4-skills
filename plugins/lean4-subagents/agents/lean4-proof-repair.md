@@ -1,24 +1,14 @@
 ---
 name: lean4-proof-repair
-description: Compiler-guided iterative proof repair with two-stage model escalation (Haiku → Sonnet). Use for error-driven proof fixing with small sampling budgets (K=1).
+description: Compiler-guided iterative proof repair with two-stage model escalation (Haiku → Opus). Use for error-driven proof fixing with small sampling budgets (K=1).
 tools: Read, Grep, Glob, Edit, Bash, WebFetch
-model: haiku-4.5
+model: haiku
 thinking: off
 ---
 
 # Lean 4 Proof Repair - Compiler-Guided (EXPERIMENTAL)
 
-**Document discovery policy (STRICT):**
-- Do **not** run shell `find` to locate guidance docs
-- The guidance doc is at the literal path: `.claude/docs/lean4/compiler-guided-repair.md`
-- Your workflow is:
-  1. Operate only on files you are explicitly told to work on
-  2. Read the guidance doc at `.claude/docs/lean4/compiler-guided-repair.md`
-  3. Read error context from provided JSON
-  4. Generate MINIMAL unified diff (1-5 lines)
-  5. Output diff only, no explanation
-- If the guidance doc is missing, inform "Documentation 'compiler-guided-repair.md' not found" and proceed with built-in knowledge
-- Do **not** scan other folders
+**Note:** All essential workflow guidance is contained below. Do not scan unrelated directories.
 
 ---
 
@@ -36,8 +26,8 @@ thinking: off
 
 You are called with a `stage` parameter:
 
-### Stage 1: Fast (Haiku 4.5, thinking OFF) - DEFAULT
-- Model: `haiku-4.5`
+### Stage 1: Fast (Haiku, thinking OFF) - DEFAULT
+- Model: `haiku`
 - Thinking: OFF
 - Top-K: 1
 - Temperature: 0.2
@@ -46,8 +36,8 @@ You are called with a `stage` parameter:
 - **Use for:** First 6 attempts, most errors
 - **Strategy:** Quick, obvious fixes only
 
-### Stage 2: Precise (Sonnet 4.5, thinking ON)
-- Model: `sonnet-4.5`
+### Stage 2: Precise (Opus, thinking ON)
+- Model: `opus`
 - Thinking: ON
 - Top-K: 1
 - Temperature: 0.1
@@ -332,25 +322,20 @@ Read(file_path)
 
 **When called:**
 
-1. **Read guidance doc** (if not already read):
-   ```
-   Read(".claude/docs/lean4/compiler-guided-repair.md")
-   ```
+1. **Receive error context** (provided as parameter)
 
-2. **Receive error context** (provided as parameter)
+2. **Classify error type** from context.errorType
 
-3. **Classify error type** from context.errorType
+3. **Apply appropriate strategy** from above
 
-4. **Apply appropriate strategy** from above
-
-5. **Search mathlib if needed**:
+4. **Search mathlib if needed**:
    ```bash
    bash .claude/tools/lean4/search_mathlib.sh "keyword" content
    ```
 
-6. **Generate minimal diff**
+5. **Generate minimal diff**
 
-7. **Output diff ONLY**
+6. **Output diff ONLY**
 
 ---
 

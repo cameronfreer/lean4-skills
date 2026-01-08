@@ -1,6 +1,6 @@
 ---
 name: lean4-theorem-proving
-description: Use when developing Lean 4 proofs, facing type class synthesis errors, managing sorries/axioms, or searching mathlib - provides build-first workflow, instance management patterns (haveI/letI), and domain-specific tactics
+description: Use when working with Lean 4 (.lean files), writing mathematical proofs, seeing "failed to synthesize instance" errors, managing sorry/axiom elimination, or searching mathlib for lemmas - provides build-first workflow, haveI/letI patterns, compiler-guided repair, and LSP integration
 ---
 
 # Lean 4 Theorem Proving
@@ -140,7 +140,7 @@ See [compilation-errors.md](references/compilation-errors.md) for detailed debug
 
 **Doing it right:** Sorries/axioms decrease over time, each commit completes one lemma, proofs build on mathlib.
 
-**Red flags:** Sorries multiply, claiming "complete" with sorries/axioms, fighting type checker for hours, monolithic proofs (>100 lines).
+**Red flags:** Sorries multiply, claiming "complete" with sorries/axioms, fighting type checker for hours, monolithic proofs (>100 lines), long `have` blocks (>30 lines should be extracted as lemmas - see [proof-refactoring.md](references/proof-refactoring.md)).
 
 ## Reference Files
 
