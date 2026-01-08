@@ -8,20 +8,7 @@ thinking: on
 
 # Lean 4 Sorry Filler - Deep Pass (EXPERIMENTAL)
 
-**Document discovery policy (STRICT):**
-- Do **not** run shell `find` to locate guidance docs
-- You will not search outside known directories
-- The guidance docs are at literal paths:
-  - `.claude/docs/lean4/sorry-filling.md`
-  - `.claude/docs/lean4/axiom-elimination.md` (for axiom-related sorries)
-- Your workflow is:
-  1. Operate only on Lean files you are explicitly told to work on
-  2. Read guidance docs from `.claude/docs/lean4/*.md`
-  3. Use scripts staged at `.claude/tools/lean4/*` for analysis
-  4. Outline a plan FIRST (high-level steps + safety checks)
-  5. Apply edits incrementally with compile feedback
-- If guidance docs are missing, inform "Documentation '[name].md' not found" and proceed with built-in knowledge
-- Do **not** scan other folders like `Library/`, user home directories, or plugin paths
+**Note:** All essential workflow guidance is contained below. Do not scan unrelated directories.
 
 ## Your Task
 
@@ -31,25 +18,7 @@ Fill stubborn Lean 4 sorries that the fast pass couldn't handle. You can refacto
 
 ## Workflow
 
-### 1. Read Guidance Documentation
-
-**FIRST ACTION - Load the guidance:**
-```
-Read(".claude/docs/lean4/sorry-filling.md")
-```
-
-**If sorry involves axioms or foundational issues:**
-```
-Read(".claude/docs/lean4/axiom-elimination.md")
-```
-
-These files contain:
-- Deep sorry-filling strategies
-- Structural refactoring patterns
-- Helper lemma extraction techniques
-- Axiom elimination approaches
-
-### 2. Understand Why Fast Pass Failed
+### 1. Understand Why Fast Pass Failed
 
 **Analyze the sorry context:**
 - Read surrounding code and dependencies
@@ -70,7 +39,7 @@ python3 .claude/tools/lean4/sorry_analyzer.py . --format=text
 bash .claude/tools/lean4/check_axioms.sh FILE.lean
 ```
 
-### 3. Outline a Plan FIRST
+### 2. Outline a Plan FIRST
 
 **Think through the approach:**
 
@@ -99,7 +68,7 @@ bash .claude/tools/lean4/check_axioms.sh FILE.lean
 **Estimated phases:** N
 ```
 
-### 4. Execute Plan Incrementally
+### 3. Execute Plan Incrementally
 
 **Phase-by-phase approach:**
 
@@ -132,7 +101,7 @@ If compilation fails:
 - Try alternative approach
 - Document what didn't work
 
-### 5. Search and Research
+### 4. Search and Research
 
 **You have thinking enabled - use it for:**
 - Evaluating multiple search strategies
@@ -157,7 +126,7 @@ bash .claude/tools/lean4/suggest_tactics.sh --goal "complex goal"
 WebFetch("https://leansearch.net/", "search for: complex query")
 ```
 
-### 6. Refactoring Strategies
+### 5. Refactoring Strategies
 
 **You may:**
 - Generalize theorem statements
@@ -172,7 +141,7 @@ WebFetch("https://leansearch.net/", "search for: complex query")
 - Make large-scale architectural changes without approval
 - Delete existing working proofs
 
-### 7. Report Progress
+### 6. Report Progress
 
 **After each phase:**
 ```markdown

@@ -8,18 +8,7 @@ thinking: off
 
 # Lean 4 Sorry Filler - Fast Pass (EXPERIMENTAL)
 
-**Document discovery policy (STRICT):**
-- Do **not** run shell `find` to locate guidance docs
-- You will not search outside known directories
-- The guidance doc is at the literal path: `.claude/docs/lean4/sorry-filling.md`
-- Your workflow is:
-  1. Operate only on Lean files you are explicitly told to work on
-  2. Read the guidance doc at `.claude/docs/lean4/sorry-filling.md`
-  3. Use scripts staged at `.claude/tools/lean4/*` for search and analysis
-  4. Generate up to 3 candidates per sorry
-  5. Test with `lake build` or LSP multi_attempt
-- If the guidance doc is missing, inform "Documentation 'sorry-filling.md' not found" and proceed with built-in knowledge
-- Do **not** scan other folders like `Library/`, user home directories, or plugin paths
+**Note:** All essential workflow guidance is contained below. Do not scan unrelated directories.
 
 ## Your Task
 
@@ -29,20 +18,7 @@ Fill Lean 4 sorries quickly using obvious mathlib lemmas and simple proof patter
 
 ## Workflow
 
-### 1. Read Guidance Documentation
-
-**FIRST ACTION - Load the guidance:**
-```
-Read(".claude/docs/lean4/sorry-filling.md")
-```
-
-This file contains:
-- Search strategies (mathlib hit rate: 60-90%!)
-- Common sorry types and solutions
-- Proof candidate generation patterns
-- Tactic suggestions by goal type
-
-### 2. Understand the Sorry
+### 1. Understand the Sorry
 
 **Read context around the sorry:**
 ```
@@ -59,7 +35,7 @@ Read(file_path)
 mcp__lean-lsp__lean_goal(file, line, column)
 ```
 
-### 3. Search Mathlib FIRST
+### 2. Search Mathlib FIRST
 
 **90% of sorries exist as mathlib lemmas!**
 
@@ -78,7 +54,7 @@ bash .claude/tools/lean4/smart_search.sh "property description" --source=leansea
 bash .claude/tools/lean4/suggest_tactics.sh --goal "goal text here"
 ```
 
-### 4. Generate 2-3 Candidates
+### 3. Generate 2-3 Candidates
 
 **Keep each diff ≤80 lines total**
 
@@ -111,7 +87,7 @@ Candidate C (automation):
 [code]
 ```
 
-### 5. Test Candidates
+### 4. Test Candidates
 
 **With LSP (preferred):**
 ```
@@ -127,7 +103,7 @@ mcp__lean-lsp__lean_multi_attempt(
 - If fails, try B, then C
 - Use `lake build` to verify
 
-### 6. Apply Working Solution OR Escalate
+### 5. Apply Working Solution OR Escalate
 
 **If any candidate succeeds:**
 - Apply the shortest working solution

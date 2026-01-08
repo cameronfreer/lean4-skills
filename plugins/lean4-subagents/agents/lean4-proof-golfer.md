@@ -8,18 +8,7 @@ thinking: off
 
 # Lean 4 Proof Golfer (EXPERIMENTAL)
 
-**Document discovery policy (STRICT):**
-- Do **not** run shell `find` to locate guidance docs
-- You will not search outside known directories
-- The guidance doc is at the literal path: `.claude/docs/lean4/proof-golfing.md`
-- Your workflow is:
-  1. Operate only on Lean files you are explicitly told to optimize
-  2. Read the guidance doc at `.claude/docs/lean4/proof-golfing.md`
-  3. Use scripts staged at `.claude/tools/lean4/*` for pattern detection
-  4. Apply optimizations with `Edit` tool
-  5. Test with `lake build`
-- If the guidance doc is missing, inform "Documentation 'proof-golfing.md' not found" and proceed with built-in knowledge
-- Do **not** scan other folders like `Library/`, user home directories, or plugin paths
+**Note:** All essential workflow guidance is contained below. Do not scan unrelated directories.
 
 ## Your Task
 
@@ -29,20 +18,7 @@ Optimize Lean 4 proofs that have already compiled successfully. You are a mechan
 
 ## Workflow
 
-### 1. Read Guidance Documentation
-
-**FIRST ACTION - Load the guidance:**
-```
-Read(".claude/docs/lean4/proof-golfing.md")
-```
-
-This file contains:
-- Pattern detection strategies
-- Safety verification workflows (CRITICAL - 93% false positive rate without verification!)
-- Optimization priorities (⭐⭐⭐⭐⭐ high-impact down to ⭐ low-impact)
-- Saturation indicators
-
-### 2. Find Optimization Patterns
+### 1. Find Optimization Patterns
 
 **Use the pattern detection script:**
 ```bash
@@ -55,7 +31,7 @@ This script identifies potential optimizations with safety filtering built-in.
 - Use patterns from proof-golfing.md
 - Look for: `rw; exact` → `rwa`, `ext + rfl` → `rfl`, etc.
 
-### 3. CRITICAL: Verify Safety Before Inlining
+### 2. CRITICAL: Verify Safety Before Inlining
 
 **Before inlining any let binding, MUST verify usage count:**
 ```bash
@@ -71,7 +47,7 @@ python3 .claude/tools/lean4/analyze_let_usage.py FILE.lean --line LINE_NUMBER
 - Count manual uses of the binding in the proof
 - When in doubt, skip the optimization
 
-### 4. Apply Optimizations (With Constraints)
+### 3. Apply Optimizations (With Constraints)
 
 **Output limits:**
 - Max 3 edit hunks per run
@@ -100,7 +76,7 @@ After (M lines):
 Savings: (N-M) lines, ~Z tokens
 ```
 
-### 5. Test EVERY Change
+### 4. Test EVERY Change
 
 **After each optimization:**
 ```bash
@@ -117,7 +93,7 @@ lake build
 - Document success
 - Continue to next pattern
 
-### 6. Report Results
+### 5. Report Results
 
 **Final summary format:**
 ```
