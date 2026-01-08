@@ -11,7 +11,7 @@ For workflow patterns and quick reference, see [lean-lsp-server.md](lean-lsp-ser
 **Local tools (unlimited, instant):**
 - Direct LSP queries against your project files
 - No rate limits, < 1 second response time
-- Tools: `lean_goal`, `lean_local_search`, `lean_multi_attempt`, `lean_diagnostic_messages`, `lean_hover_info`
+- Tools: `lean_goal`, `lean_local_search`, `lean_multi_attempt`, `lean_diagnostic_messages`, `lean_hover_info`, `lean_file_outline`, `lean_run_code`
 
 **External tools (rate-limited to 3 req/30s):**
 - Remote API calls to loogle.lean-lang.org, leansearch.net
@@ -271,6 +271,80 @@ lean_hover_info(file, line=20, column=30)
 - Use hover on error locations for detailed information about what went wrong
 - Column must point to the first character of the identifier
 - Returns both type information and any errors at that location
+
+---
+
+### `lean_file_outline` - File Structure Overview
+
+**When to use:**
+- Getting a quick overview of a Lean file
+- Finding theorem/definition locations
+- Understanding file structure without reading entire file
+
+**Parameters:**
+- `file_path` (required): Absolute path to Lean file
+
+**Example:**
+```
+lean_file_outline("/path/to/MyFile.lean")
+→ Returns:
+- Imports: [Mathlib.Data.Real.Basic, ...]
+- Declarations:
+  - theorem add_comm (line 12): ∀ a b : ℕ, a + b = b + a
+  - def myFunction (line 25): ℕ → ℕ → ℕ
+  - structure MyStruct (line 40): ...
+```
+
+**Return structure:**
+```json
+{
+  "imports": ["import1", "import2", ...],
+  "declarations": [
+    {"name": "decl_name", "kind": "theorem|def|structure|class", "line": 12, "type": "..."},
+    ...
+  ]
+}
+```
+
+**Pro tips:**
+- Faster than reading the file when you only need structure
+- Use to find line numbers for `lean_goal` or `lean_multi_attempt`
+- Good first step when exploring unfamiliar files
+
+---
+
+### `lean_run_code` - Run Standalone Snippets
+
+**When to use:**
+- Testing small code snippets without a full project
+- Running `#eval` expressions
+- Quick experimentation outside of proof context
+
+**Parameters:**
+- `code` (required): Lean code to run (string)
+
+**Example:**
+```
+lean_run_code("#eval 5 * 7 + 3")
+→ Output:
+l1c1-l1c6, severity: 3
+38
+```
+
+**What the output means:**
+- `l1c1-l1c6`: Location (line 1, columns 1-6)
+- `severity: 3`: Info message (not error)
+- `38`: The computed result
+
+**Severity levels:**
+- 1 = Error
+- 2 = Warning
+- 3 = Info (normal output)
+
+**Pro tips:**
+- Use for quick `#check`, `#eval`, `#print` experiments
+- Useful for testing mathlib imports without modifying files
+- Each call runs in isolation - no persistent state
 
 ---
 
