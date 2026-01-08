@@ -62,6 +62,10 @@ Skills activate automatically when you work on Lean 4 files. Commands appear in 
 **v3.1.0** (October 2025)
 - Restructured as Claude Code marketplace with 3 plugins
 
+## Contributing
+
+Contributions welcome! Open an issue or PR at https://github.com/cameronfreer/lean4-skills
+
 ## License
 
 MIT License - see [LICENSE](LICENSE)
