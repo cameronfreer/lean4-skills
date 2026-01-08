@@ -3,7 +3,7 @@
 sorry_analyzer.py - Extract and analyze sorry statements in Lean 4 code
 
 Usage:
-    ./sorry_analyzer.py <file-or-directory> [--format=text|json|markdown] [--interactive]
+    ./sorry_analyzer.py <file-or-directory> [--format=text|json|markdown] [--interactive] [--include-deps]
 
 This script finds all 'sorry' instances in Lean files and extracts:
 - Location (file, line number)
@@ -14,6 +14,7 @@ This script finds all 'sorry' instances in Lean files and extracts:
 Modes:
     --interactive: Interactive mode to pick which sorry to work on
     --format=FORMAT: Output format (text, json, markdown)
+    --include-deps: Include .lake/ directories (dependencies) in search (excluded by default)
 
 Examples:
     ./sorry_analyzer.py MyFile.lean
@@ -94,13 +95,21 @@ def find_sorries_in_file(filepath: Path) -> List[Sorry]:
 
     return sorries
 
-def find_sorries(target: Path) -> List[Sorry]:
-    """Find all sorries in target file or directory"""
+def find_sorries(target: Path, include_deps: bool = False) -> List[Sorry]:
+    """Find all sorries in target file or directory
+
+    Args:
+        target: File or directory to search
+        include_deps: If False (default), exclude .lake/ directories (dependencies)
+    """
     if target.is_file():
         return find_sorries_in_file(target)
     elif target.is_dir():
         sorries = []
         for lean_file in target.rglob("*.lean"):
+            # Skip .lake/ directories unless --include-deps is specified
+            if not include_deps and '.lake' in lean_file.parts:
+                continue
             sorries.extend(find_sorries_in_file(lean_file))
         return sorries
     else:
@@ -297,6 +306,7 @@ def main():
     target = Path(sys.argv[1])
     format_type = 'text'
     interactive = False
+    include_deps = False
 
     # Parse arguments
     for arg in sys.argv[2:]:
@@ -304,13 +314,15 @@ def main():
             format_type = arg.split('=')[1]
         elif arg == '--interactive':
             interactive = True
+        elif arg == '--include-deps':
+            include_deps = True
 
     if not target.exists():
         print(f"Error: {target} does not exist", file=sys.stderr)
         sys.exit(1)
 
-    # Find all sorries
-    sorries = find_sorries(target)
+    # Find all sorries (excludes .lake/ by default)
+    sorries = find_sorries(target, include_deps=include_deps)
 
     # Interactive mode takes precedence
     if interactive:
