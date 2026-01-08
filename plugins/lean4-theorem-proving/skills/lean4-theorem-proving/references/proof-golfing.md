@@ -28,7 +28,11 @@
 | **intro-dsimp-exact → lambda** | **75%** | **Low** | **⭐⭐⭐⭐⭐** | **Directness** | **Tactic → term mode** |
 | **Extract repeated tactic patterns to helpers** | **40%** | **Low** | **⭐⭐⭐⭐⭐** | **Reusability** | **Single helper for pattern** |
 | let+have+exact inline | 60-80% | HIGH | ⭐⭐⭐⭐⭐ | Conciseness | MUST verify usage ≤2x |
+| **`by exact` → term mode** | **1 line** | **Zero** | **⭐⭐⭐⭐⭐** | **Directness** | **Remove redundant wrapper** |
+| **Dot notation `.rfl`/`.symm`** | **Tokens** | **Zero** | **⭐⭐⭐⭐⭐** | **Conciseness** | **Short constructor names** |
+| **Inline `show` in `rw`** | **50-70%** | **Zero** | **⭐⭐⭐⭐⭐** | **Conciseness** | **Combine have+rw** |
 | **Transport ▸ for rewrites** | **1-2 lines** | **Zero** | **⭐⭐⭐⭐⭐** | **Conciseness** | **Term-mode rewrite** |
+| **calc → .trans chains** | **2-3 lines** | **Low** | **⭐⭐⭐⭐** | **Conciseness** | **When chain is short** |
 | **Single-use `have` inline (general)** | **30-50%** | **Low** | **⭐⭐⭐⭐** | **Clarity** | **Beyond calc blocks** |
 | **Inline single-use definitions** | **3-4 lines** | **Low** | **⭐⭐⭐⭐** | **Clarity** | **Used exactly once** |
 | **Multi-pattern match** | **7 lines** | **Low** | **⭐⭐⭐⭐** | **Simplicity** | **`\| 0 \| 1 \| 2 => ...`** |
@@ -236,7 +240,72 @@ rw [← Measure.map_map hproj (measurable_pi_lambda _ ...)]
 
 Inline `have` used once if term < 40 chars and no semantic value. 30-50% reduction. **Prime candidates: non-descriptive names like `h`, `this1`, `this2` vs descriptive names like `h_int_open`**. Skip if name aids understanding or used ≥2 times.
 
-### Pattern 3B: Transport Operator ▸ (Conciseness)
+**Concrete example from real code:**
+```lean
+-- Before (Factorization.lean:145-146)
+have h := condExp_Xr_indicator_eq_of_contractable hX hX_meas (Nat.le_of_lt hrm) hB
+exact h
+
+-- After
+exact condExp_Xr_indicator_eq_of_contractable hX hX_meas (Nat.le_of_lt hrm) hB
+```
+
+### Pattern 3B: Remove `by exact` Wrapper (Directness)
+
+```lean
+-- Before
+have hζ_compProd : (μ.map ζ) ⊗ₘ (condDistrib ξ ζ μ) = μ.map (fun ω => (ζ ω, ξ ω)) := by
+  exact compProd_map_condDistrib hξ.aemeasurable
+
+-- After
+have hζ_compProd : (μ.map ζ) ⊗ₘ (condDistrib ξ ζ μ) = μ.map (fun ω => (ζ ω, ξ ω)) :=
+  compProd_map_condDistrib hξ.aemeasurable
+```
+
+`by exact foo` is redundant - use term mode directly. Zero risk. Also applies to `have h := by exact foo` → `have h := foo`.
+
+### Pattern 3C: Dot Notation for Constructors (Conciseness)
+
+```lean
+-- Before
+apply EventuallyEq.mul hIH
+exact EventuallyEq.rfl
+
+-- After
+exact hIH.mul .rfl
+```
+
+Use `.rfl`, `.symm`, `.trans` instead of full constructor names. `.rfl` is shorter than `EventuallyEq.rfl`. Works with any type that has these operations. Zero risk.
+
+### Pattern 3D: Calc Blocks → `.trans` Chains (Conciseness)
+
+```lean
+-- Before
+symm
+calc ∫ ω, ... = ∫ ω, μ[indProd X m C | tailSigma X] ω ∂μ := integral_congr_ae h_tail.symm
+  _ = ∫ ω, indProd X m C ω ∂μ := integral_condExp (tailSigma_le X hX_meas)
+
+-- After
+((integral_congr_ae h_tail.symm).trans (integral_condExp (tailSigma_le X hX_meas))).symm
+```
+
+When calc chains are short (2-3 steps), `.trans` chains can be more concise. Low risk - only use when the expression is readable.
+
+### Pattern 3E: Inline `show` in Rewrites (Conciseness)
+
+```lean
+-- Before (3 lines)
+have h1 : (m + m) / 2 = m := by omega
+rw [h1]
+rw [show m + m = 2 * m by ring, pow_mul, I_sq]
+
+-- After (1 line)
+rw [show (m + m) / 2 = m by omega, show m + m = 2 * m by ring, pow_mul, I_sq]
+```
+
+Combine multiple `have` + `rw` sequences into a single `rw` with inline `show ... by ...` clauses. 50-70% reduction when proofs are short (`omega`, `ring`, `simp`). Skip if proofs are complex.
+
+### Pattern 3F: Transport Operator ▸ (Conciseness)
 
 ```lean
 -- Before
