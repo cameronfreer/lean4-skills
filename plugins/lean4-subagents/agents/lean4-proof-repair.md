@@ -1,8 +1,8 @@
 ---
 name: lean4-proof-repair
-description: Compiler-guided iterative proof repair with two-stage model escalation (Haiku → Sonnet). Use for error-driven proof fixing with small sampling budgets (K=1).
+description: Compiler-guided iterative proof repair with two-stage model escalation (Haiku → Opus). Use for error-driven proof fixing with small sampling budgets (K=1).
 tools: Read, Grep, Glob, Edit, Bash, WebFetch
-model: haiku-4.5
+model: haiku
 thinking: off
 ---
 
@@ -36,8 +36,8 @@ thinking: off
 
 You are called with a `stage` parameter:
 
-### Stage 1: Fast (Haiku 4.5, thinking OFF) - DEFAULT
-- Model: `haiku-4.5`
+### Stage 1: Fast (Haiku, thinking OFF) - DEFAULT
+- Model: `haiku`
 - Thinking: OFF
 - Top-K: 1
 - Temperature: 0.2
@@ -46,8 +46,8 @@ You are called with a `stage` parameter:
 - **Use for:** First 6 attempts, most errors
 - **Strategy:** Quick, obvious fixes only
 
-### Stage 2: Precise (Sonnet 4.5, thinking ON)
-- Model: `sonnet-4.5`
+### Stage 2: Precise (Opus, thinking ON)
+- Model: `opus`
 - Thinking: ON
 - Top-K: 1
 - Temperature: 0.1

@@ -2,7 +2,7 @@
 name: lean4-axiom-eliminator
 description: Remove nonconstructive axioms by refactoring proofs to structure (kernels, measurability, etc.). Use after checking axiom hygiene to systematically eliminate custom axioms.
 tools: Read, Grep, Glob, Edit, Bash, WebFetch
-model: sonnet-4.5
+model: opus
 thinking: on
 ---
 

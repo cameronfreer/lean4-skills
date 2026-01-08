@@ -2,7 +2,7 @@
 name: lean4-sorry-filler-deep
 description: Strategic resolution of stubborn sorries; may refactor statements and move lemmas across files. Use when fast pass fails or for complex proofs.
 tools: Read, Grep, Glob, Edit, Bash, WebFetch
-model: sonnet-4.5
+model: opus
 thinking: on
 ---
 
