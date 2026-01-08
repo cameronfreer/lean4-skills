@@ -77,6 +77,8 @@
 | `lean_multi_attempt` | **Local** | None | Instant | Test tactics in parallel |
 | `lean_diagnostic_messages` | **Local** | None | Instant | Check errors |
 | `lean_hover_info` | **Local** | None | Instant | Check syntax/types |
+| `lean_file_outline` | **Local** | None | Fast | File structure overview |
+| `lean_run_code` | **Local** | None | Fast | Run standalone snippets |
 | `lean_file_contents` | **Local** | None | Fast | Read files ⚠️ See warning below |
 | `lean_loogle` | **External** | 3/30s | Fast | Type patterns |
 | `lean_leansearch` | **External** | 3/30s | Slower | Natural language |

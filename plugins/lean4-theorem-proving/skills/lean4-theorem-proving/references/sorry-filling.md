@@ -30,16 +30,9 @@ Fill in Sorry #01. DO NOT MOVE ON TO OTHER SORRY'S BEFORE THIS ONE IS FILLED.
 ```bash
 lake build ProjectName.FileName
 ```
-**IMPORTANT:** LSP can sometimes mislead. Always run `lake build` explicitly after thinking everything works.
 
 **Step 4: Repeat**
 Continue with the next sorry in the TODO list.
-
-**Pro tip - Cache after clean:**
-```bash
-lake clean && lake exe cache get
-```
-Always run `lake exe cache get` after `lake clean` to avoid waiting for mathlib to recompile.
 
 ## Search Strategies
 
@@ -147,11 +140,25 @@ mcp__lean-lsp__lean_multi_attempt(
 
 ## Best Practices
 
+**⚠️ Critical: Verify with `lake build` before moving on**
+LSP tools can sometimes show success when problems remain. After a sequence of changes, before moving on to something else entirely, verify with:
+```bash
+lake build ProjectName.FileName
+```
+This is the ground truth - catches issues that LSP may miss.
+
+**💡 Cache after clean**
+If you run `lake clean`, always follow up with:
+```bash
+lake exe cache get
+```
+Otherwise you'll wait 30+ minutes for mathlib to recompile from scratch.
+
 ✅ **Do:**
 - Search mathlib exhaustively before proving
 - Test all candidates if possible
 - Use shortest working proof
-- Verify with `lake build`
+- Verify with `lake build` (always!)
 - Add necessary imports
 
 ❌ **Don't:**

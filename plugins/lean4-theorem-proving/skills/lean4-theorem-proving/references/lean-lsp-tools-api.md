@@ -61,12 +61,14 @@ lemma test_add_comm (n m : ℕ) : n + m = m + n := by
 
 **Pro tip:** Call `lean_goal` on a line WITH a tactic to see before/after states - shows exactly what that tactic accomplishes.
 
-**Success signal:**
+**Success signal (v0.17+):**
+```json
+{
+  "goals_before": [...],
+  "goals_after": []
+}
 ```
-After:
-no goals
-```
-← Proof complete!
+← Empty `goals_after` array = proof complete!
 
 ---
 
