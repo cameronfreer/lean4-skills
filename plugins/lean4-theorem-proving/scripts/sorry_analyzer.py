@@ -103,14 +103,23 @@ def find_sorries(target: Path, include_deps: bool = False) -> List[Sorry]:
         include_deps: If False (default), exclude .lake/ directories (dependencies)
     """
     if target.is_file():
+        # Guard: Also exclude .lake/ files unless --include-deps
+        if not include_deps and '.lake' in target.parts:
+            print(f"Skipping dependency file: {target} (use --include-deps to include)", file=sys.stderr)
+            return []
         return find_sorries_in_file(target)
     elif target.is_dir():
         sorries = []
-        for lean_file in target.rglob("*.lean"):
-            # Skip .lake/ directories unless --include-deps is specified
-            if not include_deps and '.lake' in lean_file.parts:
-                continue
-            sorries.extend(find_sorries_in_file(lean_file))
+        # Use os.walk for early termination of .lake/ directories (performance)
+        import os
+        for root, dirs, files in os.walk(target):
+            # Prune .lake directories from traversal (don't descend into them)
+            if not include_deps:
+                dirs[:] = [d for d in dirs if d != '.lake']
+            for filename in files:
+                if filename.endswith('.lean'):
+                    lean_file = Path(root) / filename
+                    sorries.extend(find_sorries_in_file(lean_file))
         return sorries
     else:
         raise ValueError(f"{target} is not a file or directory")

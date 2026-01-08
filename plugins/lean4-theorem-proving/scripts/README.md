@@ -151,12 +151,13 @@ Set `MATHLIB_PATH` environment variable to override default `.lake/packages/math
 
 **Usage:**
 ```bash
-./sorry_analyzer.py <file-or-directory> [--format=text|json|markdown] [--interactive]
+./sorry_analyzer.py <file-or-directory> [--format=text|json|markdown] [--interactive] [--include-deps]
 ```
 
 **Modes:**
 - Default: Generate reports in various formats
 - `--interactive`: Interactive TUI to browse and navigate sorries
+- `--include-deps`: Include `.lake/` directories (dependencies like mathlib). By default, `.lake/` is excluded to avoid reporting 650+ sorries from mathlib.
 
 **Output Formats:**
 - `text` (default) - Human-readable terminal output
