@@ -1,0 +1,8 @@
+{
+  "name": "lean4-syntax",
+  "version": "1.1.0",
+  "description": "Lean 4 custom syntax: DSLs, macros, elaborators. API cheat sheet, gotchas, patterns.",
+  "author": {
+    "name": "Alok Singh"
+  }
+}
