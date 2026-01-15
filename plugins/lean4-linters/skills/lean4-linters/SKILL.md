@@ -1,15 +1,27 @@
 ---
 name: lean4-linters
-description: Use when writing or maintaining Lean 4 linters. Covers register_option, syntax traversal, warnings vs errors, and project-wide enablement patterns.
+description: Use when writing or maintaining Lean 4 linters. Emphasizes composable rule blocks, precise spans, and clean enablement.
 ---
 
 # Lean 4 Linters
 
 ## When to use
 
-- You want project-specific style or safety checks.
-- You want fast feedback before runtime bugs (e.g., wrong types, slow paths).
-- You need a consistent policy enforced across the codebase.
+- Project-specific style or safety checks.
+- Fast feedback before runtime bugs (slow paths, unsafe usage).
+- Consistent policy enforcement across a codebase.
+
+## Composable rule blocks
+
+Build linters from small parts you can reuse.
+
+- `Option`: `register_option linter.myRule`
+- `Finder`: `findBad : Syntax -> Array Syntax`
+- `Filter`: file or namespace exclusions
+- `Action`: `logWarningAt` vs `throwErrorAt`
+- `Registration`: `initialize addLinter ...`
+
+Each rule should be a thin layer over these blocks.
 
 ## Core pattern
 
@@ -113,7 +125,7 @@ This helps prevent regressions when refactoring syntax traversal.
 ## Checklist
 
 - Rule has a clear safety or style goal.
+- Finder returns the smallest offending node.
 - False positives are minimized (or skipped by file path).
 - Option exists and defaults to a sensible value.
 - Error span is attached to the exact syntax node.
-

@@ -1,6 +1,6 @@
 ---
 name: lean4-profiling
-description: Use when diagnosing slow Lean builds or proofs. Covers trace.profiler options, thresholding, and Firefox Profiler output.
+description: Use when diagnosing slow Lean builds or proofs. Emphasizes composable profiling blocks and tight scope.
 ---
 
 # Lean 4 Profiling
@@ -9,7 +9,15 @@ description: Use when diagnosing slow Lean builds or proofs. Covers trace.profil
 
 - A file or lemma is slow to elaborate or compile.
 - A tactic is timing out or producing long traces.
-- You need to identify hotspots before refactoring.
+- You need hotspots before refactoring.
+
+## Composable profiling blocks
+
+- `Scope`: set options near the slow section
+- `Target`: build a single module with `lake build +My.Module`
+- `Threshold`: raise/lower `trace.profiler.threshold`
+- `Clock`: use `useHeartbeats` when wall-clock noise is high
+- `Output`: write JSON to inspect in Firefox Profiler
 
 ## Quick setup
 
@@ -40,4 +48,3 @@ Notes:
 - The slowest trace entries and surrounding lemmas.
 - Whether the slowdown is elaboration, simp, or typeclass search.
 - Any change in performance after narrowing scope.
-

@@ -1,25 +1,41 @@
 ---
 name: lean4-metaprogramming
-description: Use when building Lean 4 DSLs, macros, elaborators, or custom pretty-printing. Focuses on syntax categories, validation, error spans, and hygiene.
+description: Use when building Lean 4 DSLs, macros, elaborators, or custom pretty-printing. Emphasizes composable blocks, precise error spans, and hygiene.
 ---
 
 # Lean 4 Metaprogramming
 
 ## When to use
 
-- You are defining new syntax or a DSL.
-- You need validation with precise error spans.
-- You need type-aware parsing or environment checks.
-- You want custom pretty-printing (unexpanders or delaborators).
+- Defining new syntax or a DSL.
+- Validating DSL inputs with precise error spans.
+- Needing type- or environment-aware parsing.
+- Adding custom pretty-printing.
 
 ## Decision tree
 
 | Need | Use | Notes |
 | --- | --- | --- |
 | Pure syntax rewrite | `macro_rules` | Fast, no type info |
-| Validation + good error spans | `macro_rules` + `throwErrorAt` | Use raw syntax nodes |
-| Type or environment info | `elab_rules` | Use `elabTerm` and `inferType` |
-| Custom pretty output | `@[app_unexpander]` or `@[app_delab]` | Keep UX stable |
+| Validation + good error spans | `macro_rules` + `throwErrorAt` | Attach to smallest node |
+| Type or environment info | `elab_rules` | Use `elabTerm` + `inferType` |
+| Custom pretty output | `@[app_unexpander]` / `@[app_delab]` | Keep UX stable |
+
+## Composable blocks (interfaces)
+
+Think in small blocks you can reuse across DSLs.
+
+- `SyntaxCat` = syntax categories and terminals
+- `ValueParser` = parse literal or antiquotation to `term`
+- `Validator` = reject invalid literal values with precise spans
+- `Bridge` = build Lean terms from parsed pieces
+- `ElabBridge` = type-aware elaboration when needed
+- `PrettyBridge` = unexpanders or delabs for readable output
+
+Each block should accept `Syntax` (or `TSyntax`) and produce either:
+- a `term`, or
+- a `MacroM/ElabM Unit` side effect (validation), or
+- an error attached to the smallest syntax node
 
 ## Minimal DSL pattern
 
@@ -125,6 +141,15 @@ MyDSL/
   Elab.lean        -- elaborators when type info is needed
   Pretty.lean      -- unexpanders/delaborators
 ```
+
+## Composition recipes
+
+1) DSL + validation + pretty printing
+   - SyntaxCat + ValueParser + Validator + Bridge + PrettyBridge
+2) DSL with type-aware checks
+   - SyntaxCat + ValueParser + ElabBridge (+ Validator if needed)
+3) Readable error spans
+   - Validator uses `throwErrorAt` on literal token, not the whole macro
 
 ## External references
 
