@@ -10,6 +10,8 @@ Detailed installation instructions for Lean 4 Skills.
 /plugin install lean4-theorem-proving    # Core skill + 6 slash commands (REQUIRED)
 /plugin install lean4-memories           # Optional: persistent memory (requires lean4-theorem-proving)
 /plugin install lean4-subagents          # Optional: specialized agents (requires lean4-theorem-proving)
+/plugin install lean4-metaprogramming    # Optional: DSLs, macros, elaborators
+/plugin install lean4-linters            # Optional: project-specific linters
 ```
 
 **What Each Plugin Provides:**
@@ -19,6 +21,10 @@ Detailed installation instructions for Lean 4 Skills.
   - Extends lean4-theorem-proving with persistent learning
 - **lean4-subagents:** 3 agents (lean4-proof-golfer, lean4-sorry-filler, lean4-axiom-eliminator) - **EXPERIMENTAL**
   - Extends lean4-theorem-proving with specialized automation
+- **lean4-metaprogramming:** Skill (auto-activates)
+  - DSLs, macros, elaborators, and pretty-printing patterns
+- **lean4-linters:** Skill (auto-activates)
+  - Project-specific linter templates and workflows
 
 **Manual Installation:**
 ```bash
@@ -33,6 +39,12 @@ cp -r plugins/lean4-memories ~/.claude/skills/
 
 # Install specialized agents (optional, requires lean4-theorem-proving)
 cp -r plugins/lean4-subagents ~/.claude/skills/
+
+# Install metaprogramming skill (optional)
+cp -r plugins/lean4-metaprogramming ~/.claude/skills/
+
+# Install linters skill (optional)
+cp -r plugins/lean4-linters ~/.claude/skills/
 ```
 
 **Important:** Install lean4-theorem-proving first. The other plugins extend its functionality.

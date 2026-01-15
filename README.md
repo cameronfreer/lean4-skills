@@ -9,6 +9,8 @@ Claude Skills, commands, and agents for systematic development of formal proofs 
 | **[lean4-theorem-proving](plugins/lean4-theorem-proving/)** | Skill + 6 Commands | Core workflows, 16 automation tools, best practices | None |
 | **[lean4-memories](plugins/lean4-memories/)** | Skill (EXPERIMENTAL) | Persistent learning across sessions | lean4-theorem-proving + MCP memory server |
 | **[lean4-subagents](plugins/lean4-subagents/)** | 3 Agents (EXPERIMENTAL) | Specialized agents for proof optimization, sorry filling, axiom elimination | lean4-theorem-proving |
+| **[lean4-metaprogramming](plugins/lean4-metaprogramming/)** | Skill | DSLs, macros, elaborators, custom pretty-printing | None |
+| **[lean4-linters](plugins/lean4-linters/)** | Skill | Project-specific linters and hygiene rules | None |
 
 ## Quick Start
 
@@ -18,9 +20,11 @@ Claude Skills, commands, and agents for systematic development of formal proofs 
 /plugin install lean4-theorem-proving    # Core skill + commands (REQUIRED)
 /plugin install lean4-memories           # Optional: adds persistent memory (requires lean4-theorem-proving)
 /plugin install lean4-subagents          # Optional: adds specialized agents (requires lean4-theorem-proving)
+/plugin install lean4-metaprogramming    # Optional: DSLs, macros, elaborators
+/plugin install lean4-linters            # Optional: project-specific linters
 ```
 
-**Note:** lean4-theorem-proving is the foundation. The other two plugins extend it with memory and specialized agents.
+**Note:** lean4-theorem-proving is the foundation for proof workflows. Other plugins are optional and independent unless noted.
 
 **Manual Installation:**
 ```bash
@@ -35,6 +39,12 @@ cp -r plugins/lean4-memories ~/.claude/skills/
 
 # Install specialized agents (optional, requires lean4-theorem-proving)
 cp -r plugins/lean4-subagents ~/.claude/skills/
+
+# Install metaprogramming skill (optional)
+cp -r plugins/lean4-metaprogramming ~/.claude/skills/
+
+# Install linters skill (optional)
+cp -r plugins/lean4-linters ~/.claude/skills/
 ```
 
 ➡️ **Platform-specific setup (Windows, LSP server, etc.):** [INSTALLATION.md](INSTALLATION.md)
@@ -48,6 +58,8 @@ cp -r plugins/lean4-subagents ~/.claude/skills/
 /plugin disable lean4-memories    # Disable memory skill
 /plugin enable lean4-memories     # Re-enable memory skill
 /plugin disable lean4-subagents   # Disable specialized agents
+/plugin disable lean4-metaprogramming
+/plugin disable lean4-linters
 ```
 
 ## lean4-theorem-proving
@@ -111,6 +123,28 @@ Specialized agents for targeted Lean 4 development tasks. Extends lean4-theorem-
 
 ➡️ **[Full Documentation](plugins/lean4-subagents/README.md)**
 
+## lean4-metaprogramming
+
+Metaprogramming patterns for building DSLs, macros, elaborators, and custom pretty-printing.
+
+**Perfect for:**
+- Creating domain-specific languages and custom syntax
+- Validating DSL inputs with precise error spans
+- Adding unexpanders/delaborators for readable output
+
+➡️ **[Full Documentation](plugins/lean4-metaprogramming/README.md)**
+
+## lean4-linters
+
+Project-specific linter patterns with templates for options, warnings, and errors.
+
+**Perfect for:**
+- Enforcing project style and safety rules
+- Catching slow or unsafe patterns early
+- Keeping warnings consistent and actionable
+
+➡️ **[Full Documentation](plugins/lean4-linters/README.md)**
+
 ## How They Work Together
 
 **Example: Proving `condExp μ m X =ᵐ[μ] condExp μ m Y`**
@@ -143,6 +177,8 @@ Result: Faster development with systematic optimization!
 - **[lean4-theorem-proving/README.md](plugins/lean4-theorem-proving/README.md)** - Core skill guide
 - **[lean4-memories/README.md](plugins/lean4-memories/README.md)** - Memory skill guide
 - **[lean4-subagents/README.md](plugins/lean4-subagents/README.md)** - Specialized agents guide
+- **[lean4-metaprogramming/README.md](plugins/lean4-metaprogramming/README.md)** - Metaprogramming patterns
+- **[lean4-linters/README.md](plugins/lean4-linters/README.md)** - Linter templates and workflows
 - **[lean4-theorem-proving/scripts/](plugins/lean4-theorem-proving/scripts/)** - 16 automation tools
 - **[lean4-theorem-proving/references/](plugins/lean4-theorem-proving/references/)** - Detailed guides
 
