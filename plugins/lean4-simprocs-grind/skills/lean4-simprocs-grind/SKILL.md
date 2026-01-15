@@ -1,6 +1,6 @@
 ---
 name: lean4-simprocs-grind
-description: Use when proofs are stuck due to repetitive rewrites. Covers simproc design, grind usage, and avoiding rewrite loops.
+description: Use when proofs are stuck due to repetitive rewrites. Focuses on a composable normalization pipeline and simproc design.
 ---
 
 # Lean 4 Simprocs + Grind
@@ -10,6 +10,13 @@ description: Use when proofs are stuck due to repetitive rewrites. Covers simpro
 - Repeated manual rewrites across the same pattern.
 - `simp` is too weak or loops without a targeted rewrite.
 - Goals are arithmetic/logic closure after normalization.
+
+## Composable pipeline
+
+1) `Normalize` = `simp?` or `simp (config := { zeta := true })`
+2) `Rewrite` = simproc for deterministic, reusable rewrites
+3) `Close` = `grind` for closure after normalization
+4) `Bound` = `set_option grind.maxSteps` when needed
 
 ## Workflow
 
@@ -37,4 +44,3 @@ description: Use when proofs are stuck due to repetitive rewrites. Covers simpro
 - Simproc only rewrites in one direction.
 - `simp` set is minimal and non-looping.
 - `grind` succeeds with bounded steps if needed.
-

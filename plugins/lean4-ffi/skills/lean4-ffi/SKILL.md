@@ -1,15 +1,25 @@
 ---
 name: lean4-ffi
-description: Use when binding Lean 4 to C/ObjC libraries. Covers extern declarations, cstruct layout, and lakefile linking.
+description: Use when binding Lean 4 to C/ObjC libraries. Focuses on composable FFI building blocks and Lake linking.
 ---
 
 # Lean 4 FFI
 
 ## When to use
 
-- You are adding a C/ObjC dependency.
-- You need by-value struct interop or stable ABI layout.
-- You are wiring a static library via Lake.
+- Adding a C/ObjC dependency.
+- Needing by-value struct interop or stable ABI layout.
+- Wiring a static library via Lake.
+
+## Composable building blocks
+
+- `OpaqueHandle`: `opaque` + extern open/close
+- `BufferIO`: `ByteArray` + explicit length
+- `CStruct`: `@[cstruct]` layout for by-value structs
+- `Wrapper`: Lean-level safe API (lifetime + error handling)
+- `Link`: Lake `extern_lib` static build
+
+Combine blocks rather than writing monolithic FFI code.
 
 ## Minimal extern binding
 
@@ -67,4 +77,3 @@ For ObjC on macOS, compile `.m` with system clang and `-framework` flags.
 - ABI types are exact (`UInt32`, `USize`, `Float`, etc.).
 - Structs that cross the boundary use `@[cstruct]`.
 - Lake builds the static lib for all platforms you support.
-
