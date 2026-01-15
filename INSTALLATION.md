@@ -12,6 +12,10 @@ Detailed installation instructions for Lean 4 Skills.
 /plugin install lean4-subagents          # Optional: specialized agents (requires lean4-theorem-proving)
 /plugin install lean4-metaprogramming    # Optional: DSLs, macros, elaborators
 /plugin install lean4-linters            # Optional: project-specific linters
+/plugin install lean4-verso-docs         # Optional: Verso roles and doc hygiene
+/plugin install lean4-ffi                # Optional: C/ObjC FFI patterns
+/plugin install lean4-profiling          # Optional: profiler workflows
+/plugin install lean4-simprocs-grind     # Optional: simproc + grind playbook
 ```
 
 **What Each Plugin Provides:**
@@ -25,6 +29,14 @@ Detailed installation instructions for Lean 4 Skills.
   - DSLs, macros, elaborators, and pretty-printing patterns
 - **lean4-linters:** Skill (auto-activates)
   - Project-specific linter templates and workflows
+- **lean4-verso-docs:** Skill (auto-activates)
+  - Verso roles and doc comment hygiene
+- **lean4-ffi:** Skill (auto-activates)
+  - C/ObjC FFI patterns and Lake linking
+- **lean4-profiling:** Skill (auto-activates)
+  - Profiling elaboration and compilation hotspots
+- **lean4-simprocs-grind:** Skill (auto-activates)
+  - Simproc design and grind workflows
 
 **Manual Installation:**
 ```bash
@@ -45,6 +57,18 @@ cp -r plugins/lean4-metaprogramming ~/.claude/skills/
 
 # Install linters skill (optional)
 cp -r plugins/lean4-linters ~/.claude/skills/
+
+# Install Verso docs skill (optional)
+cp -r plugins/lean4-verso-docs ~/.claude/skills/
+
+# Install FFI skill (optional)
+cp -r plugins/lean4-ffi ~/.claude/skills/
+
+# Install profiling skill (optional)
+cp -r plugins/lean4-profiling ~/.claude/skills/
+
+# Install simprocs + grind skill (optional)
+cp -r plugins/lean4-simprocs-grind ~/.claude/skills/
 ```
 
 **Important:** Install lean4-theorem-proving first. The other plugins extend its functionality.

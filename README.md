@@ -11,6 +11,10 @@ Claude Skills, commands, and agents for systematic development of formal proofs 
 | **[lean4-subagents](plugins/lean4-subagents/)** | 3 Agents (EXPERIMENTAL) | Specialized agents for proof optimization, sorry filling, axiom elimination | lean4-theorem-proving |
 | **[lean4-metaprogramming](plugins/lean4-metaprogramming/)** | Skill | DSLs, macros, elaborators, custom pretty-printing | None |
 | **[lean4-linters](plugins/lean4-linters/)** | Skill | Project-specific linters and hygiene rules | None |
+| **[lean4-verso-docs](plugins/lean4-verso-docs/)** | Skill | Verso roles and doc comment hygiene | None |
+| **[lean4-ffi](plugins/lean4-ffi/)** | Skill | C/ObjC FFI patterns and Lake linking | None |
+| **[lean4-profiling](plugins/lean4-profiling/)** | Skill | Profiling Lean elaboration and compilation | None |
+| **[lean4-simprocs-grind](plugins/lean4-simprocs-grind/)** | Skill | Simproc design and `grind` workflows | None |
 
 ## Quick Start
 
@@ -22,6 +26,10 @@ Claude Skills, commands, and agents for systematic development of formal proofs 
 /plugin install lean4-subagents          # Optional: adds specialized agents (requires lean4-theorem-proving)
 /plugin install lean4-metaprogramming    # Optional: DSLs, macros, elaborators
 /plugin install lean4-linters            # Optional: project-specific linters
+/plugin install lean4-verso-docs         # Optional: Verso roles and doc hygiene
+/plugin install lean4-ffi                # Optional: C/ObjC FFI patterns
+/plugin install lean4-profiling          # Optional: profiler workflows
+/plugin install lean4-simprocs-grind     # Optional: simproc + grind playbook
 ```
 
 **Note:** lean4-theorem-proving is the foundation for proof workflows. Other plugins are optional and independent unless noted.
@@ -45,6 +53,18 @@ cp -r plugins/lean4-metaprogramming ~/.claude/skills/
 
 # Install linters skill (optional)
 cp -r plugins/lean4-linters ~/.claude/skills/
+
+# Install Verso docs skill (optional)
+cp -r plugins/lean4-verso-docs ~/.claude/skills/
+
+# Install FFI skill (optional)
+cp -r plugins/lean4-ffi ~/.claude/skills/
+
+# Install profiling skill (optional)
+cp -r plugins/lean4-profiling ~/.claude/skills/
+
+# Install simprocs + grind skill (optional)
+cp -r plugins/lean4-simprocs-grind ~/.claude/skills/
 ```
 
 ➡️ **Platform-specific setup (Windows, LSP server, etc.):** [INSTALLATION.md](INSTALLATION.md)
@@ -60,6 +80,10 @@ cp -r plugins/lean4-linters ~/.claude/skills/
 /plugin disable lean4-subagents   # Disable specialized agents
 /plugin disable lean4-metaprogramming
 /plugin disable lean4-linters
+/plugin disable lean4-verso-docs
+/plugin disable lean4-ffi
+/plugin disable lean4-profiling
+/plugin disable lean4-simprocs-grind
 ```
 
 ## lean4-theorem-proving
@@ -145,6 +169,46 @@ Project-specific linter patterns with templates for options, warnings, and error
 
 ➡️ **[Full Documentation](plugins/lean4-linters/README.md)**
 
+## lean4-verso-docs
+
+Verso doc comment hygiene, role usage, and hover-friendly references.
+
+**Perfect for:**
+- Fixing doc.verso warnings
+- Keeping inline code resolvable and precise
+
+➡️ **[Full Documentation](plugins/lean4-verso-docs/README.md)**
+
+## lean4-ffi
+
+Lean 4 FFI patterns for C/ObjC bindings with Lake linking guidance.
+
+**Perfect for:**
+- External library bindings
+- C struct layout via `@[cstruct]`
+
+➡️ **[Full Documentation](plugins/lean4-ffi/README.md)**
+
+## lean4-profiling
+
+Profiling workflows to locate elaboration and compilation hotspots.
+
+**Perfect for:**
+- Slow builds and tactics
+- Trace-based performance triage
+
+➡️ **[Full Documentation](plugins/lean4-profiling/README.md)**
+
+## lean4-simprocs-grind
+
+Simproc design and `grind`-based automation playbook.
+
+**Perfect for:**
+- Repetitive rewrite goals
+- Stuck proofs that need deterministic normalization
+
+➡️ **[Full Documentation](plugins/lean4-simprocs-grind/README.md)**
+
 ## How They Work Together
 
 **Example: Proving `condExp μ m X =ᵐ[μ] condExp μ m Y`**
@@ -179,6 +243,10 @@ Result: Faster development with systematic optimization!
 - **[lean4-subagents/README.md](plugins/lean4-subagents/README.md)** - Specialized agents guide
 - **[lean4-metaprogramming/README.md](plugins/lean4-metaprogramming/README.md)** - Metaprogramming patterns
 - **[lean4-linters/README.md](plugins/lean4-linters/README.md)** - Linter templates and workflows
+- **[lean4-verso-docs/README.md](plugins/lean4-verso-docs/README.md)** - Verso doc role usage
+- **[lean4-ffi/README.md](plugins/lean4-ffi/README.md)** - FFI patterns and linking
+- **[lean4-profiling/README.md](plugins/lean4-profiling/README.md)** - Profiling workflows
+- **[lean4-simprocs-grind/README.md](plugins/lean4-simprocs-grind/README.md)** - Simproc and grind playbook
 - **[lean4-theorem-proving/scripts/](plugins/lean4-theorem-proving/scripts/)** - 16 automation tools
 - **[lean4-theorem-proving/references/](plugins/lean4-theorem-proving/references/)** - Detailed guides
 
