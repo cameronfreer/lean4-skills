@@ -15,7 +15,8 @@ Detailed installation instructions for Lean 4 Skills.
 /plugin install lean4-verso-docs         # Optional: Verso roles and doc hygiene
 /plugin install lean4-ffi                # Optional: C/ObjC FFI patterns
 /plugin install lean4-profiling          # Optional: profiler workflows
-/plugin install lean4-simprocs-grind     # Optional: simproc + grind playbook
+/plugin install lean4-simprocs           # Optional: simproc playbook
+/plugin install lean4-grind              # Optional: grind playbook
 ```
 
 **What Each Plugin Provides:**
@@ -35,8 +36,10 @@ Detailed installation instructions for Lean 4 Skills.
   - C/ObjC FFI patterns and Lake linking
 - **lean4-profiling:** Skill (auto-activates)
   - Profiling elaboration and compilation hotspots
-- **lean4-simprocs-grind:** Skill (auto-activates)
-  - Simproc design and grind workflows
+- **lean4-simprocs:** Skill (auto-activates)
+  - Simproc design within the simp pipeline
+- **lean4-grind:** Skill (auto-activates)
+  - Grind workflows with normalization-first guidance
 
 **Manual Installation:**
 ```bash
@@ -67,8 +70,11 @@ cp -r plugins/lean4-ffi ~/.claude/skills/
 # Install profiling skill (optional)
 cp -r plugins/lean4-profiling ~/.claude/skills/
 
-# Install simprocs + grind skill (optional)
-cp -r plugins/lean4-simprocs-grind ~/.claude/skills/
+# Install simprocs skill (optional)
+cp -r plugins/lean4-simprocs ~/.claude/skills/
+
+# Install grind skill (optional)
+cp -r plugins/lean4-grind ~/.claude/skills/
 ```
 
 **Important:** Install lean4-theorem-proving first. The other plugins extend its functionality.

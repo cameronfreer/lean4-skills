@@ -14,7 +14,8 @@ Claude Skills, commands, and agents for systematic development of formal proofs 
 | **[lean4-verso-docs](plugins/lean4-verso-docs/)** | Skill | Verso roles and doc comment hygiene | None |
 | **[lean4-ffi](plugins/lean4-ffi/)** | Skill | C/ObjC FFI patterns and Lake linking | None |
 | **[lean4-profiling](plugins/lean4-profiling/)** | Skill | Profiling Lean elaboration and compilation | None |
-| **[lean4-simprocs-grind](plugins/lean4-simprocs-grind/)** | Skill | Simproc design and `grind` workflows | None |
+| **[lean4-simprocs](plugins/lean4-simprocs/)** | Skill | Simproc design within the simp pipeline | None |
+| **[lean4-grind](plugins/lean4-grind/)** | Skill | `grind` workflows and bounds | None |
 
 ## Quick Start
 
@@ -29,7 +30,8 @@ Claude Skills, commands, and agents for systematic development of formal proofs 
 /plugin install lean4-verso-docs         # Optional: Verso roles and doc hygiene
 /plugin install lean4-ffi                # Optional: C/ObjC FFI patterns
 /plugin install lean4-profiling          # Optional: profiler workflows
-/plugin install lean4-simprocs-grind     # Optional: simproc + grind playbook
+/plugin install lean4-simprocs           # Optional: simproc playbook
+/plugin install lean4-grind              # Optional: grind playbook
 ```
 
 **Note:** lean4-theorem-proving is the foundation for proof workflows. Other plugins are optional and independent unless noted.
@@ -63,8 +65,11 @@ cp -r plugins/lean4-ffi ~/.claude/skills/
 # Install profiling skill (optional)
 cp -r plugins/lean4-profiling ~/.claude/skills/
 
-# Install simprocs + grind skill (optional)
-cp -r plugins/lean4-simprocs-grind ~/.claude/skills/
+# Install simprocs skill (optional)
+cp -r plugins/lean4-simprocs ~/.claude/skills/
+
+# Install grind skill (optional)
+cp -r plugins/lean4-grind ~/.claude/skills/
 ```
 
 ➡️ **Platform-specific setup (Windows, LSP server, etc.):** [INSTALLATION.md](INSTALLATION.md)
@@ -83,7 +88,8 @@ cp -r plugins/lean4-simprocs-grind ~/.claude/skills/
 /plugin disable lean4-verso-docs
 /plugin disable lean4-ffi
 /plugin disable lean4-profiling
-/plugin disable lean4-simprocs-grind
+/plugin disable lean4-simprocs
+/plugin disable lean4-grind
 ```
 
 ## lean4-theorem-proving
@@ -199,15 +205,25 @@ Profiling workflows to locate elaboration and compilation hotspots.
 
 ➡️ **[Full Documentation](plugins/lean4-profiling/README.md)**
 
-## lean4-simprocs-grind
+## lean4-simprocs
 
-Simproc design and `grind`-based automation playbook.
+Simproc design as part of the simp pipeline.
 
 **Perfect for:**
 - Repetitive rewrite goals
-- Stuck proofs that need deterministic normalization
+- Deterministic rewrites inside `simp`
 
-➡️ **[Full Documentation](plugins/lean4-simprocs-grind/README.md)**
+➡️ **[Full Documentation](plugins/lean4-simprocs/README.md)**
+
+## lean4-grind
+
+`grind` usage playbook with normalization-first workflow and bounds.
+
+**Perfect for:**
+- Goals that close after normalization
+- Premise-bounded automated closure
+
+➡️ **[Full Documentation](plugins/lean4-grind/README.md)**
 
 ## How They Work Together
 
@@ -246,7 +262,8 @@ Result: Faster development with systematic optimization!
 - **[lean4-verso-docs/README.md](plugins/lean4-verso-docs/README.md)** - Verso doc role usage
 - **[lean4-ffi/README.md](plugins/lean4-ffi/README.md)** - FFI patterns and linking
 - **[lean4-profiling/README.md](plugins/lean4-profiling/README.md)** - Profiling workflows
-- **[lean4-simprocs-grind/README.md](plugins/lean4-simprocs-grind/README.md)** - Simproc and grind playbook
+- **[lean4-simprocs/README.md](plugins/lean4-simprocs/README.md)** - Simproc playbook
+- **[lean4-grind/README.md](plugins/lean4-grind/README.md)** - Grind playbook
 - **[lean4-theorem-proving/scripts/](plugins/lean4-theorem-proving/scripts/)** - 16 automation tools
 - **[lean4-theorem-proving/references/](plugins/lean4-theorem-proving/references/)** - Detailed guides
 
