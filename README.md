@@ -32,7 +32,7 @@ Skills activate automatically when you work on Lean 4 files. Commands appear in 
 - **Automation scripts** - 16 tools for search, analysis, verification
 - **mathlib patterns** - Type class management, domain-specific tactics
 
-## Highly recommended add-on: install the Lean LSP Server alongside these plugins
+## Highly recommended add-on: install the Lean LSP MCP Server alongside these plugins
 
 The [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) server provides **12+ tools** for rapid feedback, goal inspection, parallel tactic testing, and integrated lemma search. This dramatic speedup turns frustrating trial-and-error into smooth, interactive problem-solving. Our Lean 4 skill adds comprehensive workflow guides that teach the LLM to use the LSP tools effectively.
 
