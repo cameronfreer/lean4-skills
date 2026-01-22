@@ -32,6 +32,12 @@ Skills activate automatically when you work on Lean 4 files. Commands appear in 
 - **Automation scripts** - 16 tools for search, analysis, verification
 - **mathlib patterns** - Type class management, domain-specific tactics
 
+## Lean LSP Server (Highly Recommended)
+
+The [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) server transforms proof development with **12+ tools** for rapid feedback, goal inspection, parallel tactic testing, and integrated lemma search. This dramatic speedup turns frustrating trial-and-error into smooth, interactive problem-solving.
+
+**Setup:** [INSTALLATION.md](INSTALLATION.md#lean-lsp-server) (<1 minute)
+
 ## Documentation
 
 - [lean4-theorem-proving/README.md](plugins/lean4-theorem-proving/README.md) - Core skill guide
