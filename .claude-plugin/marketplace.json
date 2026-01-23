@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Claude Skills and agents for systematic Lean 4 proof development",
-    "version": "3.4.1"
+    "version": "3.4.2"
   },
   "plugins": [
     {
