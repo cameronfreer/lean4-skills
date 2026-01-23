@@ -86,7 +86,13 @@ search_leansearch() {
 
     # Parse JSON response
     if command -v jq &> /dev/null; then
-        echo "$RESPONSE" | jq -r '.results[] | "[\(.score | tonumber | round)] \(.name)\n  \(.type)\n  \(.module)\n"' || echo "$RESPONSE"
+        # Check for error response first
+        ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error // empty')
+        if [[ -n "$ERROR_MSG" ]]; then
+            echo -e "${RED}LeanSearch error: $ERROR_MSG${NC}"
+        else
+            echo "$RESPONSE" | jq -r '.results // [] | .[] | "[\(.score | tonumber | round)] \(.name)\n  \(.type)\n  \(.module)\n"' 2>/dev/null || echo "$RESPONSE"
+        fi
     else
         echo "$RESPONSE"
         echo
@@ -114,7 +120,18 @@ search_loogle() {
 
     # Parse JSON response
     if command -v jq &> /dev/null; then
-        echo "$RESPONSE" | jq -r '.results[0:8][] | "\(.name)\n  Type: \(.type)\n  Module: \(.module)\n"' || echo "$RESPONSE"
+        # Check for error response first
+        ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error // empty')
+        if [[ -n "$ERROR_MSG" ]]; then
+            echo -e "${RED}Loogle error: $ERROR_MSG${NC}"
+            SUGGESTIONS=$(echo "$RESPONSE" | jq -r '.suggestions // [] | .[]' 2>/dev/null)
+            if [[ -n "$SUGGESTIONS" ]]; then
+                echo -e "${YELLOW}Suggestions:${NC}"
+                echo "$SUGGESTIONS"
+            fi
+        else
+            echo "$RESPONSE" | jq -r '.hits // [] | .[0:8][] | "\(.name)\n  Type: \(.type)\n  Module: \(.module)\n"' 2>/dev/null || echo "$RESPONSE"
+        fi
     else
         echo "$RESPONSE"
         echo
