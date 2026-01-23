@@ -20,6 +20,17 @@
 
 **Without these:** You may experience server timeouts or missing search functionality.
 
+**Tip: Capture build output with `tee`** - Avoid building twice:
+```bash
+# Build once, capture AND view first 50 lines (or tail -50, or grep error)
+lake build 2>&1 | tee /tmp/lean-build-$$.log | head -50
+
+# Later: read from captured file - no rebuild needed
+tail -100 /tmp/lean-build-$$.log
+grep -i error /tmp/lean-build-$$.log
+```
+Without `tee`, piping to `head`/`grep` discards the rest. With `tee`, the full output is saved while you still see filtered results.
+
 ---
 
 ## The Workflow Pattern
@@ -80,6 +91,7 @@
 | `lean_file_outline` | **Local** | None | Fast | File structure overview |
 | `lean_run_code` | **Local** | None | Fast | Run standalone snippets |
 | `lean_file_contents` | **Local** | None | Fast | Read files ⚠️ See warning below |
+| `lean_profile_proof` | **Local** | None | Slow | Profile proof performance |
 | `lean_loogle` | **External** | 3/30s | Fast | Type patterns |
 | `lean_leansearch` | **External** | 3/30s | Slower | Natural language |
 | `lean_leanfinder` | **External** | 3/30s | Fast | Semantic search (best for goals!) |

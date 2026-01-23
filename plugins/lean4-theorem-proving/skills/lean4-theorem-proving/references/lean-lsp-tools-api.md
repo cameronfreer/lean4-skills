@@ -11,7 +11,7 @@ For workflow patterns and quick reference, see [lean-lsp-server.md](lean-lsp-ser
 **Local tools (unlimited, instant):**
 - Direct LSP queries against your project files
 - No rate limits, < 1 second response time
-- Tools: `lean_goal`, `lean_local_search`, `lean_multi_attempt`, `lean_diagnostic_messages`, `lean_hover_info`, `lean_file_outline`, `lean_run_code`
+- Tools: `lean_goal`, `lean_local_search`, `lean_multi_attempt`, `lean_diagnostic_messages`, `lean_hover_info`, `lean_file_outline`, `lean_run_code`, `lean_profile_proof`
 
 **External tools (rate-limited to 3 req/30s):**
 - Remote API calls to loogle.lean-lang.org, leansearch.net
@@ -106,6 +106,8 @@ lean_diagnostic_messages(file)
 → []
 ```
 ← Empty array = no errors!
+
+**Structured output (v0.18+):** Returns `{success, failed_dependencies, diagnostics}`. Check `failed_dependencies` when imports fail (e.g., "Unknown package 'Mathlib'").
 
 **Critical:** Empty diagnostics means no errors, but doesn't mean proof complete. Always verify with `lean_goal` to confirm "no goals".
 
@@ -350,6 +352,30 @@ l1c1-l1c6, severity: 3
 
 ---
 
+### `lean_profile_proof` - Performance Profiling (v0.19+)
+
+**When to use:** Proof compiles slowly, `simp` hangs, tactic takes forever, need to find bottlenecks.
+
+**Parameters:**
+- `file_path` (required): Absolute path to Lean file
+- `declaration_name` (required): Name of theorem/lemma to profile
+
+**Example:**
+```
+lean_profile_proof(file="/path/to/file.lean", declaration_name="mySlowTheorem")
+→ {
+    "total_time_ms": 2450,
+    "lines": [
+      {"line": 12, "tactic": "simp [complex_lemma]", "time_ms": 1200},
+      {"line": 13, "tactic": "ring", "time_ms": 850}
+    ]
+  }
+```
+
+**Tips:** Focus on >20% of total time. Replace slow `simp` with explicit rewrites. Only use when investigating performance - adds overhead.
+
+---
+
 ## External Search Tools (Rate-Limited)
 
 **Use these when `lean_local_search` doesn't find what you need.**
@@ -373,7 +399,7 @@ These tools call external APIs (loogle.lean-lang.org, leansearch.net). The **LSP
 - `query` (required): Type pattern string
 - `num_results` (optional): Max results (default 6)
 
-**Tip (v0.16+):** You can run Loogle locally to avoid the 3 req/30s rate limit. First run takes 5-10 min to build the index; subsequent runs start in seconds. See lean-lsp-mcp docs for setup.
+**Local Loogle (v0.16+):** Run locally to avoid rate limits. First run: 5-10 min (builds index). After: instant. Set `LOOGLE_PATH` env var. See lean-lsp-mcp docs for setup.
 
 **Example:**
 ```

@@ -47,6 +47,13 @@ The [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) server provides **12
 
 ## Changelog
 
+**v3.4.2** (January 2026)
+- Updated lean-lsp-mcp documentation for v0.16-v0.19 features:
+  - New `lean_profile_proof` tool for identifying slow tactics
+  - Structured diagnostics output with `success` and `failed_dependencies`
+  - Expanded local Loogle setup instructions
+- Added `lake build | tee` tip to avoid redundant builds
+
 **v3.4.1** (January 2026)
 - Expanded `/refactor-have` to support both inlining and extraction
 - Added mathlib style guidance for idiomatic proofs
