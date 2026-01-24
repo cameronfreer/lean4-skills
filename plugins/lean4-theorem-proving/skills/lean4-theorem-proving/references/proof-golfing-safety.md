@@ -56,7 +56,7 @@ let μ_map := Measure.map (fun ω i => X (k i) ω) μ  -- 20 tokens
 ### Phase 0: Pre-Optimization Audit (2 min)
 
 Before applying patterns:
-1. Remove commented code and unused lemmas
+1. Remove commented-out dead code and unused lemmas (NOT helpful comments or docstrings - see anti-patterns)
 2. Fix linter warnings
 3. Run `lake build` for clean baseline
 
@@ -114,20 +114,34 @@ After 5-10 optimizations, check indicators:
 
 ## Anti-Patterns
 
-### Don't Use Semicolons Just to Combine Lines
+### Don't Use Semicolons to Hide Complexity
+
+The true complexity metric is **"lines modulo `;`"** - semicolons don't reduce complexity, they hide it.
 
 ```lean
--- ❌ Bad (no savings)
-intro x; exact proof  -- Semicolon is a token!
+-- ❌ Bad: 4 logical steps hidden on 1 line
+ext x; simp [...]; use y; simp
 
--- ✅ Good (when saves ≥2 lines AND sequential)
-ext x; simp [...]; use y; simp  -- Sequential operations
+-- ✅ Good: Same 4 steps, but visible and debuggable
+ext x
+simp [...]
+use y
+simp
 ```
 
-**When semicolons ARE worth it:**
-- ✅ Sequential operations (ext → simp → use)
-- ✅ Saves ≥2 lines
-- ✅ Simple steps
+**Why this matters for golfing:**
+- **Simplicity > line count**: A 4-line proof with clear steps beats a 1-line chain
+- **Resilience**: Chained tactics break when upstream changes; separate lines isolate failures
+- **Downstream stability**: Library code with chains propagates failures to all dependents
+- **Runtime**: Chained tactics can have unexpected performance; separate lines make profiling easier
+- **Debugging**: When something breaks, you need to know which step failed
+
+**Critical for dependency code**: If your proof will be imported by others, avoid chains entirely - they amplify breakage across the dependency graph.
+
+**Acceptable uses of semicolons:**
+- `<;>` for symmetric subgoals: `constructor <;> simp` (single tactic applied to all goals)
+- Truly atomic pairs: `ext x; rfl` (trivial second step)
+- Subproofs: `(by simp; ring)` inside terms (isolated context)
 
 ### Don't Over-Inline
 
@@ -154,6 +168,32 @@ have : ... := by ...  -- uses first anonymous have
 have h_key_property : ... := by ...
 have h_conclusion : ... := by ...  -- uses h_key_property
 ```
+
+### Be Judicious with Comments, Never Touch Docstrings
+
+**NEVER modify docstrings** (`/-- ... -/`) without explicit user approval. Docstrings are API documentation - changing them is a semantic change, not a golf.
+
+**For inline comments:**
+- ✅ **Remove**: Gratuitous/obvious comments (`-- apply the lemma`, `-- done`)
+- ✅ **Remove**: Stale comments that no longer match the code
+- ⚠️ **Keep**: Comments explaining *why* (not what) - non-obvious reasoning
+- ⚠️ **Keep**: Comments marking tricky spots or known issues
+- ⚠️ **Keep**: Section markers (`/-! ### Main theorems -/`)
+
+```lean
+-- ❌ Remove these (gratuitous)
+intro x  -- introduce x
+simp     -- simplify
+exact h  -- use hypothesis h
+
+-- ✅ Keep these (explain non-obvious reasoning)
+-- Need `haveI` here because instance not in scope
+haveI : Fintype α := ...
+-- This specific form avoids universe issues
+exact cast (by rfl) h
+```
+
+**When in doubt, keep the comment.** Removing helpful context is worse than leaving noise.
 
 ---
 

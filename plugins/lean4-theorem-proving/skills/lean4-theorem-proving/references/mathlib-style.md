@@ -153,8 +153,34 @@ by
   · -- Second goal
     sorry
 
--- ⚠️ DISCOURAGED: Semicolons (prefer newlines)
-by simp; ring  -- Okay but not preferred
+-- ⚠️ DISCOURAGED: Semicolons in main proofs
+by simp; ring  -- Hides 2 logical steps on 1 line
+```
+
+**Why avoid semicolons:**
+- **Hidden complexity**: A line with `;` is multiple logical steps - harder to read
+- **Debugging pain**: When a chained tactic fails, you can't tell which step broke
+- **Brittleness**: If any tactic's behavior changes, the whole chain may fail silently or break
+- **Downstream breakage**: Library code with chained tactics propagates failures to dependents
+- **False economy**: "Lines modulo `;`" is the real complexity metric, not raw line count
+- **Runtime**: Chained tactics can have unexpected performance - separate lines make profiling easier
+
+**Especially important for library/dependency code** - brittle proofs break downstream consumers when mathlib updates.
+
+**When semicolons are acceptable:**
+- `<;>` for symmetric subgoals: `constructor <;> simp` (applies same tactic to all goals)
+- Very short, atomic pairs: `ext x; rfl` (two trivial steps)
+- Subproofs that won't need debugging: `(by simp; ring)` inside a term
+
+**Prefer separate lines:**
+```lean
+-- ✅ GOOD: Each step visible, debuggable
+by
+  simp only [foo]
+  ring
+
+-- ❌ BAD: Hidden steps, hard to debug
+by simp only [foo]; ring
 ```
 
 **Prefer term mode for simple proofs:**

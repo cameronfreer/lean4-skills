@@ -50,11 +50,16 @@
 
 ## Quick Workflow
 
-1. **Audit:** Remove commented code, fix linter warnings, run `lake build`
+1. **Audit:** Remove dead commented-out code (NOT helpful comments), fix linter warnings, run `lake build`
 2. **Discover:** Use grep patterns to find targets (see [safety guide](proof-golfing-safety.md#phase-1-pattern-discovery-5-min))
 3. **Verify:** Count binding usages before inlining
 4. **Apply:** Make change → `lake build` → revert if fails
 5. **Stop:** When success rate < 20% or time > 15 min per optimization
+
+**Comments & Docstrings:**
+- ✅ Remove gratuitous comments (`-- done`, `-- apply lemma`)
+- ⚠️ Keep comments explaining *why* (non-obvious reasoning)
+- 🚫 **NEVER modify docstrings** without explicit user approval
 
 ## Detailed References
 
