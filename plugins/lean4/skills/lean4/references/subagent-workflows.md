@@ -463,59 +463,42 @@ mcp__lean-lsp__lean_diagnostic_messages(file)  # Check errors
 
 ❌ **Don't use general-purpose for simple scripts** - Explore agent is faster
 
-## Using Slash Commands from Subagents
+## V4 Commands
 
-### When Subagents Should Use Slash Commands
+The lean4 plugin provides these main commands:
 
-Subagents can invoke slash commands using the `SlashCommand` tool. This is useful for accessing specialized workflows that combine multiple steps.
+| Command | Purpose |
+|---------|---------|
+| `/lean4:autoprover` | Main workflow - planning, filling, repair |
+| `/lean4:checkpoint` | Verified commit with axiom check |
+| `/lean4:review` | Read-only quality review |
+| `/lean4:golf` | Optimize proofs |
+| `/lean4:doctor` | Diagnostics and migration |
 
-**Available slash commands:**
-- `/lean4:search-mathlib [query]` - Search mathlib with multiple strategies
-- `/lean4:analyze-sorries` - Analyze and categorize incomplete proofs
-- `/lean4:fill-sorry [file:line]` - Interactive sorry filling
-- `/lean4:check-axioms [file]` - Verify axiom hygiene
-- `/lean4:build-lean` - Build with error analysis
-- `/lean4:golf-proofs [file]` - Optimize proofs interactively
-- `/lean4:clean-warnings` - Clean linter warnings by category
+**Note:** Individual operations like "search mathlib" or "analyze sorries" are now internal workflows within `/lean4:autoprover` rather than separate commands. This simplifies the UX while preserving all functionality.
 
-**When to use slash commands vs scripts directly:**
+### Using LSP Tools Directly
 
-✅ **Use slash command when:**
-- Workflow combines multiple steps (search + filter + recommend)
-- Interactive decision-making is needed
-- You want standardized output formatting
-- Example: `/search-mathlib` combines local search, leansearch, and loogle APIs
+For quick operations, use Lean LSP MCP tools directly:
 
-❌ **Use script directly when:**
-- Single-step operation
-- Just need raw output for further processing
-- Non-standard arguments needed
-- Example: `scripts/search_mathlib.sh "pattern" name`
-
-### Example: Subagent Using Slash Command
-
-**Scenario:** Main conversation asks subagent to find and recommend lemmas
-
-**Subagent task:**
 ```
-"Dispatch general-purpose agent to find lemmas about continuous functions on compact spaces.
-Use /search-mathlib, evaluate results, and recommend the best fit for our use case."
+lean_leansearch("continuous function compact")  # Natural language search
+lean_loogle("Continuous _ → IsCompact _")       # Type pattern search
+lean_goal(file, line)                           # Get goal at position
+lean_tactic_attempt(file, line, "simp")         # Test a tactic
 ```
 
-**Subagent execution:**
-```python
-# Subagent uses SlashCommand tool
-SlashCommand("/lean4:search-mathlib continuous compact")
+### Example: Finding Lemmas
 
-# Slash command runs, returns results
-# Subagent evaluates and reports back:
+**Scenario:** Need to find lemmas about continuous functions on compact spaces
 
-"I found 8 relevant lemmas. Best fit for your use case:
+**Direct approach (preferred):**
+```
+lean_leansearch("continuous image of compact set is compact")
+→ Returns: Continuous.isCompact_image
 
-**Recommended: Continuous.isCompact_image**
-- Type: Continuous f → IsCompact s → IsCompact (f '' s)
-- Import: Mathlib.Topology.Compactness.Compact
-- Why: Directly proves continuous image of compact set is compact
+lean_loogle("Continuous _ → IsCompact _ → IsCompact _")
+→ Returns matching type signatures
 
 Alternatives:
 - ContinuousOn.isCompact_image (if only continuous on subset)

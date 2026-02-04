@@ -7,148 +7,152 @@ description: Use when working with Lean 4 (.lean files), writing mathematical pr
 
 ## Core Principle
 
-**Build incrementally, structure before solving, trust the type checker.** Lean's type checker is your test suite.
+**Search before prove. Build incrementally. Trust the type checker.**
 
-**Success = `lake build` passes + zero sorries + zero custom axioms.** Theorems with sorries/axioms are scaffolding, not results.
+Most mathematical facts already exist in mathlib. Search exhaustively before writing tactics. Lean's type checker is your test suite - if it compiles with no sorries and standard axioms only, you're done.
 
-**v4 Note:** This unified `lean4` plugin replaces the previous 3-plugin system (`lean4-theorem-proving`, `lean4-memories`, `lean4-subagents`). Memory integration was removed in v4 as it did not work reliably. See `/lean4:doctor` for migration help.
+**v4 Note:** This unified `lean4` plugin replaces the previous 3-plugin system. Memory integration was removed as it didn't work reliably.
 
-## Quick Reference
+## Commands
 
-| **Resource** | **What You Get** | **Where to Find** |
-|--------------|------------------|-------------------|
-| **Main Command** | Planning-first autoprover with guardrails | `/lean4:autoprover` |
-| **Automation Scripts** | 19 tools for search, verification, refactoring, repair | `$LEAN4_SCRIPTS/` directory |
-| **Subagents** | 5 specialized agents for batch tasks | Plugin `agents/` directory |
-| **LSP Server** | 30x faster feedback with instant proof state (optional) | [lean-lsp-server.md](references/lean-lsp-server.md) |
-| **Reference Files** | 19 detailed guides (phrasebook, tactics, patterns, errors, repair, performance) | [List below](#reference-files) |
+| Command | Purpose |
+|---------|---------|
+| `/lean4:autoprover` | Main entry - planning-first sorry filling and repair |
+| `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
+| `/lean4:review` | Read-only quality review with optional external hooks |
+| `/lean4:golf` | Optimize proofs for brevity |
+| `/lean4:doctor` | Diagnostics and migration help |
 
-## When to Use
+## The Golden Path
 
-Use for ANY Lean 4 development: pure/applied math, program verification, mathlib contributions.
+```
+1. /lean4:autoprover     → Fill sorries with planning phase
+2. /lean4:review         → Check quality (read-only)
+3. /lean4:golf           → Optimize if desired
+4. /lean4:checkpoint     → Verified commit
+5. git push              → Manual, after review
+```
 
-**Critical for:** Type class synthesis errors, sorry/axiom management, mathlib search, measure theory/probability work.
+## Search-First Approach
 
-## Tools & Workflows
+**90% of sorries already exist in mathlib.** Always search before writing tactics.
 
-**Primary entry point:** `/lean4:autoprover` - planning-first agentic loop with guardrails.
+### With Lean LSP MCP (Preferred)
 
-**Supporting commands:**
-- `/lean4:checkpoint` - Safe commit checkpoint
-- `/lean4:review` - Read-only code review
-- `/lean4:doctor` - Diagnostics and migration help
+The LSP server provides sub-second feedback:
 
-**Automation scripts** in `$LEAN4_SCRIPTS/`:
-- `sorry_analyzer.py` - Discover and prioritize sorries
-- `smart_search.sh` - Mathlib lemma search with fallbacks
-- `check_axioms.sh` - Verify axiom usage
-- See `$LEAN4_SCRIPTS/README.md` for complete documentation
+```
+lean_leansearch("continuous function on compact set")  # Natural language
+lean_loogle("Continuous _ → Compact _ → _")            # Type pattern
+lean_local_search("IsCompact")                         # Keyword in project
+lean_goal(file, line)                                  # See exact goal
+lean_hover_info(file, line, col)                       # Understand types
+```
 
-**Lean LSP Server** (optional) provides 30x faster feedback with instant proof state and parallel tactic testing. See [lean-lsp-server.md](references/lean-lsp-server.md) for setup and workflows.
+### Fallback (Scripts)
 
-**Subagent delegation** (Claude Code users) enables batch automation. See [subagent-workflows.md](references/subagent-workflows.md) for patterns.
+When LSP unavailable:
+```bash
+bash $LEAN4_SCRIPTS/smart_search.sh "query" --source=all
+bash $LEAN4_SCRIPTS/search_mathlib.sh "pattern" name
+```
 
-## Build-First Principle
+## Common Workflows
 
-**ALWAYS compile before committing.** Run `lake build` to verify. "Compiles" ≠ "Complete" - files can compile with sorries/axioms but aren't done until those are eliminated.
+### Fill a Sorry
 
-## The 4-Phase Workflow
+1. **Understand:** Read goal and context (LSP `lean_goal` or read the file)
+2. **Search:** Look for existing lemma (LSP search or scripts)
+3. **Try:** Apply lemma or simple tactic (`rfl`, `simp`, `ring`, `linarith`)
+4. **Validate:** `lake build` must pass
+5. **Commit:** One sorry = one commit
 
-1. **Structure Before Solving** - Outline proof strategy with `have` statements and documented sorries before writing tactics
-2. **Helper Lemmas First** - Build infrastructure bottom-up, extract reusable components as separate lemmas
-3. **Incremental Filling** - Fill ONE sorry at a time, compile after each, commit working code
-4. **Type Class Management** - Add explicit instances with `haveI`/`letI` when synthesis fails, respect binder order for sub-structures
+### Fix a Build Error
 
-## Finding and Using Mathlib Lemmas
+1. **Parse:** Understand the error message
+2. **Classify:** Type mismatch? Unknown ident? Instance failure?
+3. **Search:** Find correct API or missing import
+4. **Fix:** Minimal change to resolve
+5. **Verify:** Build again
 
-**Philosophy:** Search before prove. Mathlib has 100,000+ theorems.
-
-Use `$LEAN4_SCRIPTS/smart_search.sh`, LSP server search tools, or automation scripts. See [mathlib-guide.md](references/mathlib-guide.md) for detailed search techniques, naming conventions, and import organization.
-
-## Essential Tactics
-
-**Key tactics:** `simp only`, `rw`, `apply`, `exact`, `refine`, `by_cases`, `rcases`, `ext`/`funext`. See [tactics-reference.md](references/tactics-reference.md) for comprehensive guide with examples and decision trees.
-
-## Domain-Specific Patterns
-
-**Analysis & Topology:** Integrability, continuity, compactness patterns. Tactics: `continuity`, `fun_prop`.
-
-**Algebra:** Instance building, quotient constructions. Tactics: `ring`, `field_simp`, `group`.
-
-**Measure Theory & Probability** (emphasis in this skill): Conditional expectation, sub-σ-algebras, a.e. properties. Tactics: `measurability`, `positivity`. See [measure-theory.md](references/measure-theory.md) for detailed patterns.
-
-**Complete domain guide:** [domain-patterns.md](references/domain-patterns.md)
-
-## Managing Incomplete Proofs
-
-**Standard mathlib axioms (acceptable):** `Classical.choice`, `propext`, `quot.sound`. Check with `#print axioms theorem_name` or `$LEAN4_SCRIPTS/check_axioms.sh`.
-
-**CRITICAL: Sorries/axioms are NOT complete work.** A theorem that compiles with sorries is scaffolding, not a result. Document every sorry with concrete strategy and dependencies. Search mathlib exhaustively before adding custom axioms.
-
-**When sorries are acceptable:** (1) Active work in progress with documented plan, (2) User explicitly approves temporary axioms with elimination strategy.
-
-**Not acceptable:** "Should be in mathlib", "infrastructure lemma", "will prove later" without concrete plan.
-
-## Compiler-Guided Proof Repair
-
-**When proofs fail to compile,** use iterative compiler-guided repair instead of blind resampling.
-
-**How it works:**
-1. Compile → extract structured error (type, location, goal, context)
-2. Try automated solver cascade first (many simple cases handled mechanically, zero LLM cost)
-   - Order: `rfl → simp → ring → linarith → nlinarith → omega → exact? → apply? → aesop`
-3. If solvers fail → call `lean4-proof-repair` agent:
-   - **Stage 1:** Haiku (fast, most common cases) - 6 attempts
-   - **Stage 2:** Sonnet (precise, complex cases) - 18 attempts
-4. Apply minimal patch (1-5 lines), recompile, repeat (max 24 attempts)
-
-**Key benefits:**
-- **Low sampling budget** (K=1 per attempt, not K=100)
-- **Error-driven action selection** (specific fix per error type, not random guessing)
-- **Fast model first** (Haiku), escalate only when needed (Sonnet)
-- **Solver cascade** handles simple cases mechanically (zero LLM cost)
-- **Early stopping** prevents runaway costs (bail after 3 identical errors)
-
-**Detailed guide:** [compiler-guided-repair.md](references/compiler-guided-repair.md)
-
-## Common Compilation Errors
+### Common Error Fixes
 
 | Error | Fix |
 |-------|-----|
-| "failed to synthesize instance" | Add `haveI : Instance := ...` |
-| "maximum recursion depth" | Provide manually: `letI := ...` |
-| "type mismatch" | Use coercion: `(x : ℝ)` or `↑x` |
-| "unknown identifier" | Add import |
+| `type mismatch` | Coercion `(x : ℝ)`, `convert _ using N`, or fix argument |
+| `unknown identifier` | Search mathlib, add import, check spelling |
+| `failed to synthesize` | Add `haveI : Instance := ...` or `letI` |
+| `maximum recursion` | Provide instance explicitly with `letI` |
+| `timeout` | Use `simp only [...]` instead of `simp [*]` |
 
-See [compilation-errors.md](references/compilation-errors.md) for detailed debugging workflows.
+## Type Class Management
 
-## Documentation Conventions
+When instance synthesis fails:
 
-- Write **timeless** documentation (describe what code is, not development history)
-- Don't highlight "axiom-free" status after proofs are complete
-- Mark internal helpers as `private` or in dedicated sections
-- Use `example` for educational code, not `lemma`/`theorem`
+```lean
+-- Provide instance for this block
+haveI : MeasurableSpace Ω := inferInstance
 
-## Quality Checklist
+-- Provide computable instance
+letI : Fintype α := ⟨...⟩
 
-**Before commit:**
-- [ ] `lake build` succeeds on full project
-- [ ] All sorries documented with concrete strategy
-- [ ] No new axioms without elimination plan
-- [ ] Imports minimal
+-- Open scoped instances
+open scoped Topology MeasureTheory
+```
 
-**Doing it right:** Sorries/axioms decrease over time, each commit completes one lemma, proofs build on mathlib.
+**Order matters:** Provide outer structures before inner ones.
 
-**Red flags:** Sorries multiply, claiming "complete" with sorries/axioms, fighting type checker for hours, monolithic proofs (>100 lines), long `have` blocks (>30 lines should be extracted as lemmas - see [proof-refactoring.md](references/proof-refactoring.md)).
+## Automation Tactics
 
-## Reference Files
+Try in order (stop on first success):
 
-**Core references:** [lean-phrasebook.md](references/lean-phrasebook.md), [mathlib-guide.md](references/mathlib-guide.md), [tactics-reference.md](references/tactics-reference.md), [compilation-errors.md](references/compilation-errors.md)
+1. `rfl` - Definitional equality
+2. `simp` / `simp only [...]` - Simplification
+3. `ring` - Polynomial arithmetic
+4. `linarith` / `nlinarith` - Linear/nonlinear arithmetic
+5. `omega` - Integer arithmetic
+6. `exact?` / `apply?` - Tactic search (slower)
+7. `aesop` - General automation
 
-**Domain-specific:** [domain-patterns.md](references/domain-patterns.md), [measure-theory.md](references/measure-theory.md), [instance-pollution.md](references/instance-pollution.md), [calc-patterns.md](references/calc-patterns.md)
+**With LSP:** Use `lean_tactic_attempt` for instant feedback.
 
-**Incomplete proofs:** [sorry-filling.md](references/sorry-filling.md), [axiom-elimination.md](references/axiom-elimination.md)
+## Axiom Hygiene
 
-**Optimization & refactoring:** [performance-optimization.md](references/performance-optimization.md), [proof-golfing.md](references/proof-golfing.md), [proof-refactoring.md](references/proof-refactoring.md), [mathlib-style.md](references/mathlib-style.md)
+**Acceptable axioms:** `propext`, `Classical.choice`, `Quot.sound`
 
-**Automation:** [compiler-guided-repair.md](references/compiler-guided-repair.md), [lean-lsp-server.md](references/lean-lsp-server.md), [lean-lsp-tools-api.md](references/lean-lsp-tools-api.md), [subagent-workflows.md](references/subagent-workflows.md)
+**Check axioms:** `#print axioms theorem_name`
+
+**Verify before commit:** Run `/lean4:checkpoint` which checks axioms automatically.
+
+## Quality Standards
+
+**A proof is complete when:**
+- `lake build` passes
+- Zero sorries
+- Only standard mathlib axioms
+- Imports are minimal
+
+**Red flags:**
+- Sorries "to be filled later"
+- Custom axioms without elimination plan
+- Fighting the type checker for hours
+- Proofs over 50 lines (extract helpers)
+
+## Reference Documentation
+
+**Core:** [lean-phrasebook.md](references/lean-phrasebook.md), [mathlib-guide.md](references/mathlib-guide.md), [tactics-reference.md](references/tactics-reference.md)
+
+**Errors:** [compilation-errors.md](references/compilation-errors.md), [instance-pollution.md](references/instance-pollution.md)
+
+**Domains:** [domain-patterns.md](references/domain-patterns.md), [measure-theory.md](references/measure-theory.md), [calc-patterns.md](references/calc-patterns.md)
+
+**Optimization:** [proof-golfing.md](references/proof-golfing.md), [proof-refactoring.md](references/proof-refactoring.md), [mathlib-style.md](references/mathlib-style.md)
+
+**Automation:** [compiler-guided-repair.md](references/compiler-guided-repair.md), [lean-lsp-server.md](references/lean-lsp-server.md)
+
+## See Also
+
+- [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) - LSP server for fast feedback
+- [Mathlib docs](https://leanprover-community.github.io/mathlib4_docs/) - API reference
+- [Loogle](https://loogle.lean-lang.org/) - Type-based search
+- [LeanSearch](https://leansearch.net/) - Natural language search

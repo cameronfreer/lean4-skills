@@ -6,331 +6,282 @@ user_invocable: true
 
 # Lean4 Autoprover
 
-Main entry point for automated theorem proving with planning-first workflow and safety guardrails.
+Main entry point for automated theorem proving. Planning-first, LSP-powered, with safety guardrails.
 
 ---
 
-## Phase 1: Planning (MANDATORY)
+## Quick Start
 
-**Before any proof work, gather user preferences:**
+```
+/lean4:autoprover                    # Start interactive session
+/lean4:autoprover File.lean          # Focus on specific file
+/lean4:autoprover --repair-only      # Fix build errors without filling sorries
+```
+
+---
+
+## Philosophy
+
+**Search before prove.** Most sorries exist in mathlib. Search exhaustively before writing tactics.
+
+**LSP first, scripts as fallback.** Lean LSP MCP tools provide sub-second feedback. Scripts are backup when LSP unavailable.
+
+**Small commits, easy rollback.** Each sorry = one commit. Never amend. Easy to undo mistakes.
+
+**Human in the loop.** Planning phase is mandatory. Review checkpoints require confirmation.
+
+---
+
+## Phase 1: Planning (Required)
+
+Before any proof work, establish scope and preferences.
 
 ### 1.1 Discover Current State
 
-Run sorry analysis to understand scope:
-
-```bash
-${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/sorry_analyzer.py . --format=json
+**With LSP (preferred):**
+```
+lean_diagnostics() → get all errors/warnings
+lean_goal() at each sorry → understand what needs proving
 ```
 
-Report summary:
-- Total sorries found
-- Files affected
-- Complexity distribution (easy/medium/hard)
+**Fallback:**
+```bash
+lake build 2>&1 | head -50
+grep -rn "sorry" --include="*.lean" .
+```
 
-### 1.2 Ask Planning Questions
+### 1.2 Planning Questions
 
-Use AskUserQuestion to gather preferences:
+Ask user preferences via AskUserQuestion:
 
-**Question 1 - Ingredients Policy:**
-- **mathlib-only** (Recommended) - Only use lemmas from mathlib imports
-- **project-local OK** - Can use lemmas defined in this project
-- **specific imports** - User specifies allowed imports
+**Scope:** All sorries / specific files / specific theorems
 
-**Question 2 - Fill Scope:**
-- **all sorries** - Fill every sorry in the project
-- **specific files** - User specifies which files
-- **tagged only** - Only sorries marked with `-- FILL` comment
+**Approach:**
+- **Conservative** - Only fill obvious cases, skip anything uncertain
+- **Balanced** (default) - Try reasonable approaches, escalate when stuck
+- **Aggressive** - Try harder, may need more rollbacks
 
-**Question 3 - Touch Policy:**
-- **minimal** (Recommended) - Only modify lines containing sorries
-- **refactor OK** - Can extract helpers, reorganize proofs
-- **full access** - Can modify any file as needed
+**Review cadence:** Every change / every file / every 5 / manual checkpoints
 
-**Question 4 - Review Cadence:**
-- **every sorry** - Pause after each sorry for confirmation
-- **every file** - Pause after completing each file
-- **every 5** (Recommended) - Pause every 5 sorries
-- **manual** - Run until done or stuck, then report
+### 1.3 Plan Preview
 
-### 1.3 Present Plan Preview
-
-After gathering preferences, show the user:
+Show before any writes:
 
 ```markdown
 ## Autoprover Plan
 
-**Scope:** [N] sorries across [M] files
-**Policy:** [ingredients] / [touch] / [review cadence]
+**Found:** 8 sorries in 3 files
+**Approach:** Balanced
+**Review:** Every 5 changes
 
-### Attack Order (easiest first)
-
-1. `File1.lean:42` - `helper_lemma` (easy: type equality)
-2. `File1.lean:89` - `main_theorem` (medium: needs mathlib search)
-3. `File2.lean:15` - `auxiliary_fact` (hard: may need refactoring)
+### Priority Order
+1. `Helpers.lean:15` - equality, likely `rfl` or `simp`
+2. `Helpers.lean:42` - bound, try `linarith`
+3. `Core.lean:89` - complex, needs mathlib search
 ...
 
-### Estimated Changes
-
-- Lines to modify: ~[X]
-- New commits: ~[Y]
-- Files affected: [list]
-
-**Ready to proceed?** (yes/no/adjust)
+**Proceed?** (yes / adjust / cancel)
 ```
 
-**User must confirm before any writes.**
+User must confirm before writes begin.
 
 ---
 
 ## Phase 2: Main Loop
 
-Execute the following loop until all sorries are filled or user stops:
+### For Each Sorry
 
-### 2.1 DISCOVER
+#### Step 1: Understand the Goal
 
-```bash
-${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/sorry_analyzer.py . --format=json
+**With LSP:**
+```
+lean_goal(file, line) → see exact goal and context
+lean_hover_info(file, line, col) → understand types
 ```
 
-Parse output to get prioritized sorry queue (easiest first based on goal complexity).
+Read surrounding code to understand proof strategy.
 
-### 2.2 SELECT
+#### Step 2: Search First
 
-Pick next sorry from queue. Read context:
-- Goal type and local context
-- Surrounding proof structure
-- Available hypotheses
+**Always search before writing tactics.**
 
-### 2.3 ATTEMPT
-
-**Step A: Search mathlib first**
-```bash
-bash $LEAN4_SCRIPTS/smart_search.sh "goal description" --source=all
+**With LSP (preferred):**
+```
+lean_leansearch("natural language description of goal")
+lean_loogle("type pattern like: _ + _ = _ + _")
+lean_local_search("keyword from goal")
 ```
 
-If exact lemma found → apply directly.
+**Fallback:**
+```bash
+bash $LEAN4_SCRIPTS/smart_search.sh "query" --source=all
+```
 
-**Step B: Try automated tactics**
-Solver cascade (in order, stop on first success):
-1. `rfl`
-2. `simp`
-3. `ring` / `linarith` / `nlinarith` / `omega`
-4. `exact?` / `apply?`
-5. `aesop`
+If exact lemma found → apply it directly.
 
-**Step C: If automation fails, dispatch agent**
-- Simple sorries → `lean4-sorry-filler` (fast, Haiku)
-- Complex sorries → `lean4-sorry-filler-deep` (thorough, Opus)
+#### Step 3: Try Simple Tactics
 
-### 2.4 VALIDATE
+If no exact match, try automation in order:
+1. `rfl` - definitional equality
+2. `simp` - simplification
+3. `ring` / `linarith` / `omega` - arithmetic
+4. `exact?` / `apply?` - tactic search (slow but thorough)
+5. `aesop` - general automation
 
-After each sorry fill:
+**With LSP:**
+```
+lean_tactic_attempt(file, line, "simp") → instant feedback
+```
 
+**Without LSP:**
+Edit file, run `lake build`, check result.
+
+#### Step 4: If Stuck, Think Harder
+
+When simple tactics fail:
+- Re-read the goal and hypotheses
+- Search mathlib more creatively
+- Consider what intermediate steps might help
+- Look at similar proofs in the codebase
+
+This is where Claude's reasoning helps more than any script.
+
+#### Step 5: Validate
+
+After each change:
 ```bash
 lake build
 ```
 
-If build fails:
-- Dispatch `lean4-proof-repair` agent
-- Max 3 repair attempts per sorry
-- If still failing, mark as "needs manual attention" and continue
-
-Check axioms:
-```bash
-bash $LEAN4_SCRIPTS/check_axioms.sh [file]
-```
-
-Verify:
-- No new custom axioms introduced
+Check:
+- Build passes
 - Sorry count decreased (not increased!)
+- No new axioms introduced
 
-### 2.5 COMMIT
-
-Create atomic commit for each filled sorry:
+#### Step 6: Commit
 
 ```bash
 git add [file]
-git commit -m "fill(lean4): [theorem_name] - [brief description]"
+git commit -m "fill: [theorem_name] - [tactic/lemma used]"
 ```
 
-**NEVER use `--amend`** - each sorry gets its own commit for easy rollback.
-
-### 2.6 CHECKPOINT
-
-At review cadence intervals, run `/lean4:checkpoint` internally:
-- Verify build passes
-- Verify axiom hygiene
-- Report progress
-
-### 2.7 REVIEW
-
-At configured cadence, pause and report:
-
-```markdown
-## Progress Report
-
-**Filled:** [X] / [total] sorries
-**Files:** [list of modified files]
-**Commits:** [N] new commits
-
-**Current sorry:** [file:line - name]
-**Status:** [working / stuck / complete]
-
-**Options:**
-- **continue** - Keep going
-- **stop** - Stop here, keep progress
-- **adjust** - Change settings
-- **rollback [N]** - Undo last N commits
-```
-
-Wait for user input before continuing.
-
-### 2.8 REPEAT
-
-Return to step 2.1 until:
-- All sorries filled, OR
-- User stops, OR
-- Stuck on same sorry 3 times (escalate to user)
+**Never amend.** Each fill = one commit = easy rollback.
 
 ---
 
-## Phase 3: Completion
+## Repair Mode
 
-When all sorries are filled (or user stops):
+When build fails (not just sorries), autoprover shifts to repair:
+
+### Repair Workflow
+
+1. **Parse error** - Understand what went wrong
+2. **Classify** - Type mismatch? Unknown ident? Synth failure?
+3. **Search** - Look for correct API/lemma
+4. **Fix** - Apply minimal change
+5. **Verify** - Build again
+
+### Common Repairs
+
+| Error | Typical Fix |
+|-------|-------------|
+| `type mismatch` | Add coercion, use `convert`, fix argument |
+| `unknown identifier` | Search mathlib, add import, fix typo |
+| `failed to synthesize` | Add `haveI`/`letI`, check instance availability |
+| `timeout` | Narrow `simp`, add explicit types |
+
+### Repair vs Fill
+
+```
+/lean4:autoprover              # Fill sorries (requires build passing)
+/lean4:autoprover --repair-only # Fix build errors only
+```
+
+Repair mode is also triggered automatically when a fill breaks the build.
+
+---
+
+## Phase 3: Review Checkpoints
+
+At configured intervals, pause and report:
+
+```markdown
+## Progress
+
+**Filled:** 5/8 sorries
+**Commits:** 5 new
+**Build:** passing
+
+**Current:** Core.lean:89 - `main_theorem`
+**Status:** Searching mathlib...
+
+**Options:**
+- `continue` - Keep going
+- `stop` - Save progress and exit
+- `skip` - Skip current sorry, try next
+- `rollback N` - Undo last N commits
+```
+
+---
+
+## Phase 4: Completion
 
 ```markdown
 ## Autoprover Complete
 
-**Session Summary:**
-- Sorries filled: [X] / [total]
-- Commits created: [N]
-- Files modified: [list]
-- Time elapsed: [duration]
+**Results:**
+- Filled: 7/8 sorries
+- Commits: 7
+- Remaining: 1 (marked as needs-manual)
 
-**Remaining work:**
-- [list any unfilled sorries with notes]
+**Unfilled:**
+- `Core.lean:156` - `hard_lemma`: Needs domain expertise
 
 **Next steps:**
-1. Run `/lean4:review` for code review
-2. Push manually when ready: `git push`
-3. Create PR manually: `gh pr create`
-
-**Guardrails reminder:**
-Push and PR creation are blocked during autoprover.
-This ensures you review changes before sharing.
+1. `/lean4:review` - Check quality
+2. `/lean4:golf` - Optimize proofs
+3. `git push` - When ready (manual)
 ```
 
 ---
 
-## Guardrails (Enforced by Hooks)
+## Guardrails
 
-The following are **blocked** during autoprover sessions:
+Blocked during autoprover (enforced by hooks):
 
-| Command | Why Blocked | Alternative |
-|---------|-------------|-------------|
-| `git push` | Ensure review before sharing | Push manually after `/lean4:checkpoint` |
-| `git commit --amend` | Preserve rollback granularity | Each sorry = one commit |
-| `gh pr create` | Ensure review before PR | Create PR manually after review |
-
-These guardrails are enforced by `hooks/guardrails.sh`.
+| Action | Why | Alternative |
+|--------|-----|-------------|
+| `git push` | Review first | Push manually after checkpoint |
+| `git commit --amend` | Preserve history | New commits only |
+| `gh pr create` | Review first | Create PR manually |
 
 ---
 
-## Fallback Behaviors
+## Tips
 
-**If sorry_analyzer.py unavailable:**
-```bash
-grep -rn "sorry" --include="*.lean" .
-```
+**When stuck on a sorry:**
+- Read the goal type carefully
+- Search mathlib with different keywords
+- Look at how similar theorems are proved nearby
+- Consider if the statement needs adjustment
+- Ask: "What would a mathematician do here?"
 
-**If smart_search.sh unavailable:**
-- Use LSP `lean_leansearch` if available
-- Fall back to `grep` in `.lake/packages/mathlib`
+**When repairs keep failing:**
+- Step back and understand the error
+- Check if the approach is fundamentally wrong
+- Sometimes the fix is in a different file
+- Don't fight the type checker - understand what it wants
 
-**If lake build times out:**
-- Build individual file: `lake build ProjectName.FileName`
-- Skip slow files, continue with others
-
-**If agent fails repeatedly:**
-- Mark sorry as "needs manual attention"
-- Continue with next sorry
-- Report at review checkpoint
-
----
-
-## Example Session
-
-```
-User: /lean4:autoprover
-
-Claude: Running sorry analysis...
-
-Found 12 sorries across 3 files:
-- Core.lean: 5 sorries (2 easy, 2 medium, 1 hard)
-- Helpers.lean: 4 sorries (3 easy, 1 medium)
-- Main.lean: 3 sorries (1 easy, 2 hard)
-
-[Asks planning questions via AskUserQuestion]
-
-User selects: mathlib-only, all sorries, minimal touch, every 5
-
-Claude:
-## Autoprover Plan
-
-Scope: 12 sorries across 3 files
-Policy: mathlib-only / minimal / review every 5
-
-Attack Order:
-1. Helpers.lean:15 - trivial_lemma (easy)
-2. Helpers.lean:28 - helper_bound (easy)
-...
-
-Ready to proceed? (yes/no/adjust)
-
-User: yes
-
-Claude: Starting autoprover...
-
-[1/12] Helpers.lean:15 - trivial_lemma
-  Searching mathlib... found exact lemma
-  Applying: exact Nat.add_comm
-  Building... ✓
-  Committing... ✓
-
-[2/12] Helpers.lean:28 - helper_bound
-  Searching mathlib... no exact match
-  Trying automation... linarith succeeds
-  Building... ✓
-  Committing... ✓
-
-...
-
-[5/12] Progress checkpoint
-  Filled: 5/12 sorries
-  Continue? (yes/stop/adjust)
-
-User: continue
-
-...
-
-[12/12] Complete!
-
-Session Summary:
-- Sorries filled: 12/12
-- Commits created: 12
-- Files modified: Core.lean, Helpers.lean, Main.lean
-
-Next steps:
-1. Run /lean4:review for code review
-2. Push manually when ready
-```
+**For faster iteration:**
+- Use Lean LSP MCP for sub-second feedback
+- Keep `lake build` running in watch mode
+- Work on one sorry at a time, fully complete it
 
 ---
 
 ## See Also
 
-- `/lean4:checkpoint` - Manual checkpoint creation
-- `/lean4:review` - Read-only code review
-- `/lean4:doctor` - Diagnostics and troubleshooting
-- [sorry-filling.md](../skills/lean4/references/sorry-filling.md) - Detailed sorry-filling patterns
-- [compiler-guided-repair.md](../skills/lean4/references/compiler-guided-repair.md) - Repair workflow details
+- `/lean4:checkpoint` - Manual save point
+- `/lean4:review` - Quality check (read-only)
+- `/lean4:golf` - Optimize proofs
+- `/lean4:doctor` - Troubleshooting

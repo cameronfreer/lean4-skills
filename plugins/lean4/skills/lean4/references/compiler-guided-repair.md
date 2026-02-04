@@ -37,20 +37,14 @@ Generate attempt → Lean error → Route to specific fix → Retry (max 24 atte
 
 ## Quick Start
 
-**Repair entire file:**
+Repair is integrated into `/lean4:autoprover`:
+
 ```
-/lean4:repair-file MyProof.lean
+/lean4:autoprover --repair-only    # Fix build errors only
+/lean4:autoprover                  # Full workflow (includes repair when needed)
 ```
 
-**Repair specific goal:**
-```
-/lean4:repair-goal MyProof.lean 42
-```
-
-**Interactive with confirmations:**
-```
-/lean4:repair-interactive MyProof.lean
-```
+Repair is triggered automatically when a build fails during autoprover.
 
 ---
 
@@ -514,19 +508,20 @@ python3 scripts/parseLeanErrors.py errors.txt
 python3 scripts/solverCascade.py context.json FILE.lean
 ```
 
-**Repair loop orchestrator:**
-```bash
-scripts/repairLoop.sh FILE.lean [max-attempts] [stage2-threshold]
+**Via autoprover:**
+```
+/lean4:autoprover --repair-only    # Repair mode
+/lean4:autoprover                  # Full workflow with repair
 ```
 
-**Slash commands:**
-- `/lean4:repair-file FILE.lean` - Full file repair
-- `/lean4:repair-goal FILE.lean LINE` - Specific goal
-- `/lean4:repair-interactive FILE.lean` - With confirmations
+**Search (LSP preferred):**
+```
+lean_leansearch("description")     # Natural language
+lean_loogle("type pattern")        # Type-based
+```
 
-**Mathlib search:**
+**Fallback scripts:**
 ```bash
-bash $LEAN4_SCRIPTS/search_mathlib.sh "query" [name|content]
 bash $LEAN4_SCRIPTS/smart_search.sh "query" --source=all
 ```
 

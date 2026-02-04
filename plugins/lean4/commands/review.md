@@ -206,10 +206,85 @@ Claude: Running review on Core.lean...
 
 ---
 
+## External Tool Hooks (Optional)
+
+Review can optionally call external tools for additional analysis or second opinions.
+
+### Supported Tools
+
+| Tool | Flag | What It Does |
+|------|------|--------------|
+| Codex CLI | `--codex` | Get OpenAI Codex suggestions |
+| `llm` CLI | `--llm` | Use Simon Willison's llm tool |
+| Custom script | `--hook=path` | Run your own analysis |
+
+### Usage
+
+```
+/lean4:review --codex              # Include Codex suggestions
+/lean4:review --llm="claude-3"     # Use llm CLI with specific model
+/lean4:review --hook=./my_linter.sh # Run custom script
+```
+
+### Custom Hook Interface
+
+Custom hooks receive JSON on stdin:
+```json
+{
+  "file": "Core.lean",
+  "content": "...",
+  "sorries": [...],
+  "axioms": [...],
+  "build_status": "passing"
+}
+```
+
+And should output JSON:
+```json
+{
+  "suggestions": [
+    {"line": 42, "message": "Consider using...", "severity": "hint"}
+  ]
+}
+```
+
+### Example with Codex
+
+```
+User: /lean4:review Core.lean --codex
+
+Claude: Running review with Codex integration...
+
+## Lean4 Review Report
+
+### Build Status
+✓ Core.lean compiles
+
+### Sorry Audit
+- Line 89: `convergence_bound` - needs proof
+
+### Codex Suggestions
+- Line 89: "Try `tendsto_atTop_of_eventually_ge` from Mathlib"
+- Line 45: "The `simp` call could be replaced with `simp only [add_comm]`"
+
+### Claude Analysis
+[standard review sections...]
+```
+
+### Notes
+
+- External tools are **optional** - review works without them
+- Tool output is incorporated into the report, not blindly trusted
+- You can combine multiple tools: `--codex --hook=./lint.sh`
+- Custom hooks must be executable and in your PATH or use absolute path
+
+---
+
 ## See Also
 
 - `/lean4:autoprover` - Fill sorries and fix proofs
 - `/lean4:checkpoint` - Save verified progress
+- `/lean4:golf` - Apply golfing optimizations
 - `/lean4:doctor` - Diagnostics and troubleshooting
 - [mathlib-style.md](../skills/lean4/references/mathlib-style.md) - Style guide
 - [proof-golfing.md](../skills/lean4/references/proof-golfing.md) - Optimization patterns
