@@ -88,9 +88,9 @@ Order matters: provide outer structures before inner ones.
 ## Automation Tactics
 
 Try in order (stop on first success):
-`rfl` → `simp` → `ring` → `linarith` → `nlinarith` → `omega` → `exact?` → `apply?` → `aesop`
+`rfl` → `simp` → `ring` → `linarith` → `nlinarith` → `omega` → `exact?` → `apply?` → `grind` → `aesop`
 
-Note: `exact?` and `apply?` query mathlib (can be slow). `aesop` is powerful but may timeout.
+Note: `exact?`/`apply?` query mathlib (slow). `grind` and `aesop` are powerful but may timeout.
 
 ## Quality Gate
 
