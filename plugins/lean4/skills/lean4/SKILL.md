@@ -66,37 +66,46 @@ $LEAN4_SCRIPTS/smart_search.sh "query" --source=all
 
 | Error | Fix |
 |-------|-----|
-| `type mismatch` | Coercion `(x : ℝ)`, `convert`, or fix argument |
-| `unknown identifier` | Search mathlib, add import, check spelling |
-| `failed to synthesize` | Add `haveI`/`letI` to provide instance |
-| `maximum recursion` | Provide instance explicitly with `letI` |
-| `timeout` | Use `simp only [...]` instead of `simp [*]` |
+| `type mismatch` | Add coercion `(x : ℝ)` or `((x : ℝ))`, use `convert`, fix argument order |
+| `unknown identifier` | Add import, qualify name (`Mathlib.X.Y.foo`), check spelling |
+| `failed to synthesize` | Add `haveI`/`letI`, use `open scoped`, check instance args |
+| `maximum recursion` | Provide explicit instance with `letI` |
+| `timeout` | Replace `simp [*]` with `simp only [...]` or targeted lemmas |
 
 ## Type Class Patterns
 
 ```lean
-haveI : MeasurableSpace Ω := inferInstance   -- Provide instance
-letI : Fintype α := ⟨...⟩                    -- Computable instance
-open scoped Topology MeasureTheory           -- Scoped instances
+-- Local instance for this proof block
+haveI : MeasurableSpace Ω := inferInstance
+letI : Fintype α := ⟨...⟩
+
+-- Scoped instances (affects current section)
+open scoped Topology MeasureTheory
 ```
+
+Order matters: provide outer structures before inner ones.
 
 ## Automation Tactics
 
 Try in order (stop on first success):
-`rfl` → `simp` → `ring` → `linarith` → `omega` → `exact?` → `apply?` → `aesop`
+`rfl` → `simp` → `ring` → `linarith` → `nlinarith` → `omega` → `exact?` → `apply?` → `aesop`
+
+Note: `exact?` and `apply?` query mathlib (can be slow). `aesop` is powerful but may timeout.
 
 ## Quality Gate
 
 A proof is complete when:
 - `lake build` passes
-- Zero sorries (within agreed scope)
+- Zero sorries in agreed scope
 - Only standard axioms (`propext`, `Classical.choice`, `Quot.sound`)
 - No statement changes without permission
 
 ## References
 
-**Core:** [lean-phrasebook](references/lean-phrasebook.md), [mathlib-guide](references/mathlib-guide.md), [tactics-reference](references/tactics-reference.md)
+**Search:** [mathlib-guide](references/mathlib-guide.md), [lean-phrasebook](references/lean-phrasebook.md)
 
 **Errors:** [compilation-errors](references/compilation-errors.md), [instance-pollution](references/instance-pollution.md)
 
 **Patterns:** [tactic-patterns](references/tactic-patterns.md), [proof-templates](references/proof-templates.md), [domain-patterns](references/domain-patterns.md)
+
+**Style:** [mathlib-style](references/mathlib-style.md), [proof-refactoring](references/proof-refactoring.md)
