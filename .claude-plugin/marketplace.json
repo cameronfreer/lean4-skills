@@ -12,7 +12,13 @@
     {
       "name": "lean4",
       "description": "Unified Lean 4 plugin (autoprover, review, golf, checkpoint) — LSP-first, scripts fallback",
-      "source": "./plugins/lean4"
+      "source": {
+        "source": "github",
+        "repo": "cameronfreer/lean4-skills",
+        "ref": "refactor-v4",
+        "sha": "235f9ee57d0cd9b2eac95c1bff1f45c1e9d43b80",
+        "path": "plugins/lean4"
+      }
     }
   ]
 }
