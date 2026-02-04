@@ -8,7 +8,12 @@ INPUT=$(cat)
 if command -v jq >/dev/null 2>&1; then
   COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 else
-  COMMAND=$(echo "$INPUT" | python3 -c 'import json,sys; data=json.load(sys.stdin); print((data.get("tool_input") or {}).get("command",""))')
+  COMMAND=$(echo "$INPUT" | python3 <<'PY'
+import json, sys
+data = json.load(sys.stdin)
+print((data.get("tool_input") or {}).get("command", ""))
+PY
+  )
 fi
 
 # If no command, allow
