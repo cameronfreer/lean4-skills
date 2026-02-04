@@ -1,5 +1,5 @@
 ---
-name: lean4-theorem-proving
+name: lean4
 description: Use when working with Lean 4 (.lean files), writing mathematical proofs, seeing "failed to synthesize instance" errors, managing sorry/axiom elimination, or searching mathlib for lemmas - provides build-first workflow, haveI/letI patterns, compiler-guided repair, and LSP integration
 ---
 
@@ -15,11 +15,11 @@ description: Use when working with Lean 4 (.lean files), writing mathematical pr
 
 | **Resource** | **What You Get** | **Where to Find** |
 |--------------|------------------|-------------------|
-| **Interactive Commands** | 10 slash commands for search, analysis, optimization, repair | Type `/lean` in Claude Code ([full guide](../../COMMANDS.md)) |
-| **Automation Scripts** | 19 tools for search, verification, refactoring, repair | Plugin `scripts/` directory ([scripts/README.md](../../scripts/README.md)) |
-| **Subagents** | 4 specialized agents for batch tasks (optional) | [subagent-workflows.md](references/subagent-workflows.md) |
+| **Main Command** | Planning-first autoprover with guardrails | `/lean4:autoprover` |
+| **Automation Scripts** | 19 tools for search, verification, refactoring, repair | `$LEAN4_SCRIPTS/` directory |
+| **Subagents** | 5 specialized agents for batch tasks | Plugin `agents/` directory |
 | **LSP Server** | 30x faster feedback with instant proof state (optional) | [lean-lsp-server.md](references/lean-lsp-server.md) |
-| **Reference Files** | 18 detailed guides (phrasebook, tactics, patterns, errors, repair, performance) | [List below](#reference-files) |
+| **Reference Files** | 19 detailed guides (phrasebook, tactics, patterns, errors, repair, performance) | [List below](#reference-files) |
 
 ## When to Use
 
@@ -29,13 +29,22 @@ Use for ANY Lean 4 development: pure/applied math, program verification, mathlib
 
 ## Tools & Workflows
 
-**7 slash commands** for search, analysis, and optimization - type `/lean` in Claude Code. See [COMMANDS.md](../../COMMANDS.md) for full guide with examples and workflows.
+**Primary entry point:** `/lean4:autoprover` - planning-first agentic loop with guardrails.
 
-**16 automation scripts** for search, verification, and refactoring. See [scripts/README.md](../../scripts/README.md) for complete documentation.
+**Supporting commands:**
+- `/lean4:checkpoint` - Safe commit checkpoint
+- `/lean4:review` - Read-only code review
+- `/lean4:doctor` - Diagnostics and migration help
+
+**Automation scripts** in `$LEAN4_SCRIPTS/`:
+- `sorry_analyzer.py` - Discover and prioritize sorries
+- `smart_search.sh` - Mathlib lemma search with fallbacks
+- `check_axioms.sh` - Verify axiom usage
+- See `$LEAN4_SCRIPTS/README.md` for complete documentation
 
 **Lean LSP Server** (optional) provides 30x faster feedback with instant proof state and parallel tactic testing. See [lean-lsp-server.md](references/lean-lsp-server.md) for setup and workflows.
 
-**Subagent delegation** (optional, Claude Code users) enables batch automation. See [subagent-workflows.md](references/subagent-workflows.md) for patterns.
+**Subagent delegation** (Claude Code users) enables batch automation. See [subagent-workflows.md](references/subagent-workflows.md) for patterns.
 
 ## Build-First Principle
 
@@ -52,7 +61,7 @@ Use for ANY Lean 4 development: pure/applied math, program verification, mathlib
 
 **Philosophy:** Search before prove. Mathlib has 100,000+ theorems.
 
-Use `/search-mathlib` slash command, LSP server search tools, or automation scripts. See [mathlib-guide.md](references/mathlib-guide.md) for detailed search techniques, naming conventions, and import organization.
+Use `$LEAN4_SCRIPTS/smart_search.sh`, LSP server search tools, or automation scripts. See [mathlib-guide.md](references/mathlib-guide.md) for detailed search techniques, naming conventions, and import organization.
 
 ## Essential Tactics
 
@@ -70,7 +79,7 @@ Use `/search-mathlib` slash command, LSP server search tools, or automation scri
 
 ## Managing Incomplete Proofs
 
-**Standard mathlib axioms (acceptable):** `Classical.choice`, `propext`, `quot.sound`. Check with `#print axioms theorem_name` or `/check-axioms`.
+**Standard mathlib axioms (acceptable):** `Classical.choice`, `propext`, `quot.sound`. Check with `#print axioms theorem_name` or `$LEAN4_SCRIPTS/check_axioms.sh`.
 
 **CRITICAL: Sorries/axioms are NOT complete work.** A theorem that compiles with sorries is scaffolding, not a result. Document every sorry with concrete strategy and dependencies. Search mathlib exhaustively before adding custom axioms.
 
@@ -81,8 +90,6 @@ Use `/search-mathlib` slash command, LSP server search tools, or automation scri
 ## Compiler-Guided Proof Repair
 
 **When proofs fail to compile,** use iterative compiler-guided repair instead of blind resampling.
-
-**Quick repair:** `/lean4-theorem-proving:repair-file FILE.lean`
 
 **How it works:**
 1. Compile → extract structured error (type, location, goal, context)
@@ -100,16 +107,7 @@ Use `/search-mathlib` slash command, LSP server search tools, or automation scri
 - **Solver cascade** handles simple cases mechanically (zero LLM cost)
 - **Early stopping** prevents runaway costs (bail after 3 identical errors)
 
-**Expected outcomes:** Success improves over time as structured logging enables learning from attempts. Cost optimized through solver cascade (free) and multi-stage escalation.
-
-**Commands:**
-- `/repair-file FILE.lean` - Full file repair
-- `/repair-goal FILE.lean LINE` - Specific goal repair
-- `/repair-interactive FILE.lean` - Interactive with confirmations
-
 **Detailed guide:** [compiler-guided-repair.md](references/compiler-guided-repair.md)
-
-**Inspired by:** APOLLO (https://arxiv.org/abs/2505.05758) - compiler-guided repair with multi-stage models and low sampling budgets.
 
 ## Common Compilation Errors
 
@@ -122,6 +120,9 @@ Use `/search-mathlib` slash command, LSP server search tools, or automation scri
 
 See [compilation-errors.md](references/compilation-errors.md) for detailed debugging workflows.
 
+## Memory Patterns
+
+**Persistent memory integration** helps track proof strategies, recurring patterns, and project-specific idioms across sessions. See [memory-patterns.md](references/memory-patterns.md) for patterns and workflows.
 
 ## Documentation Conventions
 
@@ -153,3 +154,5 @@ See [compilation-errors.md](references/compilation-errors.md) for detailed debug
 **Optimization & refactoring:** [performance-optimization.md](references/performance-optimization.md), [proof-golfing.md](references/proof-golfing.md), [proof-refactoring.md](references/proof-refactoring.md), [mathlib-style.md](references/mathlib-style.md)
 
 **Automation:** [compiler-guided-repair.md](references/compiler-guided-repair.md), [lean-lsp-server.md](references/lean-lsp-server.md), [lean-lsp-tools-api.md](references/lean-lsp-tools-api.md), [subagent-workflows.md](references/subagent-workflows.md)
+
+**Memory:** [memory-patterns.md](references/memory-patterns.md)
