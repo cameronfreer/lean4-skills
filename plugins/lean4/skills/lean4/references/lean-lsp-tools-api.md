@@ -14,9 +14,9 @@ For workflow patterns and quick reference, see [lean-lsp-server.md](lean-lsp-ser
 - Tools: `lean_goal`, `lean_local_search`, `lean_multi_attempt`, `lean_diagnostic_messages`, `lean_hover_info`, `lean_file_outline`, `lean_run_code`, `lean_profile_proof`
 
 **External tools (rate-limited to 3 req/30s):**
-- Remote API calls to loogle.lean-lang.org, leansearch.net
+- Remote API calls to loogle.lean-lang.org, leansearch.net, leanfinder
 - Managed by LSP server to avoid overwhelming services
-- Tools: `lean_loogle`, `lean_leansearch`, `lean_state_search`
+- Tools: `lean_leanfinder`, `lean_leansearch`, `lean_loogle`, `lean_state_search`
 
 **Best practice:** Always use local tools first (especially `lean_local_search`), then external tools only when local search doesn't find what you need.
 

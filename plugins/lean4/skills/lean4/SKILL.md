@@ -23,9 +23,7 @@ Use this skill whenever you're editing Lean 4 proofs or debugging Lean builds. I
 
 **Respect scope.** Follow the user's preference: fill one sorry, its transitive dependencies, all sorries in a file, or everything. Ask if unclear.
 
-**Never change statements.** Do not modify theorem/lemma statements, type signatures, or docstrings without explicit permission. Inline comments may be adjusted; docstrings may not (they're part of the API).
-
-**Never add axioms.** Custom axioms require explicit approval. If a proof seems to need one, stop and discuss.
+**Never change statements or add axioms without explicit permission.** Theorem/lemma statements, type signatures, and docstrings are off-limits unless the user requests changes. Inline comments may be adjusted; docstrings may not (they're part of the API). Custom axioms require explicit approval—if a proof seems to need one, stop and discuss.
 
 ## Commands
 
@@ -42,12 +40,13 @@ Use this skill whenever you're editing Lean 4 proofs or debugging Lean builds. I
 Sub-second feedback via Lean LSP MCP:
 
 ```
-lean_goal(file, line)                    # See exact goal
-lean_hover_info(file, line, col)         # Understand types
-lean_leanfinder("natural language")      # Best mathlib search
-lean_leansearch("natural language")      # Semantic search
-lean_loogle("Type → Pattern → _")        # Type-based search
-lean_multi_attempt(file, line, tactics)  # Test multiple tactics
+lean_goal(file, line)                           # See exact goal
+lean_hover_info(file, line, col)                # Understand types
+lean_local_search("keyword")                    # Fast local + mathlib (unlimited)
+lean_leanfinder("goal or query")                # Semantic, goal-aware (rate-limited)
+lean_leansearch("natural language")             # Semantic search (rate-limited)
+lean_loogle("?a → ?b → _")                      # Type-pattern (rate-limited)
+lean_multi_attempt(file, line, snippets=[...])  # Test multiple tactics
 ```
 
 ## Scripts
@@ -84,7 +83,7 @@ open scoped Topology MeasureTheory           -- Scoped instances
 ## Automation Tactics
 
 Try in order (stop on first success):
-`rfl` → `simp` → `ring` → `linarith` → `omega` → `exact?` → `aesop`
+`rfl` → `simp` → `ring` → `linarith` → `omega` → `exact?` → `apply?` → `aesop`
 
 ## Quality Gate
 

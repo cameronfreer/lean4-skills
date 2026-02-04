@@ -42,13 +42,15 @@ Blocked during sessions:
 
 The plugin prefers Lean LSP MCP tools for sub-second feedback:
 ```
-lean_goal(file, line)                    # See exact goal
-lean_leansearch("natural language")       # Search mathlib
-lean_loogle("type pattern")               # Type-based search
-lean_multi_attempt(file, line, tactics)   # Test multiple tactics
+lean_goal(file, line)                           # See exact goal
+lean_local_search("keyword")                    # Fast local + mathlib (unlimited)
+lean_leanfinder("goal or query")                # Semantic, goal-aware (rate-limited)
+lean_leansearch("natural language")             # Semantic search (rate-limited)
+lean_loogle("?a → ?b → _")                      # Type-pattern (rate-limited)
+lean_multi_attempt(file, line, snippets=[...])  # Test multiple tactics
 ```
 
-Scripts serve as fallback when LSP is unavailable.
+Scripts provide sorry analysis, axiom checking, and search fallback.
 
 ## Environment Variables
 
