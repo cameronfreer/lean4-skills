@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 # Verify documentation consistency for the Lean4 plugin
 # Usage: bash lint_docs.sh [--verbose]
+#
+# MAINTAINER-ONLY: This is a development tool for plugin maintainers,
+# not a user-facing runtime script. It lives in tools/ rather than
+# lib/scripts/ to keep it separate from the public LEAN4_SCRIPTS.
 
 set -euo pipefail
 
 VERBOSE="${1:-}"
-PLUGIN_ROOT="${LEAN4_PLUGIN_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
+PLUGIN_ROOT="${LEAN4_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 ISSUES=0
 
 log() {
@@ -91,10 +95,10 @@ check_agents() {
         local lines
         lines=$(wc -l < "$file")
 
-        if [[ $lines -gt 110 ]]; then
-            warn "$agent.md: $lines lines (target: 80-100)"
+        if [[ $lines -gt 115 ]]; then
+            warn "$agent.md: $lines lines (target: 80-110)"
         elif [[ $lines -lt 60 ]]; then
-            warn "$agent.md: $lines lines (too short, target: 80-100)"
+            warn "$agent.md: $lines lines (too short, target: 80-110)"
         else
             [[ -n "$VERBOSE" ]] && ok "$agent.md: $lines lines"
         fi
@@ -122,6 +126,9 @@ check_agents() {
         fi
         if ! grep -q "^## Constraints" "$file"; then
             warn "$agent.md: Missing '## Constraints' section"
+        fi
+        if ! grep -q "^## See Also" "$file"; then
+            warn "$agent.md: Missing '## See Also' section"
         fi
     done
 }
@@ -179,17 +186,31 @@ check_cross_refs() {
     local all_files
     all_files=$(find "$PLUGIN_ROOT" -name "*.md" -type f)
 
-    # Check that links to command-examples.md have valid anchors
-    local valid_anchors="autoprover checkpoint doctor golf review"
+    # Valid anchors for command-examples.md
+    local cmd_anchors="autoprover checkpoint doctor golf review"
+
+    # Valid anchors for agent-workflows.md
+    local agent_anchors="lean4-sorry-filler-fast-pass lean4-sorry-filler-deep lean4-proof-repair lean4-proof-golfer lean4-axiom-eliminator"
 
     while IFS= read -r file; do
-        # Look for links to command-examples.md
+        # Check links to command-examples.md
         if grep -q "command-examples.md#" "$file" 2>/dev/null; then
             local anchors
             anchors=$(grep -oE "command-examples\.md#[a-z-]+" "$file" | sed 's/.*#//' | sort -u)
             for anchor in $anchors; do
-                if ! echo "$valid_anchors" | grep -qw "$anchor"; then
+                if ! echo "$cmd_anchors" | grep -qw "$anchor"; then
                     warn "$(basename "$file"): Invalid anchor #$anchor in command-examples.md link"
+                fi
+            done
+        fi
+
+        # Check links to agent-workflows.md
+        if grep -q "agent-workflows.md#" "$file" 2>/dev/null; then
+            local anchors
+            anchors=$(grep -oE "agent-workflows\.md#[a-z0-9-]+" "$file" | sed 's/.*#//' | sort -u)
+            for anchor in $anchors; do
+                if ! echo "$agent_anchors" | grep -qw "$anchor"; then
+                    warn "$(basename "$file"): Invalid anchor #$anchor in agent-workflows.md link"
                 fi
             done
         fi
@@ -201,6 +222,7 @@ check_cross_refs() {
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
+log "(Maintainer tool - not a user-facing script)"
 
 check_commands
 check_agents

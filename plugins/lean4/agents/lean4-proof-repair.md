@@ -93,3 +93,7 @@ $LEAN4_SCRIPTS/search_mathlib.sh    # Search by pattern
 $LEAN4_SCRIPTS/smart_search.sh      # Multi-source
 lean_goal(file, line)               # LSP live goal
 ```
+
+## See Also
+
+- [Extended workflows](../skills/lean4/references/agent-workflows.md#lean4-proof-repair)

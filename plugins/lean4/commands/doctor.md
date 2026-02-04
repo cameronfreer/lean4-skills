@@ -47,7 +47,7 @@ plugins/lean4/
 ├── hooks/        (executable .sh)
 ├── skills/lean4/ (SKILL.md + references/)
 ├── agents/       (5 files)
-└── lib/scripts/  (13 files, executable)
+└── lib/scripts/  (12 files, executable)
 ```
 
 ### 3. Project Check

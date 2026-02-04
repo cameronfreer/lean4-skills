@@ -90,3 +90,7 @@ $LEAN4_SCRIPTS/find_golfable.py        # Pattern detection
 $LEAN4_SCRIPTS/analyze_let_usage.py    # Safety verification (CRITICAL)
 lake build                              # Verification
 ```
+
+## See Also
+
+- [Extended workflows](../skills/lean4/references/agent-workflows.md#lean4-proof-golfer)

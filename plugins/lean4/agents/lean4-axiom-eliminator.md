@@ -104,3 +104,7 @@ $LEAN4_SCRIPTS/search_mathlib.sh       # By pattern
 $LEAN4_SCRIPTS/smart_search.sh         # Multi-source
 lake build                              # Verification
 ```
+
+## See Also
+
+- [Extended workflows](../skills/lean4/references/agent-workflows.md#lean4-axiom-eliminator)

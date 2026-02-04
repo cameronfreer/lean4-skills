@@ -87,3 +87,7 @@ $LEAN4_SCRIPTS/sorry_analyzer.py    # Find sorries
 lake build                           # Verification
 lean_multi_attempt()                 # LSP batch test
 ```
+
+## See Also
+
+- [Extended workflows](../skills/lean4/references/agent-workflows.md#lean4-sorry-filler-fast-pass)

@@ -97,3 +97,7 @@ $LEAN4_SCRIPTS/find_usages.sh       # Dependency analysis
 $LEAN4_SCRIPTS/smart_search.sh      # Exhaustive search
 lake build                           # Verification
 ```
+
+## See Also
+
+- [Extended workflows](../skills/lean4/references/agent-workflows.md#lean4-sorry-filler-deep)
