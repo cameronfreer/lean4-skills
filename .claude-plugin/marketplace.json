@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Lean 4 theorem proving with planning-first autoprover, LSP-first workflows, and guardrails",
-    "version": "4.0.1"
+    "version": "4.0.2"
   },
   "plugins": [
     {

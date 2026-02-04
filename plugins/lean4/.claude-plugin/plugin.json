@@ -1,6 +1,6 @@
 {
   "name": "lean4",
-  "version": "4.0.1",
+  "version": "4.0.2",
   "description": "Unified Lean 4 plugin (autoprover, review, golf, checkpoint) — LSP-first, scripts fallback",
   "author": {"name": "Cameron Freer", "email": "cameronfreer@gmail.com"}
 }
