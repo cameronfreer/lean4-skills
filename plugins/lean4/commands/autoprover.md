@@ -40,8 +40,8 @@ Before any proof work, establish scope and preferences.
 
 **With LSP (preferred):**
 ```
-lean_diagnostics() → get all errors/warnings
-lean_goal() at each sorry → understand what needs proving
+lean_diagnostic_messages(file) → get all errors/warnings
+lean_goal(file, line) at each sorry → understand what needs proving
 ```
 
 **Fallback:**
@@ -132,7 +132,7 @@ If no exact match, try automation in order:
 
 **With LSP:**
 ```
-lean_tactic_attempt(file, line, "simp") → instant feedback
+lean_multi_attempt(file, line, ["simp", "ring", "linarith"]) → test multiple tactics
 ```
 
 **Without LSP:**

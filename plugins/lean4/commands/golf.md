@@ -85,17 +85,13 @@ ${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/find_golfable.py [file] --filter-fal
 
 ### Step 3: Verify Safety
 
-Before inlining any binding, check usage:
+Before inlining any binding, check usage count:
 
-**With LSP:**
-```
-Use lean_local_search to count references
-```
-
-**Fallback:**
 ```bash
 ${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/analyze_let_usage.py [file] --line [line]
 ```
+
+Or manually count references in the proof with `grep` or by reading the code.
 
 **Rules:**
 - 1-2 uses: Safe to inline

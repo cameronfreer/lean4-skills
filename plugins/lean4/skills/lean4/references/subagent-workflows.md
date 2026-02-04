@@ -158,7 +158,7 @@ Task: "Fill all 15 sorries in this file"
 
 **Instead of this (inefficient):**
 ```
-You: Run scripts/sorry_analyzer.py on the whole project
+You: Run $LEAN4_SCRIPTS/sorry_analyzer.py on the whole project
 
 Claude (in main conversation):
 [Executes script directly]
@@ -168,7 +168,7 @@ Claude (in main conversation):
 
 **Do this (efficient):**
 ```
-You: Dispatch an Explore agent to run scripts/sorry_analyzer.py and report top 5 sorries
+You: Dispatch an Explore agent to run $LEAN4_SCRIPTS/sorry_analyzer.py and report top 5 sorries
 
 Claude (in main conversation):
 "I'm dispatching an Explore agent to analyze sorries..."
@@ -191,7 +191,7 @@ Claude (in main conversation):
 Claude: "I'm dispatching an Explore agent to search for relevant lemmas..."
 
 [Dispatches with prompt]:
-"Run scripts/smart_search.sh 'continuous functions compact spaces' --source=leansearch
+"Run $LEAN4_SCRIPTS/smart_search.sh 'continuous functions compact spaces' --source=leansearch
  and report the top 3 most relevant results with their import paths"
 
 [Agent reports back]:
@@ -213,7 +213,7 @@ Claude: "Perfect! Let's use Continuous.isCompact_range. Let me add the import...
 Claude: "Let me dispatch an Explore agent to analyze proof complexity..."
 
 [Dispatches with prompt]:
-"Run scripts/proof_complexity.sh src/ --sort-by=lines and report:
+"Run $LEAN4_SCRIPTS/proof_complexity.sh src/ --sort-by=lines and report:
  1. Top 10 most complex proofs by line count
  2. How many proofs are >100 lines (huge category)
  3. Any proofs with sorries that are also large"
@@ -240,8 +240,8 @@ Claude: "I'm dispatching an Explore agent to run verification checks..."
 
 [Dispatches with prompt]:
 "Run the following verification tasks and report summary:
- 1. scripts/sorry_analyzer.py src/ --format=json (count sorries)
- 2. scripts/check_axioms_inline.sh 'src/**/*.lean' (check for non-standard axioms)
+ 1. $LEAN4_SCRIPTS/sorry_analyzer.py src/ --format=json (count sorries)
+ 2. $LEAN4_SCRIPTS/check_axioms_inline.sh 'src/**/*.lean' (check for non-standard axioms)
  3. Report: Total sorries, any axiom issues, ready to commit?"
 
 [Agent reports back]:
@@ -263,7 +263,7 @@ Claude: "Let's use the interactive sorry navigator. This runs on your terminal
 so you can browse and select which sorry to tackle."
 
 You (in terminal):
-$ scripts/sorry_analyzer.py . --interactive
+$ $LEAN4_SCRIPTS/sorry_analyzer.py . --interactive
 
 [TUI shows]:
 Files with sorries:
@@ -290,13 +290,13 @@ to find the right mathlib lemma..."
 
 **Example:**
 ```
-"Dispatch Explore agent to run scripts/find_instances.sh MeasurableSpace
+"Dispatch Explore agent to run $LEAN4_SCRIPTS/find_instances.sh MeasurableSpace
  and report how many instances were found"
 ```
 
 **Template:**
 ```
-"Dispatch Explore agent to run scripts/[SCRIPT] [ARGS] and report [WHAT_YOU_NEED]"
+"Dispatch Explore agent to run $LEAN4_SCRIPTS/[SCRIPT] [ARGS] and report [WHAT_YOU_NEED]"
 ```
 
 ### Pattern 2: Batch Operations
@@ -306,9 +306,9 @@ to find the right mathlib lemma..."
 **Example:**
 ```
 "Dispatch Explore agent to:
- 1. Run scripts/sorry_analyzer.py src/ and report total count
- 2. Run scripts/check_axioms_inline.sh 'src/**/*.lean' and report any issues
- 3. Run scripts/proof_complexity.sh src/ --sort-by=sorries and report top 5
+ 1. Run $LEAN4_SCRIPTS/sorry_analyzer.py src/ and report total count
+ 2. Run $LEAN4_SCRIPTS/check_axioms_inline.sh 'src/**/*.lean' and report any issues
+ 3. Run $LEAN4_SCRIPTS/proof_complexity.sh src/ --sort-by=sorries and report top 5
  4. Summarize: What's the state of the codebase?"
 ```
 
@@ -328,7 +328,7 @@ to find the right mathlib lemma..."
 **Example:**
 ```
 "Dispatch general-purpose agent to:
- 1. Search mathlib for continuous function lemmas using scripts/smart_search.sh
+ 1. Search mathlib for continuous function lemmas using $LEAN4_SCRIPTS/smart_search.sh
  2. Filter results to those mentioning compact spaces
  3. For top 3 results, check their type signatures
  4. Recommend which lemma best fits our use case: proving f(K) is compact when K is compact
@@ -352,7 +352,7 @@ to find the right mathlib lemma..."
 **Example:**
 ```
 "Dispatch Explore agent to investigate how conditional expectation is used in this project:
- 1. Run scripts/search_mathlib.sh 'condExp' name in project files (not mathlib)
+ 1. Run $LEAN4_SCRIPTS/search_mathlib.sh 'condExp' name in project files (not mathlib)
  2. Read the top 3 files that use it most
  3. Report: What patterns do you see? How is it typically combined with other operations?"
 ```
@@ -429,7 +429,7 @@ mcp__lean-lsp__lean_goal(file, line, column)  # See proof state
 mcp__lean-lsp__lean_diagnostic_messages(file)  # Check errors
 
 # Delegate batch operations to subagents
-"Dispatch Explore agent to run scripts/check_axioms_inline.sh on all changed files"
+"Dispatch Explore agent to run $LEAN4_SCRIPTS/check_axioms_inline.sh on all changed files"
 ```
 
 **Why this combination?**
@@ -511,7 +511,7 @@ Alternatives:
 **Use script directly (faster, simpler):**
 ```
 "Dispatch Explore agent to:
-Run scripts/sorry_analyzer.py . --format=text
+Run $LEAN4_SCRIPTS/sorry_analyzer.py . --format=text
 and report total sorry count"
 ```
 
@@ -562,4 +562,4 @@ Otherwise:
 └─> Explore agent (default choice)
 ```
 
-See `scripts/README.md` for complete script documentation.
+See `$LEAN4_SCRIPTS/README.md` for complete script documentation.

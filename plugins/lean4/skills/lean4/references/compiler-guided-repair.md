@@ -108,14 +108,14 @@ theorem foo (f g : α → ℝ) (hf : MemLp f (ENNReal.ofReal 2) μ) (h : f =ᵐ[
 ### 1. Compile → Extract Error
 ```bash
 lake build FILE.lean 2> errors.txt
-python3 scripts/parseLeanErrors.py errors.txt > context.json
+python3 $LEAN4_SCRIPTS/parseLeanErrors.py errors.txt > context.json
 ```
 
 Extracts: error type, location, goal state, local context, code snippet
 
 ### 2. Try Solver Cascade (many simple cases, free!)
 ```bash
-python3 scripts/solverCascade.py context.json FILE.lean
+python3 $LEAN4_SCRIPTS/solverCascade.py context.json FILE.lean
 ```
 
 Tries in order: `rfl → simp → ring → linarith → nlinarith → omega → exact? → apply? → aesop`
@@ -500,12 +500,12 @@ Success improves over time as structured logging enables learning from repair at
 
 **Error parsing:**
 ```bash
-python3 scripts/parseLeanErrors.py errors.txt
+python3 $LEAN4_SCRIPTS/parseLeanErrors.py errors.txt
 ```
 
 **Solver cascade:**
 ```bash
-python3 scripts/solverCascade.py context.json FILE.lean
+python3 $LEAN4_SCRIPTS/solverCascade.py context.json FILE.lean
 ```
 
 **Via autoprover:**
@@ -663,19 +663,17 @@ Review `.repair/attempts.ndjson` to see what strategies worked. Build intuition 
 
 **Repair loop stuck on same error:**
 - Check if error is truly at fault line
-- Try `/repair-interactive` to see what's being attempted
-- Review `.repair/attempts.ndjson` for patterns
+- Run `/lean4:autoprover` with "every change" review cadence to see attempts
 - May need manual intervention
 
 **Agent generates wrong fixes:**
-- Stage 1 optimizes for speed → may miss context
-- Escalate to Stage 2 for better understanding
-- Or use `/repair-interactive` to guide manually
+- Fast approaches optimize for speed → may miss context
+- Use `/lean4:autoprover` with conservative approach for better understanding
+- Or fix manually and continue
 
 **Solver cascade too aggressive:**
 - Some proofs need structure, not automation
-- Use `/repair-goal` for focused attention
-- Or fix manually and continue
+- Fix manually and continue with `/lean4:autoprover`
 
 **Cost concerns:**
 - Solver cascade is free (use it!)

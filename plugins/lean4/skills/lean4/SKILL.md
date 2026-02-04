@@ -114,7 +114,7 @@ Try in order (stop on first success):
 6. `exact?` / `apply?` - Tactic search (slower)
 7. `aesop` - General automation
 
-**With LSP:** Use `lean_tactic_attempt` for instant feedback.
+**With LSP:** Use `lean_multi_attempt` to test multiple tactics at once.
 
 ## Axiom Hygiene
 

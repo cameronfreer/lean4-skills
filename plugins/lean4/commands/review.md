@@ -211,6 +211,8 @@ Claude: Running review on Core.lean...
 
 Review can optionally call external tools for additional analysis or second opinions.
 
+**Availability:** Tools are checked before use (`command -v codex`, etc.). If a tool isn't installed, review continues without it and notes the skip.
+
 ### Supported Tools
 
 | Tool | Flag | What It Does |
