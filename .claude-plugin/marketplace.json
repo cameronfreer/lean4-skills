@@ -5,13 +5,13 @@
     "email": "cameronfreer@gmail.com"
   },
   "metadata": {
-    "description": "Lean 4 automated theorem proving with planning-first autoprover",
+    "description": "Lean 4 theorem proving with planning-first autoprover, LSP-first workflows, and guardrails",
     "version": "4.0.0"
   },
   "plugins": [
     {
       "name": "lean4",
-      "description": "Unified Lean 4 theorem proving - autoprover, checkpoint, review, golf, doctor",
+      "description": "Unified Lean 4 plugin (autoprover, review, golf, checkpoint) — LSP-first, scripts fallback",
       "source": "./plugins/lean4"
     }
   ]
