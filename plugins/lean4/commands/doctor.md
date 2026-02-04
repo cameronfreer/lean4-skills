@@ -125,7 +125,7 @@ Remove .claude/docs/lean4/? [y/n/a/q] n
 Remove .claude/lean4-memories/? [y/n/a/q] q
   → Quit (1 removed, 1 skipped, 1 remaining)
 ```
-Keys: y=yes, n=no (keep), a=all remaining, q=quit
+Keys: y=remove this, n=keep this, a=remove all remaining, q=quit now
 
 ## Output
 
