@@ -27,7 +27,7 @@ mkAppM ``f #[x, y]           -- auto-infers implicits
 forallTelescope ty fun xs body => ...
 
 -- Precedence
-80: * /    65: + -    50: < > =    35: ∧    30: ∨    25: →
+70: * /    65: + -    50: < > =    35: ∧    30: ∨    25: →
 Left-assoc: term:66 on right
 ```
 
