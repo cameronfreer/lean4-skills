@@ -22,7 +22,7 @@ Systematically eliminate custom axioms from Lean 4 proofs by replacing them with
 
 **Check axiom usage:**
 ```bash
-bash .claude/tools/lean4/check_axioms.sh FILE.lean
+bash $LEAN4_SCRIPTS/check_axioms.sh FILE.lean
 ```
 
 **For each custom axiom found:**
@@ -34,7 +34,7 @@ bash .claude/tools/lean4/check_axioms.sh FILE.lean
 **Find dependencies:**
 ```bash
 # What uses this axiom?
-bash .claude/tools/lean4/find_usages.sh axiom_name
+bash $LEAN4_SCRIPTS/find_usages.sh axiom_name
 ```
 
 ### 2. Propose Migration Plan
@@ -86,13 +86,13 @@ bash .claude/tools/lean4/find_usages.sh axiom_name
 **Step 1: Search mathlib exhaustively**
 ```bash
 # By name pattern
-bash .claude/tools/lean4/search_mathlib.sh "axiom_name" name
+bash $LEAN4_SCRIPTS/search_mathlib.sh "axiom_name" name
 
 # By type/description
-bash .claude/tools/lean4/smart_search.sh "axiom type description" --source=leansearch
+bash $LEAN4_SCRIPTS/smart_search.sh "axiom type description" --source=leansearch
 
 # By type pattern
-bash .claude/tools/lean4/smart_search.sh "type signature pattern" --source=loogle
+bash $LEAN4_SCRIPTS/smart_search.sh "type signature pattern" --source=loogle
 ```
 
 **60% of axioms exist in mathlib!** If found:
@@ -139,7 +139,7 @@ theorem stuck_lemma : Hard_Property := by
 **Step 5: Verify elimination**
 ```bash
 # Verify axiom count decreased
-bash .claude/tools/lean4/check_axioms.sh FILE.lean
+bash $LEAN4_SCRIPTS/check_axioms.sh FILE.lean
 
 # Compare before/after
 echo "Eliminated axiom: axiom_name"
@@ -265,18 +265,18 @@ Elimination order: B, then A
 ## Tools Available
 
 **Verification:**
-- `.claude/tools/lean4/check_axioms.sh FILE.lean`
+- `$LEAN4_SCRIPTS/check_axioms.sh FILE.lean`
 
 **Search (CRITICAL - 60% success rate!):**
-- `.claude/tools/lean4/search_mathlib.sh "pattern" [name|content]`
-- `.claude/tools/lean4/smart_search.sh "query" --source=all`
+- `$LEAN4_SCRIPTS/search_mathlib.sh "pattern" [name|content]`
+- `$LEAN4_SCRIPTS/smart_search.sh "query" --source=all`
 
 **Dependencies:**
-- `.claude/tools/lean4/find_usages.sh theorem_name`
-- `.claude/tools/lean4/dependency_graph.sh FILE.lean`
+- `$LEAN4_SCRIPTS/find_usages.sh theorem_name`
+- `$LEAN4_SCRIPTS/dependency_graph.sh FILE.lean`
 
 **Analysis:**
-- `.claude/tools/lean4/sorry_analyzer.py .` (after axiom → sorry conversion)
+- `$LEAN4_SCRIPTS/sorry_analyzer.py .` (after axiom → sorry conversion)
 
 **Build:**
 - `lake build`

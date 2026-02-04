@@ -22,7 +22,7 @@ Optimize Lean 4 proofs that have already compiled successfully. You are a mechan
 
 **Use the pattern detection script:**
 ```bash
-python3 .claude/tools/lean4/find_golfable.py FILE.lean --filter-false-positives
+python3 $LEAN4_SCRIPTS/find_golfable.py FILE.lean --filter-false-positives
 ```
 
 This script identifies potential optimizations with safety filtering built-in.
@@ -35,7 +35,7 @@ This script identifies potential optimizations with safety filtering built-in.
 
 **Before inlining any let binding, MUST verify usage count:**
 ```bash
-python3 .claude/tools/lean4/analyze_let_usage.py FILE.lean --line LINE_NUMBER
+python3 $LEAN4_SCRIPTS/analyze_let_usage.py FILE.lean --line LINE_NUMBER
 ```
 
 **Safety rules:**
@@ -89,7 +89,7 @@ lake build
 - Move to next pattern
 
 **If build succeeds:**
-- Count token savings (use `.claude/tools/lean4/count_tokens.py` if available)
+- Count token savings (use `$LEAN4_SCRIPTS/count_tokens.py` if available)
 - Document success
 - Continue to next pattern
 
@@ -164,19 +164,19 @@ exact property complex_expr
 ## Tools Available
 
 **Pattern detection:**
-- `.claude/tools/lean4/find_golfable.py --filter-false-positives`
+- `$LEAN4_SCRIPTS/find_golfable.py --filter-false-positives`
 
 **Safety verification (CRITICAL):**
-- `.claude/tools/lean4/analyze_let_usage.py FILE.lean --line LINE`
+- `$LEAN4_SCRIPTS/analyze_let_usage.py FILE.lean --line LINE`
 
 **Metrics:**
-- `.claude/tools/lean4/count_tokens.py --before-file FILE:START-END --after "code"`
+- `$LEAN4_SCRIPTS/count_tokens.py --before-file FILE:START-END --after "code"`
 
 **Build:**
 - `lake build` (standard Lean build)
 
 **Search (if needed):**
-- `.claude/tools/lean4/search_mathlib.sh "pattern" name`
+- `$LEAN4_SCRIPTS/search_mathlib.sh "pattern" name`
 
 ## Remember
 

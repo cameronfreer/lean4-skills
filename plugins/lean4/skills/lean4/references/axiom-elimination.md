@@ -17,7 +17,7 @@ Quick reference for systematically eliminating custom axioms from Lean 4 proofs.
 
 **Check axiom usage:**
 ```bash
-bash .claude/tools/lean4/check_axioms.sh FILE.lean
+bash $LEAN4_SCRIPTS/check_axioms.sh FILE.lean
 ```
 
 **For individual theorems:**
@@ -55,17 +55,17 @@ axiom helper_theorem : P
 
 **Search by name:**
 ```bash
-bash .claude/tools/lean4/search_mathlib.sh "axiom_name_pattern" name
+bash $LEAN4_SCRIPTS/search_mathlib.sh "axiom_name_pattern" name
 ```
 
 **Search by type/description:**
 ```bash
-bash .claude/tools/lean4/smart_search.sh "property description" --source=leansearch
+bash $LEAN4_SCRIPTS/smart_search.sh "property description" --source=leansearch
 ```
 
 **Search by type pattern:**
 ```bash
-bash .claude/tools/lean4/smart_search.sh "type signature pattern" --source=loogle
+bash $LEAN4_SCRIPTS/smart_search.sh "type signature pattern" --source=loogle
 ```
 
 ### Phase 4: Eliminate Axioms
@@ -148,7 +148,7 @@ theorem infrastructure : Property := by
 **Dependency tracking:**
 ```bash
 # Find what uses an axiom
-bash .claude/tools/lean4/find_usages.sh axiom_name
+bash $LEAN4_SCRIPTS/find_usages.sh axiom_name
 ```
 
 ## Progress Tracking
@@ -156,7 +156,7 @@ bash .claude/tools/lean4/find_usages.sh axiom_name
 After each elimination:
 ```bash
 # Verify axiom count decreased
-bash .claude/tools/lean4/check_axioms.sh FILE.lean
+bash $LEAN4_SCRIPTS/check_axioms.sh FILE.lean
 
 # Compare before/after
 echo "Before: N custom axioms"

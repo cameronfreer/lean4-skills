@@ -120,10 +120,6 @@ Use `$LEAN4_SCRIPTS/smart_search.sh`, LSP server search tools, or automation scr
 
 See [compilation-errors.md](references/compilation-errors.md) for detailed debugging workflows.
 
-## Memory Patterns
-
-**Persistent memory integration** helps track proof strategies, recurring patterns, and project-specific idioms across sessions. See [memory-patterns.md](references/memory-patterns.md) for patterns and workflows.
-
 ## Documentation Conventions
 
 - Write **timeless** documentation (describe what code is, not development history)
@@ -154,5 +150,3 @@ See [compilation-errors.md](references/compilation-errors.md) for detailed debug
 **Optimization & refactoring:** [performance-optimization.md](references/performance-optimization.md), [proof-golfing.md](references/proof-golfing.md), [proof-refactoring.md](references/proof-refactoring.md), [mathlib-style.md](references/mathlib-style.md)
 
 **Automation:** [compiler-guided-repair.md](references/compiler-guided-repair.md), [lean-lsp-server.md](references/lean-lsp-server.md), [lean-lsp-tools-api.md](references/lean-lsp-tools-api.md), [subagent-workflows.md](references/subagent-workflows.md)
-
-**Memory:** [memory-patterns.md](references/memory-patterns.md)

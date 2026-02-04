@@ -1288,7 +1288,7 @@ All scripts are executable and self-contained:
 chmod +x scripts/*.sh scripts/*.py
 
 # Run from skill directory or add to PATH
-export PATH="$PATH:/path/to/lean4-theorem-proving/scripts"
+export PATH="$PATH:$LEAN4_SCRIPTS"
 ```
 
 ## Requirements
@@ -1350,7 +1350,7 @@ These scripts implement the systematic approaches from SKILL.md:
 ## Contributing
 
 Found a bug or have an enhancement idea?
-- Report issues: https://github.com/cameronfreer/lean4-theorem-proving-skill/issues
+- Report issues: https://github.com/cameronfreer/lean4-skills/issues
 - Submit improvements via PR
 - Share your own automation scripts
 

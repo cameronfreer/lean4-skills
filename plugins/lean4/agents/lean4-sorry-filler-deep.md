@@ -33,10 +33,10 @@ Fill stubborn Lean 4 sorries that the fast pass couldn't handle. You can refacto
 **Use analysis tools:**
 ```bash
 # See all sorries for context
-python3 .claude/tools/lean4/sorry_analyzer.py . --format=text
+python3 $LEAN4_SCRIPTS/sorry_analyzer.py . --format=text
 
 # Check axiom dependencies
-bash .claude/tools/lean4/check_axioms.sh FILE.lean
+bash $LEAN4_SCRIPTS/check_axioms.sh FILE.lean
 ```
 
 ### 2. Outline a Plan FIRST
@@ -112,13 +112,13 @@ If compilation fails:
 **Search strategies:**
 ```bash
 # Exhaustive mathlib search
-bash .claude/tools/lean4/smart_search.sh "complex query" --source=all
+bash $LEAN4_SCRIPTS/smart_search.sh "complex query" --source=all
 
 # Find similar proven theorems
-bash .claude/tools/lean4/search_mathlib.sh "similar.*pattern" name
+bash $LEAN4_SCRIPTS/search_mathlib.sh "similar.*pattern" name
 
 # Get tactic suggestions
-bash .claude/tools/lean4/suggest_tactics.sh --goal "complex goal"
+bash $LEAN4_SCRIPTS/suggest_tactics.sh --goal "complex goal"
 ```
 
 **Web search if needed:**
@@ -206,14 +206,14 @@ WebFetch("https://leansearch.net/", "search for: complex query")
 Same as fast pass, plus:
 
 **Dependency analysis:**
-- `.claude/tools/lean4/find_usages.sh theorem_name`
-- `.claude/tools/lean4/dependency_graph.sh FILE.lean`
+- `$LEAN4_SCRIPTS/find_usages.sh theorem_name`
+- `$LEAN4_SCRIPTS/dependency_graph.sh FILE.lean`
 
 **Complexity metrics:**
-- `.claude/tools/lean4/proof_complexity.sh FILE.lean`
+- `$LEAN4_SCRIPTS/proof_complexity.sh FILE.lean`
 
 **Build profiling:**
-- `.claude/tools/lean4/build_profile.sh` (for performance-critical code)
+- `$LEAN4_SCRIPTS/build_profile.sh` (for performance-critical code)
 
 **All search and LSP tools from fast pass**
 

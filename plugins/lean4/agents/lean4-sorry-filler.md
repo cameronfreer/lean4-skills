@@ -41,17 +41,17 @@ mcp__lean-lsp__lean_goal(file, line, column)
 
 **By name pattern:**
 ```bash
-bash .claude/tools/lean4/search_mathlib.sh "continuous compact" name
+bash $LEAN4_SCRIPTS/search_mathlib.sh "continuous compact" name
 ```
 
 **Multi-source search:**
 ```bash
-bash .claude/tools/lean4/smart_search.sh "property description" --source=leansearch
+bash $LEAN4_SCRIPTS/smart_search.sh "property description" --source=leansearch
 ```
 
 **Get tactic suggestions:**
 ```bash
-bash .claude/tools/lean4/suggest_tactics.sh --goal "goal text here"
+bash $LEAN4_SCRIPTS/suggest_tactics.sh --goal "goal text here"
 ```
 
 ### 3. Generate 2-3 Candidates
@@ -168,14 +168,14 @@ The deep agent can handle this.
 ## Tools Available
 
 **Search:**
-- `.claude/tools/lean4/search_mathlib.sh "pattern" [name|content]`
-- `.claude/tools/lean4/smart_search.sh "query" --source=[leansearch|loogle|all]`
+- `$LEAN4_SCRIPTS/search_mathlib.sh "pattern" [name|content]`
+- `$LEAN4_SCRIPTS/smart_search.sh "query" --source=[leansearch|loogle|all]`
 
 **Tactic suggestions:**
-- `.claude/tools/lean4/suggest_tactics.sh --goal "goal text"`
+- `$LEAN4_SCRIPTS/suggest_tactics.sh --goal "goal text"`
 
 **Analysis:**
-- `.claude/tools/lean4/sorry_analyzer.py . --format=text`
+- `$LEAN4_SCRIPTS/sorry_analyzer.py . --format=text`
 
 **Build:**
 - `lake build`

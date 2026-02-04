@@ -59,9 +59,9 @@
 - "Analyze proof complexity and suggest refactoring priorities with reasoning"
 - "Compare multiple proof approaches and explain tradeoffs"
 
-### Specialized Subagents (lean4-subagents Plugin)
+### Specialized Subagents (Integrated)
 
-**Optional plugin:** If you have the `lean4-subagents` plugin installed, three specialized subagents are available:
+Five specialized subagents are included in the `lean4` plugin:
 
 **1. lean4-proof-golfer**
 - **Purpose:** Systematically optimize Lean 4 proofs with false-positive filtering
@@ -466,13 +466,13 @@ mcp__lean-lsp__lean_diagnostic_messages(file)  # Check errors
 Subagents can invoke slash commands using the `SlashCommand` tool. This is useful for accessing specialized workflows that combine multiple steps.
 
 **Available slash commands:**
-- `/lean4-theorem-proving:search-mathlib [query]` - Search mathlib with multiple strategies
-- `/lean4-theorem-proving:analyze-sorries` - Analyze and categorize incomplete proofs
-- `/lean4-theorem-proving:fill-sorry [file:line]` - Interactive sorry filling
-- `/lean4-theorem-proving:check-axioms [file]` - Verify axiom hygiene
-- `/lean4-theorem-proving:build-lean` - Build with error analysis
-- `/lean4-theorem-proving:golf-proofs [file]` - Optimize proofs interactively
-- `/lean4-theorem-proving:clean-warnings` - Clean linter warnings by category
+- `/lean4:search-mathlib [query]` - Search mathlib with multiple strategies
+- `/lean4:analyze-sorries` - Analyze and categorize incomplete proofs
+- `/lean4:fill-sorry [file:line]` - Interactive sorry filling
+- `/lean4:check-axioms [file]` - Verify axiom hygiene
+- `/lean4:build-lean` - Build with error analysis
+- `/lean4:golf-proofs [file]` - Optimize proofs interactively
+- `/lean4:clean-warnings` - Clean linter warnings by category
 
 **When to use slash commands vs scripts directly:**
 
@@ -501,7 +501,7 @@ Use /search-mathlib, evaluate results, and recommend the best fit for our use ca
 **Subagent execution:**
 ```python
 # Subagent uses SlashCommand tool
-SlashCommand("/lean4-theorem-proving:search-mathlib continuous compact")
+SlashCommand("/lean4:search-mathlib continuous compact")
 
 # Slash command runs, returns results
 # Subagent evaluates and reports back:

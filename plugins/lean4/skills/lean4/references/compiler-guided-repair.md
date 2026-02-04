@@ -39,17 +39,17 @@ Generate attempt → Lean error → Route to specific fix → Retry (max 24 atte
 
 **Repair entire file:**
 ```
-/lean4-theorem-proving:repair-file MyProof.lean
+/lean4:repair-file MyProof.lean
 ```
 
 **Repair specific goal:**
 ```
-/lean4-theorem-proving:repair-goal MyProof.lean 42
+/lean4:repair-goal MyProof.lean 42
 ```
 
 **Interactive with confirmations:**
 ```
-/lean4-theorem-proving:repair-interactive MyProof.lean
+/lean4:repair-interactive MyProof.lean
 ```
 
 ---
@@ -520,14 +520,14 @@ scripts/repairLoop.sh FILE.lean [max-attempts] [stage2-threshold]
 ```
 
 **Slash commands:**
-- `/lean4-theorem-proving:repair-file FILE.lean` - Full file repair
-- `/lean4-theorem-proving:repair-goal FILE.lean LINE` - Specific goal
-- `/lean4-theorem-proving:repair-interactive FILE.lean` - With confirmations
+- `/lean4:repair-file FILE.lean` - Full file repair
+- `/lean4:repair-goal FILE.lean LINE` - Specific goal
+- `/lean4:repair-interactive FILE.lean` - With confirmations
 
 **Mathlib search:**
 ```bash
-bash .claude/tools/lean4/search_mathlib.sh "query" [name|content]
-bash .claude/tools/lean4/smart_search.sh "query" --source=all
+bash $LEAN4_SCRIPTS/search_mathlib.sh "query" [name|content]
+bash $LEAN4_SCRIPTS/smart_search.sh "query" --source=all
 ```
 
 ---
@@ -661,29 +661,6 @@ Don't overthink individual attempts. The loop will iterate. Fast attempts beat p
 ### 7. Learn from Logs
 
 Review `.repair/attempts.ndjson` to see what strategies worked. Build intuition over time.
-
----
-
-## Integration with lean4-memories
-
-Repair attempts can feed into memory system:
-
-**Store successful patterns:**
-```
-errorType: type_mismatch
-goal: Continuous f
-solution: convert continuous_of_measurable _ using 2
-success: true
-```
-
-**Retrieve similar cases:**
-```
-When I see "Continuous" goal with "Measurable" hypothesis,
-try: convert continuous_of_measurable
-```
-
-**Learn project-specific patterns:**
-Track which error types are common in your codebase and which fixes work best.
 
 ---
 

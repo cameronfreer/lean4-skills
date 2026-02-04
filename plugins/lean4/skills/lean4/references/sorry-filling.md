@@ -38,17 +38,17 @@ Continue with the next sorry in the TODO list.
 
 **By name pattern:**
 ```bash
-bash .claude/tools/lean4/search_mathlib.sh "continuous compact" name
+bash $LEAN4_SCRIPTS/search_mathlib.sh "continuous compact" name
 ```
 
 **Multi-source smart search:**
 ```bash
-bash .claude/tools/lean4/smart_search.sh "property description" --source=leansearch
+bash $LEAN4_SCRIPTS/smart_search.sh "property description" --source=leansearch
 ```
 
 **Get tactic suggestions:**
 ```bash
-bash .claude/tools/lean4/suggest_tactics.sh --goal "∀ x : ℕ, x + 0 = x"
+bash $LEAN4_SCRIPTS/suggest_tactics.sh --goal "∀ x : ℕ, x + 0 = x"
 ```
 
 ## Common Sorry Types

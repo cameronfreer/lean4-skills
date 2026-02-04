@@ -121,7 +121,7 @@ You will be given structured error context (JSON):
 ```
 
 ### `unknown_ident`
-1. Search mathlib: `bash .claude/tools/lean4/search_mathlib.sh "identifier" name`
+1. Search mathlib: `bash $LEAN4_SCRIPTS/search_mathlib.sh "identifier" name`
 2. Check if needs namespace: add `open Foo` or `open scoped Bar`
 3. Check imports: might need `import Mathlib.Foo.Bar`
 4. Check for typo: similar names?
@@ -236,7 +236,7 @@ theorem example (h : Measurable f) : Continuous f := by
 
 ### 3. Search Before Creating
 - Many proofs exist in mathlib
-- Search FIRST: `.claude/tools/lean4/search_mathlib.sh`
+- Search FIRST: `$LEAN4_SCRIPTS/search_mathlib.sh`
 - Then compose: combine 2-3 mathlib lemmas
 - Last resort: novel proof
 
@@ -256,8 +256,8 @@ theorem example (h : Measurable f) : Continuous f := by
 
 **Search:**
 ```bash
-bash .claude/tools/lean4/search_mathlib.sh "continuous measurable" content
-bash .claude/tools/lean4/smart_search.sh "property description" --source=all
+bash $LEAN4_SCRIPTS/search_mathlib.sh "continuous measurable" content
+bash $LEAN4_SCRIPTS/smart_search.sh "property description" --source=all
 ```
 
 **LSP (if available):**
@@ -330,7 +330,7 @@ Read(file_path)
 
 4. **Search mathlib if needed**:
    ```bash
-   bash .claude/tools/lean4/search_mathlib.sh "keyword" content
+   bash $LEAN4_SCRIPTS/search_mathlib.sh "keyword" content
    ```
 
 5. **Generate minimal diff**
