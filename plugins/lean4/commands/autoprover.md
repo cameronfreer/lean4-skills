@@ -74,16 +74,18 @@ Show before any writes:
 **Approach:** Balanced
 **Review:** Every 5 changes
 
-### Priority Order
-1. `Helpers.lean:15` - equality, likely `rfl` or `simp`
-2. `Helpers.lean:42` - bound, try `linarith`
-3. `Core.lean:89` - complex, needs mathlib search
+### Sorries Found
+- `Helpers.lean:15` - in `trivial_lemma`
+- `Helpers.lean:42` - in `helper_bound`
+- `Core.lean:89` - in `main_theorem`
 ...
 
 **Proceed?** (yes / adjust / cancel)
 ```
 
 User must confirm before writes begin.
+
+**Note:** The order is file-first (grouped by file), not complexity-ranked. Claude will assess difficulty when working on each sorry.
 
 ---
 

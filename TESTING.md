@@ -1,4 +1,4 @@
-# Testing Documentation for lean4-theorem-proving Skill
+# Testing Documentation for lean4 Skill
 
 This document follows the Superpowers TDD-for-documentation approach by documenting baseline behaviors, how the skill addresses them, and known rationalizations.
 

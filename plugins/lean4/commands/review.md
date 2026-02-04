@@ -48,14 +48,13 @@ Report:
 ### 2. Sorry Audit
 
 ```bash
-${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/sorry_analyzer.py [scope] --format=detailed
+${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/sorry_analyzer.py [scope] --format=json
 ```
 
 For each sorry, report:
 - Location (file:line)
 - Theorem name
-- Goal type (if determinable)
-- Suggested approach (mathlib search, automation, manual)
+- Context (surrounding code)
 
 ### 3. Axiom Check
 
@@ -143,14 +142,16 @@ Report:
 
 ## Sandbox Mode
 
-This command operates in **read-only mode**:
+This command is **non-destructive**:
 
 - ✓ Runs analysis scripts
-- ✓ Runs `lake build` (read-only)
+- ✓ Runs `lake build`
 - ✓ Reports findings
-- ✗ Does NOT modify files
+- ✗ Does NOT permanently modify files
 - ✗ Does NOT create commits
 - ✗ Does NOT apply fixes
+
+**Note:** The axiom check (`check_axioms_inline.sh`) temporarily appends `#print axioms` commands to files, then restores them automatically. Files are unchanged after the command completes.
 
 To apply changes, use `/lean4:autoprover` or edit manually.
 

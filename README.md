@@ -1,83 +1,102 @@
 # Lean 4 Skills for Claude
 
-[![Run in Smithery](https://smithery.ai/badge/skills/cameronfreer)](https://smithery.ai/skills?ns=cameronfreer&utm_source=github&utm_medium=badge)
+Claude Code plugin for automated Lean 4 theorem proving with planning-first workflow.
 
-Claude Skills, commands, and agents for systematic development of formal proofs in Lean 4.
+## Installation
 
-## Plugins
+```bash
+# Add marketplace
+/plugin marketplace add cameronfreer/lean4-skills
 
-| Plugin | Provides | Description |
-|--------|----------|-------------|
-| **[lean4-theorem-proving](plugins/lean4-theorem-proving/)** | Skill + 8 Commands | Core workflows, LSP integration, automation tools |
-| **[lean4-memories](plugins/lean4-memories/)** | Skill | Persistent learning across sessions (requires MCP memory server) |
-| **[lean4-subagents](plugins/lean4-subagents/)** | 5 Agents | Proof repair, sorry filling, axiom elimination, proof golfing |
+# Install plugin
+/plugin install lean4
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `/lean4:autoprover` | Main entry - planning-first sorry filling and repair |
+| `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
+| `/lean4:review` | Read-only quality review with optional external hooks |
+| `/lean4:golf` | Optimize proofs for brevity |
+| `/lean4:doctor` | Diagnostics and migration help |
 
 ## Quick Start
 
-```bash
-# Via Marketplace (Recommended)
-/plugin marketplace add cameronfreer/lean4-skills
-/plugin install lean4-theorem-proving    # Core (required)
-/plugin install lean4-subagents          # Optional: specialized agents
-/plugin install lean4-memories           # Optional: persistent memory
+```
+/lean4:autoprover          # Start filling sorries
+/lean4:review              # Check quality (read-only)
+/lean4:golf                # Optimize proofs
+/lean4:checkpoint          # Verified commit
+git push                   # Manual, after review
 ```
 
-Skills activate automatically when you work on Lean 4 files. Commands appear in autocomplete with `/lean4-theorem-proving:` prefix.
+## Features
 
-## What You Get
+- **Planning-first workflow** - Establishes scope before any changes
+- **LSP-first approach** - Sub-second feedback via Lean LSP MCP
+- **Search before prove** - 90% of sorries exist in mathlib
+- **Safety guardrails** - Blocks push/amend/pr during sessions
+- **Atomic commits** - One sorry = one commit for easy rollback
 
-- **Lean LSP integration** - Sub-second feedback vs 30s builds
-- **8 commands** - `/build-lean`, `/fill-sorry`, `/repair-file`, `/golf-proofs`, `/check-axioms`, `/analyze-sorries`, `/refactor-have`, `/search-mathlib`
-- **5 specialized agents** - Proof repair, sorry filling (fast + deep), axiom elimination, proof golfing
-- **Automation scripts** - 16 tools for search, analysis, verification
-- **mathlib patterns** - Type class management, domain-specific tactics
+## Recommended: Lean LSP MCP Server
 
-## Highly recommended add-on: install the Lean LSP MCP Server alongside these plugins
+The [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) server provides sub-second feedback:
 
-The [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) server provides **12+ tools** for rapid feedback, goal inspection, parallel tactic testing, and integrated lemma search. This dramatic speedup turns frustrating trial-and-error into smooth, interactive problem-solving. Our Lean 4 skill adds comprehensive workflow guides that teach the LLM to use the LSP tools effectively.
+```
+lean_goal(file, line)                    # See exact goal
+lean_leansearch("natural language")       # Search mathlib
+lean_loogle("type pattern")               # Type-based search
+lean_tactic_attempt(file, line, "simp")  # Test tactics instantly
+```
 
-**Setup:** [INSTALLATION.md](INSTALLATION.md#lean-lsp-server) (<1 minute)
+**Setup:** See [INSTALLATION.md](INSTALLATION.md#lean-lsp-server)
+
+## Migrating from V3
+
+If upgrading from the 3-plugin system:
+
+```bash
+# Uninstall old plugins
+/plugin uninstall lean4-theorem-proving
+/plugin uninstall lean4-memories
+/plugin uninstall lean4-subagents
+
+# Install unified plugin
+/plugin install lean4
+
+# Verify
+/lean4:doctor
+```
+
+**Legacy access:** Pin to `@v3.4.2-legacy` or use `#legacy-marketplace` branch.
+
+See `/lean4:doctor migrate` for detailed migration help.
 
 ## Documentation
 
-- [lean4-theorem-proving/README.md](plugins/lean4-theorem-proving/README.md) - Core skill guide
-- [lean4-subagents/README.md](plugins/lean4-subagents/README.md) - Specialized agents
-- [lean4-memories/README.md](plugins/lean4-memories/README.md) - Memory integration
-- [INSTALLATION.md](INSTALLATION.md) - Platform-specific setup, LSP server
+- [SKILL.md](plugins/lean4/skills/lean4/SKILL.md) - Core skill reference
+- [INSTALLATION.md](INSTALLATION.md) - Setup guide
+- [Commands](plugins/lean4/commands/) - Command documentation
 
 ## Changelog
 
-**v3.4.2** (January 2026)
-- Updated lean-lsp-mcp documentation for v0.16-v0.19 features:
-  - New `lean_profile_proof` tool for identifying slow tactics
-  - Structured diagnostics output with `success` and `failed_dependencies`
-  - Expanded local Loogle setup instructions
-- Added `lake build | tee` tip to avoid redundant builds
+**v4.0.0** (February 2026)
+- Unified into single `lean4` plugin
+- New `/lean4:autoprover` - planning-first workflow
+- New `/lean4:golf` - standalone proof optimization
+- LSP-first approach throughout
+- Safety guardrails (blocks push/amend/pr)
+- Removed memory integration (didn't work reliably)
 
-**v3.4.1** (January 2026)
-- Expanded `/refactor-have` to support both inlining and extraction
-- Added mathlib style guidance for idiomatic proofs
-
-**v3.4.0** (January 2026)
-- Added `/refactor-have` command for extracting long have-blocks
-- Added `/repair-interactive` command for interactive proof repair
-- Added `lean4-sorry-filler-deep` agent for complex sorries
-- Improved LSP integration and error handling
-
-**v3.3.0** (December 2025)
-- Added `/repair-file` command for full-file compiler-guided repair
-- Streamlined agent descriptions per Anthropic best practices
-
-**v3.2.0** (November 2025)
-- Enhanced mathlib search capabilities
-- Improved type class instance resolution patterns
-
-**v3.1.0** (October 2025)
-- Restructured as Claude Code marketplace with 3 plugins
+**v3.4.2** (January 2026) - [Legacy branch](../../tree/legacy-marketplace)
+- Last version of 3-plugin system
+- Available via `@v3.4.2-legacy` tag
 
 ## Contributing
 
-Contributions welcome! Open an issue or PR at https://github.com/cameronfreer/lean4-skills
+Issues and PRs welcome at https://github.com/cameronfreer/lean4-skills
 
 ## License
 
