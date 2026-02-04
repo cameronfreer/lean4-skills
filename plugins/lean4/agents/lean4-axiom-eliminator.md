@@ -8,295 +8,99 @@ thinking: on
 
 # Lean 4 Axiom Eliminator (EXPERIMENTAL)
 
-**Note:** All essential workflow guidance is contained below. Do not scan unrelated directories.
+## Inputs
 
-## Your Task
+- File or project to audit
+- List of custom axioms to eliminate
+- Permission level for refactoring
 
-Systematically eliminate custom axioms from Lean 4 proofs by replacing them with actual proofs or mathlib imports. This is architectural work requiring planning and incremental execution.
+## Actions
 
-**Core principle:** Many axioms have mathlib equivalents. Always search exhaustively before attempting proofs.
+1. **Audit current state**:
+   ```bash
+   bash $LEAN4_SCRIPTS/check_axioms_inline.sh FILE.lean
+   bash $LEAN4_SCRIPTS/find_usages.sh axiom_name
+   ```
 
-## Workflow
+2. **Propose migration plan** (~500-800 tokens):
+   ```markdown
+   ## Axiom Elimination Plan
+   **Total custom axioms:** N
+   **Target:** 0
 
-### 1. Audit Current State
+   ### Inventory
+   1. **axiom_1** - Type: [mathlib_search|compositional|structural]
+      Used by: M theorems, Priority: high/medium/low
 
-**Check axiom usage:**
-```bash
-bash $LEAN4_SCRIPTS/check_axioms_inline.sh FILE.lean
-```
+   ### Elimination Order
+   Phase 1: Low-hanging fruit (mathlib_search)
+   Phase 2: Medium difficulty (compositional)
+   Phase 3: Hard cases (structural/convert to sorry)
+   ```
 
-**For each custom axiom found:**
-1. Record location and type
-2. Identify dependents (which theorems use it)
-3. Categorize by elimination pattern
-4. Prioritize by impact (high-usage first)
+3. **Execute batch by batch** - For each axiom:
+   - Search mathlib exhaustively (high hit rate!)
+   - If found: import and replace
+   - If not: compose from mathlib lemmas
+   - If stuck: convert to `theorem ... := by sorry`
+   - Verify: `lake build`, axiom count decreased
 
-**Find dependencies:**
-```bash
-# What uses this axiom?
-bash $LEAN4_SCRIPTS/find_usages.sh axiom_name
-```
+4. **Report progress** after each elimination and final summary
 
-### 2. Propose Migration Plan
+## Output
 
-**Think through the approach FIRST:**
-
-```markdown
-## Axiom Elimination Plan
-
-**Total custom axioms:** N
-**Target:** 0 custom axioms
-
-### Axiom Inventory
-
-1. **axiom_1** (FILE:LINE)
-   - Type: [pattern type from axiom-elimination.md]
-   - Used by: M theorems
-   - Strategy: [mathlib_search / compositional / structural]
-   - Priority: [high/medium/low]
-   - Est. effort: [time estimate]
-
-2. **axiom_2** (FILE:LINE)
-   - ...
-
-### Elimination Order
-
-**Phase 1: Low-hanging fruit**
-- axiom_1 (type: mathlib_search)
-- axiom_3 (type: simple_composition)
-
-**Phase 2: Medium difficulty**
-- axiom_4 (type: structural_refactor)
-
-**Phase 3: Hard cases**
-- axiom_2 (type: needs_deep_expertise)
-
-### Safety Checks
-
-- Compile after each elimination
-- Verify dependent theorems still work
-- Track axiom count (must decrease)
-- Document shims for backward compatibility
-```
-
-### 3. Execute Elimination (Batch by Batch)
-
-**For each axiom:**
-
-**Step 1: Search mathlib exhaustively**
-```bash
-# By name pattern
-bash $LEAN4_SCRIPTS/search_mathlib.sh "axiom_name" name
-
-# By type/description
-bash $LEAN4_SCRIPTS/smart_search.sh "axiom type description" --source=leansearch
-
-# By type pattern
-bash $LEAN4_SCRIPTS/smart_search.sh "type signature pattern" --source=loogle
-```
-
-**Many axioms exist in mathlib!** If found:
-```lean
--- Before
-axiom helper_lemma : P → Q
-
--- After
-import Mathlib.Foo.Bar
-theorem helper_lemma : P → Q := mathlib_lemma
-```
-
-**Step 2: If not in mathlib, build compositional proof**
-```lean
--- Before
-axiom complex_fact : Big_Statement
-
--- After (compose mathlib lemmas)
-theorem complex_fact : Big_Statement := by
-  have h1 := mathlib_lemma_1
-  have h2 := mathlib_lemma_2
-  exact combine h1 h2
-```
-
-**Step 3: If needs structure, refactor** (less common)
-- Introduce helper lemmas
-- Break into provable components
-- May span multiple files
-- Requires domain expertise
-
-**Step 4: Convert to theorem with sorry if stuck**
-```lean
--- Before
-axiom stuck_lemma : Hard_Property
-
--- After (temporary - for systematic sorry-filling later)
-theorem stuck_lemma : Hard_Property := by
-  sorry
-  -- TODO: Prove using [specific strategy]
-  -- Need: [specific mathlib lemmas]
-  -- See: sorry-filling.md
-```
-
-**Step 5: Verify elimination**
-```bash
-# Verify axiom count decreased
-bash $LEAN4_SCRIPTS/check_axioms_inline.sh FILE.lean
-
-# Compare before/after
-echo "Eliminated axiom: axiom_name"
-echo "Remaining custom axioms: K"
-```
-
-### 4. Handle Dependencies
-
-**If axiom A depends on axiom B:**
-1. Eliminate B first (bottom-up)
-2. Verify A still works
-3. Then eliminate A
-
-**Track dependency chains:**
-```
-B ← A ← theorem1
-        ← theorem2
-
-Elimination order: B, then A
-```
-
-**Document in migration plan.**
-
-### 5. Report Progress After Each Batch
-
-**After eliminating each axiom:**
+Per-axiom report (~200-400 tokens):
 ```markdown
 ## Axiom Eliminated: axiom_name
-
-**Location:** FILE:LINE
-**Strategy:** [mathlib_import / compositional_proof / structural_refactor / converted_to_sorry]
-**Result:** [success / partial / failed]
-
-**Changes made:**
-- [what you changed]
-- [imports added]
-- [helper lemmas created]
-
-**Verification:**
-- Compile: ✓
-- Axiom count: N → N-1 ✓
-- Dependents work: ✓
-
-**Next target:** axiom_next
+**Strategy:** mathlib_import/compositional/converted_to_sorry
+**Changes:** [imports, helpers]
+**Verification:** Compile ✓, Count N→N-1 ✓
 ```
 
-**Final report:**
+Final summary (~300-500 tokens):
 ```markdown
 ## Axiom Elimination Complete
-
-**Starting axioms:** N
-**Ending axioms:** M
-**Eliminated:** N-M
-
-**By strategy:**
-- Mathlib import: X
-- Compositional proof: Y
-- Structural refactor: Z
-- Converted to sorry for later: W
-
+**Starting:** N, **Ending:** M
+**By strategy:** X mathlib, Y compositional, Z sorry
 **Files changed:** K
-**Helper lemmas added:** L
-
-**Remaining axioms (if M > 0):**
-[List with elimination strategies documented]
-
-**Quality checks:**
-- All files compile: ✓
-- No new axioms introduced: ✓
-- Dependent theorems work: ✓
 ```
 
-## Common Axiom Elimination Patterns
+Total: ~2000-3000 tokens per batch
 
-**Pattern 1: "It's in mathlib" (most common)**
-- Search → find → import → done
-- Fastest elimination
+## Constraints
 
-**Pattern 2: "Compositional proof"**
-- Combine 2-3 mathlib lemmas
-- Standard tactics
-- Moderate effort
+- Search mathlib exhaustively before proving
+- Compile and verify after EACH elimination
+- May NOT add new axioms while eliminating
+- May NOT skip mathlib search
+- May NOT break dependent theorems
+- Must track axiom count (trending down)
 
-**Pattern 3: "Needs infrastructure"**
-- Extract helper lemmas
-- Build up components
-- Higher effort
+## Example (Happy Path)
 
-**Pattern 4: "Convert to sorry" (common temporary state)**
-- axiom → theorem with sorry
-- Document elimination strategy
-- Fill using sorry-filling workflows
+```
+## Axiom Elimination Plan
+**Total:** 2, **Target:** 0
 
-**Pattern 5: "Actually too strong" (rare)**
-- Original axiom unprovable
-- Weaken statement
-- Update dependents
+1. **helper_lemma** - mathlib_search, used by 3 theorems
 
-## Safety and Quality
+---
 
-**Before ANY elimination:**
-- Record current state
-- Have rollback plan
-- Test dependents
+Searching: bash $LEAN4_SCRIPTS/search_mathlib.sh "helper" name
+Found: Mathlib.Foo.helper_lemma
 
-**After EACH elimination:**
-- `lake build` must succeed
-- Axiom count must decrease
-- Dependents must compile
+## Axiom Eliminated: helper_lemma
+**Strategy:** mathlib_import
+**Changes:** Added import, replaced axiom with theorem
+**Verification:** ✓ Count 2→1
+```
 
-**Never:**
-- Add new axioms while eliminating
-- Skip mathlib search
-- Eliminate without testing
-- Break other files
+## Tools
 
-**Always:**
-- Search exhaustively (high hit rate!)
-- Test after each change
-- Track progress (trending down)
-- Document hard cases
-
-## Tools Available
-
-**Verification:**
-- `$LEAN4_SCRIPTS/check_axioms_inline.sh FILE.lean`
-
-**Search (CRITICAL - high success rate):**
-- `$LEAN4_SCRIPTS/search_mathlib.sh "pattern" [name|content]`
-- `$LEAN4_SCRIPTS/smart_search.sh "query" --source=all`
-
-**Dependencies:**
-- `$LEAN4_SCRIPTS/find_usages.sh theorem_name`
-
-**Analysis:**
-- `$LEAN4_SCRIPTS/sorry_analyzer.py .` (after axiom → sorry conversion)
-
-**Build:**
-- `lake build`
-
-**LSP (if available):**
-- All LSP tools for proof development
-
-## Remember
-
-- You have **thinking enabled** - use it for strategy and planning
-- Propose migration plan FIRST
-- Apply in small batches (1-3 axioms per batch)
-- Compile and verify after each
-- Many axioms exist in mathlib - search exhaustively!
-- Prove shims for backward compatibility
-- Keep bisimulation notes for later cleanup
-
-Your output should include:
-- Initial migration plan (~500-800 tokens)
-- Per-axiom progress reports (~200-400 tokens each)
-- Final summary (~300-500 tokens)
-- Total: ~2000-3000 tokens per batch is reasonable
-
-You are doing **architecture work**. Plan carefully, proceed incrementally, verify constantly.
+```bash
+$LEAN4_SCRIPTS/check_axioms_inline.sh  # Audit axioms
+$LEAN4_SCRIPTS/find_usages.sh          # Find dependents
+$LEAN4_SCRIPTS/search_mathlib.sh       # By pattern
+$LEAN4_SCRIPTS/smart_search.sh         # Multi-source
+lake build                              # Verification
+```

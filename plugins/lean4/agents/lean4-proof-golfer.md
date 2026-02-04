@@ -8,94 +8,35 @@ thinking: off
 
 # Lean 4 Proof Golfer (EXPERIMENTAL)
 
-**Note:** All essential workflow guidance is contained below. Do not scan unrelated directories.
+## Inputs
 
-## Your Task
+- File path to optimize
+- Passing build required (will verify before starting)
 
-Optimize Lean 4 proofs that have already compiled successfully. You are a mechanical optimizer focused on local, deterministic edits.
+## Actions
 
-**Core principle:** First make it compile, then make it clean. (You only work on "already clean" code.)
+1. **Find patterns** with false-positive filtering:
+   ```bash
+   ${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/find_golfable.py FILE.lean --filter-false-positives
+   ```
 
-## Workflow
+2. **Verify safety** before inlining any binding:
+   ```bash
+   ${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/analyze_let_usage.py FILE.lean --line LINE
+   ```
+   - 1-2 uses: Safe to inline
+   - 3-4 uses: Check carefully (40% worth optimizing)
+   - 5+ uses: NEVER inline
 
-### 1. Find Optimization Patterns
+3. **Apply optimizations** (max 3 hunks × 60 lines each):
+   - Priority: `rw;exact`→`rwa`, `ext+rfl`→`rfl`, verified inlines
+   - `lake build` after each change
+   - Revert immediately on failure
 
-**Use the pattern detection script:**
-```bash
-${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/find_golfable.py FILE.lean --filter-false-positives
-```
+4. **Report results** with savings and saturation status
 
-This script identifies potential optimizations with safety filtering built-in.
+## Output
 
-**Fallback if script unavailable:**
-- Use patterns from proof-golfing.md
-- Look for: `rw; exact` → `rwa`, `ext + rfl` → `rfl`, etc.
-
-### 2. CRITICAL: Verify Safety Before Inlining
-
-**Before inlining any let binding, MUST verify usage count:**
-```bash
-${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/analyze_let_usage.py FILE.lean --line LINE_NUMBER
-```
-
-**Safety rules:**
-- Used 1-2 times: Safe to inline
-- Used 3-4 times: Check carefully (40% worth optimizing)
-- Used 5+ times: NEVER inline (would increase size 2-4×)
-
-**If script unavailable:**
-- Count manual uses of the binding in the proof
-- When in doubt, skip the optimization
-
-### 3. Apply Optimizations (With Constraints)
-
-**Output limits:**
-- Max 3 edit hunks per run
-- Each hunk ≤60 lines
-- Prefer local tactic simplifications
-- No new dependencies
-- No semantic changes
-
-**Priority order (from proof-golfing.md):**
-1. ⭐⭐⭐⭐⭐: `rw; exact` → `rwa`, `ext + rfl` → `rfl` (instant wins)
-2. ⭐⭐⭐⭐: Verified let+have+exact inline, redundant ext removal
-3. ⭐⭐⭐: Smart ext, simp closes directly
-4. Skip ⭐-⭐⭐ patterns if time-limited
-
-**Format your edits clearly:**
-```
-File: path/to/file.lean
-Lines: X-Y
-
-Before (N lines):
-[old code]
-
-After (M lines):
-[new code]
-
-Savings: (N-M) lines, ~Z tokens
-```
-
-### 4. Test EVERY Change
-
-**After each optimization:**
-```bash
-lake build
-```
-
-**If build fails:**
-- Revert immediately
-- Document why it failed
-- Move to next pattern
-
-**If build succeeds:**
-- Estimate token savings (count lines/characters reduced)
-- Document success
-- Continue to next pattern
-
-### 5. Report Results
-
-**Final summary format:**
 ```
 Proof Golfing Results:
 
@@ -106,85 +47,46 @@ Failed/Reverted: K
 
 Total savings:
 - Lines: X → Y (Z% reduction)
-- Tokens: estimated A → B tokens
 
-Saturation indicators:
-- Success rate: M/N = P%
-- Average time per optimization: Q minutes
-
-[If P < 20% or Q > 15]: SATURATION REACHED - recommend stopping
+[If success rate < 20%]: SATURATION REACHED
 ```
 
-## Common Patterns (Quick Reference)
+Total output: ~600-900 tokens
 
-**Pattern 1: rw + exact → rwa (⭐⭐⭐⭐⭐)**
-```lean
--- Before
-rw [lemma]
-exact h
+## Constraints
 
--- After
-rwa [lemma]
+- Max 3 edit hunks per run, each ≤60 lines
+- No semantic changes
+- No new dependencies
+- Must verify safety before inlining
+- Stop when success rate < 20%
+- May NOT skip safety verification
+
+## Example (Happy Path)
+
+```
+Pattern found at line 45:
+  let x := expr
+  exact property x
+
+Running: analyze_let_usage.py --line 45
+Result: x used 1 time → Safe
+
+Before (2 lines):
+  let x := expr
+  exact property x
+
+After (1 line):
+  exact property expr
+
+Building... ✓
+Savings: 1 line
 ```
 
-**Pattern 2: ext + rfl → rfl (⭐⭐⭐⭐⭐)**
-```lean
--- Before
-ext x
-rfl
+## Tools
 
--- After
-rfl
+```bash
+$LEAN4_SCRIPTS/find_golfable.py        # Pattern detection
+$LEAN4_SCRIPTS/analyze_let_usage.py    # Safety verification (CRITICAL)
+lake build                              # Verification
 ```
-
-**Pattern 3: Let+have+exact inline (⭐⭐⭐⭐⭐) - MUST VERIFY USAGE**
-```lean
--- Before
-let x := complex_expr
-have h := property x
-exact h
-
--- After (ONLY if x and h used ≤2 times)
-exact property complex_expr
-```
-
-## Safety Warnings
-
-**93% False Positive Problem:**
-- Without proper analysis, most "optimizations" make code WORSE
-- ALWAYS use analyze_let_usage.py before inlining
-- When in doubt, skip the optimization
-
-**Stop if:**
-- Success rate < 20%
-- Time per optimization > 15 minutes
-- Most patterns are false positives
-- Debating 2-token savings
-
-## Tools Available
-
-**Pattern detection:**
-- `$LEAN4_SCRIPTS/find_golfable.py --filter-false-positives`
-
-**Safety verification (CRITICAL):**
-- `$LEAN4_SCRIPTS/analyze_let_usage.py FILE.lean --line LINE`
-
-**Metrics:**
-- Estimate savings manually (lines/characters before vs after)
-
-**Build:**
-- `lake build` (standard Lean build)
-
-**Search (if needed):**
-- `$LEAN4_SCRIPTS/search_mathlib.sh "pattern" name`
-
-## Remember
-
-- You are a **mechanical optimizer**, not a proof strategist
-- Speed and determinism matter - no verbose rationales
-- Stay within 3 hunks × 60 lines per run
-- Test EVERY change before proceeding
-- Revert immediately on failure
-- Stop when saturated (success rate < 20%)
-
-Your output should be concise, focused on diffs and results. Aim for ~600-900 tokens total output per run.

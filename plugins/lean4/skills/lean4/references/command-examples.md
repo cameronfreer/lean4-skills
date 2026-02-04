@@ -1,0 +1,448 @@
+# Command Examples
+
+Extended examples and session transcripts for Lean4 plugin commands.
+
+---
+
+## autoprover
+
+### Basic Usage
+
+```
+/lean4:autoprover                    # Start interactive session
+/lean4:autoprover File.lean          # Focus on specific file
+/lean4:autoprover --repair-only      # Fix build errors without filling sorries
+```
+
+### Full Session Example
+
+```
+User: /lean4:autoprover
+
+Claude: Discovering current state...
+
+Using LSP:
+- lean_diagnostic_messages(.) → 2 errors, 5 warnings
+- lean_goal at each sorry → 8 goals to prove
+
+## Autoprover Plan
+
+**Found:** 8 sorries in 3 files
+**Approach:** Balanced
+**Review:** Every 5 changes
+
+### Sorries Found
+- `Helpers.lean:15` - in `trivial_lemma`
+- `Helpers.lean:42` - in `helper_bound`
+- `Core.lean:89` - in `main_theorem`
+...
+
+**Proceed?** (yes / adjust / cancel)
+
+User: yes
+
+Claude: Working on Helpers.lean:15 - `trivial_lemma`...
+
+Goal: ⊢ 0 ≤ 1
+
+Searching mathlib... Found: `Nat.zero_le`
+
+Applying: `exact Nat.zero_le 1`
+Building... ✓
+
+Committing: "fill: trivial_lemma - exact Nat.zero_le"
+
+[continues for each sorry...]
+```
+
+### Repair Mode Example
+
+```
+User: /lean4:autoprover --repair-only
+
+Claude: Running repair mode...
+
+Build errors found:
+- Core.lean:42: type mismatch at application
+- Core.lean:89: unknown identifier 'continuous_of_foo'
+
+Repairing Core.lean:42...
+Error: type mismatch, expected `ℕ`, got `ℤ`
+Fix: Adding coercion with `↑`
+Building... ✓
+
+Repairing Core.lean:89...
+Searching mathlib for 'continuous_of_foo'...
+Found: `Continuous.comp` in Mathlib.Topology.Basic
+Fix: Replacing with correct lemma name
+Building... ✓
+
+## Repair Complete
+- Errors fixed: 2/2
+- Build status: ✓ passing
+```
+
+### Review Checkpoint Example
+
+```
+## Progress
+
+**Filled:** 5/8 sorries
+**Commits:** 5 new
+**Build:** passing
+
+**Current:** Core.lean:89 - `main_theorem`
+**Status:** Searching mathlib...
+
+**Options:**
+- `continue` - Keep going
+- `stop` - Save progress and exit
+- `skip` - Skip current sorry, try next
+- `rollback N` - Undo last N commits
+```
+
+---
+
+## checkpoint
+
+### Basic Usage
+
+```
+/lean4:checkpoint
+/lean4:checkpoint "optional custom message"
+```
+
+### Full Session Example
+
+```
+User: /lean4:checkpoint
+
+Claude: Creating checkpoint...
+
+Building project...
+✓ lake build passed
+
+Checking axioms...
+✓ Standard axioms only (propext, Classical.choice)
+
+Counting sorries...
+→ 3 sorries remaining in 2 files
+
+Staging changes...
+→ 5 files modified
+
+Creating commit...
+✓ Commit a1b2c3d: checkpoint(lean4): 3 sorries remaining, build passing
+
+## Checkpoint Created
+
+Commit: a1b2c3d - checkpoint(lean4): 3 sorries remaining, build passing
+Build: ✓ passing
+Sorries: 3 remaining
+Axioms: standard only
+
+Next steps:
+- Continue with /lean4:autoprover
+- Push manually when ready: git push
+```
+
+### Rollback Examples
+
+```bash
+# Undo last commit, keep changes staged
+git reset --soft HEAD~1
+
+# Undo last commit, keep changes unstaged
+git reset HEAD~1
+
+# Undo last N commits
+git reset HEAD~N
+```
+
+---
+
+## doctor
+
+### Basic Usage
+
+```
+/lean4:doctor              # Full diagnostic
+/lean4:doctor env          # Environment only
+/lean4:doctor migrate      # Migration assistance
+/lean4:doctor cleanup      # Remove obsolete files
+```
+
+### Full Diagnostic Example
+
+```
+User: /lean4:doctor
+
+Claude: Running diagnostics...
+
+## Lean4 Doctor Report
+
+### Environment
+✓ lean 4.15.0
+✓ lake 4.15.0
+✓ python3 3.11.2
+✓ git 2.43.0
+✓ rg 14.1.0
+
+### Plugin
+✓ LEAN4_PLUGIN_ROOT=/home/user/.claude/plugins/lean4
+✓ LEAN4_SCRIPTS=/home/user/.claude/plugins/lean4/lib/scripts
+✓ Hooks executable
+✓ Scripts executable (12 files)
+
+### Project
+✓ lakefile.lean found
+✓ lean-toolchain: leanprover/lean4:v4.15.0
+✓ Build passes
+→ 3 sorries in Core.lean
+
+### Migration
+✓ Clean installation (no v3 artifacts)
+
+### Status: Ready
+
+Your environment is configured correctly.
+Run /lean4:autoprover to fill the 3 remaining sorries.
+```
+
+### Migration Example
+
+```
+User: /lean4:doctor migrate
+
+Claude: Checking for v3 artifacts...
+
+Found v3 installation:
+- .claude/tools/lean4/ (12 files)
+- .claude/docs/lean4/ (8 files)
+
+## Migration Steps
+
+1. Uninstall old plugins:
+   /plugin uninstall lean4-theorem-proving
+   /plugin uninstall lean4-memories
+   /plugin uninstall lean4-subagents
+
+2. Install unified plugin:
+   /plugin marketplace add cameronfreer/lean4-skills
+   /plugin install lean4
+
+3. Optional cleanup:
+   rm -rf .claude/tools/lean4 .claude/docs/lean4
+
+Proceed with migration? (yes/no)
+```
+
+### Cleanup Example
+
+```
+User: /lean4:doctor cleanup
+
+Claude: Scanning for obsolete files...
+
+Found:
+- .claude/tools/lean4/ (12 files, 45KB)
+- .claude/docs/lean4/ (8 files, 32KB)
+
+These are v3 artifacts that are no longer needed.
+Remove them? (yes/no)
+
+User: yes
+
+Claude: Removing .claude/tools/lean4/... ✓
+Removing .claude/docs/lean4/... ✓
+
+Cleanup complete. 77KB freed.
+```
+
+---
+
+## golf
+
+### Basic Usage
+
+```
+/lean4:golf                     # Golf entire project
+/lean4:golf File.lean           # Golf specific file
+/lean4:golf File.lean:42        # Golf proof at specific line
+/lean4:golf --dry-run           # Show opportunities without applying
+```
+
+### Full Session Example
+
+```
+User: /lean4:golf Core.lean
+
+Claude: Verifying build...
+✓ Core.lean compiles
+
+Finding golfing opportunities...
+
+Found 6 patterns:
+- 4 instant wins (rw+exact, ext+rfl)
+- 1 safe inline (let used once)
+- 1 skip (let used 5 times)
+
+Applying optimizations...
+
+[1/5] Line 23: rw [h]; exact → rwa [h]
+  Building... ✓
+
+[2/5] Line 45: ext x; rfl → rfl
+  Building... ✓
+
+[3/5] Line 67: Inline let bound := ...
+  Checking usage... 1 reference, safe
+  Building... ✓
+
+[4/5] Line 89: simp [*]; rfl → simp [*]
+  Building... ✓
+
+[5/5] Line 112: constructor; exact; exact → exact ⟨_, _⟩
+  Building... ✓
+
+## Golf Results
+
+Optimizations applied: 5/6
+Skipped: 1 (let used 5 times)
+Total savings: 7 lines (~10%)
+Build status: ✓ passing
+```
+
+### Dry Run Example
+
+```
+User: /lean4:golf --dry-run
+
+Claude: Scanning for opportunities...
+
+## Golf Opportunities (Dry Run)
+
+**File:** Core.lean
+
+| Line | Pattern | Confidence | Savings |
+|------|---------|------------|---------|
+| 23 | rw + exact → rwa | High | 1 line |
+| 45 | Inline let (1 use) | High | 2 lines |
+| 56 | Inline let (4 uses) | Skip | - |
+| 78 | ext + rfl → rfl | High | 1 line |
+
+**Estimated savings:** 4 lines from 3 safe optimizations
+**Run without --dry-run to apply**
+```
+
+### Saturation Example
+
+```
+## Golf Results
+
+**File:** Core.lean
+**Optimizations applied:** 12
+**Build status:** ✓ passing
+
+Saturation reached after 12 optimizations.
+Remaining 3 opportunities are false positives or low-value.
+
+Success rate dropped to 15% (below 20% threshold).
+Recommend stopping further golfing on this file.
+```
+
+---
+
+## review
+
+### Basic Usage
+
+```
+/lean4:review                    # Review entire project
+/lean4:review File.lean          # Review specific file
+/lean4:review --scope=changed    # Review only changed files (git diff)
+```
+
+### Full Review Example
+
+```
+User: /lean4:review Core.lean
+
+Claude: Running review on Core.lean...
+
+## Lean4 Review Report
+
+### Build Status
+✓ Core.lean compiles successfully
+
+### Sorry Audit (1 remaining)
+- Core.lean:89 - `convergence_bound`
+  Goal: `∀ ε > 0, ∃ N, ∀ n ≥ N, |f n - L| < ε`
+  Suggestion: Search mathlib for `Metric.tendsto_atTop`
+
+### Axiom Status
+✓ Standard axioms only
+
+### Style Notes
+- Line 45: Consider `simp only [add_comm, mul_comm]` instead of `simp [*]`
+- Line 78: Proof is 38 lines - consider extracting helper lemma
+
+### Golfing Opportunities
+- Line 23: `rw [h]; exact trivial` → `rwa [h]`
+- Line 56: `ext x; simp` - verify if `simp` alone suffices
+
+### Complexity Summary
+- Theorems in file: 8
+- Average proof: 15 lines
+- Longest: `convergence_bound` (38 lines)
+
+### Recommendations
+1. Fill `convergence_bound` sorry - likely in mathlib
+2. Extract helper from long proof at line 78
+3. Tighten `simp` calls for faster compilation
+```
+
+### External Tool Integration Example
+
+```
+User: /lean4:review Core.lean --codex
+
+Claude: Running review with Codex integration...
+
+## Lean4 Review Report
+
+### Build Status
+✓ Core.lean compiles
+
+### Sorry Audit
+- Line 89: `convergence_bound` - needs proof
+
+### Codex Suggestions
+- Line 89: "Try `tendsto_atTop_of_eventually_ge` from Mathlib"
+- Line 45: "The `simp` call could be replaced with `simp only [add_comm]`"
+
+### Claude Analysis
+[standard review sections...]
+```
+
+### Custom Hook Interface
+
+Hooks receive JSON on stdin:
+```json
+{
+  "file": "Core.lean",
+  "content": "...",
+  "sorries": [...],
+  "axioms": [...],
+  "build_status": "passing"
+}
+```
+
+And should output JSON:
+```json
+{
+  "suggestions": [
+    {"line": 42, "message": "Consider using...", "severity": "hint"}
+  ]
+}
+```
