@@ -89,7 +89,7 @@ lake build
 - Move to next pattern
 
 **If build succeeds:**
-- Count token savings (use `$LEAN4_SCRIPTS/count_tokens.py` if available)
+- Estimate token savings (count lines/characters reduced)
 - Document success
 - Continue to next pattern
 
@@ -170,7 +170,7 @@ exact property complex_expr
 - `$LEAN4_SCRIPTS/analyze_let_usage.py FILE.lean --line LINE`
 
 **Metrics:**
-- `$LEAN4_SCRIPTS/count_tokens.py --before-file FILE:START-END --after "code"`
+- Estimate savings manually (lines/characters before vs after)
 
 **Build:**
 - `lake build` (standard Lean build)

@@ -82,19 +82,21 @@ Multi-source search combining local search with online APIs.
 
 ### parseLeanErrors.py
 
-Parse Lean compiler errors into structured format for repair loops.
+Parse Lean compiler errors into structured JSON for repair loops.
 
 ```bash
-./parseLeanErrors.py < build_output.txt
+./parseLeanErrors.py error_output.txt
 ```
 
 ### solverCascade.py
 
-Try multiple tactics automatically on a goal.
+Try automated solvers in sequence on a goal (handles 40-60% of simple cases).
 
 ```bash
-./solverCascade.py File.lean 42
+./solverCascade.py context.json File.lean
 ```
+
+The `context.json` should contain goal info (line, column, goal text).
 
 ### minimize_imports.py
 
