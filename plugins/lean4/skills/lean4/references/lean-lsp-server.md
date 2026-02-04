@@ -1,5 +1,7 @@
 # Lean LSP Server - Quick Reference
 
+**Quick reference for Lean LSP MCP tools. For detailed API documentation, see [lean-lsp-tools-api.md](lean-lsp-tools-api.md).**
+
 **The Lean LSP server provides instant feedback for interactive theorem development.**
 
 **Key insight:** LSP tools provide instant feedback (< 1 second) versus build cycles (10-30+ seconds). This **30x speedup** transforms proof development from frustrating trial-and-error into smooth, interactive problem-solving.

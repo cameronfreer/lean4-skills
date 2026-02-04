@@ -49,18 +49,21 @@ lean_loogle("?a → ?b → _")                      # Type-pattern (rate-limited
 lean_multi_attempt(file, line, snippets=[...])  # Test multiple tactics
 ```
 
-## Scripts
+## Core Primitives
 
-Primitives for analysis and search:
+| Script | Purpose | Output |
+|--------|---------|--------|
+| `sorry_analyzer.py` | Find sorries with context | JSON/text |
+| `check_axioms_inline.sh` | Check for non-standard axioms | text |
+| `smart_search.sh` | Multi-source mathlib search | text |
+| `find_golfable.py` | Detect optimization patterns | JSON |
+| `find_usages.sh` | Find declaration usages | text |
 
-```bash
-# Sorry/axiom analysis (always available)
-$LEAN4_SCRIPTS/sorry_analyzer.py . --format=json
-$LEAN4_SCRIPTS/check_axioms_inline.sh File.lean
+**Usage:** Invoked by commands automatically. See [references/](references/) for details.
 
-# Search fallback (when LSP unavailable)
-$LEAN4_SCRIPTS/smart_search.sh "query" --source=all
-```
+## Automation
+
+`/lean4:autoprover` handles most tasks. For complex proofs, it may delegate to internal workflows for deep sorry-filling, proof repair, or axiom elimination. You don't invoke these directly.
 
 ## Common Fixes
 

@@ -59,50 +59,33 @@
 - "Analyze proof complexity and suggest refactoring priorities with reasoning"
 - "Compare multiple proof approaches and explain tradeoffs"
 
-### Specialized Subagents (Integrated)
+### Specialized Workflows (Integrated)
 
-Five specialized subagents are included in the `lean4` plugin:
+The lean4 plugin includes internal workflows for complex tasks, orchestrated automatically by `/lean4:autoprover` and `/lean4:golf`.
 
-**Entry point:** `/lean4:autoprover` orchestrates these agents automatically. You can also dispatch them directly via the Task tool.
+**What autoprover may delegate:**
+- Deep sorry-filling (when `--deep` enabled and fast path fails)
+- Proof repair (compiler-guided fixes)
+- Axiom elimination (when custom axioms detected)
+- Proof golfing (optional cleanup for verbose proofs)
 
-**1. lean4-proof-golfer**
-- **Purpose:** Systematically optimize Lean 4 proofs with false-positive filtering
-- **When to use:** After proofs compile successfully to achieve 30-40% size reduction
-- **Key feature:** MUST verify safety with analyze_let_usage.py before inlining let bindings
+**What golf may delegate:**
+- Proof optimization with safety checks
 
-**2. lean4-sorry-filler** / **lean4-sorry-filler-deep**
-- **Purpose:** Fill incomplete proofs (sorries) using mathlib search and multi-candidate testing
-- **When to use:** When tackling incomplete proofs systematically
-- **Key feature:** Fast pass tries obvious solutions; deep pass handles complex cases with refactoring
+You do not invoke these directly. See [agent-workflows.md](agent-workflows.md) for workflow details.
 
-**3. lean4-axiom-eliminator**
-- **Purpose:** Systematically eliminate axioms and sorries from Lean 4 proofs
-- **When to use:** After checking axiom hygiene to reduce axiom count to zero
-- **Key feature:** Exhaustive mathlib search, prioritizes high-impact axioms, tracks elimination progress
-
-**4. lean4-proof-repair**
-- **Purpose:** Compiler-guided iterative proof repair with two-stage model escalation
-- **When to use:** When proofs fail to compile and need targeted fixes
-- **Key feature:** Uses Lean compiler feedback to drive repairs with low sampling budget (K=1)
-
-**How these differ from Explore/General-Purpose:**
-- **Specialized workflows:** Each has a domain-specific multi-phase workflow
-- **Built-in best practices:** Encode lessons learned from proof development sessions
-- **Autonomous operation:** Can work through entire batches of similar tasks
-- **Quality gates:** Built-in safety checks and verification steps
-
-**When to use specialized vs general subagents:**
+**When to use commands vs general subagents:**
 ```
 Task: "Optimize these 5 proofs"
-✅ Dispatch lean4-proof-golfer (specialized workflow with safety checks)
+✅ Use /lean4:golf (specialized workflow with safety checks)
 ❌ Dispatch general-purpose agent to run find_golfable.py (misses false-positive filtering)
 
 Task: "Find mathlib lemmas for this sorry"
 ✅ Dispatch Explore agent to run smart_search.sh (simple delegation)
-❌ Dispatch lean4-sorry-filler (overkill for single search)
+✅ Use lean_local_search or lean_leansearch LSP tools directly
 
 Task: "Fill all 15 sorries in this file"
-✅ Dispatch lean4-sorry-filler (batch processing with testing)
+✅ Use /lean4:autoprover (batch processing with testing)
 ❌ Manual iteration in main conversation (inefficient)
 ```
 

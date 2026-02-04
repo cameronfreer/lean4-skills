@@ -27,6 +27,7 @@ Read-only review of Lean proofs for quality, style, and optimization opportuniti
 | --codex | No | Include OpenAI Codex suggestions |
 | --llm | No | Use llm CLI with model |
 | --hook | No | Run custom analysis script |
+| --json | No | Output structured JSON for external tools |
 
 ## Actions
 
@@ -75,6 +76,79 @@ Read-only review of Lean proofs for quality, style, and optimization opportuniti
 ## External Hooks
 
 Custom hooks receive JSON on stdin with `file`, `content`, `sorries`, `axioms`, `build_status` and return JSON with `suggestions` array.
+
+See [review-hook-schema.md](../skills/lean4/references/review-hook-schema.md) for full schema documentation.
+
+## JSON Output Schema
+
+When using `--json`, output follows this structure:
+
+```json
+{
+  "version": "1.0",
+  "build_status": "passing" | "failing",
+  "sorries": [
+    {"file": "Core.lean", "line": 89, "theorem": "convergence_main", "goal": "..."}
+  ],
+  "axioms": {
+    "standard": ["propext", "Classical.choice", "Quot.sound"],
+    "custom": []
+  },
+  "style_notes": [
+    {"file": "Core.lean", "line": 42, "message": "Consider using field syntax"}
+  ],
+  "golfing_opportunities": [
+    {"file": "Core.lean", "line": 78, "pattern": "have chain", "suggestion": "Inline or extract"}
+  ],
+  "summary": {
+    "total_sorries": 3,
+    "total_custom_axioms": 0,
+    "style_issues": 2,
+    "golf_opportunities": 5
+  }
+}
+```
+
+## Codex Hook Interface
+
+When using `--codex`, the review command sends context to Codex and receives suggestions.
+
+**Hook Input (sent to Codex):**
+```json
+{
+  "version": "1.0",
+  "request_type": "review",
+  "files": [{
+    "path": "Core.lean",
+    "content": "...",
+    "sorries": [{"line": 89, "goal": "...", "hypotheses": [...]}],
+    "axioms": [],
+    "diagnostics": []
+  }],
+  "build_status": "passing",
+  "preferences": {"focus": "completeness", "verbosity": "detailed"}
+}
+```
+
+**Hook Output (suggestions from Codex):**
+```json
+{
+  "version": "1.0",
+  "suggestions": [{
+    "file": "Core.lean",
+    "line": 89,
+    "severity": "hint",
+    "message": "Try tendsto_atTop from Mathlib",
+    "fix": "exact tendsto_atTop.mpr ..."
+  }]
+}
+```
+
+**Example invocation:**
+```bash
+/lean4:review --codex           # Human-readable with Codex hints
+/lean4:review --codex --json    # Structured JSON with Codex suggestions
+```
 
 ## Safety
 

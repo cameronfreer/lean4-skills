@@ -14,6 +14,7 @@ Main entry point for automated theorem proving. Planning-first, LSP-powered, wit
 /lean4:autoprover                    # Start interactive session
 /lean4:autoprover File.lean          # Focus on specific file
 /lean4:autoprover --repair-only      # Fix build errors without filling sorries
+/lean4:autoprover --deep             # Enable escalation for stubborn sorries
 ```
 
 ## Inputs
@@ -22,6 +23,7 @@ Main entry point for automated theorem proving. Planning-first, LSP-powered, wit
 |-----|----------|-------------|
 | file | No | Specific file to focus on |
 | --repair-only | No | Fix build errors only, skip sorry-filling |
+| --deep | No | Allow escalation to deep mode (may change statements with approval) |
 
 ## Philosophy
 
@@ -29,6 +31,32 @@ Main entry point for automated theorem proving. Planning-first, LSP-powered, wit
 - **LSP first** - Sub-second feedback; scripts as fallback
 - **Small commits** - Each sorry = one commit for easy rollback
 - **Human in loop** - Planning phase mandatory, review checkpoints required
+
+## Fast Path vs Deep Mode
+
+### Fast Path (Default)
+
+Inline sorry-filling with constraints:
+1. `lean_goal` → `lean_local_search` / `lean_leansearch` / `lean_loogle`
+2. Generate 2-3 candidates, test with `lean_multi_attempt`
+3. Apply shortest working proof
+4. **On failure: skip sorry, continue** (no escalation)
+
+**Constraints:** Max 3 candidates, ≤80 lines diff, NO statement changes, NO cross-file refactoring.
+
+### Deep Mode (`--deep`)
+
+1. Fast path runs first
+2. On failure, escalates to internal sorry-filler-deep workflow
+3. **Statement changes require approval:**
+   ```
+   ## Statement Change Required
+   Current: theorem foo (x : ℕ) : P x
+   Proposed: theorem foo (x : ℤ) : P x
+   Approve? (yes / no / suggest alternative)
+   ```
+
+Deep mode allows: multi-file refactoring, helper extraction, statement generalization (with approval).
 
 ## Actions
 
