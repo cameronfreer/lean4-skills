@@ -110,14 +110,14 @@ theorem helper_lemma : P → Q := mathlib_lemma
 -- Before
 axiom complex_fact : Big_Statement
 
--- After (30% case: compose mathlib lemmas)
+-- After (compose mathlib lemmas)
 theorem complex_fact : Big_Statement := by
   have h1 := mathlib_lemma_1
   have h2 := mathlib_lemma_2
   exact combine h1 h2
 ```
 
-**Step 3: If needs structure, refactor** (10% case)
+**Step 3: If needs structure, refactor** (less common)
 - Introduce helper lemmas
 - Break into provable components
 - May span multiple files
@@ -195,9 +195,9 @@ Elimination order: B, then A
 **Eliminated:** N-M
 
 **By strategy:**
-- Mathlib import: X (60%)
-- Compositional proof: Y (30%)
-- Structural refactor: Z (10%)
+- Mathlib import: X
+- Compositional proof: Y
+- Structural refactor: Z
 - Converted to sorry for later: W
 
 **Files changed:** K
@@ -267,7 +267,7 @@ Elimination order: B, then A
 **Verification:**
 - `$LEAN4_SCRIPTS/check_axioms_inline.sh FILE.lean`
 
-**Search (CRITICAL - 60% success rate!):**
+**Search (CRITICAL - high success rate):**
 - `$LEAN4_SCRIPTS/search_mathlib.sh "pattern" [name|content]`
 - `$LEAN4_SCRIPTS/smart_search.sh "query" --source=all`
 

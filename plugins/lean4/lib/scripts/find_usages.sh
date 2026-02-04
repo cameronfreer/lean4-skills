@@ -53,11 +53,11 @@ escape_regex() {
 }
 
 # Lean identifier boundary patterns
-# Lean identifiers can contain: letters, digits, _, and ' (prime)
-# We need custom boundaries because \b doesn't work with ' or qualified names
+# Lean identifiers can contain: letters, digits, _, ' (prime), and . (qualified names)
+# We need custom boundaries because \b doesn't work with ' or .
 # These patterns match the position before/after a complete identifier
-LEAN_ID_BEFORE='(^|[^A-Za-z0-9_'"'"'])'
-LEAN_ID_AFTER='($|[^A-Za-z0-9_'"'"'])'
+LEAN_ID_BEFORE='(^|[^A-Za-z0-9_'"'"'.])'
+LEAN_ID_AFTER='($|[^A-Za-z0-9_'"'"'.])'
 
 # Validate input
 if [[ -z "$IDENTIFIER" ]]; then
@@ -92,8 +92,8 @@ trap 'rm -f "$RESULTS_FILE"' EXIT
 is_definition_line() {
     local line="$1"
     # Check if line defines the identifier (not just uses it)
-    # Use ESCAPED_ID to handle dots and other regex metacharacters in qualified names
-    if echo "$line" | grep -qE "^[[:space:]]*(theorem|lemma|def|class|structure|inductive|axiom|instance|abbrev)[[:space:]]+$ESCAPED_ID"; then
+    # Use ESCAPED_ID with boundary to avoid matching prefixes (e.g., Nat.add vs Nat.add_comm)
+    if echo "$line" | grep -qE "^[[:space:]]*(theorem|lemma|def|class|structure|inductive|axiom|instance|abbrev)[[:space:]]+$ESCAPED_ID$LEAN_ID_AFTER"; then
         return 0  # true - is definition
     fi
     return 1  # false - not definition

@@ -120,11 +120,6 @@ bash $LEAN4_SCRIPTS/search_mathlib.sh "similar.*pattern" name
 # See tactic-patterns.md for goal-based suggestions
 ```
 
-**Web search if needed:**
-```
-WebFetch("https://leansearch.net/", "search for: complex query")
-```
-
 ### 5. Refactoring Strategies
 
 **You may:**

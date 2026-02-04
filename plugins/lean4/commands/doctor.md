@@ -72,8 +72,9 @@ plugins/lean4/
 ├── commands/
 │   ├── autoprover.md           ✓
 │   ├── checkpoint.md           ✓
-│   ├── review.md               ✓
-│   └── doctor.md               ✓
+│   ├── doctor.md               ✓
+│   ├── golf.md                 ✓
+│   └── review.md               ✓
 ├── hooks/
 │   ├── bootstrap.sh            ✓ (executable)
 │   ├── guardrails.sh           ✓ (executable)

@@ -111,7 +111,6 @@ while IFS= read -r decl; do
 
     # Search for uses of this declaration
     # Escape for regex and use Lean-aware boundaries (handles ' and .)
-    local escaped_decl
     escaped_decl=$(escape_regex "$decl")
     if [[ "$USE_RG" == true ]]; then
         # Count usages (excluding definition)
@@ -148,7 +147,6 @@ else
     # Show unused declarations with file locations
     while IFS= read -r decl; do
         # Find where it's defined (escape for regex)
-        local escaped_decl
         escaped_decl=$(escape_regex "$decl")
         if [[ "$USE_RG" == true ]]; then
             LOCATION=$(rg -t lean "^(theorem|lemma|def|abbrev|instance)\s+$escaped_decl$LEAN_ID_AFTER" \
