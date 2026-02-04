@@ -35,14 +35,14 @@ git push                   # Manual, after review
 ## Features
 
 - **Planning-first workflow** - Establishes scope before any changes
-- **LSP-first approach** - Sub-second feedback via Lean LSP MCP
+- **LSP-first approach** - Sub-second feedback and search tools via Lean LSP MCP
 - **Search before prove** - 90% of sorries exist in mathlib
 - **Safety guardrails** - Blocks push/amend/pr during sessions
 - **Atomic commits** - One sorry = one commit for easy rollback
 
 ## Recommended: Lean LSP MCP Server
 
-The [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) server provides sub-second feedback:
+The [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) server provides sub-second feedback and access to search tools (LeanSearch, Loogle, LeanFinder):
 
 ```
 lean_goal(file, line)                           # See exact goal

@@ -6,7 +6,7 @@ model: opus
 thinking: on
 ---
 
-# Lean 4 Sorry Filler - Deep Pass (EXPERIMENTAL)
+# Lean 4 Sorry Filler - Deep Pass
 
 ## Inputs
 

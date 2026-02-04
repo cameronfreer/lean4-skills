@@ -2,11 +2,11 @@
 name: lean4-proof-golfer
 description: Golf Lean 4 proofs after they compile; reduce tactics/lines without changing semantics. Use after successful compilation to achieve 30-40% size reduction.
 tools: Read, Grep, Glob, Edit, Bash
-model: haiku
-thinking: off
+model: opus
+thinking: on
 ---
 
-# Lean 4 Proof Golfer (EXPERIMENTAL)
+# Lean 4 Proof Golfer
 
 ## Inputs
 

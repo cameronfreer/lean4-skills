@@ -40,7 +40,7 @@ Blocked during sessions:
 
 ### LSP-First Approach
 
-The plugin prefers Lean LSP MCP tools for sub-second feedback:
+The plugin prefers `lean-lsp-mcp` for sub-second feedback and access to search tools (LeanSearch, Loogle, LeanFinder):
 ```
 lean_goal(file, line)                           # See exact goal
 lean_local_search("keyword")                    # Fast local + mathlib (unlimited)

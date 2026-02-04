@@ -6,7 +6,7 @@ model: opus
 thinking: on
 ---
 
-# Lean 4 Axiom Eliminator (EXPERIMENTAL)
+# Lean 4 Axiom Eliminator
 
 ## Inputs
 

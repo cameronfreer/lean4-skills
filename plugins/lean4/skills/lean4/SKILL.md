@@ -1,6 +1,6 @@
 ---
 name: lean4
-description: Use for any Lean 4 .lean work: filling sorries, fixing build errors, searching mathlib, or resolving typeclass/instance issues. LSP-first, scripts as fallback.
+description: "Use for any Lean 4 .lean work: filling sorries, fixing build errors, searching mathlib, or resolving typeclass/instance issues. LSP-first, scripts as fallback."
 ---
 
 # Lean 4 Theorem Proving
@@ -37,7 +37,7 @@ Use this skill whenever you're editing Lean 4 proofs or debugging Lean builds. I
 
 ## LSP Tools (Preferred)
 
-Sub-second feedback via Lean LSP MCP:
+Sub-second feedback and search tools (LeanSearch, Loogle, LeanFinder) via Lean LSP MCP:
 
 ```
 lean_goal(file, line)                           # See exact goal

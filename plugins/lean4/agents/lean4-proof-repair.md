@@ -6,7 +6,7 @@ model: haiku
 thinking: off
 ---
 
-# Lean 4 Proof Repair - Compiler-Guided (EXPERIMENTAL)
+# Lean 4 Proof Repair - Compiler-Guided
 
 ## Inputs
 
