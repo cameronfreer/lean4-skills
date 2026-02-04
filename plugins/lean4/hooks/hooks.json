@@ -1,0 +1,13 @@
+{
+  "description": "Lean4 v4: planning-first workflow with guardrails",
+  "hooks": {
+    "SessionStart": [{
+      "matcher": "startup",
+      "hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/bootstrap.sh", "timeout": 10}]
+    }],
+    "PreToolUse": [{
+      "matcher": "Bash",
+      "hooks": [{"type": "validator", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/guardrails.sh", "timeout": 5, "onError": "block"}]
+    }]
+  }
+}
