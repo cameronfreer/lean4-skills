@@ -46,11 +46,15 @@ def try_solver(file_path: Path, line: int, column: int, solver: str, timeout: in
     Try inserting solver tactic at given location.
     Returns diff if compilation succeeds.
     """
+    # Validate line (default 0 from context means line 1)
+    if line < 1:
+        return None
+
     with open(file_path) as f:
         lines = f.readlines()
 
     # Validate line bounds
-    if line < 1 or line > len(lines):
+    if line > len(lines):
         return None
 
     # Insert solver tactic (simple heuristic: replace 'sorry' or add after 'by')
@@ -60,7 +64,7 @@ def try_solver(file_path: Path, line: int, column: int, solver: str, timeout: in
         # Replace sorry with solver
         modified = target_line.replace("sorry", solver)
         lines[line - 1] = modified
-    elif "by" in target_line:
+    elif target_line.rstrip().endswith("by"):
         # Add solver on new line with proper indentation (2 extra spaces from 'by')
         indent = len(target_line) - len(target_line.lstrip())
         solver_line = " " * (indent + 2) + solver + "\n"
@@ -68,10 +72,10 @@ def try_solver(file_path: Path, line: int, column: int, solver: str, timeout: in
     else:
         return None
 
-    # Write to temp file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.lean', delete=False) as tmp:
+    # Write to temp file in same directory as original for proper project context
+    tmp_path = file_path.parent / f".solver_cascade_tmp_{file_path.name}"
+    with open(tmp_path, 'w') as tmp:
         tmp.writelines(lines)
-        tmp_path = tmp.name
 
     try:
         # Try compiling with lake env lean (single-file compilation)
@@ -86,7 +90,7 @@ def try_solver(file_path: Path, line: int, column: int, solver: str, timeout: in
         if result.returncode == 0:
             # Success! Generate diff
             diff = subprocess.run(
-                ["diff", "-u", str(file_path), tmp_path],
+                ["diff", "-u", str(file_path), str(tmp_path)],
                 capture_output=True,
                 text=True
             ).stdout
@@ -97,12 +101,12 @@ def try_solver(file_path: Path, line: int, column: int, solver: str, timeout: in
     except subprocess.TimeoutExpired:
         return None
     finally:
-        Path(tmp_path).unlink()
+        tmp_path.unlink(missing_ok=True)
 
 
 def run_solver_cascade(context: dict, file_path: Path) -> Optional[str]:
     """Run solver cascade, return diff if any succeeds."""
-    line = context.get("line", 0)
+    line = context.get("line", 1)  # Default to line 1 if not specified
     column = context.get("column", 0)
     error_type = context.get("errorType", "")
 

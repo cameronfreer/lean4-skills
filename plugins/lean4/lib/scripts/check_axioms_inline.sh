@@ -29,14 +29,23 @@
 
 set -euo pipefail
 
-# Track backup files for cleanup on interrupt
-BACKUP_FILES=()
+# Track backup files for cleanup on interrupt using marker files
+# Marker files are more robust than arrays for SIGINT handling
+MARKER_DIR=$(mktemp -d)
 cleanup() {
-    for f in "${BACKUP_FILES[@]}"; do
-        if [[ -f "$f.axiom_check_backup" ]]; then
-            mv "$f.axiom_check_backup" "$f"
+    # Find all marker files and restore corresponding backups
+    # Use nullglob to handle case when no markers exist
+    local marker
+    for marker in "$MARKER_DIR"/*.marker; do
+        [[ -f "$marker" ]] || continue
+        local original
+        original=$(cat "$marker")
+        if [[ -f "$original.axiom_check_backup" ]]; then
+            mv "$original.axiom_check_backup" "$original"
         fi
+        rm -f "$marker"
     done
+    rm -rf "$MARKER_DIR"
 }
 trap cleanup EXIT INT TERM
 
@@ -126,10 +135,10 @@ check_file() {
         NAMESPACE=$(grep "^namespace " "$FILE" | head -1 | sed 's/namespace //')
     fi
 
-    # Extract all theorem/lemma/def declarations
+    # Extract all theorem/lemma/def declarations (including structure, class, inductive)
     local DECLARATIONS=()
     while IFS= read -r line; do
-        decl=$(echo "$line" | sed -E 's/^(theorem|lemma|def|instance|abbrev|example) +([^ :(]+).*/\2/')
+        decl=$(echo "$line" | sed -E 's/^(theorem|lemma|def|instance|abbrev|example|structure|class|inductive) +([^ :(]+).*/\2/')
         if [[ -n "$decl" ]]; then
             # Add namespace prefix if present
             if [[ -n "$NAMESPACE" ]]; then
@@ -138,7 +147,7 @@ check_file() {
                 DECLARATIONS+=("$decl")
             fi
         fi
-    done < <(grep -E '^(theorem|lemma|def|instance|abbrev|example) ' "$FILE" || true)
+    done < <(grep -E '^(theorem|lemma|def|instance|abbrev|example|structure|class|inductive) ' "$FILE" || true)
 
     if [[ ${#DECLARATIONS[@]} -eq 0 ]]; then
         echo -e "  ${YELLOW}No declarations found${NC}"
@@ -148,23 +157,19 @@ check_file() {
 
     echo -e "  ${GREEN}Found ${#DECLARATIONS[@]} declarations${NC}"
 
-    # Create backup and track it for cleanup
+    # Create backup and track it with marker file for SIGINT safety
     local BACKUP_FILE="${FILE}.axiom_check_backup"
+    local MARKER_FILE="$MARKER_DIR/$(basename "$FILE").marker"
     cp "$FILE" "$BACKUP_FILE"
-    BACKUP_FILES+=("$FILE")
+    echo "$FILE" > "$MARKER_FILE"
 
-    # Function to restore file and remove from backup tracking
+    # Function to restore file and remove marker
     local cleanup_done=false
     cleanup_file() {
         if [[ "$cleanup_done" == false && -f "$BACKUP_FILE" ]]; then
             mv "$BACKUP_FILE" "$FILE"
             cleanup_done=true
-            # Remove from BACKUP_FILES array so trap doesn't double-restore
-            local new_arr=()
-            for f in "${BACKUP_FILES[@]}"; do
-                [[ "$f" != "$FILE" ]] && new_arr+=("$f")
-            done
-            BACKUP_FILES=("${new_arr[@]+"${new_arr[@]}"}")
+            rm -f "$MARKER_FILE"
         fi
     }
 

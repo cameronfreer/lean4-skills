@@ -3,7 +3,7 @@
 sorry_analyzer.py - Extract and analyze sorry statements in Lean 4 code
 
 Usage:
-    ./sorry_analyzer.py <file-or-directory> [--format=text|json|markdown] [--interactive] [--include-deps]
+    ./sorry_analyzer.py <file-or-directory> [--format=text|json|markdown|summary] [--interactive] [--include-deps]
 
 This script finds all 'sorry' instances in Lean files and extracts:
 - Location (file, line number)
@@ -13,13 +13,14 @@ This script finds all 'sorry' instances in Lean files and extracts:
 
 Modes:
     --interactive: Interactive mode to pick which sorry to work on
-    --format=FORMAT: Output format (text, json, markdown)
+    --format=FORMAT: Output format (text, json, markdown, summary)
     --include-deps: Include .lake/ directories (dependencies) in search (excluded by default)
 
 Examples:
     ./sorry_analyzer.py MyFile.lean
     ./sorry_analyzer.py src/DeFinetti/ --format=markdown
     ./sorry_analyzer.py . --format=json > sorries.json
+    ./sorry_analyzer.py . --format=summary
     ./sorry_analyzer.py . --interactive
 """
 
@@ -45,8 +46,13 @@ def extract_declaration_name(lines: List[str], sorry_idx: int) -> Optional[str]:
     """Extract the theorem/lemma/def name containing this sorry"""
     # Search backwards for declaration
     # Support Unicode and qualified names (e.g., Foo.bar, foo', foo'')
+    # Handle optional visibility modifiers (private, protected) and attributes (@[...])
     for i in range(sorry_idx - 1, max(0, sorry_idx - 50), -1):
-        match = re.match(r"^\s*(theorem|lemma|def|example)\s+([\w.']+)", lines[i])
+        match = re.match(
+            r"^\s*(?:@\[.*?\]\s*)?(?:private\s+|protected\s+)?"
+            r"(theorem|lemma|def|example|instance|structure|class)\s+([\w.']+)",
+            lines[i]
+        )
         if match:
             return f"{match.group(1)} {match.group(2)}"
     return None
@@ -88,8 +94,10 @@ def find_sorries_in_file(filepath: Path) -> List[Sorry]:
     for i, line in enumerate(lines):
         # Look for sorry (not in comments)
         if 'sorry' in line:
-            # Simple check: not in a comment
+            # Simple check: not in a comment (line or single-line block)
             code_part = line.split('--')[0]
+            # Strip single-line block comments (* ... *)
+            code_part = re.sub(r'\(\*.*?\*\)', '', code_part)
             if 'sorry' in code_part:
                 context_before = [l.rstrip() for l in lines[max(0, i-3):i]]
                 context_after = [l.rstrip() for l in lines[i+1:min(len(lines), i+4)]]

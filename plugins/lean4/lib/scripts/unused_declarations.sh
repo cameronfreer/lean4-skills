@@ -186,7 +186,8 @@ else
 
     echo -e "${YELLOW}${BOLD}Important:${NC}"
     echo "• This analysis may have false positives (e.g., exported API, instances)"
-    echo "• Usages in comments and strings are counted (may inflate usage counts)"
+    echo -e "• ${RED}⚠ Usages in comments and strings ARE counted${NC} (may inflate usage counts)"
+    echo "  This is a known limitation - stripping comments requires Lean parsing."
     echo "• Always verify before removing declarations"
     echo "• Use ${BOLD}find_usages.sh <decl>${NC} to double-check specific declarations"
     echo ""

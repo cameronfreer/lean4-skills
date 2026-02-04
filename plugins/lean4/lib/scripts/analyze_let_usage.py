@@ -96,8 +96,9 @@ def count_binding_uses(file_path: Path, binding_name: str,
     # Look for uses after the definition line
     for i in range(def_line, len(lines)):
         line = lines[i]
-        # Skip comments
+        # Skip comments (line comments and single-line block comments)
         line = re.sub(r'--.*$', '', line)
+        line = re.sub(r'\(\*.*?\*\)', '', line)
 
         # Count occurrences of the binding name (as whole word)
         pattern = r'\b' + re.escape(binding_name) + r'\b'

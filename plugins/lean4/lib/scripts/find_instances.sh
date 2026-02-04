@@ -41,6 +41,10 @@ fi
 # Escape query for regex matching
 ESCAPED_QUERY=$(escape_regex "$QUERY")
 
+# Lean identifier boundary pattern for word boundaries
+# Prevents matching Fintype when searching for Fin
+LEAN_ID_AFTER='($|[^A-Za-z0-9_'"'"'.])'
+
 # Detect if ripgrep is available (faster)
 if command -v rg &> /dev/null; then
     USE_RG=true
@@ -66,14 +70,14 @@ fi
 echo -e "${BLUE}Searching for instances of: ${YELLOW}$QUERY${NC}"
 echo
 
-# Search for instance declarations (use escaped query for regex safety)
+# Search for instance declarations (use escaped query with word boundary for regex safety)
 echo -e "${GREEN}Instance declarations:${NC}"
 if [[ "$USE_RG" == true ]]; then
-    rg -t lean "^instance.*:.*$ESCAPED_QUERY" "$MATHLIB_PATH" -n --heading --color=always | head -80
+    rg -t lean "^instance.*:.*$ESCAPED_QUERY$LEAN_ID_AFTER" "$MATHLIB_PATH" -n --heading --color=always | head -80
 else
-    find "$MATHLIB_PATH" -name "*.lean" -type f -exec grep -l "^instance.*:.*$ESCAPED_QUERY" {} \; | head -20 | while read -r file; do
+    find "$MATHLIB_PATH" -name "*.lean" -type f -exec grep -lE "^instance.*:.*$ESCAPED_QUERY$LEAN_ID_AFTER" {} \; | head -20 | while read -r file; do
         echo -e "${BLUE}File: ${NC}$file"
-        grep -n "^instance.*:.*$ESCAPED_QUERY" "$file" | head -3
+        grep -nE "^instance.*:.*$ESCAPED_QUERY$LEAN_ID_AFTER" "$file" | head -3
         echo
     done
 fi
@@ -81,11 +85,11 @@ fi
 echo
 echo -e "${GREEN}Deriving instances:${NC}"
 if [[ "$USE_RG" == true ]]; then
-    rg -t lean "deriving.*$ESCAPED_QUERY" "$MATHLIB_PATH" -n --heading --color=always | head -40
+    rg -t lean "deriving.*$ESCAPED_QUERY$LEAN_ID_AFTER" "$MATHLIB_PATH" -n --heading --color=always | head -40
 else
-    find "$MATHLIB_PATH" -name "*.lean" -type f -exec grep -l "deriving.*$ESCAPED_QUERY" {} \; | head -10 | while read -r file; do
+    find "$MATHLIB_PATH" -name "*.lean" -type f -exec grep -lE "deriving.*$ESCAPED_QUERY$LEAN_ID_AFTER" {} \; | head -10 | while read -r file; do
         echo -e "${BLUE}File: ${NC}$file"
-        grep -n "deriving.*$ESCAPED_QUERY" "$file" | head -2
+        grep -nE "deriving.*$ESCAPED_QUERY$LEAN_ID_AFTER" "$file" | head -2
         echo
     done
 fi
@@ -94,11 +98,11 @@ if [[ "$VERBOSE" == "--verbose" ]]; then
     echo
     echo -e "${CYAN}Implicit instance arguments:${NC}"
     if [[ "$USE_RG" == true ]]; then
-        rg -t lean "\[$ESCAPED_QUERY " "$MATHLIB_PATH" -n --heading --color=always | head -40
+        rg -t lean "\[$ESCAPED_QUERY$LEAN_ID_AFTER" "$MATHLIB_PATH" -n --heading --color=always | head -40
     else
-        find "$MATHLIB_PATH" -name "*.lean" -type f -exec grep -l "\[$ESCAPED_QUERY " {} \; | head -10 | while read -r file; do
+        find "$MATHLIB_PATH" -name "*.lean" -type f -exec grep -lE "\[$ESCAPED_QUERY$LEAN_ID_AFTER" {} \; | head -10 | while read -r file; do
             echo -e "${BLUE}File: ${NC}$file"
-            grep -n "\[$ESCAPED_QUERY " "$file" | head -2
+            grep -nE "\[$ESCAPED_QUERY$LEAN_ID_AFTER" "$file" | head -2
             echo
         done
     fi

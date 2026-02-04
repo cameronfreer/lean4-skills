@@ -99,7 +99,8 @@ is_definition_line() {
     local line="$1"
     # Check if line defines the identifier (not just uses it)
     # Use ESCAPED_ID with boundary to avoid matching prefixes (e.g., Nat.add vs Nat.add_comm)
-    if echo "$line" | grep -qE "^[[:space:]]*(theorem|lemma|def|class|structure|inductive|axiom|instance|abbrev)[[:space:]]+$ESCAPED_ID$LEAN_ID_AFTER"; then
+    # Handle optional attributes (@[simp], @[ext], etc.) before the declaration keyword
+    if echo "$line" | grep -qE "^[[:space:]]*(@\[.*\][[:space:]]+)?(theorem|lemma|def|class|structure|inductive|axiom|instance|abbrev)[[:space:]]+$ESCAPED_ID$LEAN_ID_AFTER"; then
         return 0  # true - is definition
     fi
     return 1  # false - not definition
