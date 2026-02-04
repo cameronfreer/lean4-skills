@@ -75,9 +75,9 @@ Read-only review of Lean proofs for quality, style, and optimization opportuniti
 
 ## External Hooks
 
-Custom hooks receive JSON on stdin with `file`, `content`, `sorries`, `axioms`, `build_status` and return JSON with `suggestions` array.
+Custom hooks receive structured JSON on stdin with file information, sorries, axioms, and build status. They return JSON with a `suggestions` array.
 
-See [review-hook-schema.md](../skills/lean4/references/review-hook-schema.md) for full schema documentation.
+See [review-hook-schema.md](../skills/lean4/references/review-hook-schema.md) for full input/output schemas and examples.
 
 ## JSON Output Schema
 

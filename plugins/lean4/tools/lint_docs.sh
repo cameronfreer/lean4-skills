@@ -83,10 +83,10 @@ check_agents() {
     local count
     count=$(echo "$actual_agents" | wc -l | tr -d ' ')
 
-    if [[ $count -eq 5 ]]; then
-        ok "Found 5 agent files"
+    if [[ $count -eq 4 ]]; then
+        ok "Found 4 agent files"
     else
-        warn "Expected 5 agents, found $count"
+        warn "Expected 4 agents, found $count"
     fi
 
     # Check each agent
@@ -190,7 +190,7 @@ check_cross_refs() {
     local cmd_anchors="autoprover checkpoint doctor golf review"
 
     # Valid anchors for agent-workflows.md
-    local agent_anchors="lean4-sorry-filler-fast-pass lean4-sorry-filler-deep lean4-proof-repair lean4-proof-golfer lean4-axiom-eliminator"
+    local agent_anchors="lean4-sorry-filler-deep lean4-proof-repair lean4-proof-golfer lean4-axiom-eliminator"
 
     while IFS= read -r file; do
         # Check links to command-examples.md

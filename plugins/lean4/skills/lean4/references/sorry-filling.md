@@ -179,12 +179,11 @@ Otherwise you'll wait 30+ minutes for mathlib to recompile from scratch.
 - Break into smaller sub-sorries
 - Extract as helper lemma
 - Document as TODO with strategy
-- Dispatch lean4-sorry-filler-deep subagent (if available)
+- Use `/lean4:autoprover --deep` for deep sorry-filling workflow
 
 ## Output Size Limits
 
-**For fast pass (Haiku agents):**
+**For fast path:**
 - Max 3 candidates per sorry
 - Each diff ≤80 lines
-- Total output ≤900 tokens
-- If 0/3 compile, STOP and recommend escalation
+- If 0/3 compile, skip and continue (or escalate with `--deep`)

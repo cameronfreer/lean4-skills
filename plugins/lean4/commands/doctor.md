@@ -46,7 +46,7 @@ plugins/lean4/
 ├── commands/     (5 files)
 ├── hooks/        (executable .sh)
 ├── skills/lean4/ (SKILL.md + references/)
-├── agents/       (5 files)
+├── agents/       (4 files)
 └── lib/scripts/  (12 files, executable)
 ```
 
