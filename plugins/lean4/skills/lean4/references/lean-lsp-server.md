@@ -48,7 +48,7 @@ Without `tee`, piping to `head`/`grep` discards the rest. With `tee`, the full o
 ```
 1. lean_goal(file, line)                    # What to prove?
 2. lean_local_search("keyword", limit=10)   # Does it exist?
-3. lean_multi_attempt(file, line, [         # Test tactics
+3. lean_multi_attempt(file, line, snippets=[ # Test tactics
      "  simp", "  omega", "  apply lemma"
    ])
 4. [Edit file with winner]
@@ -152,7 +152,7 @@ limit parameters to reduce the response size.
 
 ### Testing multiple approaches
 ```
-lean_multi_attempt(file, line, [
+lean_multi_attempt(file, line, snippets=[
   "  simp [lemma1]",
   "  omega",
   "  apply lemma2"

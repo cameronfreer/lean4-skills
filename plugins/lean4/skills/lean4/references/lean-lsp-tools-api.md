@@ -717,7 +717,7 @@ Error: Rate limit exceeded. Try again in X seconds.
 ```
 1. lean_goal(file, line)           # What to prove?
 2. lean_local_search("keyword")    # Find candidates
-3. lean_multi_attempt([            # Test them all
+3. lean_multi_attempt(file, line, snippets=[  # Test them all
      "  apply candidate1",
      "  exact candidate2",
      "  simp [candidate3]"
@@ -784,7 +784,7 @@ See exactly what each tactic accomplishes!
 
 **Use `lean_multi_attempt` to diagnose:**
 ```
-lean_multi_attempt(file, line, [
+lean_multi_attempt(file, line, snippets=[
   "  exact h",           # "Unknown identifier h"
   "  apply theorem",     # "Could not unify..."
   "  simp"               # Works!
@@ -802,7 +802,7 @@ Errors tell you exactly why tactics fail - invaluable for learning!
 lean_local_search("add_comm")
 → Found candidates
 
-lean_multi_attempt(file, line, [
+lean_multi_attempt(file, line, snippets=[
   "  apply Nat.add_comm",
   "  simp [Nat.add_comm]",
   "  omega"
@@ -846,7 +846,7 @@ lean_loogle("?a -> ?b matching that type")
 For each step:
   lean_goal(file, line)           # See current goal
   lean_local_search("keyword")    # Find lemma
-  lean_multi_attempt([tactics])   # Test
+  lean_multi_attempt(file, line, snippets=[...])  # Test
   [Edit file]
   lean_diagnostic_messages(file)  # Verify
 ```

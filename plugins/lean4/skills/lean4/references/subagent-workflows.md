@@ -470,7 +470,7 @@ For quick operations, use Lean LSP MCP tools directly:
 lean_leansearch("continuous function compact")  # Natural language search
 lean_loogle("Continuous _ → IsCompact _")       # Type pattern search
 lean_goal(file, line)                           # Get goal at position
-lean_multi_attempt(file, line, ["simp", "ring"]) # Test tactics
+lean_multi_attempt(file, line, snippets=["simp", "ring"]) # Test tactics
 ```
 
 ### Example: Finding Lemmas
