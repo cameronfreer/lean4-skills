@@ -23,6 +23,51 @@ Advanced patterns for preventing elaboration timeouts and type-checking performa
 
 ---
 
+## Fast Path: Profile with LSP (Preferred)
+
+Use `lean_profile_proof` to identify slow lines inside a theorem before optimizing.
+
+```
+lean_profile_proof(file, line)
+```
+
+**Example output:**
+```json
+{
+  "ms": 42.5,
+  "lines": [
+    {"line": 7, "ms": 38.2, "text": "simp [add_comm, add_assoc]"}
+  ],
+  "categories": {
+    "simp": 35.1,
+    "typeclass inference": 4.2
+  }
+}
+```
+
+### Fix Workflow
+
+1. **Profile** the slow theorem
+2. **Identify** the slowest line(s) from the output
+3. **Apply targeted fix** based on category (see below)
+4. **Re-profile** to verify improvement
+
+### Common Fixes by Category
+
+| Category | Problem | Fix |
+|----------|---------|-----|
+| `simp` | Broad simp set | `simp only [lemma1, lemma2]` instead of `simp [*]` |
+| `typeclass inference` | Instance synthesis | Add `haveI`/`letI` or open scopes earlier |
+| `simp` + `typeclass` | Combined slowness | Split into smaller `have` blocks |
+| `isDefEq` | Type checking | Use irreducible wrappers (Pattern 1 below) |
+| `whnf` | Unfolding | Pin type parameters explicitly |
+
+### When LSP Profiling Isn't Available
+
+Fall back to trace-based debugging (see "Debugging Elaboration Performance" section at end).
+
+---
+
 ## Pattern 1: Irreducible Wrappers for Complex Functions
 
 ### Problem
@@ -472,6 +517,14 @@ def complexFrozen := frozenF (frozenG (frozenH X))
 ---
 
 ## Debugging Elaboration Performance
+
+### Preferred: LSP Profiling
+
+Use `lean_profile_proof(file, line)` for fast, per-line timing data. See "Fast Path" section above.
+
+### Fallback: Trace-Based Debugging
+
+When LSP isn't available, use Lean's built-in tracing:
 
 **See elaboration heartbeats:**
 ```lean
