@@ -4,6 +4,28 @@ This reference provides comprehensive guidance on essential Lean 4 tactics, when
 
 **For natural language translations:** See [lean-phrasebook.md](lean-phrasebook.md) for "Mathematical English to Lean" patterns organized by proof situation.
 
+## Decision Tree
+
+```
+What's my goal?
+├─ Close with exact term → exact / assumption
+├─ Apply lemma to reduce goal → apply / refine
+├─ Prove equality
+│   ├─ By definition → rfl
+│   ├─ By rewriting → rw [lemma]
+│   ├─ By calculation → calc / ring / field_simp
+│   └─ By extensionality → ext / funext
+├─ Split goal
+│   ├─ And/Iff → constructor
+│   ├─ Or → left / right
+│   └─ Exists → use witness
+├─ Split hypothesis → cases / rcases / obtain
+├─ Simplify → simp / norm_num / ring
+└─ Don't know → exact? / apply? / simp?
+```
+
+---
+
 ## Quick Reference
 
 | Want to... | Use... |

@@ -1,5 +1,17 @@
 # Guide: Avoiding Instance Pollution in Lean 4
 
+## Quick Fix (TL;DR)
+
+1. **Pin ambient first:** `let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›`
+2. **Use @ for ambient facts:** `@Measurable Ω β m0 _ Z`
+3. **Then define sub-σ-algebras:** `let mSub := MeasurableSpace.comap Z m0`
+4. **Avoid `set`** - use inline comaps or `let` with explicit `m0`
+5. **Watch for inferInstance drift** - freeze ambient with `let`
+
+**Details below. Read "The Problem" if hitting mysterious type mismatches.**
+
+---
+
 ## The Problem
 
 When you have multiple instances of the same typeclass in scope (e.g., multiple `MeasurableSpace Ω`, `Metric α`, or `LinearOrder β` instances), Lean's elaborator preferentially selects **recently-defined local constants** over the ambient typeclass instance.

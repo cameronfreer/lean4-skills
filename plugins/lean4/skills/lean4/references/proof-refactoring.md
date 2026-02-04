@@ -2,6 +2,50 @@
 
 Guide for breaking monolithic proofs into maintainable helper lemmas.
 
+## Refactoring Decision Tree
+
+```
+Is the proof 60-200 lines? (sweet spot for refactoring)
+├─ Yes: Look for natural boundaries (use lean_goal at 4-5 key points)
+│   ├─ Repetitive structure (lhs/rhs, symmetric args, or repeated case splits)?
+│   │   └─ Extract common pattern to helper (Pattern 1.3)
+│   ├─ Single large case split (30+ lines proving reusable fact)?
+│   │   └─ Extract even if not repeated (Pattern 1.3 - single large case split)
+│   ├─ Multiple properties proven separately, used together?
+│   │   └─ Bundle with ∧, use obtain (Pattern 1.5)
+│   ├─ Mixes multiple mathematical domains (combinatorics + analysis)?
+│   │   └─ Extract each domain's logic separately (Pattern 1.2)
+│   ├─ Starts with 50+ line preliminary calculation?
+│   │   └─ Extract preliminary fact to helper (Pattern 1.1)
+│   ├─ Same 5-10 line notation conversion repeated?
+│   │   └─ Extract conversion helper (Pattern 1.6)
+│   ├─ Found witness extraction (choose/obtain)?
+│   │   └─ Extract to helper (Pattern 1.4 - clear input/output contract)
+│   ├─ Found arithmetic bounds?
+│   │   ├─ Can extract without `let` bindings? → Extract to private helper (Pattern 3.1)
+│   │   └─ Uses complex `let` bindings? → Consider inlining (Pattern 2.3)
+│   ├─ Found permutation construction?
+│   │   └─ Reusable pattern? → Extract (ensure parameter clarity, Pattern 2.1)
+│   ├─ Found "all equal, pick one" pattern?
+│   │   ├─ Equality proof → Extract to helper (Pattern 2.4 - mathematical content)
+│   │   └─ Choice of representative → Keep in main (proof engineering)
+│   └─ Found measure manipulations?
+│       └─ Uses `let` bindings? → Prefer inlining (Pattern 3.4 - definitional issues)
+├─ > 200 lines? → Multiple refactorings needed (start with largest prelims, Pattern 1.1)
+└─ < 60 lines? → Probably fine as-is (unless heavily repetitive)
+
+When extracting:
+1. Make helper `private` if proof-specific (Pattern 3.1: use regular -- comments, not /-- -/)
+2. **Generic is better** (Pattern 2.1): Remove proof-specific constraints
+3. Avoid `let` bindings in helper signatures (Pattern 2.3)
+4. If omega fails, add explicit intermediate steps (Pattern 3.3: use calc)
+5. Prefix unused but required parameters with underscore (Pattern 3.2: _hS)
+6. Add structural comments that explain "why", not "what" (Pattern 4.2)
+7. Test compilation after each extraction (Pattern 5.1: lean_diagnostic_messages)
+```
+
+---
+
 ## When to Refactor
 
 **Sweet spot:** Proofs between 60-200 lines benefit most from refactoring. Under 60 lines, overhead exceeds benefit. Over 200 lines, multiple refactorings needed.
@@ -53,63 +97,6 @@ theorem foo : Result := by
 ```
 
 **Why not refactor:** The induction structure IS the content. Extracting pieces would obscure the mathematical flow. Comments already clarify structure.
-
----
-
----
-
-## Refactoring Decision Tree
-
-```
-Is the proof 60-200 lines? (sweet spot for refactoring)
-├─ Yes: Look for natural boundaries (use lean_goal at 4-5 key points)
-│   ├─ Repetitive structure (lhs/rhs, symmetric args, or repeated case splits)?
-│   │   └─ Extract common pattern to helper (Pattern 1.3)
-│   ├─ Single large case split (30+ lines proving reusable fact)?
-│   │   └─ Extract even if not repeated (Pattern 1.3 - single large case split)
-│   ├─ Multiple properties proven separately, used together?
-│   │   └─ Bundle with ∧, use obtain (Pattern 1.5)
-│   ├─ Mixes multiple mathematical domains (combinatorics + analysis)?
-│   │   └─ Extract each domain's logic separately (Pattern 1.2)
-│   ├─ Starts with 50+ line preliminary calculation?
-│   │   └─ Extract preliminary fact to helper (Pattern 1.1)
-│   ├─ Same 5-10 line notation conversion repeated?
-│   │   └─ Extract conversion helper (Pattern 1.6)
-│   ├─ Found witness extraction (choose/obtain)?
-│   │   └─ Extract to helper (Pattern 1.4 - clear input/output contract)
-│   ├─ Found arithmetic bounds?
-│   │   ├─ Can extract without `let` bindings? → Extract to private helper (Pattern 3.1)
-│   │   └─ Uses complex `let` bindings? → Consider inlining (Pattern 2.3)
-│   ├─ Found permutation construction?
-│   │   └─ Reusable pattern? → Extract (ensure parameter clarity, Pattern 2.1)
-│   ├─ Found "all equal, pick one" pattern?
-│   │   ├─ Equality proof → Extract to helper (Pattern 2.4 - mathematical content)
-│   │   └─ Choice of representative → Keep in main (proof engineering)
-│   └─ Found measure manipulations?
-│       └─ Uses `let` bindings? → Prefer inlining (Pattern 3.4 - definitional issues)
-├─ > 200 lines? → Multiple refactorings needed (start with largest prelims, Pattern 1.1)
-└─ < 60 lines? → Probably fine as-is (unless heavily repetitive)
-
-When extracting:
-1. Make helper `private` if proof-specific (Pattern 3.1: use regular -- comments, not /-- -/)
-2. **Generic is better** (Pattern 2.1): Remove proof-specific constraints
-   - Relax equality to inequality (n = 42 → 1 ≤ n)
-   - Weaken hypotheses to minimum needed
-   - Broaden types when possible
-3. Avoid `let` bindings in helper signatures (Pattern 2.3):
-   - Option A: Use explicit parameters with equality proofs (param + hparam : param = expr)
-   - Option B: Inline the proof if measure theory manipulation (Pattern 3.4)
-4. If omega fails, add explicit intermediate steps (Pattern 3.3: use calc)
-5. Prefix unused but required parameters with underscore (Pattern 3.2: _hS)
-6. Add structural comments that explain "why", not "what" (Pattern 4.2)
-7. Isolate hypothesis usage—extract with minimal assumptions first (Pattern 2.2)
-8. Document what the helper proves and why (Pattern 6.1, 6.2, 6.3)
-9. Test compilation after each extraction (Pattern 5.1: lean_diagnostic_messages)
-10. Check goal states at 4-5 key points to find natural boundaries (Pattern 5.2)
-
-After refactoring:
-11. Use meaningful names (Pattern 4.1: variance_formula, not step1 - unless no better alternative)
-```
 
 ---
 

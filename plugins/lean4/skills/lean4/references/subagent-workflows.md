@@ -25,6 +25,54 @@
 
 **Remember:** The goal is to keep your main conversation focused on **proof strategy and tactics**, while automating everything else.
 
+## When to Dispatch Subagents
+
+### ✅ Dispatch Subagents For
+
+**Search tasks:**
+- Finding mathlib lemmas by keyword or pattern
+- Discovering type class instances
+- Locating similar proofs or patterns
+
+**Analysis tasks:**
+- Proof complexity metrics across files
+- Dependency graph generation
+- Sorry reports and statistics
+
+**Verification tasks:**
+- Checking axioms across multiple files
+- Batch compilation verification
+- Import consistency checks
+
+**Exploratory tasks:**
+- Understanding unfamiliar codebase structure
+- Finding all usages of a definition
+- Discovering available tactics or notation
+
+### ❌ Keep in Main Conversation
+
+**Proof development:**
+- Writing tactics and structuring arguments
+- Responding to type checker errors
+- Making tactical decisions (which tactic to try next)
+
+**Design decisions:**
+- Choosing between proof approaches
+- Breaking theorems into subgoals
+- Architectural decisions
+
+**Error debugging:**
+- Interpreting "failed to synthesize instance" errors
+- Understanding type mismatches
+- Resolving compilation errors
+
+**Strategic planning:**
+- Planning proof outline
+- Identifying helper lemmas needed
+- Deciding which sorry to tackle next
+
+---
+
 ## Agent Types
 
 ### Explore Agent (Fast, Lightweight)
@@ -88,52 +136,6 @@ Task: "Fill all 15 sorries in this file"
 ✅ Use /lean4:autoprover (batch processing with testing)
 ❌ Manual iteration in main conversation (inefficient)
 ```
-
-## When to Dispatch Subagents
-
-### ✅ Dispatch Subagents For
-
-**Search tasks:**
-- Finding mathlib lemmas by keyword or pattern
-- Discovering type class instances
-- Locating similar proofs or patterns
-
-**Analysis tasks:**
-- Proof complexity metrics across files
-- Dependency graph generation
-- Sorry reports and statistics
-
-**Verification tasks:**
-- Checking axioms across multiple files
-- Batch compilation verification
-- Import consistency checks
-
-**Exploratory tasks:**
-- Understanding unfamiliar codebase structure
-- Finding all usages of a definition
-- Discovering available tactics or notation
-
-### ❌ Keep in Main Conversation
-
-**Proof development:**
-- Writing tactics and structuring arguments
-- Responding to type checker errors
-- Making tactical decisions (which tactic to try next)
-
-**Design decisions:**
-- Choosing between proof approaches
-- Breaking theorems into subgoals
-- Architectural decisions
-
-**Error debugging:**
-- Interpreting "failed to synthesize instance" errors
-- Understanding type mismatches
-- Resolving compilation errors
-
-**Strategic planning:**
-- Planning proof outline
-- Identifying helper lemmas needed
-- Deciding which sorry to tackle next
 
 ## Automation Scripts + Subagents
 

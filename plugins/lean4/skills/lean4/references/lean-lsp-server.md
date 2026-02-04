@@ -35,9 +35,15 @@ Without `tee`, piping to `head`/`grep` discards the rest. With `tee`, the full o
 
 ---
 
-## The Workflow Pattern
+## Minimum Workflow (3 Steps)
 
-**Every proof follows this pattern:**
+1. `lean_goal(file, line)` - See what to prove
+2. `lean_multi_attempt(file, line, ["simp", "ring", "exact?"])` - Test tactics
+3. `lean_diagnostic_messages(file)` - Verify no errors
+
+## Full Workflow Pattern
+
+**For thorough proof development:**
 
 ```
 1. lean_goal(file, line)                    # What to prove?

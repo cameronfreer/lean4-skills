@@ -28,6 +28,18 @@ When working with sub-σ-algebras and conditional expectation:
 
 ---
 
+## Essential Lemmas (Start Here)
+
+| Task | Lemma | Notes |
+|------|-------|-------|
+| CE integrability | `integrable_condexp` | Always available |
+| Project CE to set integral | `set_integral_condexp` | Use this, not a.e. equality |
+| Trim measure instance | `sigmaFinite_trim μ hm` | After `haveI` |
+| Preimage measurability | `measurableSet_preimage hf hs` | Function syntax |
+| Lift sub-σ-algebra set | `hm _ hs_m` where `hm : m ≤ m₀` | Direct application |
+
+---
+
 ## ⚡ CRITICAL: Instance Pollution Prevention
 
 **If you're working with sub-σ-algebras, READ THIS FIRST:**
