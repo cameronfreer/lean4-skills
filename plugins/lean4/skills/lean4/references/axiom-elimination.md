@@ -17,7 +17,7 @@ Quick reference for systematically eliminating custom axioms from Lean 4 proofs.
 
 **Check axiom usage:**
 ```bash
-bash $LEAN4_SCRIPTS/check_axioms.sh FILE.lean
+bash $LEAN4_SCRIPTS/check_axioms_inline.sh FILE.lean
 ```
 
 **For individual theorems:**
@@ -156,7 +156,7 @@ bash $LEAN4_SCRIPTS/find_usages.sh axiom_name
 After each elimination:
 ```bash
 # Verify axiom count decreased
-bash $LEAN4_SCRIPTS/check_axioms.sh FILE.lean
+bash $LEAN4_SCRIPTS/check_axioms_inline.sh FILE.lean
 
 # Compare before/after
 echo "Before: N custom axioms"

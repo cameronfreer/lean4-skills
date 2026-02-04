@@ -36,7 +36,7 @@ Fill stubborn Lean 4 sorries that the fast pass couldn't handle. You can refacto
 ${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/sorry_analyzer.py . --format=text
 
 # Check axiom dependencies
-bash $LEAN4_SCRIPTS/check_axioms.sh FILE.lean
+bash $LEAN4_SCRIPTS/check_axioms_inline.sh FILE.lean
 ```
 
 ### 2. Outline a Plan FIRST
@@ -117,8 +117,7 @@ bash $LEAN4_SCRIPTS/smart_search.sh "complex query" --source=all
 # Find similar proven theorems
 bash $LEAN4_SCRIPTS/search_mathlib.sh "similar.*pattern" name
 
-# Get tactic suggestions
-bash $LEAN4_SCRIPTS/suggest_tactics.sh --goal "complex goal"
+# See tactic-patterns.md for goal-based suggestions
 ```
 
 **Web search if needed:**
@@ -207,13 +206,10 @@ Same as fast pass, plus:
 
 **Dependency analysis:**
 - `$LEAN4_SCRIPTS/find_usages.sh theorem_name`
-- `$LEAN4_SCRIPTS/dependency_graph.sh FILE.lean`
 
-**Complexity metrics:**
-- `$LEAN4_SCRIPTS/proof_complexity.sh FILE.lean`
-
-**Build profiling:**
-- `$LEAN4_SCRIPTS/build_profile.sh` (for performance-critical code)
+**Reference docs:**
+- [tactic-patterns.md](../skills/lean4/references/tactic-patterns.md)
+- [proof-templates.md](../skills/lean4/references/proof-templates.md)
 
 **All search and LSP tools from fast pass**
 

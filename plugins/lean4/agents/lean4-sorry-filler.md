@@ -50,9 +50,7 @@ bash $LEAN4_SCRIPTS/smart_search.sh "property description" --source=leansearch
 ```
 
 **Get tactic suggestions:**
-```bash
-bash $LEAN4_SCRIPTS/suggest_tactics.sh --goal "goal text here"
-```
+See [tactic-patterns.md](../skills/lean4/references/tactic-patterns.md) for patterns by goal type.
 
 ### 3. Generate 2-3 Candidates
 
@@ -171,8 +169,8 @@ The deep agent can handle this.
 - `$LEAN4_SCRIPTS/search_mathlib.sh "pattern" [name|content]`
 - `$LEAN4_SCRIPTS/smart_search.sh "query" --source=[leansearch|loogle|all]`
 
-**Tactic suggestions:**
-- `$LEAN4_SCRIPTS/suggest_tactics.sh --goal "goal text"`
+**Tactic patterns:**
+- See [tactic-patterns.md](../skills/lean4/references/tactic-patterns.md)
 
 **Analysis:**
 - `$LEAN4_SCRIPTS/sorry_analyzer.py . --format=text`

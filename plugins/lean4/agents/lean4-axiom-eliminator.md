@@ -22,7 +22,7 @@ Systematically eliminate custom axioms from Lean 4 proofs by replacing them with
 
 **Check axiom usage:**
 ```bash
-bash $LEAN4_SCRIPTS/check_axioms.sh FILE.lean
+bash $LEAN4_SCRIPTS/check_axioms_inline.sh FILE.lean
 ```
 
 **For each custom axiom found:**
@@ -139,7 +139,7 @@ theorem stuck_lemma : Hard_Property := by
 **Step 5: Verify elimination**
 ```bash
 # Verify axiom count decreased
-bash $LEAN4_SCRIPTS/check_axioms.sh FILE.lean
+bash $LEAN4_SCRIPTS/check_axioms_inline.sh FILE.lean
 
 # Compare before/after
 echo "Eliminated axiom: axiom_name"
@@ -265,7 +265,7 @@ Elimination order: B, then A
 ## Tools Available
 
 **Verification:**
-- `$LEAN4_SCRIPTS/check_axioms.sh FILE.lean`
+- `$LEAN4_SCRIPTS/check_axioms_inline.sh FILE.lean`
 
 **Search (CRITICAL - 60% success rate!):**
 - `$LEAN4_SCRIPTS/search_mathlib.sh "pattern" [name|content]`
@@ -273,7 +273,6 @@ Elimination order: B, then A
 
 **Dependencies:**
 - `$LEAN4_SCRIPTS/find_usages.sh theorem_name`
-- `$LEAN4_SCRIPTS/dependency_graph.sh FILE.lean`
 
 **Analysis:**
 - `$LEAN4_SCRIPTS/sorry_analyzer.py .` (after axiom → sorry conversion)

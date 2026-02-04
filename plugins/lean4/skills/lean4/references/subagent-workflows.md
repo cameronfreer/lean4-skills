@@ -213,7 +213,7 @@ Claude: "Perfect! Let's use Continuous.isCompact_range. Let me add the import...
 Claude: "Let me dispatch an Explore agent to analyze proof complexity..."
 
 [Dispatches with prompt]:
-"Run $LEAN4_SCRIPTS/proof_complexity.sh src/ --sort-by=lines and report:
+"Analyze proof complexity in src/ by reading files. Report:
  1. Top 10 most complex proofs by line count
  2. How many proofs are >100 lines (huge category)
  3. Any proofs with sorries that are also large"
@@ -308,7 +308,7 @@ to find the right mathlib lemma..."
 "Dispatch Explore agent to:
  1. Run $LEAN4_SCRIPTS/sorry_analyzer.py src/ and report total count
  2. Run $LEAN4_SCRIPTS/check_axioms_inline.sh 'src/**/*.lean' and report any issues
- 3. Run $LEAN4_SCRIPTS/proof_complexity.sh src/ --sort-by=sorries and report top 5
+ 3. Analyze proofs in src/ and report 5 largest proofs with sorries
  4. Summarize: What's the state of the codebase?"
 ```
 

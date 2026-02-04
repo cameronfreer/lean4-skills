@@ -47,9 +47,7 @@ bash $LEAN4_SCRIPTS/smart_search.sh "property description" --source=leansearch
 ```
 
 **Get tactic suggestions:**
-```bash
-bash $LEAN4_SCRIPTS/suggest_tactics.sh --goal "∀ x : ℕ, x + 0 = x"
-```
+See [tactic-patterns.md](tactic-patterns.md) for goal-based tactic recommendations.
 
 ## Common Sorry Types
 

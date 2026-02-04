@@ -89,14 +89,15 @@ For each opportunity:
 
 ### 6. Complexity Metrics
 
-```bash
-bash $LEAN4_SCRIPTS/proof_complexity.sh [scope]
-```
+Analyze proof structure by reading files:
+- Count lines per proof
+- Identify long proofs (potential refactoring targets)
+- Check tactic diversity
 
 Report:
 - Average proof length
-- Longest proofs (potential refactoring targets)
-- Tactic diversity
+- Longest proofs (>30 lines suggests extraction)
+- Tactic usage patterns
 
 ---
 
