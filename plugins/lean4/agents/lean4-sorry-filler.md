@@ -32,7 +32,7 @@ Read(file_path)
 
 **If LSP available, get live goal:**
 ```
-mcp__lean-lsp__lean_goal(file, line, column)
+lean_goal(file, line, column)
 ```
 
 ### 2. Search Mathlib FIRST
@@ -91,10 +91,10 @@ Candidate C (automation):
 
 **With LSP (preferred):**
 ```
-mcp__lean-lsp__lean_multi_attempt(
+lean_multi_attempt(
   file = "path/file.lean",
   line = line_number,
-  tactics = ["candidate_A", "candidate_B", "candidate_C"]
+  snippets = ["candidate_A", "candidate_B", "candidate_C"]
 )
 ```
 
@@ -181,9 +181,9 @@ The deep agent can handle this.
 - `lake build`
 
 **LSP (if available):**
-- `mcp__lean-lsp__lean_goal(file, line, column)`
-- `mcp__lean-lsp__lean_multi_attempt(file, line, tactics)`
-- `mcp__lean-lsp__lean_leansearch("query")`
+- `lean_goal(file, line, column)`
+- `lean_multi_attempt(file, line, snippets)`
+- `lean_leansearch("query")`
 
 ## Remember
 

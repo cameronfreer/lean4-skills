@@ -22,7 +22,7 @@
 #   ./pre_commit_hook.sh --strict
 #
 # Git Hook Installation:
-#   ln -s ../../scripts/pre_commit_hook.sh .git/hooks/pre-commit
+#   ln -s "$LEAN4_SCRIPTS/pre_commit_hook.sh" .git/hooks/pre-commit
 
 set -euo pipefail
 

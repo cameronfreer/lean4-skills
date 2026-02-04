@@ -425,8 +425,8 @@ to find the right mathlib lemma..."
 **MCP + Subagents workflow:**
 ```
 # Use MCP for interactive proof development
-mcp__lean-lsp__lean_goal(file, line, column)  # See proof state
-mcp__lean-lsp__lean_diagnostic_messages(file)  # Check errors
+lean_goal(file, line, column)  # See proof state
+lean_diagnostic_messages(file)  # Check errors
 
 # Delegate batch operations to subagents
 "Dispatch Explore agent to run $LEAN4_SCRIPTS/check_axioms_inline.sh on all changed files"
@@ -485,7 +485,7 @@ For quick operations, use Lean LSP MCP tools directly:
 lean_leansearch("continuous function compact")  # Natural language search
 lean_loogle("Continuous _ → IsCompact _")       # Type pattern search
 lean_goal(file, line)                           # Get goal at position
-lean_tactic_attempt(file, line, "simp")         # Test a tactic
+lean_multi_attempt(file, line, ["simp", "ring"]) # Test tactics
 ```
 
 ### Example: Finding Lemmas
@@ -515,14 +515,13 @@ Run $LEAN4_SCRIPTS/sorry_analyzer.py . --format=text
 and report total sorry count"
 ```
 
-**Use slash command (richer workflow):**
+**Use autoprover planning phase (richer workflow):**
 ```
-"Dispatch Explore agent to:
-Use /analyze-sorries to get categorized sorry breakdown
-and report which category has the most sorries"
+"Run /lean4:autoprover which will analyze sorries in the planning phase
+and show a prioritized list before asking how to proceed"
 ```
 
-**Key difference:** Slash commands provide interpretation and next-step suggestions, scripts provide raw data.
+**Key difference:** The autoprover provides interpretation and planning, scripts provide raw data.
 
 ## Troubleshooting
 

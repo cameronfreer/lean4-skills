@@ -809,7 +809,7 @@ Best practices for simp lemmas:
 **Git Hook Installation:**
 ```bash
 # Install as git pre-commit hook
-ln -s ../../scripts/pre_commit_hook.sh .git/hooks/pre-commit
+ln -s "$LEAN4_SCRIPTS/pre_commit_hook.sh" .git/hooks/pre-commit
 
 # Now runs automatically on every commit
 git commit -m "..."  # Hook runs automatically
@@ -1285,7 +1285,7 @@ All scripts are executable and self-contained:
 
 ```bash
 # Make executable (if needed)
-chmod +x scripts/*.sh scripts/*.py
+chmod +x $LEAN4_SCRIPTS/*.sh $LEAN4_SCRIPTS/*.py
 
 # Run from skill directory or add to PATH
 export PATH="$PATH:$LEAN4_SCRIPTS"

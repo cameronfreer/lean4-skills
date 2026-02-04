@@ -105,11 +105,11 @@ simp [lemma_1, lemma_2, *]
 ## Testing Candidates
 
 **With LSP server (preferred):**
-```lean
-mcp__lean-lsp__lean_multi_attempt(
+```
+lean_multi_attempt(
   file = "path/to/file.lean",
   line = line_number,
-  tactics = [
+  snippets = [
     "candidate_A_code",
     "candidate_B_code",
     "candidate_C_code"

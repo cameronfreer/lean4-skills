@@ -440,7 +440,7 @@ Exit codes:
 
 Install pre-commit hook for automatic checks:
 ```bash
-ln -s ../../scripts/pre_commit_hook.sh .git/hooks/pre-commit
+ln -s "$LEAN4_SCRIPTS/pre_commit_hook.sh" .git/hooks/pre-commit
 ```
 
 Now runs automatically on every commit.

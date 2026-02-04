@@ -9,6 +9,10 @@
 
 set -euo pipefail
 
+# Get script directory for sibling script calls
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PYTHON_BIN="${LEAN4_PYTHON_BIN:-python3}"
+
 FILE="${1:?Missing FILE.lean argument}"
 MAX_ATTEMPTS="${2:-24}"
 STAGE2_THRESHOLD="${3:-3}"
@@ -58,7 +62,7 @@ for ((attempt=1; attempt<=MAX_ATTEMPTS; attempt++)); do
   fi
 
   # Parse errors
-  if ! python3 scripts/parseLeanErrors.py "${REPAIR_DIR}/errs.txt" > "${REPAIR_DIR}/context.json"; then
+  if ! "${PYTHON_BIN}" "${SCRIPT_DIR}/parseLeanErrors.py" "${REPAIR_DIR}/errs.txt" > "${REPAIR_DIR}/context.json"; then
     echo "❌ Failed to parse Lean errors"
     exit 1
   fi
@@ -106,7 +110,7 @@ for ((attempt=1; attempt<=MAX_ATTEMPTS; attempt++)); do
 
   # Try solver cascade first (fast path)
   echo "🤖 Trying automated solvers..."
-  if python3 scripts/solverCascade.py "${REPAIR_DIR}/context.json" "${FILE}" > "${REPAIR_DIR}/solver.diff" 2>&1; then
+  if "${PYTHON_BIN}" "${SCRIPT_DIR}/solverCascade.py" "${REPAIR_DIR}/context.json" "${FILE}" > "${REPAIR_DIR}/solver.diff" 2>&1; then
     if git apply --check "${REPAIR_DIR}/solver.diff" 2>/dev/null; then
       git apply "${REPAIR_DIR}/solver.diff"
       echo "✓ Solver cascade applied patch"
@@ -116,7 +120,7 @@ for ((attempt=1; attempt<=MAX_ATTEMPTS; attempt++)); do
 
   # Generate patch via agent
   echo "🧠 Generating repair patch (Stage ${stage})..."
-  if ! python3 scripts/proposePatch.py "${REPAIR_DIR}/context.json" "${FILE}" --stage="${stage}" > "${REPAIR_DIR}/patch.diff" 2>&1; then
+  if ! "${PYTHON_BIN}" "${SCRIPT_DIR}/proposePatch.py" "${REPAIR_DIR}/context.json" "${FILE}" --stage="${stage}" > "${REPAIR_DIR}/patch.diff" 2>&1; then
     echo "⚠️  Failed to generate patch (agent stub not implemented yet)"
     # For now, since proposePatch.py is a stub, we'll log and continue
     elapsed=$(($(date +%s) - start_time))

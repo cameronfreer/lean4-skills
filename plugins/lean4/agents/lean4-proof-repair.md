@@ -262,8 +262,8 @@ bash $LEAN4_SCRIPTS/smart_search.sh "property description" --source=all
 
 **LSP (if available):**
 ```
-mcp__lean-lsp__lean_goal(file, line, column)  # Get live goal
-mcp__lean-lsp__lean_leansearch("query")        # Search
+lean_goal(file, line, column)  # Get live goal
+lean_leansearch("query")        # Search
 ```
 
 **Read code:**

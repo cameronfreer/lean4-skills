@@ -48,7 +48,7 @@ The [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) server provides sub-
 lean_goal(file, line)                    # See exact goal
 lean_leansearch("natural language")       # Search mathlib
 lean_loogle("type pattern")               # Type-based search
-lean_tactic_attempt(file, line, "simp")  # Test tactics instantly
+lean_multi_attempt(file, line, ["simp", "ring"])  # Test tactics
 ```
 
 **Setup:** See [INSTALLATION.md](INSTALLATION.md#lean-lsp-server)

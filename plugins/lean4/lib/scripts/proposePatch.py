@@ -8,19 +8,18 @@ https://arxiv.org/abs/2505.05758
 
 NOTE: This script is currently a stub that documents the interface.
 
-In practice, the repair workflow is orchestrated by the slash commands
-(/repair-file, /repair-goal, /repair-interactive), which:
-1. Parse errors using parseLeanErrors.py
-2. Try solverCascade.py first
-3. If cascade fails, call lean4-proof-repair agent via Task tool
-4. Apply returned diff
+In practice, the repair workflow is orchestrated by /lean4:autoprover, which:
+1. Detects build errors
+2. Tries simple tactics and solver cascade first
+3. If automation fails, applies Claude's reasoning
+4. Validates with lake build
 
 This standalone script would be used for:
 - Command-line repair automation (future)
 - Testing the agent interface
 - Direct API integration (future)
 
-For now, use the slash commands for actual repair work.
+For now, use /lean4:autoprover --repair-only for actual repair work.
 """
 
 import json
@@ -111,7 +110,7 @@ def call_llm(prompt: str, stage: int) -> Optional[str]:
     Options for implementation:
     1. Call agent via Task tool API
     2. Direct Claude API call
-    3. Use mcp__lean-lsp__* tools if available
+    3. Use lean_* LSP tools if available
     4. Shell out to claude-code CLI
 
     For now, this is a stub that returns None.

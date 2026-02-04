@@ -27,7 +27,7 @@ The LSP server provides **sub-second feedback** instead of 30+ second builds.
 - `lean_goal(file, line)` - See exact goal at cursor
 - `lean_leansearch("query")` - Natural language search
 - `lean_loogle("pattern")` - Type-based search
-- `lean_tactic_attempt(file, line, "tactic")` - Test tactics instantly
+- `lean_multi_attempt(file, line, ["simp", "ring"])` - Test tactics
 
 **One-time setup:** ~5 minutes. Highly recommended.
 
