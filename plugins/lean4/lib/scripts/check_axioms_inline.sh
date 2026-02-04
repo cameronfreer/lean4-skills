@@ -225,8 +225,33 @@ check_file() {
         echo
         return 0
     else
-        # Check if error is just unknownIdentifier (private/local declarations not accessible)
-        if echo "$OUTPUT" | grep -q 'unknownIdentifier\|unknown identifier\|unknown constant'; then
+        # Check if errors are ONLY unknownIdentifier in our appended #print axioms region
+        # Real errors in the original file should still fail
+
+        # Find line number where our marker starts (original file length + 1)
+        local MARKER_LINE
+        MARKER_LINE=$(grep -n "$MARKER" "$FILE" | head -1 | cut -d: -f1)
+
+        # Extract all error line numbers from output (format: file.lean:LINE:COL: error)
+        local HAS_REAL_ERROR=false
+        while IFS= read -r error_line; do
+            if [[ "$error_line" =~ :([0-9]+):[0-9]+:.*error ]]; then
+                local err_lineno="${BASH_REMATCH[1]}"
+                # If error is before our appended region, it's a real error
+                if [[ -n "$MARKER_LINE" && "$err_lineno" -lt "$MARKER_LINE" ]]; then
+                    HAS_REAL_ERROR=true
+                    break
+                fi
+            fi
+        done < <(echo "$OUTPUT" | grep -E ':[0-9]+:[0-9]+:.*error')
+
+        # Also check: if there are errors that aren't unknownIdentifier types, fail
+        if echo "$OUTPUT" | grep -E ':[0-9]+:[0-9]+:.*error' | grep -qvE 'unknownIdentifier|unknown identifier|unknown constant'; then
+            HAS_REAL_ERROR=true
+        fi
+
+        if [[ "$HAS_REAL_ERROR" == false ]] && echo "$OUTPUT" | grep -q 'unknownIdentifier\|unknown identifier\|unknown constant'; then
+            # Only unknownIdentifier errors in the appended region - treat as warning
             echo -e "  ${YELLOW}⚠ Some declarations not accessible (private/local)${NC}"
 
             # Still try to parse any successful #print axioms results from output
@@ -263,6 +288,7 @@ check_file() {
                 else
                     ((FILES_WITH_CUSTOM++))
                 fi
+                ((TOTAL_DECLARATIONS+=${#DECLARATIONS[@]}))
                 ((TOTAL_FILES++))
             fi
 
@@ -270,7 +296,7 @@ check_file() {
             echo
             return 0  # Don't fail - just warn about inaccessible declarations
         else
-            # Real error - not just unknownIdentifier
+            # Real error - not just unknownIdentifier in appended region
             echo -e "  ${RED}Error running Lean${NC}" >&2
             echo "$OUTPUT" | grep "error" | head -10 | sed 's/^/  /' >&2
             cleanup_file
