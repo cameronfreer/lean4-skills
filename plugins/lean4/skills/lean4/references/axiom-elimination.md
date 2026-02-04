@@ -27,6 +27,41 @@ lake env lean --run <<EOF
 EOF
 ```
 
+## Using the Axiom Check Script
+
+**Always prefer the script over manual checks:**
+```bash
+$LEAN4_SCRIPTS/check_axioms_inline.sh path/to/file.lean
+```
+
+The script handles namespace inference and filters standard axioms automatically.
+
+**Why use the script:**
+- Automatically detects the namespace from the file
+- Filters out standard mathlib axioms (propext, quot.sound, Classical.choice)
+- Provides clear reporting of non-standard axiom usage
+- Handles cleanup of temporary modifications
+
+**Limitations:**
+- Private/protected/local declarations cannot be checked (they're not exported)
+- Only detects the first namespace and top-level declarations at column 0
+- Nested namespaces may be missed
+- Declarations with access modifiers will show warnings (not errors)
+
+**If you must check manually:**
+```lean
+namespace MyNamespace
+#print axioms myDeclaration
+end MyNamespace
+```
+
+Note: Private declarations will still fail with `unknownIdentifier` - this is expected.
+
+**DO NOT create manual axiom-checking files like `/tmp/check_axioms.lean`:**
+- The script is more reliable and handles edge cases
+- Manual files often miss namespace context
+- Manual files need cleanup afterward
+
 ## Elimination Workflow
 
 ### Phase 1: Audit Current State
