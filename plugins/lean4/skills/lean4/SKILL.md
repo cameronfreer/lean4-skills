@@ -11,6 +11,8 @@ description: Use when working with Lean 4 (.lean files), writing mathematical pr
 
 **Success = `lake build` passes + zero sorries + zero custom axioms.** Theorems with sorries/axioms are scaffolding, not results.
 
+**v4 Note:** This unified `lean4` plugin replaces the previous 3-plugin system (`lean4-theorem-proving`, `lean4-memories`, `lean4-subagents`). Memory integration was removed in v4 as it did not work reliably. See `/lean4:doctor` for migration help.
+
 ## Quick Reference
 
 | **Resource** | **What You Get** | **Where to Find** |

@@ -33,7 +33,7 @@ Fill stubborn Lean 4 sorries that the fast pass couldn't handle. You can refacto
 **Use analysis tools:**
 ```bash
 # See all sorries for context
-python3 $LEAN4_SCRIPTS/sorry_analyzer.py . --format=text
+${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/sorry_analyzer.py . --format=text
 
 # Check axiom dependencies
 bash $LEAN4_SCRIPTS/check_axioms.sh FILE.lean

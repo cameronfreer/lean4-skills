@@ -63,23 +63,27 @@
 
 Five specialized subagents are included in the `lean4` plugin:
 
+**Entry point:** `/lean4:autoprover` orchestrates these agents automatically. You can also dispatch them directly via the Task tool.
+
 **1. lean4-proof-golfer**
 - **Purpose:** Systematically optimize Lean 4 proofs with false-positive filtering
 - **When to use:** After proofs compile successfully to achieve 30-40% size reduction
 - **Key feature:** MUST verify safety with analyze_let_usage.py before inlining let bindings
-- **Integration:** Works with /golf-proofs slash command
 
-**2. lean4-sorry-filler**
+**2. lean4-sorry-filler** / **lean4-sorry-filler-deep**
 - **Purpose:** Fill incomplete proofs (sorries) using mathlib search and multi-candidate testing
 - **When to use:** When tackling incomplete proofs systematically
-- **Key feature:** Searches mathlib first (90% success rate), generates 2-3 candidates, tests in parallel
-- **Integration:** Works with /fill-sorry and /analyze-sorries slash commands
+- **Key feature:** Fast pass tries obvious solutions; deep pass handles complex cases with refactoring
 
 **3. lean4-axiom-eliminator**
 - **Purpose:** Systematically eliminate axioms and sorries from Lean 4 proofs
 - **When to use:** After checking axiom hygiene to reduce axiom count to zero
 - **Key feature:** Exhaustive mathlib search, prioritizes high-impact axioms, tracks elimination progress
-- **Integration:** Works with /check-axioms slash command
+
+**4. lean4-proof-repair**
+- **Purpose:** Compiler-guided iterative proof repair with two-stage model escalation
+- **When to use:** When proofs fail to compile and need targeted fixes
+- **Key feature:** Uses Lean compiler feedback to drive repairs with low sampling budget (K=1)
 
 **How these differ from Explore/General-Purpose:**
 - **Specialized workflows:** Each has a domain-specific multi-phase workflow

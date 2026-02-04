@@ -22,7 +22,7 @@ Optimize Lean 4 proofs that have already compiled successfully. You are a mechan
 
 **Use the pattern detection script:**
 ```bash
-python3 $LEAN4_SCRIPTS/find_golfable.py FILE.lean --filter-false-positives
+${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/find_golfable.py FILE.lean --filter-false-positives
 ```
 
 This script identifies potential optimizations with safety filtering built-in.
@@ -35,7 +35,7 @@ This script identifies potential optimizations with safety filtering built-in.
 
 **Before inlining any let binding, MUST verify usage count:**
 ```bash
-python3 $LEAN4_SCRIPTS/analyze_let_usage.py FILE.lean --line LINE_NUMBER
+${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/analyze_let_usage.py FILE.lean --line LINE_NUMBER
 ```
 
 **Safety rules:**
