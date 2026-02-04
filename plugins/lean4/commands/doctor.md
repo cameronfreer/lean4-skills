@@ -80,9 +80,9 @@ plugins/lean4/
 │   └── hooks.json              ✓
 ├── skills/lean4/
 │   ├── SKILL.md                ✓
-│   └── references/             ✓ (20 files)
+│   └── references/             ✓ (23 files)
 ├── agents/                     ✓ (5 files)
-└── lib/scripts/                ✓ (24 files, executable)
+└── lib/scripts/                ✓ (12 files, executable)
 ```
 
 ### Permission Check
@@ -278,8 +278,8 @@ If you need to bypass guardrails (use carefully):
 ✓ LEAN4_PLUGIN_ROOT set
 ✓ LEAN4_SCRIPTS set
 ✓ Hooks executable
-✓ Scripts executable (24 files)
-✓ References present (20 files)
+✓ Scripts executable (12 files)
+✓ References present (23 files)
 ✓ Agents present (5 files)
 
 ### Project
@@ -318,7 +318,7 @@ Claude: Running diagnostics...
 ✓ LEAN4_PLUGIN_ROOT=/home/user/.claude/plugins/lean4
 ✓ LEAN4_SCRIPTS=/home/user/.claude/plugins/lean4/lib/scripts
 ✓ Hooks executable
-✓ Scripts executable (24 files)
+✓ Scripts executable (12 files)
 
 ### Project
 ✓ lakefile.lean found

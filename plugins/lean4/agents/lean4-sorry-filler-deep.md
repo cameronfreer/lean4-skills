@@ -1,7 +1,7 @@
 ---
 name: lean4-sorry-filler-deep
 description: Strategic resolution of stubborn sorries; may refactor statements and move lemmas across files. Use when fast pass fails or for complex proofs.
-tools: Read, Grep, Glob, Edit, Bash, WebFetch
+tools: Read, Grep, Glob, Edit, Bash
 model: opus
 thinking: on
 ---
@@ -128,13 +128,14 @@ WebFetch("https://leansearch.net/", "search for: complex query")
 ### 5. Refactoring Strategies
 
 **You may:**
-- Generalize theorem statements
+- Generalize theorem statements (with user confirmation)
 - Reorder arguments for better inference
 - Introduce small helper lemmas in nearby files
 - Adjust type class instances
 - Add intermediate structures
 
 **You may NOT:**
+- Change theorem statements without explicit user permission
 - Break compilation of other files
 - Introduce axioms without explicit user permission
 - Make large-scale architectural changes without approval

@@ -8,7 +8,7 @@ user_invocable: true
 
 Read-only review of Lean proofs for quality, style, and optimization opportunities.
 
-**This command does NOT modify any files.**
+**This command is non-destructive** (files are restored after analysis).
 
 ---
 

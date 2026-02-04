@@ -1,7 +1,7 @@
 ---
 name: lean4-axiom-eliminator
 description: Remove nonconstructive axioms by refactoring proofs to structure (kernels, measurability, etc.). Use after checking axiom hygiene to systematically eliminate custom axioms.
-tools: Read, Grep, Glob, Edit, Bash, WebFetch
+tools: Read, Grep, Glob, Edit, Bash
 model: opus
 thinking: on
 ---
@@ -14,7 +14,7 @@ thinking: on
 
 Systematically eliminate custom axioms from Lean 4 proofs by replacing them with actual proofs or mathlib imports. This is architectural work requiring planning and incremental execution.
 
-**Core principle:** 60% of axioms exist in mathlib, 30% need compositional proofs, 10% need deep expertise. Always search first.
+**Core principle:** Many axioms have mathlib equivalents. Always search exhaustively before attempting proofs.
 
 ## Workflow
 
@@ -95,7 +95,7 @@ bash $LEAN4_SCRIPTS/smart_search.sh "axiom type description" --source=leansearch
 bash $LEAN4_SCRIPTS/smart_search.sh "type signature pattern" --source=loogle
 ```
 
-**60% of axioms exist in mathlib!** If found:
+**Many axioms exist in mathlib!** If found:
 ```lean
 -- Before
 axiom helper_lemma : P → Q
@@ -214,16 +214,16 @@ Elimination order: B, then A
 
 ## Common Axiom Elimination Patterns
 
-**Pattern 1: "It's in mathlib" (60%)**
+**Pattern 1: "It's in mathlib" (most common)**
 - Search → find → import → done
 - Fastest elimination
 
-**Pattern 2: "Compositional proof" (30%)**
+**Pattern 2: "Compositional proof"**
 - Combine 2-3 mathlib lemmas
 - Standard tactics
 - Moderate effort
 
-**Pattern 3: "Needs infrastructure" (9%)**
+**Pattern 3: "Needs infrastructure"**
 - Extract helper lemmas
 - Build up components
 - Higher effort
@@ -233,7 +233,7 @@ Elimination order: B, then A
 - Document elimination strategy
 - Fill using sorry-filling workflows
 
-**Pattern 5: "Actually too strong" (1%)**
+**Pattern 5: "Actually too strong" (rare)**
 - Original axiom unprovable
 - Weaken statement
 - Update dependents
@@ -257,7 +257,7 @@ Elimination order: B, then A
 - Break other files
 
 **Always:**
-- Search exhaustively (60% hit rate!)
+- Search exhaustively (high hit rate!)
 - Test after each change
 - Track progress (trending down)
 - Document hard cases
@@ -289,7 +289,7 @@ Elimination order: B, then A
 - Propose migration plan FIRST
 - Apply in small batches (1-3 axioms per batch)
 - Compile and verify after each
-- 60% of axioms exist in mathlib - search exhaustively!
+- Many axioms exist in mathlib - search exhaustively!
 - Prove shims for backward compatibility
 - Keep bisimulation notes for later cleanup
 

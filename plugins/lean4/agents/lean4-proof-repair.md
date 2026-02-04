@@ -1,7 +1,7 @@
 ---
 name: lean4-proof-repair
 description: Compiler-guided iterative proof repair with two-stage model escalation (Haiku → Opus). Use for error-driven proof fixing with small sampling budgets (K=1).
-tools: Read, Grep, Glob, Edit, Bash, WebFetch
+tools: Read, Grep, Glob, Edit, Bash
 model: haiku
 thinking: off
 ---

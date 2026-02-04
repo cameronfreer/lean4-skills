@@ -45,7 +45,8 @@ If build fails:
 ### Step 2: Check Axioms
 
 ```bash
-bash $LEAN4_SCRIPTS/check_axioms_inline.sh "**/*.lean"
+bash $LEAN4_SCRIPTS/check_axioms_inline.sh src/*.lean
+# For recursive: shopt -s globstar && bash $LEAN4_SCRIPTS/check_axioms_inline.sh **/*.lean
 ```
 
 Report:

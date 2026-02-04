@@ -1,7 +1,7 @@
 ---
 name: lean4-sorry-filler
 description: Fast local attempts to replace `sorry` using mathlib patterns; breadth-first, minimal diff. Use for quick first pass on incomplete proofs.
-tools: Read, Grep, Glob, Edit, Bash, WebFetch
+tools: Read, Grep, Glob, Edit, Bash
 model: haiku
 thinking: off
 ---
