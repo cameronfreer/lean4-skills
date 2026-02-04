@@ -73,7 +73,8 @@ def try_solver(file_path: Path, line: int, column: int, solver: str, timeout: in
         return None
 
     # Write to temp file in same directory as original for proper project context
-    tmp_path = file_path.parent / f".solver_cascade_tmp_{file_path.name}"
+    # Use underscore prefix (not dot) since Lean module names can't start with '.'
+    tmp_path = file_path.parent / f"_solver_cascade_tmp_{file_path.name}"
     with open(tmp_path, 'w') as tmp:
         tmp.writelines(lines)
 

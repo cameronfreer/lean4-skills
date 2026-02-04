@@ -28,16 +28,23 @@ QUERY=""
 IGNORE_CASE=""
 
 # Parse arguments
+# Query must come first, then optional search type, then options
+# This allows searching for literal "name", "type", or "content"
 for arg in "$@"; do
     case "$arg" in
         --ignore-case|-i)
             IGNORE_CASE="-i"
             ;;
         name|type|content)
-            SEARCH_TYPE="$arg"
+            # Only treat as search type if query is already set
+            if [[ -n "$QUERY" ]]; then
+                SEARCH_TYPE="$arg"
+            else
+                QUERY="$arg"
+            fi
             ;;
         *)
-            # First non-option argument is the query
+            # Non-option argument is the query
             if [[ -z "$QUERY" ]]; then
                 QUERY="$arg"
             fi
