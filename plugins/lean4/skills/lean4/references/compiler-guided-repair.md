@@ -1,5 +1,23 @@
 # Compiler-Guided Proof Repair - Quick Reference
 
+## Table of Contents
+
+- [Philosophy](#philosophy)
+- [Quick Start](#quick-start)
+- [API Discovery Workflow](#api-discovery-workflow)
+- [Core Workflow](#core-workflow)
+- [Repair Strategies by Error Type](#repair-strategies-by-error-type)
+- [Common Pitfalls](#common-pitfalls)
+- [Error Pattern Recognition](#error-pattern-recognition)
+- [Key Success Factors](#key-success-factors)
+- [Expected Outcomes](#expected-outcomes)
+- [Tools Reference](#tools-reference)
+- [Common Patterns](#common-patterns)
+- [Best Practices](#best-practices)
+- [Troubleshooting](#troubleshooting)
+
+---
+
 **Core insight:** Use Lean's compiler feedback to drive iterative repair with small, budgeted LLM calls instead of blind best-of-N sampling.
 
 **Key principle:** Generate → Compile → Diagnose → Fix → Verify (tight loop, K=1)

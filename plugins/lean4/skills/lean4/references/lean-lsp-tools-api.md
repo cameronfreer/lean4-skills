@@ -4,6 +4,17 @@
 
 For workflow patterns and quick reference, see [lean-lsp-server.md](lean-lsp-server.md).
 
+## Table of Contents
+
+- [Tool Categories](#tool-categories)
+- [Local Tools (Unlimited)](#local-tools-unlimited)
+- [External Search Tools (Rate-Limited)](#external-search-tools-rate-limited)
+- [Rate Limit Management](#rate-limit-management)
+- [Advanced Tips](#advanced-tips)
+- [Common Patterns](#common-patterns)
+- [Performance Notes](#performance-notes)
+- [See Also](#see-also)
+
 ---
 
 ## Tool Categories

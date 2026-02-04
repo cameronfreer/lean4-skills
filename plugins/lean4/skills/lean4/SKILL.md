@@ -1,19 +1,11 @@
 ---
 name: lean4
-description: "Use for any Lean 4 .lean work: filling sorries, fixing build errors, searching mathlib, or resolving typeclass/instance issues. LSP-first, scripts as fallback."
+description: "Use when in .lean files, seeing sorry/by?/failed to synthesize instance/type mismatch/unknown identifier, lake build fails, or need to find mathlib lemmas."
 ---
 
 # Lean 4 Theorem Proving
 
 Use this skill whenever you're editing Lean 4 proofs or debugging Lean builds. It prioritizes LSP-based inspection and mathlib search, with scripted primitives for sorry analysis, axiom checking, and error parsing.
-
-## When This Skill Applies
-
-- You are in a `.lean` file or a Lean 4 project
-- You see `sorry`, `by?`, or "failed to synthesize instance"
-- `lake build` fails or type errors appear
-- You need to find a lemma in mathlib or fix imports
-- You need axiom/sorry hygiene checks before committing
 
 ## Core Principles
 
@@ -26,6 +18,8 @@ Use this skill whenever you're editing Lean 4 proofs or debugging Lean builds. I
 **Never change statements or add axioms without explicit permission.** Theorem/lemma statements, type signatures, and docstrings are off-limits unless the user requests changes. Inline comments may be adjusted; docstrings may not (they're part of the API). Custom axioms require explicit approval—if a proof seems to need one, stop and discuss.
 
 ## Commands
+
+Invoke with `/lean4:<command>`:
 
 | Command | Purpose |
 |---------|---------|
@@ -105,22 +99,22 @@ A proof is complete when:
 
 ## References
 
-**LSP Tools:** [lean-lsp-server](references/lean-lsp-server.md) (quick ref), [lean-lsp-tools-api](references/lean-lsp-tools-api.md) (detailed)
+**LSP Tools:** [lean-lsp-server](references/lean-lsp-server.md) (quick start), [lean-lsp-tools-api](references/lean-lsp-tools-api.md) (full API details)
 
-**Search:** [mathlib-guide](references/mathlib-guide.md), [lean-phrasebook](references/lean-phrasebook.md)
+**Search:** [mathlib-guide](references/mathlib-guide.md) (finding lemmas), [lean-phrasebook](references/lean-phrasebook.md) (math-to-Lean translations)
 
-**Errors:** [compilation-errors](references/compilation-errors.md), [instance-pollution](references/instance-pollution.md), [compiler-guided-repair](references/compiler-guided-repair.md)
+**Errors:** [compilation-errors](references/compilation-errors.md) (when build fails), [instance-pollution](references/instance-pollution.md) (when typeclass issues persist), [compiler-guided-repair](references/compiler-guided-repair.md) (systematic repair workflow)
 
-**Tactics:** [tactics-reference](references/tactics-reference.md), [tactic-patterns](references/tactic-patterns.md), [calc-patterns](references/calc-patterns.md), [simp-hygiene](references/simp-hygiene.md)
+**Tactics:** [tactics-reference](references/tactics-reference.md) (tactic lookup), [tactic-patterns](references/tactic-patterns.md) (common patterns), [calc-patterns](references/calc-patterns.md) (calculation proofs), [simp-hygiene](references/simp-hygiene.md) (simp troubleshooting)
 
-**Proof Development:** [proof-templates](references/proof-templates.md), [proof-refactoring](references/proof-refactoring.md), [sorry-filling](references/sorry-filling.md)
+**Proof Development:** [proof-templates](references/proof-templates.md) (starting points), [proof-refactoring](references/proof-refactoring.md) (restructuring proofs), [sorry-filling](references/sorry-filling.md) (sorry elimination)
 
-**Optimization:** [proof-golfing](references/proof-golfing.md), [proof-golfing-patterns](references/proof-golfing-patterns.md), [proof-golfing-safety](references/proof-golfing-safety.md), [performance-optimization](references/performance-optimization.md)
+**Optimization:** [proof-golfing](references/proof-golfing.md) (shortening proofs), [proof-golfing-patterns](references/proof-golfing-patterns.md) (specific techniques), [proof-golfing-safety](references/proof-golfing-safety.md) (avoiding breakage), [performance-optimization](references/performance-optimization.md) (slow proof fixes)
 
-**Domain-Specific:** [domain-patterns](references/domain-patterns.md), [measure-theory](references/measure-theory.md), [axiom-elimination](references/axiom-elimination.md)
+**Domain-Specific:** [domain-patterns](references/domain-patterns.md) (by math area), [measure-theory](references/measure-theory.md) (measure/probability), [axiom-elimination](references/axiom-elimination.md) (removing sorry/axiom)
 
-**Style:** [mathlib-style](references/mathlib-style.md)
+**Style:** [mathlib-style](references/mathlib-style.md) (naming/formatting conventions)
 
-**Workflows:** [agent-workflows](references/agent-workflows.md) (internal), [subagent-workflows](references/subagent-workflows.md), [command-examples](references/command-examples.md)
+**Workflows:** [agent-workflows](references/agent-workflows.md) (internal agents), [subagent-workflows](references/subagent-workflows.md) (delegation patterns), [command-examples](references/command-examples.md) (usage examples)
 
-**Internals:** [review-hook-schema](references/review-hook-schema.md)
+**Internals:** [review-hook-schema](references/review-hook-schema.md) (hook configuration)
