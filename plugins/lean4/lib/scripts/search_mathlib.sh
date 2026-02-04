@@ -20,7 +20,23 @@ set -euo pipefail
 # Configuration
 MATHLIB_PATH="${MATHLIB_PATH:-.lake/packages/mathlib}"
 SEARCH_TYPE="${2:-name}"
-QUERY="$1"
+QUERY="${1:-}"
+
+# Validate query
+if [[ -z "$QUERY" ]]; then
+    echo -e "Error: No query specified" >&2
+    echo "Usage: $0 <query> [search-type]" >&2
+    echo "" >&2
+    echo "Search types:" >&2
+    echo "  name     - Search for declarations by name (default)" >&2
+    echo "  type     - Search for declarations by type signature" >&2
+    echo "  content  - Search file contents" >&2
+    echo "" >&2
+    echo "Examples:" >&2
+    echo "  $0 \"continuous.*compact\" name" >&2
+    echo "  $0 \"integrable\" content" >&2
+    exit 1
+fi
 
 # Detect if ripgrep is available (faster)
 if command -v rg &> /dev/null; then

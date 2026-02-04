@@ -18,8 +18,28 @@ set -euo pipefail
 
 # Configuration
 MATHLIB_PATH="${MATHLIB_PATH:-.lake/packages/mathlib}"
-QUERY="$1"
+QUERY="${1:-}"
 VERBOSE="${2:-}"
+
+# Escape regex metacharacters in query for use in grep/rg patterns
+escape_regex() {
+    printf '%s' "$1" | sed 's/[.[\*^$()+?{|\\]/\\&/g'
+}
+
+# Validate query
+if [[ -z "$QUERY" ]]; then
+    echo -e "Error: No type class name specified" >&2
+    echo "Usage: $0 <type-class-name> [--verbose]" >&2
+    echo "" >&2
+    echo "Examples:" >&2
+    echo "  $0 MeasurableSpace" >&2
+    echo "  $0 IsProbabilityMeasure --verbose" >&2
+    echo "  $0 Fintype" >&2
+    exit 1
+fi
+
+# Escape query for regex matching
+ESCAPED_QUERY=$(escape_regex "$QUERY")
 
 # Detect if ripgrep is available (faster)
 if command -v rg &> /dev/null; then
@@ -46,14 +66,14 @@ fi
 echo -e "${BLUE}Searching for instances of: ${YELLOW}$QUERY${NC}"
 echo
 
-# Search for instance declarations
+# Search for instance declarations (use escaped query for regex safety)
 echo -e "${GREEN}Instance declarations:${NC}"
 if [[ "$USE_RG" == true ]]; then
-    rg -t lean "^instance.*:.*$QUERY" "$MATHLIB_PATH" -n --heading --color=always | head -80
+    rg -t lean "^instance.*:.*$ESCAPED_QUERY" "$MATHLIB_PATH" -n --heading --color=always | head -80
 else
-    find "$MATHLIB_PATH" -name "*.lean" -type f -exec grep -l "^instance.*:.*$QUERY" {} \; | head -20 | while read -r file; do
+    find "$MATHLIB_PATH" -name "*.lean" -type f -exec grep -l "^instance.*:.*$ESCAPED_QUERY" {} \; | head -20 | while read -r file; do
         echo -e "${BLUE}File: ${NC}$file"
-        grep -n "^instance.*:.*$QUERY" "$file" | head -3
+        grep -n "^instance.*:.*$ESCAPED_QUERY" "$file" | head -3
         echo
     done
 fi
@@ -61,11 +81,11 @@ fi
 echo
 echo -e "${GREEN}Deriving instances:${NC}"
 if [[ "$USE_RG" == true ]]; then
-    rg -t lean "deriving.*$QUERY" "$MATHLIB_PATH" -n --heading --color=always | head -40
+    rg -t lean "deriving.*$ESCAPED_QUERY" "$MATHLIB_PATH" -n --heading --color=always | head -40
 else
-    find "$MATHLIB_PATH" -name "*.lean" -type f -exec grep -l "deriving.*$QUERY" {} \; | head -10 | while read -r file; do
+    find "$MATHLIB_PATH" -name "*.lean" -type f -exec grep -l "deriving.*$ESCAPED_QUERY" {} \; | head -10 | while read -r file; do
         echo -e "${BLUE}File: ${NC}$file"
-        grep -n "deriving.*$QUERY" "$file" | head -2
+        grep -n "deriving.*$ESCAPED_QUERY" "$file" | head -2
         echo
     done
 fi
@@ -74,11 +94,11 @@ if [[ "$VERBOSE" == "--verbose" ]]; then
     echo
     echo -e "${CYAN}Implicit instance arguments:${NC}"
     if [[ "$USE_RG" == true ]]; then
-        rg -t lean "\[$QUERY " "$MATHLIB_PATH" -n --heading --color=always | head -40
+        rg -t lean "\[$ESCAPED_QUERY " "$MATHLIB_PATH" -n --heading --color=always | head -40
     else
-        find "$MATHLIB_PATH" -name "*.lean" -type f -exec grep -l "\[$QUERY " {} \; | head -10 | while read -r file; do
+        find "$MATHLIB_PATH" -name "*.lean" -type f -exec grep -l "\[$ESCAPED_QUERY " {} \; | head -10 | while read -r file; do
             echo -e "${BLUE}File: ${NC}$file"
-            grep -n "\[$QUERY " "$file" | head -2
+            grep -n "\[$ESCAPED_QUERY " "$file" | head -2
             echo
         done
     fi

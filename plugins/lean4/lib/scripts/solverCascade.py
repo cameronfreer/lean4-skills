@@ -49,20 +49,24 @@ def try_solver(file_path: Path, line: int, column: int, solver: str, timeout: in
     with open(file_path) as f:
         lines = f.readlines()
 
+    # Validate line bounds
+    if line < 1 or line > len(lines):
+        return None
+
     # Insert solver tactic (simple heuristic: replace 'sorry' or add after 'by')
     target_line = lines[line - 1]
 
     if "sorry" in target_line:
         # Replace sorry with solver
         modified = target_line.replace("sorry", solver)
+        lines[line - 1] = modified
     elif "by" in target_line:
-        # Add solver on next line with proper indentation
+        # Add solver on new line with proper indentation (2 extra spaces from 'by')
         indent = len(target_line) - len(target_line.lstrip())
-        modified = target_line + " " * (indent + 2) + solver + "\n"
+        solver_line = " " * (indent + 2) + solver + "\n"
+        lines.insert(line, solver_line)
     else:
         return None
-
-    lines[line - 1] = modified
 
     # Write to temp file
     with tempfile.NamedTemporaryFile(mode='w', suffix='.lean', delete=False) as tmp:
@@ -70,9 +74,10 @@ def try_solver(file_path: Path, line: int, column: int, solver: str, timeout: in
         tmp_path = tmp.name
 
     try:
-        # Try compiling
+        # Try compiling with lake env lean (single-file compilation)
+        # Note: lake build doesn't accept file paths directly
         result = subprocess.run(
-            ["lake", "build", tmp_path],
+            ["lake", "env", "lean", str(tmp_path)],
             capture_output=True,
             timeout=timeout,
             text=True

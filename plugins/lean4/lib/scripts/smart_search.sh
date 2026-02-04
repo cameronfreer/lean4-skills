@@ -66,6 +66,20 @@ if [[ "$SOURCE" == "leansearch" || "$SOURCE" == "loogle" || "$SOURCE" == "all" ]
     fi
 fi
 
+# URL encode helper - uses jq if available, falls back to Python
+url_encode() {
+    if command -v jq &> /dev/null; then
+        printf '%s' "$1" | jq -sRr @uri
+    elif command -v python3 &> /dev/null; then
+        python3 -c "import urllib.parse; print(urllib.parse.quote('''$1'''))"
+    elif command -v python &> /dev/null; then
+        python -c "import urllib; print(urllib.quote('''$1'''))"
+    else
+        # Last resort: basic encoding (not complete but handles common cases)
+        printf '%s' "$1" | sed 's/ /%20/g; s/"/%22/g; s/#/%23/g; s/\?/%3F/g'
+    fi
+}
+
 # LeanSearch API
 search_leansearch() {
     echo -e "${CYAN}━━━ LeanSearch (semantic search) ━━━${NC}"
@@ -73,7 +87,7 @@ search_leansearch() {
     echo
 
     # URL encode the query
-    ENCODED=$(printf '%s' "$QUERY" | jq -sRr @uri)
+    ENCODED=$(url_encode "$QUERY")
 
     # Call API
     RESPONSE=$(curl -s "https://leansearch.net/api/search?query=$ENCODED&num_results=5" || echo "ERROR")
@@ -107,7 +121,7 @@ search_loogle() {
     echo
 
     # URL encode the query
-    ENCODED=$(printf '%s' "$QUERY" | jq -sRr @uri)
+    ENCODED=$(url_encode "$QUERY")
 
     # Call API
     RESPONSE=$(curl -s "https://loogle.lean-lang.org/json?q=$ENCODED" || echo "ERROR")
@@ -181,8 +195,10 @@ case "$SOURCE" in
         echo -e "${YELLOW}Note: API sources have rate limits (3 req/30s each)${NC}"
         echo
 
-        # Try mathlib first (no rate limit)
-        search_mathlib
+        # Try mathlib first (no rate limit) - continue to APIs even if mathlib fails
+        if ! search_mathlib; then
+            echo -e "${YELLOW}Mathlib search failed (path may not exist), continuing with APIs...${NC}"
+        fi
         echo
 
         # Then try APIs with warnings

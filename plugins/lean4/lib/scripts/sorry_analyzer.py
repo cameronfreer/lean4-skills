@@ -44,8 +44,9 @@ class Sorry:
 def extract_declaration_name(lines: List[str], sorry_idx: int) -> Optional[str]:
     """Extract the theorem/lemma/def name containing this sorry"""
     # Search backwards for declaration
+    # Support Unicode and qualified names (e.g., Foo.bar, foo', foo'')
     for i in range(sorry_idx - 1, max(0, sorry_idx - 50), -1):
-        match = re.match(r'^\s*(theorem|lemma|def|example)\s+(\w+)', lines[i])
+        match = re.match(r"^\s*(theorem|lemma|def|example)\s+([\w.']+)", lines[i])
         if match:
             return f"{match.group(1)} {match.group(2)}"
     return None
@@ -53,12 +54,22 @@ def extract_declaration_name(lines: List[str], sorry_idx: int) -> Optional[str]:
 def extract_documentation(lines: List[str], sorry_idx: int) -> List[str]:
     """Extract TODO/NOTE comments near the sorry"""
     docs = []
-    # Check lines after sorry
+    keywords = ['TODO', 'NOTE', 'FIXME', 'STRATEGY', 'DEPENDENCIES']
+
+    # Check lines BEFORE sorry (often comments precede the sorry)
+    for i in range(max(0, sorry_idx - 5), sorry_idx):
+        line = lines[i].strip()
+        if line.startswith('--'):
+            comment = line[2:].strip()
+            if any(keyword in comment.upper() for keyword in keywords):
+                docs.append(comment)
+
+    # Check lines AFTER sorry
     for i in range(sorry_idx + 1, min(len(lines), sorry_idx + 10)):
         line = lines[i].strip()
         if line.startswith('--'):
             comment = line[2:].strip()
-            if any(keyword in comment.upper() for keyword in ['TODO', 'NOTE', 'FIXME', 'STRATEGY', 'DEPENDENCIES']):
+            if any(keyword in comment.upper() for keyword in keywords):
                 docs.append(comment)
         elif line and not line.startswith('--'):
             break
@@ -197,6 +208,22 @@ def format_json(sorries: List[Sorry]) -> str:
         'total_count': len(sorries),
         'sorries': [asdict(s) for s in sorries]
     }, indent=2)
+
+def format_summary(sorries: List[Sorry]) -> str:
+    """Format sorries as a brief summary (file counts + total)"""
+    output = []
+    # Group by file
+    by_file = {}
+    for sorry in sorries:
+        by_file.setdefault(sorry.file, []).append(sorry)
+
+    output.append(f"Sorry Summary: {len(sorries)} total across {len(by_file)} file(s)")
+    output.append("-" * 50)
+
+    for filepath, file_sorries in sorted(by_file.items(), key=lambda x: -len(x[1])):
+        output.append(f"  {filepath}: {len(file_sorries)} sorries")
+
+    return "\n".join(output)
 
 def interactive_mode(sorries: List[Sorry]):
     """Interactive mode to navigate and select sorries"""
@@ -347,6 +374,8 @@ def main():
         print(format_json(sorries))
     elif format_type == 'markdown':
         print(format_markdown(sorries))
+    elif format_type == 'summary':
+        print(format_summary(sorries))
     else:
         print(format_text(sorries))
 

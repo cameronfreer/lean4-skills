@@ -43,8 +43,14 @@ ERROR_PATTERNS = [
 
 
 def parse_location(line: str) -> Optional[dict]:
-    """Extract file:line:column from error line."""
-    match = re.match(r"^([^:]+):(\d+):(\d+):", line)
+    """Extract file:line:column from error line.
+
+    Handles both Unix paths (/path/to/file.lean:10:5:)
+    and Windows paths (C:\\path\\to\\file.lean:10:5: or C:/path/to/file.lean:10:5:)
+    """
+    # Match .lean file followed by :line:column:
+    # Use non-greedy match to handle Windows drive letters (C:)
+    match = re.search(r"([^\s:]+\.lean):(\d+):(\d+):", line)
     if match:
         return {
             "file": match.group(1),
@@ -124,28 +130,60 @@ def compute_error_hash(error_type: str, file: str, line: int) -> str:
     return hashlib.sha256(content.encode()).hexdigest()[:12]
 
 
-def parse_lean_errors(error_file: Path) -> dict:
-    """Parse Lean error output file into structured JSON."""
+def parse_lean_errors(error_file: Path) -> list[dict]:
+    """Parse Lean error output file into list of structured errors.
+
+    Returns a list of all errors found (not just the first one).
+    Callers can use [0] if they only want the first error.
+    """
     with open(error_file) as f:
         error_text = f.read()
 
     lines = error_text.strip().split("\n")
     if not lines:
-        return {"error": "No error output"}
+        return [{"error": "No error output"}]
 
-    # First line usually has location
-    location = parse_location(lines[0])
+    errors = []
+    current_error_start = None
+    current_error_lines = []
+
+    for i, line in enumerate(lines):
+        loc = parse_location(line)
+        if loc:
+            # Found a new error - save the previous one if it exists
+            if current_error_start is not None and current_error_lines:
+                errors.append(_build_error_dict(current_error_lines))
+            current_error_start = i
+            current_error_lines = [line]
+        elif current_error_start is not None:
+            current_error_lines.append(line)
+
+    # Don't forget the last error
+    if current_error_lines:
+        errors.append(_build_error_dict(current_error_lines))
+
+    # Fallback if no errors were parsed with locations
+    if not errors:
+        errors.append(_build_error_dict(lines))
+
+    return errors
+
+
+def _build_error_dict(error_lines: list[str]) -> dict:
+    """Build a single error dict from its lines."""
+    error_text = "\n".join(error_lines)
+
+    location = parse_location(error_lines[0]) if error_lines else None
     if not location:
         location = {"file": "unknown", "line": 0, "column": 0}
 
     # Full message is everything after the location line
-    message = error_text[len(lines[0]):].strip() if len(lines) > 1 else ""
+    message = "\n".join(error_lines[1:]) if len(error_lines) > 1 else ""
 
-    # For classification, use the full error text (includes first line)
     error_type = classify_error(error_text)
     error_hash = compute_error_hash(error_type, location["file"], location["line"])
 
-    result = {
+    return {
         "errorHash": error_hash,
         "errorType": error_type,
         "message": message[:500],  # Truncate long messages
@@ -158,12 +196,10 @@ def parse_lean_errors(error_file: Path) -> dict:
         "suggestionKeywords": extract_suggestion_keywords(message),
     }
 
-    return result
-
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: parseLeanErrors.py ERROR_FILE", file=sys.stderr)
+        print("Usage: parseLeanErrors.py ERROR_FILE [--all]", file=sys.stderr)
         sys.exit(1)
 
     error_file = Path(sys.argv[1])
@@ -171,8 +207,14 @@ def main():
         print(f"Error file not found: {error_file}", file=sys.stderr)
         sys.exit(1)
 
-    result = parse_lean_errors(error_file)
-    print(json.dumps(result, indent=2))
+    errors = parse_lean_errors(error_file)
+
+    # By default, output first error for backwards compatibility
+    # Use --all to get all errors
+    if "--all" in sys.argv:
+        print(json.dumps({"errors": errors, "count": len(errors)}, indent=2))
+    else:
+        print(json.dumps(errors[0] if errors else {"error": "No errors parsed"}, indent=2))
 
 
 if __name__ == "__main__":

@@ -25,13 +25,22 @@ class LetBinding:
     token_impact: str
 
 def count_tokens(text: str) -> int:
-    """Estimate token count for text."""
+    """Estimate token count for text.
+
+    Note: This is a heuristic approximation. Actual Lean tokenization may differ,
+    especially for multi-line definitions, Unicode identifiers, and complex expressions.
+    """
     # Simple heuristic: count words, operators, and punctuation
     tokens = len(re.findall(r'\w+|[^\w\s]', text))
     return tokens
 
 def find_let_bindings(file_path: Path) -> List[Tuple[int, str, str]]:
-    """Find all let bindings in file with their definitions."""
+    """Find all let bindings in file with their definitions.
+
+    Note: This handles single-line let bindings well. Multi-line let definitions
+    (where := is followed by multiple lines) will only capture the first line.
+    Token counts for multi-line definitions will be approximate.
+    """
     if not file_path.exists():
         return []
 
@@ -39,14 +48,39 @@ def find_let_bindings(file_path: Path) -> List[Tuple[int, str, str]]:
         lines = f.readlines()
 
     bindings = []
-    for i, line in enumerate(lines):
+    i = 0
+    while i < len(lines):
+        line = lines[i]
         # Match: let <name> := <definition>
         # or: let <name> : <type> := <definition>
         match = re.search(r'let\s+(\w+)\s*(?::\s*[^:]+)?\s*:=\s*(.+)', line)
         if match:
             name = match.group(1)
             definition = match.group(2).rstrip()
+
+            # Try to capture multi-line definitions (simple heuristic)
+            # If definition appears to be incomplete (ends with by, {, or open paren), extend
+            j = i + 1
+            open_parens = definition.count('(') - definition.count(')')
+            open_braces = definition.count('{') - definition.count('}')
+            ends_with_by = definition.rstrip().endswith(' by')
+
+            while j < len(lines) and (open_parens > 0 or open_braces > 0 or ends_with_by):
+                next_line = lines[j].rstrip()
+                # Stop at next declaration or unindented line
+                if re.match(r'^(theorem|lemma|def|example|instance|let)\s+', next_line):
+                    break
+                definition += '\n' + next_line
+                open_parens += next_line.count('(') - next_line.count(')')
+                open_braces += next_line.count('{') - next_line.count('}')
+                ends_with_by = next_line.rstrip().endswith(' by')
+                j += 1
+                # Safety limit
+                if j - i > 20:
+                    break
+
             bindings.append((i + 1, name, definition))
+        i += 1
 
     return bindings
 
@@ -208,6 +242,7 @@ def format_output(file_path: Path, bindings: List[LetBinding],
     output.append(f"SUMMARY")
     output.append(f"{'='*70}")
     output.append(f"  Total let bindings: {len(bindings)}")
+    output.append(f"  Note: Token counts are approximate (heuristic-based)")
     output.append(f"  ⚠️  Don't inline (used ≥3 times): {len(dont_inline)}")
     output.append(f"  ✅ Safe to inline (used ≤1 time): {len(safe_to_inline)}")
     output.append(f"  ⚡ Marginal (used 2 times): {len(consider) + len(skip)}")

@@ -56,8 +56,8 @@ def find_let_have_exact(file_path: Path, lines: List[str], filter_multi_use: boo
     while i < len(lines):
         line = lines[i].strip()
 
-        # Look for "let" statements
-        match = re.match(r'let\s+(\w+)\s*:', line)
+        # Look for "let" statements (supports: let x :, let x :=, let x : Type :=)
+        match = re.match(r'let\s+(\w+)\s*(?::|:=)', line)
         if match:
             let_name = match.group(1)
 
@@ -68,7 +68,8 @@ def find_let_have_exact(file_path: Path, lines: List[str], filter_multi_use: boo
 
             for j in range(i + 1, end_idx):
                 next_line = lines[j].strip()
-                if re.match(r'have\s+\w+\s*:', next_line):
+                # Match have statements (supports: have x :, have x :=)
+                if re.match(r'have\s+\w+\s*(?::|:=)', next_line):
                     has_have = True
                 if next_line.startswith('exact '):
                     has_exact = True
@@ -402,7 +403,7 @@ def format_output(patterns: List[GolfablePattern], verbose: bool = False) -> str
     low = sum(1 for p in patterns if p.priority == 'LOW')
 
     output.append(f"Summary: {high} HIGH, {med} MEDIUM, {low} LOW priority")
-    output.append(f"Expected total reduction: 30-40% with systematic optimization\n")
+    output.append(f"Expected total reduction: 30-40% with systematic optimization (heuristic estimate)\n")
 
     return '\n'.join(output)
 

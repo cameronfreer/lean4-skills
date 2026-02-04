@@ -54,15 +54,16 @@ trap 'rm -f "$DECLARATIONS" "$UNUSED"' EXIT
 echo -e "${GREEN}Step 1: Finding all declarations...${NC}"
 
 # Extract all theorem/lemma/def declarations
+# Use [\w'.]+  to match Lean identifiers (allows primes and dots for qualified names)
 if [[ "$USE_RG" == true ]]; then
-    rg -t lean "^(theorem|lemma|def|abbrev|instance)\s+(\w+)" \
+    rg -t lean "^(theorem|lemma|def|abbrev|instance)\s+([\w']+)" \
         "$SEARCH_DIR" \
         --no-heading \
         --only-matching \
         --replace '$2' | sort -u > "$DECLARATIONS"
 else
     find "$SEARCH_DIR" -name "*.lean" -type f -exec \
-        grep -hoP "^(theorem|lemma|def|abbrev|instance)\s+\K\w+" {} \; | \
+        grep -hoP "^(theorem|lemma|def|abbrev|instance)\s+\K[\w']+" {} \; | \
         sort -u > "$DECLARATIONS"
 fi
 
@@ -172,6 +173,7 @@ else
 
     echo -e "${YELLOW}${BOLD}Important:${NC}"
     echo "• This analysis may have false positives (e.g., exported API, instances)"
+    echo "• Usages in comments and strings are counted (may inflate usage counts)"
     echo "• Always verify before removing declarations"
     echo "• Use ${BOLD}find_usages.sh <decl>${NC} to double-check specific declarations"
     echo ""

@@ -25,6 +25,17 @@
 
 set -euo pipefail
 
+# Track backup files for cleanup on interrupt
+BACKUP_FILES=()
+cleanup() {
+    for f in "${BACKUP_FILES[@]}"; do
+        if [[ -f "$f.axiom_check_backup" ]]; then
+            mv "$f.axiom_check_backup" "$f"
+        fi
+    done
+}
+trap cleanup EXIT INT TERM
+
 # Configuration
 VERBOSE=""
 FILES=()
@@ -114,7 +125,7 @@ check_file() {
     # Extract all theorem/lemma/def declarations
     local DECLARATIONS=()
     while IFS= read -r line; do
-        decl=$(echo "$line" | sed -E 's/^(theorem|lemma|def) +([^ :(]+).*/\2/')
+        decl=$(echo "$line" | sed -E 's/^(theorem|lemma|def|instance|abbrev|example) +([^ :(]+).*/\2/')
         if [[ -n "$decl" ]]; then
             # Add namespace prefix if present
             if [[ -n "$NAMESPACE" ]]; then
@@ -123,7 +134,7 @@ check_file() {
                 DECLARATIONS+=("$decl")
             fi
         fi
-    done < <(grep -E '^(theorem|lemma|def) ' "$FILE" || true)
+    done < <(grep -E '^(theorem|lemma|def|instance|abbrev|example) ' "$FILE" || true)
 
     if [[ ${#DECLARATIONS[@]} -eq 0 ]]; then
         echo -e "  ${YELLOW}No declarations found${NC}"
@@ -133,16 +144,23 @@ check_file() {
 
     echo -e "  ${GREEN}Found ${#DECLARATIONS[@]} declarations${NC}"
 
-    # Create backup
+    # Create backup and track it for cleanup
     local BACKUP_FILE="${FILE}.axiom_check_backup"
     cp "$FILE" "$BACKUP_FILE"
+    BACKUP_FILES+=("$FILE")
 
-    # Function to restore file
+    # Function to restore file and remove from backup tracking
     local cleanup_done=false
     cleanup_file() {
         if [[ "$cleanup_done" == false && -f "$BACKUP_FILE" ]]; then
             mv "$BACKUP_FILE" "$FILE"
             cleanup_done=true
+            # Remove from BACKUP_FILES array so trap doesn't double-restore
+            local new_arr=()
+            for f in "${BACKUP_FILES[@]}"; do
+                [[ "$f" != "$FILE" ]] && new_arr+=("$f")
+            done
+            BACKUP_FILES=("${new_arr[@]+"${new_arr[@]}"}")
         fi
     }
 

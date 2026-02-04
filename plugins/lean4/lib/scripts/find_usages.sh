@@ -47,6 +47,11 @@ else
     USE_RG=false
 fi
 
+# Escape regex metacharacters in identifier for use in grep/rg patterns
+escape_regex() {
+    printf '%s' "$1" | sed 's/[.[\*^$()+?{|\\]/\\&/g'
+}
+
 # Validate input
 if [[ -z "$IDENTIFIER" ]]; then
     echo -e "${RED}Error: No identifier specified${NC}" >&2
@@ -57,6 +62,9 @@ if [[ -z "$IDENTIFIER" ]]; then
     echo "  $0 MyClass src/" >&2
     exit 1
 fi
+
+# Escape identifier for regex matching
+ESCAPED_ID=$(escape_regex "$IDENTIFIER")
 
 if [[ ! -d "$SEARCH_DIR" ]]; then
     echo -e "${RED}Error: Directory '$SEARCH_DIR' does not exist${NC}" >&2
@@ -101,23 +109,24 @@ if [[ "$USE_RG" == true ]]; then
 
     # Search for identifier in Lean files
     # -n: line numbers, -C: context, --color=always: colors
+    # Use escaped identifier to handle regex metacharacters (e.g., dots in qualified names)
     rg -t lean \
         --line-number \
         --color=always \
         --heading \
         -C "$CONTEXT_LINES" \
-        "\b$IDENTIFIER\b" \
+        "\b$ESCAPED_ID\b" \
         "$SEARCH_DIR" > "$RESULTS_FILE" 2>/dev/null || true
 
 else
     echo -e "${YELLOW}Using grep (install ripgrep for better performance)${NC}"
     echo ""
 
-    # Fallback to grep
+    # Fallback to grep (use escaped identifier)
     find "$SEARCH_DIR" -name "*.lean" -type f | while read -r file; do
-        if grep -l "\b$IDENTIFIER\b" "$file" > /dev/null 2>&1; then
+        if grep -l "\b$ESCAPED_ID\b" "$file" > /dev/null 2>&1; then
             echo -e "${BLUE}File: ${NC}$file"
-            grep -n -C "$CONTEXT_LINES" --color=always "\b$IDENTIFIER\b" "$file" || true
+            grep -n -C "$CONTEXT_LINES" --color=always "\b$ESCAPED_ID\b" "$file" || true
             echo ""
         fi
     done > "$RESULTS_FILE"
@@ -132,13 +141,13 @@ echo -e "${BOLD}USAGES:${NC}"
 echo ""
 
 while IFS= read -r line; do
-    # Track file headers from ripgrep
-    if [[ "$USE_RG" == true ]] && [[ "$line" =~ ^([^:]+)$ ]]; then
+    # Track file headers from ripgrep (filename only, ending in .lean)
+    if [[ "$USE_RG" == true ]] && [[ "$line" =~ ^[^:]+\.lean$ ]]; then
         # New file header
         if [[ -n "$CURRENT_FILE" ]]; then
             echo ""  # Blank line between files
         fi
-        CURRENT_FILE="$1"
+        CURRENT_FILE="$line"
         FILE_COUNT=$((FILE_COUNT + 1))
         echo -e "${BLUE}${BOLD}$line${NC}"
         continue

@@ -124,41 +124,51 @@ def minimize_imports(filepath: Path, dry_run: bool = False, verbose: bool = Fals
 
     print(f"\nTesting each import (this may take a while)...")
 
-    for i, (line_num, import_line) in enumerate(imports, 1):
-        import_name = import_line.strip()
-        print(f"  [{i}/{len(imports)}] Testing: {import_name}")
+    try:
+        for i, (line_num, import_line) in enumerate(imports, 1):
+            import_name = import_line.strip()
+            print(f"  [{i}/{len(imports)}] Testing: {import_name}")
 
-        # Create version without this import
-        modified_content = remove_import_line(original_content, line_num)
+            # Create version without this import
+            modified_content = remove_import_line(original_content, line_num)
 
-        # Write temporarily
-        if not dry_run:
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(modified_content)
+            # Write temporarily
+            if not dry_run:
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(modified_content)
 
-        # Check if it still compiles
-        if not dry_run:
-            compiles, _ = check_compiles(filepath, verbose=False)
-        else:
-            # In dry-run, simulate by checking if import is obviously used
-            # This is a heuristic and not perfect
-            import_module = import_name.replace('import', '').strip()
-            module_base = import_module.split('.')[-1]
+            # Check if it still compiles
+            if not dry_run:
+                compiles, _ = check_compiles(filepath, verbose=False)
+            else:
+                # In dry-run, simulate by checking if import is obviously used
+                # HEURISTIC WARNING: This is an approximation and may have false positives.
+                # It checks if the module's base name appears in the file, which doesn't
+                # account for transitive imports or qualified names.
+                import_module = import_name.replace('import', '').strip()
+                module_base = import_module.split('.')[-1]
 
-            # Simple heuristic: check if module name appears in file
-            compiles = module_base not in original_content
+                # Simple heuristic: check if module name appears in file
+                compiles = module_base not in original_content
 
-        if compiles:
-            unused_imports.append(import_line)
-            print(f"    → Appears UNUSED ✗")
-        else:
-            used_imports.append(import_line)
-            print(f"    → Required ✓")
+            if compiles:
+                unused_imports.append(import_line)
+                print(f"    → Appears UNUSED ✗")
+            else:
+                used_imports.append(import_line)
+                print(f"    → Required ✓")
 
-        # Restore original
-        if not dry_run:
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(original_content)
+            # Restore original after each test
+            if not dry_run:
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(original_content)
+    except Exception as e:
+        # Ensure original is restored on any error
+        if not dry_run and backup_path.exists():
+            print(f"\nError during testing: {e}", file=sys.stderr)
+            print("Restoring original file from backup...", file=sys.stderr)
+            shutil.copy2(backup_path, filepath)
+        raise
 
     # Report results
     print("\n" + "=" * 80)
@@ -176,6 +186,7 @@ def minimize_imports(filepath: Path, dry_run: bool = False, verbose: bool = Fals
 
         if dry_run:
             print("\n[DRY RUN] Would remove the unused imports above")
+            print("Note: --dry-run uses heuristic (module name in file). May have false positives.")
             print(f"Run without --dry-run to actually remove them")
         else:
             print("\nRemoving unused imports...")
