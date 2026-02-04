@@ -1,6 +1,6 @@
 ---
 name: lean4
-description: "Use when in .lean files, seeing sorry/by?/failed to synthesize instance/type mismatch/unknown identifier, lake build fails, or need to find mathlib lemmas."
+description: "Use when editing .lean files, seeing sorry/failed to synthesize instance, lake build errors, or searching mathlib."
 ---
 
 # Lean 4 Theorem Proving
@@ -18,8 +18,6 @@ Use this skill whenever you're editing Lean 4 proofs or debugging Lean builds. I
 **Never change statements or add axioms without explicit permission.** Theorem/lemma statements, type signatures, and docstrings are off-limits unless the user requests changes. Inline comments may be adjusted; docstrings may not (they're part of the API). Custom axioms require explicit approval—if a proof seems to need one, stop and discuss.
 
 ## Commands
-
-Invoke with `/lean4:<command>`:
 
 | Command | Purpose |
 |---------|---------|
