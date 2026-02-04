@@ -362,7 +362,7 @@ l1c1-l1c6, severity: 3
 
 **Example:**
 ```
-lean_profile_proof(file="/path/to/file.lean", declaration_name="mySlowTheorem")
+lean_profile_proof(file_path="/path/to/file.lean", declaration_name="mySlowTheorem")
 → {
     "total_time_ms": 2450,
     "lines": [
@@ -374,7 +374,7 @@ lean_profile_proof(file="/path/to/file.lean", declaration_name="mySlowTheorem")
 
 **Tips:** Focus on >20% of total time. Replace slow `simp` with explicit rewrites. Only use when investigating performance - adds overhead.
 
-**See also:** [performance-optimization.md](performance-optimization.md) for fix patterns by category (simp, typeclass inference, isDefEq, whnf).
+**See also:** [performance-optimization.md](performance-optimization.md) for fix patterns by tactic type (simp, ring, exact?, aesop).
 
 ---
 
