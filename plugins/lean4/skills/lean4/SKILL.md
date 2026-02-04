@@ -105,10 +105,22 @@ A proof is complete when:
 
 ## References
 
+**LSP Tools:** [lean-lsp-server](references/lean-lsp-server.md) (quick ref), [lean-lsp-tools-api](references/lean-lsp-tools-api.md) (detailed)
+
 **Search:** [mathlib-guide](references/mathlib-guide.md), [lean-phrasebook](references/lean-phrasebook.md)
 
-**Errors:** [compilation-errors](references/compilation-errors.md), [instance-pollution](references/instance-pollution.md)
+**Errors:** [compilation-errors](references/compilation-errors.md), [instance-pollution](references/instance-pollution.md), [compiler-guided-repair](references/compiler-guided-repair.md)
 
-**Patterns:** [tactic-patterns](references/tactic-patterns.md), [proof-templates](references/proof-templates.md), [domain-patterns](references/domain-patterns.md)
+**Tactics:** [tactics-reference](references/tactics-reference.md), [tactic-patterns](references/tactic-patterns.md), [calc-patterns](references/calc-patterns.md), [simp-hygiene](references/simp-hygiene.md)
 
-**Style:** [mathlib-style](references/mathlib-style.md), [proof-refactoring](references/proof-refactoring.md)
+**Proof Development:** [proof-templates](references/proof-templates.md), [proof-refactoring](references/proof-refactoring.md), [sorry-filling](references/sorry-filling.md)
+
+**Optimization:** [proof-golfing](references/proof-golfing.md), [proof-golfing-patterns](references/proof-golfing-patterns.md), [proof-golfing-safety](references/proof-golfing-safety.md), [performance-optimization](references/performance-optimization.md)
+
+**Domain-Specific:** [domain-patterns](references/domain-patterns.md), [measure-theory](references/measure-theory.md), [axiom-elimination](references/axiom-elimination.md)
+
+**Style:** [mathlib-style](references/mathlib-style.md)
+
+**Workflows:** [agent-workflows](references/agent-workflows.md) (internal), [subagent-workflows](references/subagent-workflows.md), [command-examples](references/command-examples.md)
+
+**Internals:** [review-hook-schema](references/review-hook-schema.md)

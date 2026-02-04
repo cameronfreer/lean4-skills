@@ -10,8 +10,8 @@ Test results and validation status for Lean 4 scripts.
 | `check_axioms_inline.sh` | ✅ Production Ready | Batch mode, namespace-aware |
 | `search_mathlib.sh` | ✅ Production Ready | Pattern search with ripgrep |
 | `smart_search.sh` | ✅ Production Ready | Multi-source (LeanSearch, Loogle) |
-| `parseLeanErrors.py` | ✅ Production Ready | Structured error output |
-| `solverCascade.py` | ✅ Production Ready | Automated tactic testing |
+| `parse_lean_errors.py` | ✅ Production Ready | Structured error output |
+| `solver_cascade.py` | ✅ Production Ready | Automated tactic testing |
 | `minimize_imports.py` | ✅ Production Ready | Safe with backups |
 | `find_usages.sh` | ✅ Production Ready | Ripgrep integration |
 | `find_instances.sh` | ✅ Production Ready | Type class search |

@@ -38,7 +38,7 @@ Without `tee`, piping to `head`/`grep` discards the rest. With `tee`, the full o
 ## Minimum Workflow (3 Steps)
 
 1. `lean_goal(file, line)` - See what to prove
-2. `lean_multi_attempt(file, line, ["simp", "ring", "exact?"])` - Test tactics
+2. `lean_multi_attempt(file, line, snippets=["simp", "ring", "exact?"])` - Test tactics
 3. `lean_diagnostic_messages(file)` - Verify no errors
 
 ## Full Workflow Pattern

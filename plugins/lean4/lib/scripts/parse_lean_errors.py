@@ -199,7 +199,7 @@ def _build_error_dict(error_lines: list[str]) -> dict:
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: parseLeanErrors.py ERROR_FILE [--all]", file=sys.stderr)
+        print("Usage: parse_lean_errors.py ERROR_FILE [--all]", file=sys.stderr)
         sys.exit(1)
 
     error_file = Path(sys.argv[1])

@@ -10,8 +10,8 @@ Hard-primitive scripts for Lean 4 workflows. These implement functionality that'
 | `check_axioms_inline.sh` | Verify axiom usage (all declarations) | Before committing, during PR review |
 | `search_mathlib.sh` | Find lemmas in mathlib | Before proving something that might exist |
 | `smart_search.sh` | Multi-source search (APIs + local) | Advanced searches, natural language queries |
-| `parseLeanErrors.py` | Parse and structure Lean errors | Automated repair loops |
-| `solverCascade.py` | Automated tactic cascade | Trying multiple tactics automatically |
+| `parse_lean_errors.py` | Parse and structure Lean errors | Automated repair loops |
+| `solver_cascade.py` | Automated tactic cascade | Trying multiple tactics automatically |
 | `minimize_imports.py` | Remove unused imports | Cleanup imports, reduce dependencies |
 | `find_usages.sh` | Find uses of theorem/lemma | Before refactoring or removing declarations |
 | `find_instances.sh` | Find type class instances | Need instance patterns or examples |
@@ -80,20 +80,20 @@ Multi-source search combining local search with online APIs.
 ./smart_search.sh "Cauchy Schwarz" --source=all
 ```
 
-### parseLeanErrors.py
+### parse_lean_errors.py
 
 Parse Lean compiler errors into structured JSON for repair loops.
 
 ```bash
-./parseLeanErrors.py error_output.txt
+./parse_lean_errors.py error_output.txt
 ```
 
-### solverCascade.py
+### solver_cascade.py
 
 Try automated solvers in sequence on a goal (handles 40-60% of simple cases).
 
 ```bash
-./solverCascade.py context.json File.lean
+./solver_cascade.py context.json File.lean
 ```
 
 The `context.json` should contain goal info (line, column, goal text).

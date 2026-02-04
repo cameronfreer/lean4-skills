@@ -2,6 +2,8 @@
 
 **Internal reference:** These workflows are orchestrated by commands. You typically don't invoke them directly.
 
+**For Claude Code users:** See [subagent-workflows.md](subagent-workflows.md) for user-facing delegation patterns.
+
 Extended workflow examples for Lean4 plugin internal workflows.
 
 ---

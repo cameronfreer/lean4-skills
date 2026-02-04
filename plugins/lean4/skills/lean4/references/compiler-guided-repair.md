@@ -108,14 +108,14 @@ theorem foo (f g : α → ℝ) (hf : MemLp f (ENNReal.ofReal 2) μ) (h : f =ᵐ[
 ### 1. Compile → Extract Error
 ```bash
 lake build FILE.lean 2> errors.txt
-python3 $LEAN4_SCRIPTS/parseLeanErrors.py errors.txt > context.json
+python3 $LEAN4_SCRIPTS/parse_lean_errors.py errors.txt > context.json
 ```
 
 Extracts: error type, location, goal state, local context, code snippet
 
 ### 2. Try Solver Cascade (many simple cases, free!)
 ```bash
-python3 $LEAN4_SCRIPTS/solverCascade.py context.json FILE.lean
+python3 $LEAN4_SCRIPTS/solver_cascade.py context.json FILE.lean
 ```
 
 Tries in order: `rfl → simp → ring → linarith → nlinarith → omega → exact? → apply? → aesop`
@@ -500,12 +500,12 @@ Success improves over time as structured logging enables learning from repair at
 
 **Error parsing:**
 ```bash
-python3 $LEAN4_SCRIPTS/parseLeanErrors.py errors.txt
+python3 $LEAN4_SCRIPTS/parse_lean_errors.py errors.txt
 ```
 
 **Solver cascade:**
 ```bash
-python3 $LEAN4_SCRIPTS/solverCascade.py context.json FILE.lean
+python3 $LEAN4_SCRIPTS/solver_cascade.py context.json FILE.lean
 ```
 
 **Via autoprover:**

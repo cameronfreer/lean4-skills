@@ -131,7 +131,7 @@ def run_solver_cascade(context: dict, file_path: Path) -> Optional[str]:
 
 def main():
     if len(sys.argv) < 3:
-        print("Usage: solverCascade.py CONTEXT.json FILE.lean", file=sys.stderr)
+        print("Usage: solver_cascade.py CONTEXT.json FILE.lean", file=sys.stderr)
         sys.exit(1)
 
     with open(sys.argv[1]) as f:
