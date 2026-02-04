@@ -71,9 +71,10 @@ url_encode() {
     if command -v jq &> /dev/null; then
         printf '%s' "$1" | jq -sRr @uri
     elif command -v python3 &> /dev/null; then
-        python3 -c "import urllib.parse; print(urllib.parse.quote('''$1'''))"
+        # Pass query as argument to avoid injection issues with quotes
+        python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))' "$1"
     elif command -v python &> /dev/null; then
-        python -c "import urllib; print(urllib.quote('''$1'''))"
+        python -c 'import urllib,sys; print(urllib.quote(sys.argv[1]))' "$1"
     else
         # Last resort: basic encoding (not complete but handles common cases)
         printf '%s' "$1" | sed 's/ /%20/g; s/"/%22/g; s/#/%23/g; s/\?/%3F/g'

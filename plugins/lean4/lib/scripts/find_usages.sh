@@ -52,6 +52,13 @@ escape_regex() {
     printf '%s' "$1" | sed 's/[.[\*^$()+?{|\\]/\\&/g'
 }
 
+# Lean identifier boundary patterns
+# Lean identifiers can contain: letters, digits, _, and ' (prime)
+# We need custom boundaries because \b doesn't work with ' or qualified names
+# These patterns match the position before/after a complete identifier
+LEAN_ID_BEFORE='(^|[^A-Za-z0-9_'"'"'])'
+LEAN_ID_AFTER='($|[^A-Za-z0-9_'"'"'])'
+
 # Validate input
 if [[ -z "$IDENTIFIER" ]]; then
     echo -e "${RED}Error: No identifier specified${NC}" >&2
@@ -85,7 +92,8 @@ trap 'rm -f "$RESULTS_FILE"' EXIT
 is_definition_line() {
     local line="$1"
     # Check if line defines the identifier (not just uses it)
-    if echo "$line" | grep -qE "^[[:space:]]*(theorem|lemma|def|class|structure|inductive|axiom|instance|abbrev)[[:space:]]+$IDENTIFIER"; then
+    # Use ESCAPED_ID to handle dots and other regex metacharacters in qualified names
+    if echo "$line" | grep -qE "^[[:space:]]*(theorem|lemma|def|class|structure|inductive|axiom|instance|abbrev)[[:space:]]+$ESCAPED_ID"; then
         return 0  # true - is definition
     fi
     return 1  # false - not definition
@@ -109,24 +117,24 @@ if [[ "$USE_RG" == true ]]; then
 
     # Search for identifier in Lean files
     # -n: line numbers, -C: context, --color=always: colors
-    # Use escaped identifier to handle regex metacharacters (e.g., dots in qualified names)
+    # Use Lean-aware boundaries to handle identifiers with ' (prime) and qualified names
     rg -t lean \
         --line-number \
         --color=always \
         --heading \
         -C "$CONTEXT_LINES" \
-        "\b$ESCAPED_ID\b" \
+        "$LEAN_ID_BEFORE$ESCAPED_ID$LEAN_ID_AFTER" \
         "$SEARCH_DIR" > "$RESULTS_FILE" 2>/dev/null || true
 
 else
     echo -e "${YELLOW}Using grep (install ripgrep for better performance)${NC}"
     echo ""
 
-    # Fallback to grep (use escaped identifier)
+    # Fallback to grep with Lean-aware boundaries (use -E for extended regex)
     find "$SEARCH_DIR" -name "*.lean" -type f | while read -r file; do
-        if grep -l "\b$ESCAPED_ID\b" "$file" > /dev/null 2>&1; then
+        if grep -E -l "$LEAN_ID_BEFORE$ESCAPED_ID$LEAN_ID_AFTER" "$file" > /dev/null 2>&1; then
             echo -e "${BLUE}File: ${NC}$file"
-            grep -n -C "$CONTEXT_LINES" --color=always "\b$ESCAPED_ID\b" "$file" || true
+            grep -E -n -C "$CONTEXT_LINES" --color=always "$LEAN_ID_BEFORE$ESCAPED_ID$LEAN_ID_AFTER" "$file" || true
             echo ""
         fi
     done > "$RESULTS_FILE"

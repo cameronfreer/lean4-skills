@@ -39,6 +39,17 @@ else
     echo ""
 fi
 
+# Lean identifier boundary patterns
+# Lean identifiers can contain: letters, digits, _, ' (prime), and . (qualified names)
+# We need custom boundaries because \b doesn't work with ' or .
+LEAN_ID_BEFORE='(^|[^A-Za-z0-9_'"'"'.])'
+LEAN_ID_AFTER='($|[^A-Za-z0-9_'"'"'.])'
+
+# Escape regex metacharacters in a declaration name
+escape_regex() {
+    printf '%s' "$1" | sed 's/[.[\*^$()+?{|\\]/\\&/g'
+}
+
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${CYAN}${BOLD}UNUSED DECLARATIONS FINDER${NC}"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -54,16 +65,16 @@ trap 'rm -f "$DECLARATIONS" "$UNUSED"' EXIT
 echo -e "${GREEN}Step 1: Finding all declarations...${NC}"
 
 # Extract all theorem/lemma/def declarations
-# Use [\w'.]+  to match Lean identifiers (allows primes and dots for qualified names)
+# Use [\w'.]+ to match Lean identifiers (allows primes and dots for qualified names)
 if [[ "$USE_RG" == true ]]; then
-    rg -t lean "^(theorem|lemma|def|abbrev|instance)\s+([\w']+)" \
+    rg -t lean "^(theorem|lemma|def|abbrev|instance)\s+([\w'.]+)" \
         "$SEARCH_DIR" \
         --no-heading \
         --only-matching \
         --replace '$2' | sort -u > "$DECLARATIONS"
 else
     find "$SEARCH_DIR" -name "*.lean" -type f -exec \
-        grep -hoP "^(theorem|lemma|def|abbrev|instance)\s+\K[\w']+" {} \; | \
+        grep -hoP "^(theorem|lemma|def|abbrev|instance)\s+\K[\w'.]+" {} \; | \
         sort -u > "$DECLARATIONS"
 fi
 
@@ -99,14 +110,16 @@ while IFS= read -r decl; do
     fi
 
     # Search for uses of this declaration
-    # Exclude the definition line itself
+    # Escape for regex and use Lean-aware boundaries (handles ' and .)
+    local escaped_decl
+    escaped_decl=$(escape_regex "$decl")
     if [[ "$USE_RG" == true ]]; then
         # Count usages (excluding definition)
-        USAGE_COUNT=$(rg -t lean "\b$decl\b" "$SEARCH_DIR" --count-matches 2>/dev/null | \
+        USAGE_COUNT=$(rg -t lean "$LEAN_ID_BEFORE$escaped_decl$LEAN_ID_AFTER" "$SEARCH_DIR" --count-matches 2>/dev/null | \
             awk -F: '{sum += $2} END {print sum}' || echo "0")
     else
         USAGE_COUNT=$(find "$SEARCH_DIR" -name "*.lean" -type f -exec \
-            grep -o "\b$decl\b" {} \; | wc -l | tr -d ' ')
+            grep -Eo "$LEAN_ID_BEFORE$escaped_decl$LEAN_ID_AFTER" {} \; | wc -l | tr -d ' ')
     fi
 
     # If only 1 usage (the definition itself) or 0, it's likely unused
@@ -134,13 +147,15 @@ else
 
     # Show unused declarations with file locations
     while IFS= read -r decl; do
-        # Find where it's defined
+        # Find where it's defined (escape for regex)
+        local escaped_decl
+        escaped_decl=$(escape_regex "$decl")
         if [[ "$USE_RG" == true ]]; then
-            LOCATION=$(rg -t lean "^(theorem|lemma|def|abbrev|instance)\s+$decl\b" \
+            LOCATION=$(rg -t lean "^(theorem|lemma|def|abbrev|instance)\s+$escaped_decl$LEAN_ID_AFTER" \
                 "$SEARCH_DIR" --no-heading | head -1 || echo "")
         else
             LOCATION=$(find "$SEARCH_DIR" -name "*.lean" -type f -exec \
-                grep -n "^\\(theorem\\|lemma\\|def\\|abbrev\\|instance\\)\\s\\+$decl\\b" {} + | \
+                grep -En "^(theorem|lemma|def|abbrev|instance)\s+$escaped_decl$LEAN_ID_AFTER" {} + | \
                 head -1 || echo "")
         fi
 

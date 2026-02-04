@@ -49,8 +49,8 @@ def parse_location(line: str) -> Optional[dict]:
     and Windows paths (C:\\path\\to\\file.lean:10:5: or C:/path/to/file.lean:10:5:)
     """
     # Match .lean file followed by :line:column:
-    # Use non-greedy match to handle Windows drive letters (C:)
-    match = re.search(r"([^\s:]+\.lean):(\d+):(\d+):", line)
+    # Pattern: optional drive letter (C:\ or C:/), then non-greedy path to .lean
+    match = re.search(r"((?:[A-Za-z]:[\\/])?.+?\.lean):(\d+):(\d+):", line)
     if match:
         return {
             "file": match.group(1),

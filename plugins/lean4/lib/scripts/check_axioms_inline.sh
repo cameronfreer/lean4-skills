@@ -8,8 +8,12 @@
 #   ./check_axioms_inline.sh MyFile.lean --verbose
 #
 # This script temporarily appends #print axioms commands to Lean files,
-# runs Lean to check axioms, then removes the additions. Works for ALL declarations
-# including those in namespaces, sections, and private declarations.
+# runs Lean to check axioms, then removes the additions.
+#
+# Limitations:
+#   - Only detects the first namespace in a file
+#   - Only captures top-level (unindented) declarations
+#   - Nested namespaces, sections, and indented declarations may be missed
 #
 # Standard mathlib axioms (propext, quot.sound, choice) are filtered out,
 # highlighting only custom axioms or unexpected dependencies.
