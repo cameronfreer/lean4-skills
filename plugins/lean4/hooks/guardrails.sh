@@ -3,7 +3,16 @@ set -euo pipefail
 
 # Read JSON input from stdin
 INPUT=$(cat)
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+
+# Parse command with jq, fall back to python3
+if command -v jq >/dev/null 2>&1; then
+  COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+else
+  COMMAND=$(echo "$INPUT" | python3 -c 'import json,sys; data=json.load(sys.stdin); print((data.get("tool_input") or {}).get("command",""))')
+fi
+
+# If no command, allow
+[ -z "$COMMAND" ] && exit 0
 
 # Block git push (broad: catches git -C, sudo git, etc.)
 # Allows: git push --dry-run
