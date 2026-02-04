@@ -79,6 +79,65 @@ Custom hooks receive structured JSON on stdin with file information, sorries, ax
 
 See [review-hook-schema.md](../skills/lean4/references/review-hook-schema.md) for full input/output schemas and examples.
 
+## External Review Handoff
+
+When external review is selected (via `--codex` or user preference), display this prompt:
+
+```
+─────────────────────────────────────────────────────────
+EXTERNAL REVIEW PROMPT (copy to Codex or paste results below)
+─────────────────────────────────────────────────────────
+
+You are an external code reviewer for Lean 4 theorem proofs.
+
+CRITICAL CONSTRAINTS:
+- Do NOT edit code directly
+- Do NOT suggest specific tactic sequences
+- Provide HIGH-LEVERAGE strategic advice only
+
+Return JSON matching this schema:
+{
+  "version": "1.0",
+  "suggestions": [
+    {
+      "file": "string",
+      "line": number,
+      "severity": "hint" | "warning",
+      "category": "sorry" | "axiom" | "style" | "structure",
+      "message": "string (strategic advice, not code)"
+    }
+  ]
+}
+
+Focus on:
+1. Structural issues (wrong approach, missing lemmas)
+2. Mathlib coverage (what existing lemmas to search)
+3. Type class issues (instance ordering, missing constraints)
+
+Limit to 3-5 highest-leverage suggestions.
+─────────────────────────────────────────────────────────
+```
+
+Then wait for user to paste JSON response (or pipe via `--codex`).
+
+## Post-Review Actions
+
+After review completes (internal or external), prompt:
+
+```
+## Review Complete
+
+Would you like me to create an action plan from the review findings?
+- [yes] — Enter plan mode with 3-6 step implementation plan
+- [no] — End review, return to conversation
+- [apply] — (Internal review only) Apply suggested fixes directly
+```
+
+If "yes":
+1. Enter plan mode
+2. Create plan with one task per high-priority suggestion
+3. Get user approval before execution
+
 ## JSON Output Schema
 
 When using `--json`, output follows this structure:

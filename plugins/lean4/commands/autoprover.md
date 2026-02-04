@@ -23,12 +23,16 @@ Main entry point for automated theorem proving. Planning-first, LSP-powered, wit
 |-----|----------|-------------|
 | file | No | Specific file to focus on |
 | --repair-only | No | Fix build errors only, skip sorry-filling |
-| --deep | No | Allow escalation to deep mode (may change statements with approval) |
+| --deep | No | Allow escalation to deep mode |
+| --deep-budget | No | Limit deep mode: `2` (sorries) or `15m` (time) |
+| --autonomy | No | `manual`, `assisted` (default), or `auto` |
+| --review-every | No | `N` (sorries), `checkpoint` (default), or `never` |
+| --codex | No | Use external Codex for reviews (sets review source to External) |
 
 ## Philosophy
 
 - **Search before prove** - Most sorries exist in mathlib
-- **LSP first** - Sub-second feedback; scripts as fallback
+- **LSP first** - Use `lean_goal` + `lean_local_search` + `lean_multi_attempt` before scripts. Log which tools used per sorry. Only fall back to scripts if LSP unavailable or inconclusive.
 - **Small commits** - Each sorry = one commit for easy rollback
 - **Human in loop** - Planning phase mandatory, review checkpoints required
 
@@ -46,15 +50,28 @@ Inline sorry-filling with constraints:
 
 ### Deep Mode (`--deep`)
 
+Enables escalation for stubborn sorries with mandatory budgets and checkpoints.
+
+**Budget Options:**
+- `--deep-budget=2` — max 2 sorries per deep cycle (default)
+- `--deep-budget=15m` — max 15 minutes per deep cycle
+
+**Deep Cycle Flow:**
 1. Fast path runs first
-2. On failure, escalates to internal sorry-filler-deep workflow
-3. **Statement changes require approval:**
-   ```
-   ## Statement Change Required
-   Current: theorem foo (x : ℕ) : P x
-   Proposed: theorem foo (x : ℤ) : P x
-   Approve? (yes / no / suggest alternative)
-   ```
+2. On failure, escalate to deep sorry-filling workflow
+3. After each deep attempt:
+   - Run `lake build`
+   - Commit if clean
+   - Summarize what changed
+   - Prompt: "Continue deep / Pause / Run review / Stop"
+
+**Statement changes require approval:**
+```
+## Statement Change Required
+Current: theorem foo (x : ℕ) : P x
+Proposed: theorem foo (x : ℤ) : P x
+Approve? (yes / no / suggest alternative)
+```
 
 Deep mode allows: multi-file refactoring, helper extraction, statement generalization (with approval).
 
@@ -68,7 +85,30 @@ Deep mode allows: multi-file refactoring, helper extraction, statement generaliz
    lean_goal(file, line)             # at each sorry
    ```
 2. **Ask preferences** - Scope, approach (conservative/balanced/aggressive), review cadence
-3. **Show plan** - List sorries found, get user confirmation
+3. **Session Preferences** (once per session):
+
+   **Autonomy Mode:**
+   > How much control do you want?
+   > 1) Manual — ask before any fix
+   > 2) Assisted (recommended) — apply safe fixes, ask before risky/deep
+   > 3) Auto — apply fixes + commits + reviews per cadence
+
+   **Review Source:**
+   > How should reviews be conducted?
+   > 1) Internal (recommended) — Claude reviews and can apply fixes
+   > 2) External (Codex) — advice only; user pastes results
+   > 3) Both — internal first, then external advice
+   > 4) None — no automatic reviews
+
+   Store choice for session. If `--codex` flag passed, set External automatically.
+
+   **Review Cadence** (for assisted/auto modes):
+   > When should reviews run?
+   > - `--review-every=N` — after every N sorries filled
+   > - `--review-every=checkpoint` — at each checkpoint (default)
+   > - `--review-every=never` — only on explicit request
+
+4. **Show plan** - List sorries found, get user confirmation
 
 ### Phase 2: Main Loop (Per Sorry)
 

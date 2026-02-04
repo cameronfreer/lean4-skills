@@ -10,6 +10,19 @@ Quick reference for filling Lean 4 sorries systematically.
 4. **Test Before Applying** - Use `lake build` or LSP multi_attempt
 5. **Apply Working Solution** - Shortest working proof wins
 
+## LSP-First Requirement
+
+**Always use LSP tools before scripts:**
+1. `lean_goal(file, line)` — understand the goal
+2. `lean_local_search("keyword")` — search mathlib
+3. `lean_multi_attempt(file, line, snippets)` — test candidates
+
+Only fall back to scripts (`sorry_analyzer.py`, `smart_search.sh`) if:
+- LSP server unavailable
+- LSP results inconclusive after 2-3 searches
+
+Log which approach worked for each sorry.
+
 ## Todo-Based Workflow (For Multiple Sorries)
 
 **Problem:** When there are 10+ sorries, it's easy to get lost trying to work on all of them at once.

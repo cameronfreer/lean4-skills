@@ -55,7 +55,11 @@ lean_multi_attempt(file, line, snippets=[...])  # Test multiple tactics
 
 ## Automation
 
-`/lean4:autoprover` handles most tasks. For complex proofs, it may delegate to internal workflows for deep sorry-filling, proof repair, or axiom elimination. You don't invoke these directly.
+`/lean4:autoprover` handles most tasks. It asks once per session:
+- **Autonomy mode** (manual/assisted/auto)
+- **Review source** (internal/external/both/none)
+
+For complex proofs, it may delegate to internal workflows for deep sorry-filling, proof repair, or axiom elimination. You don't invoke these directly.
 
 ## Common Fixes
 
