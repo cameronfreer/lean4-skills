@@ -55,8 +55,14 @@ escape_regex() {
 # Lean identifier boundary patterns
 # Lean identifiers can contain: letters, digits, _, ' (prime), and . (qualified names)
 # We need custom boundaries because \b doesn't work with ' or .
-# These patterns match the position before/after a complete identifier
-LEAN_ID_BEFORE='(^|[^A-Za-z0-9_'"'"'.])'
+#
+# LEAN_ID_BEFORE: Allows . as prefix for suffix matching of qualified names
+#   e.g., searching "Nat.add" matches "Mathlib.Nat.add" (preceded by .)
+#   but NOT "FooNat.add" (preceded by letter)
+#
+# LEAN_ID_AFTER: Requires non-identifier character (including .) to end match
+#   e.g., searching "Nat.add" matches "Nat.add" but NOT "Nat.add_comm"
+LEAN_ID_BEFORE='(^|[^A-Za-z0-9_'"'"'])'
 LEAN_ID_AFTER='($|[^A-Za-z0-9_'"'"'.])'
 
 # Validate input

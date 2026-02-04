@@ -28,39 +28,37 @@ Advanced patterns for preventing elaboration timeouts and type-checking performa
 Use `lean_profile_proof` to identify slow lines inside a theorem before optimizing.
 
 ```
-lean_profile_proof(file, line)
+lean_profile_proof(file_path="/path/to/file.lean", declaration_name="mySlowTheorem")
 ```
 
 **Example output:**
 ```json
 {
-  "ms": 42.5,
+  "total_time_ms": 2450,
   "lines": [
-    {"line": 7, "ms": 38.2, "text": "simp [add_comm, add_assoc]"}
-  ],
-  "categories": {
-    "simp": 35.1,
-    "typeclass inference": 4.2
-  }
+    {"line": 12, "tactic": "simp [add_comm, add_assoc]", "time_ms": 1200},
+    {"line": 13, "tactic": "ring", "time_ms": 850}
+  ]
 }
 ```
 
 ### Fix Workflow
 
-1. **Profile** the slow theorem
-2. **Identify** the slowest line(s) from the output
-3. **Apply targeted fix** based on category (see below)
-4. **Re-profile** to verify improvement
+1. **Profile** the slow theorem with `lean_profile_proof`
+2. **Identify** the slowest line(s) from the `lines` array (sort by `time_ms`)
+3. **Inspect tactic** - look at the `tactic` field to understand what's slow
+4. **Apply targeted fix** based on tactic type (see below)
+5. **Re-profile** to verify improvement
 
-### Common Fixes by Category
+### Common Fixes by Tactic Type
 
-| Category | Problem | Fix |
-|----------|---------|-----|
-| `simp` | Broad simp set | `simp only [lemma1, lemma2]` instead of `simp [*]` |
-| `typeclass inference` | Instance synthesis | Add `haveI`/`letI` or open scopes earlier |
-| `simp` + `typeclass` | Combined slowness | Split into smaller `have` blocks |
-| `isDefEq` | Type checking | Use irreducible wrappers (Pattern 1 below) |
-| `whnf` | Unfolding | Pin type parameters explicitly |
+| Slow Tactic | Problem | Fix |
+|-------------|---------|-----|
+| `simp [*]` or `simp` | Broad simp set | `simp only [lemma1, lemma2]` |
+| `exact?` / `apply?` | Searching all lemmas | Replace with explicit lemma |
+| `ring` / `linarith` | Large expression | Break into smaller `have` blocks |
+| `aesop` | Deep search | Provide explicit proof or narrow config |
+| `decide` / `native_decide` | Large computation | Manual proof or cache result |
 
 ### When LSP Profiling Isn't Available
 
@@ -520,7 +518,7 @@ def complexFrozen := frozenF (frozenG (frozenH X))
 
 ### Preferred: LSP Profiling
 
-Use `lean_profile_proof(file, line)` for fast, per-line timing data. See "Fast Path" section above.
+Use `lean_profile_proof(file_path, declaration_name)` for fast, per-line timing data. See "Fast Path" section above.
 
 ### Fallback: Trace-Based Debugging
 
