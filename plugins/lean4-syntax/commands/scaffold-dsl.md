@@ -19,14 +19,13 @@ declare_syntax_cat myExpr
 -- 2. Atoms
 syntax ident : myAtom
 syntax num : myAtom
-syntax str : myAtom
-syntax "+" : myAtom    -- operators as atoms
+-- Add more atoms (e.g., str) with matching macro_rules if needed.
 
 -- 3. Expressions
 syntax myAtom : myExpr
 syntax "(" myExpr ")" : myExpr
-syntax:70 myExpr " * " myExpr:71 : myExpr
-syntax:65 myExpr " + " myExpr:71 : myExpr
+syntax:70 myExpr:70 " * " myExpr:71 : myExpr
+syntax:65 myExpr:65 " + " myExpr:66 : myExpr
 
 -- 4. Bridge to term
 syntax "[myDSL|" myExpr "]" : term
@@ -59,5 +58,5 @@ end MyDSL
 ```lean
 set_option pp.notation false in #check [myDSL| ...]  -- see expansion
 set_option pp.all true in #check [myDSL| ...]        -- full detail
-set_option trace.Macro.expand true in ...            -- trace expansion
+set_option trace.Macro.expand true in #check [myDSL| x + 1 * 2]  -- trace expansion
 ```

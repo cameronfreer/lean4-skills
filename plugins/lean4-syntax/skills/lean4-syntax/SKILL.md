@@ -28,6 +28,8 @@ macro_rules
   | `(assert! $c) => `(if $c then () else panic! "fail")
 ```
 
+Use `@[inherit_doc]` on notation/operators to copy docs from the target declaration.
+
 ## Quick Patterns
 
 ```lean
@@ -38,7 +40,7 @@ infixl:65 " ⊕ " => myAdd
 notation "⟨" a ", " b "⟩" => Prod.mk a b
 
 -- 3. Combined macro
-macro "dbg!" e:term : term => `(dbg_trace "{$e}"; $e)
+macro "dbg!" e:term : term => `(dbg_trace m!"{e}"; $e)
 
 -- 4. Full DSL
 declare_syntax_cat myDSL
@@ -54,8 +56,8 @@ macro_rules
 ## Precedence
 
 ```
-max=1024  min=10  lead=0
-80: * /    65: + -    50: < > =    35: ∧    30: ∨    25: →
+max=1024  arg=max-1  lead=arg-1  min=10
+70: * /    65: + -    50: < > =    35: ∧    30: ∨    25: →
 
 Left-assoc:  syntax:65 term " + " term:66   -- right operand higher
 Right-assoc: syntax:25 term:26 " → " term   -- left operand higher
