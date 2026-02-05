@@ -12,11 +12,11 @@ Input sent to hooks via stdin (or to Codex via `--codex`):
 {
   "version": "1.0",
   "request_type": "review",
+  "mode": "batch",
   "focus": {
     "scope": "sorry",
     "file": "Core.lean",
-    "line": 89,
-    "mode": "batch"
+    "line": 89
   },
   "files": [
     {
@@ -59,7 +59,7 @@ Input sent to hooks via stdin (or to Codex via `--codex`):
 | `focus.scope` | string | "sorry", "deps", "file", "changed", or "project" |
 | `focus.file` | string | Target file (if applicable) |
 | `focus.line` | number | Target line (for sorry/deps scope) |
-| `focus.mode` | string | "batch" (default) or "stuck" (triage) |
+| `mode` | string | "batch" (default) or "stuck" (triage) — top-level field |
 | `files` | array | Files being reviewed |
 | `files[].path` | string | Relative path to file |
 | `files[].content` | string | Full file content |

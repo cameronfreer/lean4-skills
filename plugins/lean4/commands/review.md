@@ -106,6 +106,8 @@ The agent selects files based on scope, then runs these analyses (per file or di
 5. **Golfing Opportunities** - `find_golfable.py <target> --filter-false-positives`
 6. **Complexity Metrics** - Proof sizes, longest proofs, tactic patterns
 
+**Stuck mode:** Steps 5–6 are skipped; focus is on blockers (steps 1–4) for quick triage.
+
 ## Output
 
 ```markdown

@@ -156,10 +156,11 @@ At configured intervals, show progress and options: continue, stop, skip, rollba
 **When stuck detected:**
 1. Run `/lean4:review <file> --scope=sorry --line=N --mode=stuck`
 2. Present blockers and ask: "Apply this plan? [yes/no]"
+3. If user declines plan (or review indicates "statement may be false"), offer counterexample/salvage pass
 
 **Stuck → Counterexample/Salvage branch:**
 
-When stuck detected (per existing triggers), offer:
+If user declines the stuck review plan, or if the review suggests the statement may be false:
 ```
 Try counterexample/salvage pass for this sorry? [yes/no]
 ```
@@ -170,7 +171,7 @@ If yes:
 3. Create `T_salvaged` (weaker version that is provable)
 4. Follow user's falsification policy for original statement
 
-## Falsification Artifacts
+### Falsification Artifacts
 
 **Counterexample lemma (preferred):**
 ```lean

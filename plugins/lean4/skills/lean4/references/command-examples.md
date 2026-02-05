@@ -503,13 +503,17 @@ Create salvage lemma? [yes/no]
 
 User: yes
 
-Claude: What extra constraint makes it true?
-- Suggested: `n.val < 3` as a hypothesis
+Claude: What correction makes it true?
+- Option A: Restrict domain to `Fin 3` (all values < 3)
+- Option B: Weaken bound to `n.val < 5` (trivially true for `Fin 5`)
+
+User: A
 
 Creating salvage:
 ```lean
-/-- Salvaged version of naive_bound -/
-theorem naive_bound_salvaged (n : Fin 5) (h : n.val < 3) : n.val < 3 := h
+/-- Salvaged version of naive_bound: restrict to Fin 3 -/
+theorem naive_bound_salvaged : ∀ n : Fin 3, n.val < 3 := by
+  intro n; exact n.isLt
 ```
 
 Committing: "disprove: naive_bound - counterexample at n=3"
