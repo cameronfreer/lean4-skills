@@ -40,7 +40,7 @@ Use this skill whenever you're editing Lean 4 proofs or debugging Lean builds. I
 **Notes:**
 - Autoprover triggers `/lean4:review` at configured intervals (`--review-every`)
 - Review supports `--mode=batch` (default) or `--mode=stuck` (triage)
-- Run `/lean4:doctor` first to diagnose environment issues
+- If you hit environment issues, run `/lean4:doctor` to diagnose
 
 ## LSP Tools (Preferred)
 
