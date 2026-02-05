@@ -89,11 +89,17 @@ Proceed? (yes / no)
 **Recommended next action:** Search for tendsto variants in Topology/Order
 ```
 
+If analysis suggests the statement may be false, add:
+```markdown
+**Flag:** Statement may be false (goal on decidable type failed preflight)
+```
+
 **Blocker priority (stuck mode):**
 1. Build errors/diagnostics in focus
 2. Sorries on critical path (target line or its dependencies)
 3. Custom axioms introduced in focus
 4. Long/fragile proofs (performance risk)
+5. Falsification signals (decidable goal that failed `decide`, repeated proof failures)
 
 ## Actions
 
