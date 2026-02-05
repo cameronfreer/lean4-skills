@@ -86,13 +86,17 @@ Proceed? (yes / no)
 2. Typeclass instance missing for MeasurableSpace β → add `haveI`
 3. Proof too long (38 lines) → extract helper lemma first
 
+**Flag:** Statement may be false (optional — see below)
+
 **Recommended next action:** Search for tendsto variants in Topology/Order
 ```
 
-If analysis suggests the statement may be false, add:
-```markdown
-**Flag:** Statement may be false (goal on decidable type failed preflight)
-```
+**Falsification flag:** Include when analysis suggests statement may be false:
+- Decidable goal that failed `decide` or `native_decide`
+- Repeated proof failures with no viable approach
+- Autoprover passed falsification signal from earlier preflight
+
+Example: `**Flag:** Statement may be false (decidable goal failed decide)`
 
 **Blocker priority (stuck mode):**
 1. Build errors/diagnostics in focus
