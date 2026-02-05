@@ -136,7 +136,7 @@ See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) for detailed
    - If counterexample found → create `T_counterexample`, skip to salvage
    - If no witness quickly → continue to proof attempts
 4. **Try tactics** - `rfl`, `simp`, `ring`, `linarith`, `exact?`, `aesop`
-5. **Validate** - Use LSP diagnostics (`lean_diagnostic_messages`) to check sorry count decreased. Reserve `lake build` for reviews triggered by `--review-every=checkpoint` or explicit `/lean4:checkpoint`.
+5. **Validate** - Use LSP diagnostics (`lean_diagnostic_messages`) to check sorry count decreased. Reserve `lake build` for autoprover-triggered reviews (any `--review-every` cadence, stuck detection) or explicit `/lean4:checkpoint`.
 6. **Commit** - `git commit -m "fill: [theorem] - [tactic]"`
 
 ### Phase 3: Review Checkpoints
