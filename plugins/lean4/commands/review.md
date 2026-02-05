@@ -27,7 +27,7 @@ Read-only review of Lean proofs for quality, style, and optimization opportuniti
 | target | No | File or directory to review |
 | --scope | No | `sorry`, `deps`, `file`, `changed`, or `project` |
 | --line | No | Line number for single-sorry scope |
-| --codex | No | Include OpenAI Codex suggestions |
+| --codex | No | External review via Codex (interactive handoff) |
 | --llm | No | Use llm CLI with model |
 | --hook | No | Run custom analysis script |
 | --json | No | Output structured JSON for external tools |
@@ -154,48 +154,24 @@ See [review-hook-schema.md](../skills/lean4/references/review-hook-schema.md) fo
 
 ## External Review Handoff
 
-When external review is selected (via `--codex` or user preference), display this prompt:
+When `--codex` is specified, display context for external review:
 
 ```
 ─────────────────────────────────────────────────────────
-EXTERNAL REVIEW PROMPT
-Scope: {scope} — {file}:{line} (or file-only, or "changed files")
+CODEX REVIEW — {file}:{line} (or scope description)
 ─────────────────────────────────────────────────────────
 
-[Only include content matching scope - single sorry context,
- dependencies, or file. Never send entire project unless scope=project]
+[File content with ±50 lines around each sorry]
 
-You are an external code reviewer for Lean 4 theorem proofs.
+To review in Codex CLI:
+1. Run `codex` in project directory
+2. Type `/review` → select "Review uncommitted changes"
+3. Or paste the above context and ask for review
 
-CRITICAL CONSTRAINTS:
-- Do NOT edit code directly
-- Provide HIGH-LEVERAGE strategic advice only
-- Focus on WHAT to search or try, not exact tactic code
-
-Return JSON matching this schema:
-{
-  "version": "1.0",
-  "suggestions": [
-    {
-      "file": "string",
-      "line": number,
-      "severity": "hint" | "warning",
-      "category": "sorry" | "axiom" | "style" | "structure",
-      "message": "string (strategic advice, not code)"
-    }
-  ]
-}
-
-Focus on:
-1. Structural issues (wrong approach, missing lemmas)
-2. Mathlib coverage (what existing lemmas to search)
-3. Type class issues (instance ordering, missing constraints)
-
-Limit to 3-5 highest-leverage suggestions.
+Return suggestions as JSON:
+{"suggestions": [{"file": "...", "line": N, "severity": "hint|warning", "message": "..."}]}
 ─────────────────────────────────────────────────────────
 ```
-
-Then wait for user to paste JSON response (or pipe via `--codex`).
 
 ## Post-Review Actions
 
@@ -247,45 +223,61 @@ When using `--json`, output follows this structure:
 }
 ```
 
-## Codex Hook Interface
+## Codex Integration
 
-When using `--codex`, the review command sends context to Codex and receives suggestions.
+**Note:** Codex CLI's `/review` command is interactive-only. There's no `codex review <sha>` CLI command for automation. Two approaches are available:
 
-**Hook Input (sent to Codex):**
-```json
-{
-  "version": "1.0",
-  "request_type": "review",
-  "files": [{
-    "path": "Core.lean",
-    "content": "...",
-    "sorries": [{"line": 89, "goal": "...", "hypotheses": [...]}],
-    "axioms": [],
-    "diagnostics": []
-  }],
-  "build_status": "passing",
-  "preferences": {"focus": "completeness", "verbosity": "detailed"}
-}
-```
+### Option A: Interactive Handoff (Recommended)
 
-**Hook Output (suggestions from Codex):**
-```json
-{
-  "version": "1.0",
-  "suggestions": [{
-    "file": "Core.lean",
-    "line": 89,
-    "severity": "hint",
-    "message": "Search for tendsto_atTop in Mathlib.Topology.Order.Basic"
-  }]
-}
-```
+1. Run `codex` in the project directory
+2. Type `/review` and select:
+   - "Review uncommitted changes" — for working tree
+   - "Review a commit" — select SHA from list
+   - "Review against a base branch" — for PR-style diff
+3. Copy suggestions back to this session
 
-**Example invocation:**
+**Tip:** Use `/diff` after `/review` to see exact file changes.
+
+### Option B: SDK Automation (`codex exec`)
+
+For CI or scripted reviews, use `codex exec` with a review prompt:
+
 ```bash
-/lean4:review --codex           # Human-readable with Codex hints
-/lean4:review --codex --json    # Structured JSON with Codex suggestions
+codex exec "Review this Lean 4 proof for correctness, focusing on:
+1. Incomplete sorries and proof gaps
+2. Type mismatches or missing instances
+3. Non-standard axiom usage
+
+$(cat Core.lean)
+" --output-schema lean4-review-schema.json -o review-output.json
 ```
+
+**Schema file (`lean4-review-schema.json`):**
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "suggestions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "file": {"type": "string"},
+          "line": {"type": "integer"},
+          "severity": {"enum": ["hint", "warning"]},
+          "category": {"enum": ["sorry", "axiom", "style", "structure"]},
+          "message": {"type": "string"}
+        },
+        "required": ["file", "line", "severity", "message"]
+      }
+    }
+  },
+  "required": ["suggestions"]
+}
+```
+
+See [Codex SDK Cookbook](https://cookbook.openai.com/examples/codex/build_code_review_with_codex_sdk) for CI integration patterns.
 
 ## Safety
 
