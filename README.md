@@ -1,5 +1,7 @@
 # Lean 4 Skills for Claude
 
+[![Run in Smithery](https://smithery.ai/badge/skills/cameronfreer)](https://smithery.ai/skills?ns=cameronfreer&utm_source=github&utm_medium=badge)
+
 Claude Code plugin for automated Lean 4 theorem proving with planning-first workflow.
 
 ## Installation

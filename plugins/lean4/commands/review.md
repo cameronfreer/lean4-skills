@@ -13,9 +13,11 @@ Read-only review of Lean proofs for quality, style, and optimization opportuniti
 ## Usage
 
 ```
-/lean4:review                    # Review entire project
-/lean4:review File.lean          # Review specific file
-/lean4:review --scope=changed    # Review only changed files (git diff)
+/lean4:review                              # Review changed files (default)
+/lean4:review File.lean                    # Review specific file
+/lean4:review File.lean --line=89          # Review single sorry
+/lean4:review File.lean --line=89 --scope=deps  # Review sorry + its dependencies
+/lean4:review --scope=project              # Review entire project (prompts)
 ```
 
 ## Inputs
@@ -23,34 +25,60 @@ Read-only review of Lean proofs for quality, style, and optimization opportuniti
 | Arg | Required | Description |
 |-----|----------|-------------|
 | target | No | File or directory to review |
-| --scope | No | `changed` for git diff only |
+| --scope | No | `sorry`, `deps`, `file`, `changed`, or `project` |
+| --line | No | Line number for single-sorry scope |
 | --codex | No | Include OpenAI Codex suggestions |
 | --llm | No | Use llm CLI with model |
 | --hook | No | Run custom analysis script |
 | --json | No | Output structured JSON for external tools |
 
+## Scope Behavior
+
+**Scope levels:**
+| Scope | Description |
+|-------|-------------|
+| `sorry` | Single sorry at --line (requires target file + --line) |
+| `deps` | Sorry + same-file helpers and directly referenced lemmas (requires target file + --line) |
+| `file` | All sorries in target file |
+| `changed` | Files modified since last commit (git diff) |
+| `project` | Entire project (requires confirmation) |
+
+**Defaults:**
+- No args → `--scope=changed`
+- Target file provided → `--scope=file`
+- Target + `--line` → `--scope=sorry`
+- Triggered by autoprover → matches current focus (`sorry` or `file`)
+
+**Note:** Scope filtering is implemented by the reviewing agent, not the underlying scripts. The agent reads script output and filters results to match the requested scope.
+
+**Project-wide confirmation:**
+```
+⚠️  This will review the entire project.
+Proceed? (yes / no)
+```
+
+**Output header always shows scope:**
+```markdown
+## Lean4 Review Report
+**Scope:** Core.lean:89 (single sorry)
+```
+
 ## Actions
 
+The agent selects files based on scope, then runs these analyses (per file or directory):
+
 1. **Build Status** - `lake build`
-2. **Sorry Audit** - List sorries with context:
-   ```bash
-   ${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/sorry_analyzer.py [scope] --format=json
-   ```
-3. **Axiom Check** - Report axiom usage:
-   ```bash
-   bash $LEAN4_SCRIPTS/check_axioms_inline.sh [scope]
-   ```
+2. **Sorry Audit** - `sorry_analyzer.py <target> --format=json`
+3. **Axiom Check** - `check_axioms_inline.sh <target>`
 4. **Style Review** - Check mathlib conventions (naming, structure, tactics)
-5. **Golfing Opportunities** - Identify optimizations:
-   ```bash
-   ${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/find_golfable.py [scope] --filter-false-positives
-   ```
+5. **Golfing Opportunities** - `find_golfable.py <target> --filter-false-positives`
 6. **Complexity Metrics** - Proof sizes, longest proofs, tactic patterns
 
 ## Output
 
 ```markdown
 ## Lean4 Review Report
+**Scope:** Core.lean:89 (single sorry)
 
 ### Build Status
 ✓ Project compiles
@@ -85,8 +113,12 @@ When external review is selected (via `--codex` or user preference), display thi
 
 ```
 ─────────────────────────────────────────────────────────
-EXTERNAL REVIEW PROMPT (copy to Codex or paste results below)
+EXTERNAL REVIEW PROMPT
+Scope: {scope} — {file}:{line} (or file-only, or "changed files")
 ─────────────────────────────────────────────────────────
+
+[Only include content matching scope - single sorry context,
+ dependencies, or file. Never send entire project unless scope=project]
 
 You are an external code reviewer for Lean 4 theorem proofs.
 

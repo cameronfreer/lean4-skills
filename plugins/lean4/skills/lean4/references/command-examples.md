@@ -358,9 +358,10 @@ Recommend stopping further golfing on this file.
 ### Basic Usage
 
 ```
-/lean4:review                    # Review entire project
-/lean4:review File.lean          # Review specific file
-/lean4:review --scope=changed    # Review only changed files (git diff)
+/lean4:review                        # Review changed files (default)
+/lean4:review File.lean              # Review specific file
+/lean4:review File.lean --line=89    # Review single sorry
+/lean4:review --scope=project        # Review entire project (prompts)
 ```
 
 ### Full Review Example
@@ -371,6 +372,7 @@ User: /lean4:review Core.lean
 Claude: Running review on Core.lean...
 
 ## Lean4 Review Report
+**Scope:** Core.lean (file — target default)
 
 ### Build Status
 ✓ Core.lean compiles successfully
@@ -418,8 +420,8 @@ Claude: Running review with Codex integration...
 - Line 89: `convergence_bound` - needs proof
 
 ### Codex Suggestions
-- Line 89: "Try `tendsto_atTop_of_eventually_ge` from Mathlib"
-- Line 45: "The `simp` call could be replaced with `simp only [add_comm]`"
+- Line 89: "Search Mathlib for `tendsto_atTop` variants — goal shape matches convergence lemmas"
+- Line 45: "Broad `simp` may slow compilation — consider narrowing to specific lemmas"
 
 ### Claude Analysis
 [standard review sections...]
@@ -427,22 +429,4 @@ Claude: Running review with Codex integration...
 
 ### Custom Hook Interface
 
-Hooks receive JSON on stdin:
-```json
-{
-  "file": "Core.lean",
-  "content": "...",
-  "sorries": [...],
-  "axioms": [...],
-  "build_status": "passing"
-}
-```
-
-And should output JSON:
-```json
-{
-  "suggestions": [
-    {"line": 42, "message": "Consider using...", "severity": "hint"}
-  ]
-}
-```
+See [review-hook-schema.md](review-hook-schema.md) for full input/output schemas and example scripts.

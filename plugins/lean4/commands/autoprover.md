@@ -120,11 +120,34 @@ Deep mode allows: multi-file refactoring, helper extraction, statement generaliz
 
 ### Phase 3: Review Checkpoints
 
+**Scope enforcement:** All automatic reviews match the current focus:
+- Working on single sorry → `--scope=sorry --line=N`
+- Working on file → `--scope=file`
+- Autoprover must never trigger `--scope=project`
+
+When triggering review, pass current context:
+```
+/lean4:review [current_file] --scope=sorry --line=[current_sorry_line]
+```
+
 At configured intervals, show progress and options: continue, stop, skip, rollback.
 
 ### Phase 4: Completion
 
-Report filled/remaining sorries, suggest next steps.
+Report filled/remaining sorries, then prompt:
+
+```
+## Session Complete
+
+Filled: 5/8 sorries
+Commits: 5 new
+
+Create verified checkpoint? (build + axiom check + commit)
+- [yes] — run /lean4:checkpoint
+- [no] — keep commits as-is
+```
+
+If yes, run `/lean4:checkpoint` to create a verified save point with axiom check.
 
 ## Repair Mode
 

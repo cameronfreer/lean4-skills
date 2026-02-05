@@ -12,6 +12,11 @@ Input sent to hooks via stdin (or to Codex via `--codex`):
 {
   "version": "1.0",
   "request_type": "review",
+  "focus": {
+    "scope": "sorry",
+    "file": "Core.lean",
+    "line": 89
+  },
   "files": [
     {
       "path": "Core.lean",
@@ -49,6 +54,10 @@ Input sent to hooks via stdin (or to Codex via `--codex`):
 |-------|------|-------------|
 | `version` | string | Schema version (currently "1.0") |
 | `request_type` | string | Always "review" for review hooks |
+| `focus` | object | Scope of this review |
+| `focus.scope` | string | "sorry", "deps", "file", "changed", or "project" |
+| `focus.file` | string | Target file (if applicable) |
+| `focus.line` | number | Target line (for sorry/deps scope) |
 | `files` | array | Files being reviewed |
 | `files[].path` | string | Relative path to file |
 | `files[].content` | string | Full file content |
@@ -127,7 +136,12 @@ When using `--codex`, the review command:
 
 ```python
 #!/usr/bin/env python3
-"""Example hook for /lean4:review --hook=./my_hook.py"""
+"""
+Example INTERNAL hook for /lean4:review --hook=./my_hook.py
+
+Internal hooks can include `fix` fields with suggested code.
+External reviews (--codex) should omit `fix` and provide strategic advice only.
+"""
 
 import json
 import sys
