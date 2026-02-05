@@ -39,6 +39,7 @@ Use this skill whenever you're editing Lean 4 proofs or debugging Lean builds. I
 
 **Notes:**
 - Autoprover triggers `/lean4:review` at configured intervals (`--review-every`)
+- When reviews run (via `--review-every`), they act as gates: review → replan → approval → continue
 - Review supports `--mode=batch` (default) or `--mode=stuck` (triage)
 - If you hit environment issues, run `/lean4:doctor` to diagnose
 

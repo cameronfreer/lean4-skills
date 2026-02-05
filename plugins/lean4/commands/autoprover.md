@@ -136,7 +136,7 @@ See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) for detailed
    - If counterexample found → create `T_counterexample`, skip to salvage
    - If no witness quickly → continue to proof attempts
 4. **Try tactics** - `rfl`, `simp`, `ring`, `linarith`, `exact?`, `aesop`
-5. **Validate** - `lake build`, check sorry count decreased
+5. **Validate** - Use LSP diagnostics (`lean_diagnostic_messages`) to check sorry count decreased. Reserve `lake build` for checkpoint reviews or `--review-every=checkpoint`.
 6. **Commit** - `git commit -m "fill: [theorem] - [tactic]"`
 
 ### Phase 3: Review Checkpoints
@@ -161,8 +161,28 @@ At configured intervals, show progress and options: continue, stop, skip, rollba
 
 **When stuck detected:**
 1. Run `/lean4:review <file> --scope=sorry --line=N --mode=stuck`
-2. Present blockers and ask: "Apply this plan? [yes/no]"
+2. Follow the Review Gate Protocol (below)
 3. If user declines plan (or review output includes "Flag: Statement may be false"), offer counterexample/salvage pass
+
+### Review Gate Protocol
+
+When autoprover triggers a review (via stuck detection or `--review-every` cadence), it must:
+
+1. **Summarize findings** — blockers, suggested next steps, and falsification flags (or parse JSON if `--json`)
+2. **Create fresh plan** — 3–6 actionable steps based on review findings
+3. **Present for approval:**
+   ```
+   Review complete. Proposed plan:
+   1. [Step from review findings]
+   2. [Step from review findings]
+   ...
+
+   Proceed with this plan? [yes / no / skip]
+   ```
+4. **On approval:** Continue with new plan
+5. **On decline/skip:** Pause item, move to next sorry or stop
+
+**Note:** This gate applies only to autoprover-triggered reviews (stuck or checkpoint cadence). Manual `/lean4:review` runs use the Post-Review Actions prompt in review.md.
 
 **Stuck → Counterexample/Salvage branch:**
 

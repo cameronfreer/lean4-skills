@@ -168,6 +168,10 @@ CODEX REVIEW — {scope description}
 - changed: All modified files (git diff)
 - project: Full project (requires confirmation)
 
+If no sorries in scope:
+- file: Include top-level definitions + relevant sections
+- changed: Include diff + changed file list
+
 To review in Codex CLI:
 1. Run `codex` in project directory
 2. Type `/review` → select "Review uncommitted changes"
