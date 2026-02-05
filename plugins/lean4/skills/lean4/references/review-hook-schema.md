@@ -110,7 +110,7 @@ Output returned by hooks (via stdout):
 | `severity` | string | Yes | "error", "warning", "hint", or "style" |
 | `category` | string | No | "sorry", "axiom", "naming", "golf", "import" |
 | `message` | string | Yes | Human-readable suggestion |
-| `fix` | string | No | Suggested code to apply |
+| `fix` | string | No | Suggested code (internal hooks only; external reviews omit this) |
 
 ---
 

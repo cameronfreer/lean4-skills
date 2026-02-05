@@ -34,7 +34,7 @@ Main entry point for automated theorem proving. Planning-first, LSP-powered, wit
 - **Search before prove** - Most sorries exist in mathlib
 - **LSP first** - Use `lean_goal` + `lean_local_search` + `lean_multi_attempt` before scripts. Log which tools used per sorry. Only fall back to scripts if LSP unavailable or inconclusive.
 - **Small commits** - Each sorry = one commit for easy rollback
-- **Human in loop** - Planning phase mandatory, review checkpoints required
+- **Human in loop** - Planning phase mandatory, review checkpoints configurable
 
 ## Fast Path vs Deep Mode
 
@@ -84,7 +84,7 @@ Deep mode allows: multi-file refactoring, helper extraction, statement generaliz
    lean_diagnostic_messages(file)    # errors/warnings
    lean_goal(file, line)             # at each sorry
    ```
-2. **Ask preferences** - Scope, approach (conservative/balanced/aggressive), review cadence
+2. **Ask preferences** - Scope and review cadence
 3. **Session Preferences** (once per session):
 
    **Autonomy Mode:**

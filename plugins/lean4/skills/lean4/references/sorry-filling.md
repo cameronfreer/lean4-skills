@@ -5,7 +5,7 @@ Quick reference for filling Lean 4 sorries systematically.
 ## Core Workflow
 
 1. **Understand Context** - Read surrounding code, identify goal type
-2. **Search Mathlib FIRST** - 90% of proofs already exist
+2. **Search Mathlib FIRST** - Most proofs already exist
 3. **Generate Candidates** - 2-3 proof approaches
 4. **Test Before Applying** - Use `lake build` or LSP multi_attempt
 5. **Apply Working Solution** - Shortest working proof wins
@@ -15,7 +15,7 @@ Quick reference for filling Lean 4 sorries systematically.
 **Always use LSP tools before scripts:**
 1. `lean_goal(file, line)` — understand the goal
 2. `lean_local_search("keyword")` — search mathlib
-3. `lean_multi_attempt(file, line, snippets)` — test candidates
+3. `lean_multi_attempt(file, line, snippets=[...])` — test candidates
 
 Only fall back to scripts (`sorry_analyzer.py`, `smart_search.sh`) if:
 - LSP server unavailable
@@ -64,19 +64,19 @@ See [tactic-patterns.md](tactic-patterns.md) for goal-based tactic recommendatio
 
 ## Common Sorry Types
 
-### Type 1: "Forgot to search mathlib" (60%)
+### Type 1: "Forgot to search mathlib" (most common)
 **Solution:** Search thoroughly, apply existing lemma
 
-### Type 2: "Just needs right tactic" (20%)
+### Type 2: "Just needs right tactic" (common)
 **Solution:** Try `rfl`, `simp`, `ring`, or domain automation
 
-### Type 3: "Missing intermediate step" (15%)
+### Type 3: "Missing intermediate step" (less common)
 **Solution:** Add `have` with connecting lemma
 
-### Type 4: "Complex structural proof" (4%)
+### Type 4: "Complex structural proof" (rare)
 **Solution:** Break into sub-sorries with clear strategy
 
-### Type 5: "Actually needs new lemma" (1%)
+### Type 5: "Actually needs new lemma" (very rare)
 **Solution:** Extract as helper lemma, prove separately
 
 ## Proof Candidate Generation

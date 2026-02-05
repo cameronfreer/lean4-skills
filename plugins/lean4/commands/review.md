@@ -92,8 +92,8 @@ You are an external code reviewer for Lean 4 theorem proofs.
 
 CRITICAL CONSTRAINTS:
 - Do NOT edit code directly
-- Do NOT suggest specific tactic sequences
 - Provide HIGH-LEVERAGE strategic advice only
+- Focus on WHAT to search or try, not exact tactic code
 
 Return JSON matching this schema:
 {
@@ -130,13 +130,13 @@ After review completes (internal or external), prompt:
 Would you like me to create an action plan from the review findings?
 - [yes] — Enter plan mode with 3-6 step implementation plan
 - [no] — End review, return to conversation
-- [apply] — (Internal review only) Apply suggested fixes directly
 ```
 
 If "yes":
 1. Enter plan mode
 2. Create plan with one task per high-priority suggestion
 3. Get user approval before execution
+4. Use `/lean4:autoprover` to apply fixes (review itself remains read-only)
 
 ## JSON Output Schema
 
@@ -197,8 +197,7 @@ When using `--codex`, the review command sends context to Codex and receives sug
     "file": "Core.lean",
     "line": 89,
     "severity": "hint",
-    "message": "Try tendsto_atTop from Mathlib",
-    "fix": "exact tendsto_atTop.mpr ..."
+    "message": "Search for tendsto_atTop in Mathlib.Topology.Order.Basic"
   }]
 }
 ```
