@@ -158,10 +158,15 @@ When `--codex` is specified, display context for external review:
 
 ```
 ─────────────────────────────────────────────────────────
-CODEX REVIEW — {file}:{line} (or scope description)
+CODEX REVIEW — {scope description}
 ─────────────────────────────────────────────────────────
 
-[File content with ±50 lines around each sorry]
+[Context based on scope:]
+- sorry: ±50 lines around the target sorry
+- deps: Target sorry + referenced helpers/lemmas
+- file: Full file content
+- changed: All modified files (git diff)
+- project: Full project (requires confirmation)
 
 To review in Codex CLI:
 1. Run `codex` in project directory

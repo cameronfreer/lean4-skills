@@ -127,14 +127,16 @@ Output returned by hooks (via stdout):
 
 ## Codex Integration
 
-When using `--codex`, the review command:
+**Note:** Codex CLI's `/review` command is interactive-only—there's no `codex review --stdin` for automation. When using `--codex`, the review command:
 
 1. Collects file context using the input schema above
-2. Sends to Codex CLI: `codex review --stdin`
-3. Parses response using output schema
-4. Merges suggestions into review report
+2. Displays formatted context for manual handoff to Codex CLI
+3. User runs `codex` → `/review` interactively, or uses `codex exec` with a prompt
+4. User pastes suggestions back; review command parses and merges them
 
-### Example Codex Hook Script
+For CI automation, use `codex exec` with structured output. See [review.md](../../../commands/review.md#codex-integration) for details.
+
+### Example Custom Hook Script
 
 ```python
 #!/usr/bin/env python3
@@ -205,11 +207,11 @@ if __name__ == "__main__":
 # Run review with custom hook
 /lean4:review --hook=./my_hook.py
 
-# Run review with Codex
+# Run review with Codex (interactive handoff)
 /lean4:review --codex
 
-# Combine for JSON output
-/lean4:review --codex --json > review.json
+# Export JSON for external processing
+/lean4:review --json > review.json
 ```
 
 ---
