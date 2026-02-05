@@ -6,7 +6,7 @@ JSON schema for `/lean4:review` external hooks and Codex integration.
 
 ## Hook Input Schema
 
-Input sent to hooks via stdin (or to Codex via `--codex`):
+Input sent to custom hooks via stdin. For `--codex`, this context is displayed for manual copy/paste to Codex CLI (see [Codex Integration](#codex-integration)):
 
 ```json
 {
