@@ -430,3 +430,87 @@ Claude: Running review with Codex integration...
 ### Custom Hook Interface
 
 See [review-hook-schema.md](review-hook-schema.md) for full input/output schemas and example scripts.
+
+### Stuck Review Example
+
+```
+[Autoprover detects no progress on Core.lean:89]
+
+Claude: No progress on Core.lean:89 after 3 attempts. Running stuck review...
+
+## Stuck Review — Core.lean:89
+
+**Top 3 blockers:**
+1. Missing lemma for tendsto_atTop → search Mathlib.Topology.Order
+2. Need MeasurableSpace instance → add `haveI` before apply
+3. Goal has implicit coercion issue → try `convert` instead of `exact`
+
+**Recommended:** Search tendsto variants first.
+
+Apply this plan? [yes/no]
+```
+
+### End-of-Session Golf Example
+
+```
+## Session Complete
+
+Filled: 5/8 sorries
+Commits: 5 new
+
+Create verified checkpoint? (build + axiom check + commit)
+- [yes] — run /lean4:checkpoint
+- [no] — keep commits as-is
+
+User: yes
+
+Claude: Running checkpoint... ✓
+
+Run /lean4:golf on touched files?
+Files modified: Core.lean, Helpers.lean
+- [yes] — golf each file
+- [no] — skip
+
+User: yes
+
+Claude: Golfing Core.lean...
+[golf output]
+```
+
+### Counterexample Discovery Example
+
+```
+Claude: Working on Core.lean:42 - `naive_bound`...
+
+Goal: ⊢ ∀ n : Fin 5, n.val < 3
+
+Preflight falsification (Fin 5 is decidable)...
+Trying decide... Found counterexample: n = 3
+
+## Counterexample Found
+
+Statement `naive_bound` is false.
+Witness: `⟨3, by decide⟩` with `¬ (3 < 3)`
+
+Creating counterexample lemma...
+```lean
+/-- Counterexample to naive_bound -/
+theorem naive_bound_counterexample : ∃ n : Fin 5, ¬ (n.val < 3) := by
+  exact ⟨3, by decide⟩
+```
+
+Create salvage lemma? [yes/no]
+
+User: yes
+
+Claude: What extra constraint makes it true?
+- Suggested: `n.val < 3` as a hypothesis
+
+Creating salvage:
+```lean
+/-- Salvaged version of naive_bound -/
+theorem naive_bound_salvaged (n : Fin 5) (h : n.val < 3) : n.val < 3 := h
+```
+
+Committing: "disprove: naive_bound - counterexample at n=3"
+```

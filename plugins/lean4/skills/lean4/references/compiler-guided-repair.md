@@ -701,5 +701,15 @@ Review `.repair/attempts.ndjson` to see what strategies worked. Build intuition 
 
 ---
 
+## False Statement Handling
+
+**When repair loop fails repeatedly:**
+- Consider the statement may be false
+- Try explicit counterexample search on small domains
+- If found, create counterexample lemma instead of continuing repair
+- See `/lean4:autoprover` stuck → salvage workflow
+
+---
+
 *Compiler-guided repair inspired by APOLLO (https://arxiv.org/abs/2505.05758)*
 *Word count: ~1100*

@@ -31,6 +31,7 @@ Read-only review of Lean proofs for quality, style, and optimization opportuniti
 | --llm | No | Use llm CLI with model |
 | --hook | No | Run custom analysis script |
 | --json | No | Output structured JSON for external tools |
+| --mode | No | `batch` (default) or `stuck` (triage) |
 
 ## Scope Behavior
 
@@ -62,6 +63,37 @@ Proceed? (yes / no)
 ## Lean4 Review Report
 **Scope:** Core.lean:89 (single sorry)
 ```
+
+## Review Modes
+
+**Batch mode (default):**
+- Purpose: "What changed in this batch" + basic hygiene
+- Output: Full review report with all sections
+- Use: Regular cadence reviews, manual quality checks
+
+**Stuck mode:**
+- Purpose: "What's blocking progress on current focus"
+- Output: Top 3 blockers with actionable next steps
+- Use: Triggered by autoprover when no progress detected
+- Lightweight: Skips full golf analysis and complexity metrics; focuses on blockers only
+
+**Stuck mode output format:**
+```markdown
+## Stuck Review — Core.lean:89
+
+**Top 3 blockers:**
+1. Missing lemma about tendsto_atTop → search Mathlib.Topology.Order
+2. Typeclass instance missing for MeasurableSpace β → add `haveI`
+3. Proof too long (38 lines) → extract helper lemma first
+
+**Recommended next action:** Search for tendsto variants in Topology/Order
+```
+
+**Blocker priority (stuck mode):**
+1. Build errors/diagnostics in focus
+2. Sorries on critical path (target line or its dependencies)
+3. Custom axioms introduced in focus
+4. Long/fragile proofs (performance risk)
 
 ## Actions
 
@@ -169,6 +201,8 @@ If "yes":
 2. Create plan with one task per high-priority suggestion
 3. Get user approval before execution
 4. Use `/lean4:autoprover` to apply fixes (review itself remains read-only)
+
+**Note:** When `--mode=stuck` is triggered by autoprover, skip this prompt—autoprover handles the follow-up with its own "Apply this plan? [yes/no]" prompt.
 
 ## JSON Output Schema
 

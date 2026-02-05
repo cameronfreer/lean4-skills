@@ -194,6 +194,12 @@ Otherwise you'll wait 30+ minutes for mathlib to recompile from scratch.
 - Document as TODO with strategy
 - Use `/lean4:autoprover --deep` for deep sorry-filling workflow
 
+**If statement may be false:**
+- Run preflight falsification (decide, small enumeration)
+- If counterexample found, create `T_counterexample`
+- Create `T_salvaged` with weaker/corrected statement
+- See autoprover stuck → salvage workflow
+
 ## Output Size Limits
 
 **For fast path:**

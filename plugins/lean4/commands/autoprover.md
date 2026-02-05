@@ -28,6 +28,7 @@ Main entry point for automated theorem proving. Planning-first, LSP-powered, wit
 | --autonomy | No | `manual`, `assisted` (default), or `auto` |
 | --review-every | No | `N` (sorries), `checkpoint` (default), or `never` |
 | --codex | No | Use external Codex for reviews (sets review source to External) |
+| --golf | No | `prompt` (default), `auto`, or `never` |
 
 ## Philosophy
 
@@ -108,15 +109,29 @@ Deep mode allows: multi-file refactoring, helper extraction, statement generaliz
    > - `--review-every=checkpoint` — at each checkpoint (default)
    > - `--review-every=never` — only on explicit request
 
+   **Falsification Policy:**
+   > If a statement looks false, should I:
+   > 1) Add counterexample + salvage lemmas only (recommended)
+   > 2) Retire original to a def and prove its negation
+   > 3) Ask each time
+
+   Default: (1). No statement rewrites, no `¬P` if `theorem T : P := by sorry` exists.
+
 4. **Show plan** - List sorries found, get user confirmation
 
 ### Phase 2: Main Loop (Per Sorry)
 
 1. **Understand** - `lean_goal` + read surrounding code
 2. **Search first** - `lean_leansearch`, `lean_loogle`, `lean_local_search`
-3. **Try tactics** - `rfl`, `simp`, `ring`, `linarith`, `exact?`, `aesop`
-4. **Validate** - `lake build`, check sorry count decreased
-5. **Commit** - `git commit -m "fill: [theorem] - [tactic]"`
+3. **Preflight falsification** (if goal is decidable/finite)
+   - Only for: `Fin n`, `Bool`, `Option`, small `Sum` types, bound-quantified `Nat`
+   - Try: `decide`, `simp with decide`, `native_decide`
+   - Time-boxed: 30-60s max
+   - If counterexample found → create `T_counterexample`, skip to salvage
+   - If no witness quickly → continue to proof attempts
+4. **Try tactics** - `rfl`, `simp`, `ring`, `linarith`, `exact?`, `aesop`
+5. **Validate** - `lake build`, check sorry count decreased
+6. **Commit** - `git commit -m "fill: [theorem] - [tactic]"`
 
 ### Phase 3: Review Checkpoints
 
@@ -132,6 +147,48 @@ When triggering review, pass current context:
 
 At configured intervals, show progress and options: continue, stop, skip, rollback.
 
+**Stuck detection triggers:**
+- Same sorry failed 2-3 times with no new approach
+- Same build error repeats after 2 repair attempts
+- No sorry count decrease for 10+ minutes
+- LSP search returns empty twice for same goal
+
+**When stuck detected:**
+1. Run `/lean4:review <file> --scope=sorry --line=N --mode=stuck`
+2. Present blockers and ask: "Apply this plan? [yes/no]"
+
+**Stuck → Counterexample/Salvage branch:**
+
+When stuck detected (per existing triggers), offer:
+```
+Try counterexample/salvage pass for this sorry? [yes/no]
+```
+
+If yes:
+1. Explicit witness search (small domain or concrete instantiation)
+2. If found → create `T_counterexample` lemma
+3. Create `T_salvaged` (weaker version that is provable)
+4. Follow user's falsification policy for original statement
+
+## Falsification Artifacts
+
+**Counterexample lemma (preferred):**
+```lean
+/-- Counterexample to the naive statement `T`. -/
+theorem T_counterexample : ∃ w : α, ¬ P w := by
+  refine ⟨w0, ?_⟩
+  -- proof
+```
+
+**Salvage lemma:**
+```lean
+/-- Salvage: a weaker version of `T` that is true. -/
+theorem T_salvaged (extra_assumptions...) : Q := by
+  -- proof
+```
+
+**Safety:** Avoid proving `¬ P` if a `theorem T : P := by sorry` exists—unless user chose policy (2).
+
 ### Phase 4: Completion
 
 Report filled/remaining sorries, then prompt:
@@ -140,7 +197,9 @@ Report filled/remaining sorries, then prompt:
 ## Session Complete
 
 Filled: 5/8 sorries
-Commits: 5 new
+Counterexamples: 1 (T_counterexample)
+Salvaged: 1 (T_salvaged)
+Commits: 7 new
 
 Create verified checkpoint? (build + axiom check + commit)
 - [yes] — run /lean4:checkpoint
@@ -148,6 +207,16 @@ Create verified checkpoint? (build + axiom check + commit)
 ```
 
 If yes, run `/lean4:checkpoint` to create a verified save point with axiom check.
+
+**Golf prompt** (if `--golf=prompt` or default):
+```
+Run /lean4:golf on touched files?
+- [yes] — golf each file (prompts per file)
+- [no] — skip golfing
+```
+
+If `--golf=auto`, run golf automatically on all touched files.
+If `--golf=never`, skip entirely.
 
 ## Repair Mode
 
