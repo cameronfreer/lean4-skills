@@ -256,6 +256,8 @@ When build fails, shift to repair workflow:
 | `failed to synthesize` | Add `haveI`/`letI` |
 | `timeout` | Narrow `simp`, add explicit types |
 
+For detailed fixes, see [compilation-errors.md](../skills/lean4/references/compilation-errors.md). For persistent issues, [capture a build log](../skills/lean4/references/compilation-errors.md#build-log-capture) for inspection.
+
 ## Output
 
 Progress reports at checkpoints; final summary with filled/remaining counts.
@@ -265,6 +267,7 @@ Progress reports at checkpoints; final summary with filled/remaining counts.
 - `git push` blocked (review first)
 - `git commit --amend` blocked (preserve history)
 - `gh pr create` blocked (review first)
+- `git checkout --`/`git restore`/`git reset --hard`/`git clean` blocked (use `git stash push -u` or revert commit)
 
 ## See Also
 

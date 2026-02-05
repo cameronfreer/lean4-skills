@@ -693,3 +693,36 @@ exact (h : _)  -- Guessing
 -- Error says "has type A but expected B"
 -- Solution: Convert A to B or restructure
 ```
+
+---
+
+## Build Log Capture
+
+For debugging persistent build errors, capture the full log for inspection:
+
+### Basic Capture
+
+```bash
+LOG=$(mktemp -t lean4_build_XXXXXX.log)
+lake build 2>&1 | tee "$LOG"
+
+# Quick scans
+tail -n 120 "$LOG"
+rg -n "error|warning|failed" "$LOG"
+```
+
+### With Git Hash (Conflict-Safe)
+
+```bash
+HASH=$(git rev-parse --short HEAD 2>/dev/null || date +%s)
+LOG="/tmp/lean4_build_${HASH}_$RANDOM.log"
+lake build 2>&1 | tee "$LOG"
+```
+
+**Benefits:**
+- Preserves logs across rebuilds for comparison
+- Avoids filename clashes between runs
+- Enables grep without rebuilding
+- Links log to specific commit state
+
+**See also:** [Repair Mode](../../../commands/autoprover.md#repair-mode) for error-driven fixes.
