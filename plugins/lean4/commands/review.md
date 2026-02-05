@@ -72,6 +72,7 @@ Proceed? (yes / no)
 - Use: Regular cadence reviews, manual quality checks
 
 **Stuck mode:**
+- Trigger: Autoprover invokes stuck mode per its detection triggers. Can also be invoked manually.
 - Purpose: "What's blocking progress on current focus"
 - Output: Top 3 blockers with actionable next steps
 - Use: Triggered by autoprover when no progress detected
@@ -149,7 +150,7 @@ The agent selects files based on scope, then runs these analyses (per file or di
 
 Custom hooks receive structured JSON on stdin with file information, sorries, axioms, and build status. They return JSON with a `suggestions` array.
 
-See [review-hook-schema.md](../skills/lean4/references/review-hook-schema.md) for full input/output schemas and examples.
+See [review-hook-schema.md](../skills/lean4/references/review-hook-schema.md) for full input/output schemas, examples, and performance tips for rate-limited APIs.
 
 ## External Review Handoff
 

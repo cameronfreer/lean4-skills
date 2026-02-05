@@ -23,9 +23,24 @@ Use this skill whenever you're editing Lean 4 proofs or debugging Lean builds. I
 |---------|---------|
 | `/lean4:autoprover` | Planning-first sorry filling and repair |
 | `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
-| `/lean4:review` | Read-only quality review |
+| `/lean4:review` | Quality audit (`--mode=batch` or `--mode=stuck`) |
 | `/lean4:golf` | Optimize proofs for brevity |
 | `/lean4:doctor` | Plugin troubleshooting and migration help |
+
+## Typical Workflow
+
+```
+/lean4:autoprover          Fill sorries (may trigger review automatically)
+        ↓
+/lean4:golf                Optimize proofs (optional, prompted at end)
+        ↓
+/lean4:checkpoint          Create verified save point
+```
+
+**Notes:**
+- Autoprover triggers `/lean4:review` at configured intervals (`--review-every`)
+- Review supports `--mode=batch` (default) or `--mode=stuck` (triage)
+- Run `/lean4:doctor` first to diagnose environment issues
 
 ## LSP Tools (Preferred)
 

@@ -76,6 +76,10 @@ Approve? (yes / no / suggest alternative)
 
 Deep mode allows: multi-file refactoring, helper extraction, statement generalization (with approval).
 
+**Note:** Review cadence (`--review-every`) applies across both fast path and deep mode. The deep budget limits escalated attempts, not review frequency.
+
+**Internal escalation:** Deep mode may trigger internal repair workflows for persistent errors (type mismatches, structural issues). These are not user-invocable.
+
 ## Actions
 
 ### Phase 1: Planning (Required)
@@ -120,6 +124,8 @@ Deep mode allows: multi-file refactoring, helper extraction, statement generaliz
 4. **Show plan** - List sorries found, get user confirmation
 
 ### Phase 2: Main Loop (Per Sorry)
+
+See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) for detailed tactics.
 
 1. **Understand** - `lean_goal` + read surrounding code
 2. **Search first** - `lean_leansearch`, `lean_loogle`, `lean_local_search`

@@ -1,5 +1,7 @@
 # Sorry Filling Reference
 
+> **Primary reference** for sorry-filling tactics. Autoprover Phase 2 implements this workflow; see [command-examples.md](command-examples.md) for session transcripts.
+
 Quick reference for filling Lean 4 sorries systematically.
 
 ## Core Workflow

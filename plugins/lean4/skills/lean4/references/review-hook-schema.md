@@ -233,6 +233,17 @@ The review command will report hook errors but continue with other analysis.
 
 ---
 
+## Hook Performance Tips
+
+For rate-limited APIs (Codex, etc.):
+- **Trim content:** Include only ±50 lines around each sorry, not full file
+- **Batch sorries:** Group multiple sorries per API call when possible
+- **Cache by goal:** Same goal/context → same suggestions
+
+Use `preferences.verbosity` to signal desired response detail level.
+
+---
+
 ## See Also
 
 - [/lean4:review](../../../commands/review.md) - Review command documentation
