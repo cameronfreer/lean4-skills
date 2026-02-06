@@ -33,7 +33,7 @@ Autonomous multi-cycle theorem proving. Runs cycles automatically with hard stop
 | --max-deep-per-cycle | No | 1 | Max deep invocations per cycle |
 | --max-consecutive-deep-cycles | No | 2 | Hard cap on consecutive cycles using deep mode |
 | --batch-size | No | 2 | Sorries to attempt per cycle |
-| --commit | No | auto | `ask` (confirm before first commit), `auto`, or `never` |
+| --commit | No | auto | `auto` or `never` (`ask` coerced to `auto` — see note below) |
 | --golf | No | never | `prompt`, `auto`, or `never` |
 | --max-cycles | No | 20 | Hard stop: max total cycles |
 | --max-total-runtime | No | 120m | Hard stop: max total runtime |
@@ -87,16 +87,23 @@ See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) for detailed
    - If no witness quickly → continue to proof attempts
 4. **Try tactics** — `rfl`, `simp`, `ring`, `linarith`, `exact?`, `aesop`
 5. **Validate** — Use LSP diagnostics (`lean_diagnostic_messages`) to check sorry count decreased. Reserve `lake build` for review checkpoints or explicit `/lean4:checkpoint`.
-6. **Stage & Commit** — Stage only files touched during this sorry (`git add <edited files>`), then commit:
+6. **Stage & Commit** — If `--commit=never`, skip staging and committing entirely. Otherwise, stage only files touched during this sorry (`git add <edited files>`), then commit:
    `git commit -m "fill: [theorem] - [tactic]"`
 
-   Default `--commit=auto` — commits without prompting. Use `--commit=ask` for first-commit confirmation (same prompt as `/lean4:prove`). Use `--commit=never` to skip all commits.
+   Default `--commit=auto` — commits without prompting. Use `--commit=never` to skip all commits.
+
+   **Note:** `--commit=ask` is accepted for flag compatibility but **coerced to `auto`** at startup:
+   > ⚠ --commit=ask requires interactive confirmation. Using auto for unattended operation.
+
+   Autoprove never blocks waiting for interactive input.
 
 **Constraints:** Max 3 candidates per sorry, ≤80 lines diff, NO statement changes, NO cross-file refactoring (fast path).
 
 ### Phase 3: Checkpoint
 
-If `--checkpoint` is enabled and there is a non-empty diff:
+If `--commit=never`, skip the checkpoint commit entirely — changes remain in the working tree.
+
+Otherwise, if `--checkpoint` is enabled and there is a non-empty diff:
 - Stage only files modified during this cycle: `git add <touched files>`
 - Commit: `git commit -m "checkpoint(lean4): [summary]"`
 
