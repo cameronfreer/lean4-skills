@@ -32,6 +32,7 @@ Guided, cycle-by-cycle theorem proving. Asks before each cycle, supports deep es
 | --deep-time-budget | No | 10m | Max time per deep invocation |
 | --max-deep-per-cycle | No | 1 | Max deep invocations per cycle |
 | --batch-size | No | 1 | Sorries to attempt per cycle |
+| --commit | No | ask | `ask` (confirm before first commit), `auto`, or `never` |
 | --golf | No | prompt | `prompt`, `auto`, or `never` |
 
 ## Startup Behavior
@@ -79,14 +80,31 @@ See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) for detailed
    - If no witness quickly → continue to proof attempts
 4. **Try tactics** — `rfl`, `simp`, `ring`, `linarith`, `exact?`, `aesop`
 5. **Validate** — Use LSP diagnostics (`lean_diagnostic_messages`) to check sorry count decreased. Reserve `lake build` for review checkpoints or explicit `/lean4:checkpoint`.
-6. **Commit** — `git commit -m "fill: [theorem] - [tactic]"`
+6. **Stage & Commit** — Stage only files touched during this sorry (`git add <edited files>`), then commit:
+   `git commit -m "fill: [theorem] - [tactic]"`
+
+   **First commit gate** (when `--commit=ask`, the default):
+   Before the very first commit of the session, show the diff and ask:
+   ```
+   About to commit: fill: trivial_lemma - exact Nat.zero_le
+   Files: Helpers.lean
+   Diff: +1 -1 line
+
+   Commit this? [yes / yes-all / no / never]
+   ```
+   - **yes** — commit this one, ask again next time
+   - **yes-all** — commit this and all future commits without asking
+   - **no** — skip this commit, ask again next time
+   - **never** — skip all commits for this session
+
+   If `--commit=auto`, skip the prompt entirely. If `--commit=never`, skip all commits.
 
 **Constraints:** Max 3 candidates per sorry, ≤80 lines diff, NO statement changes, NO cross-file refactoring (fast path).
 
 ### Phase 3: Checkpoint
 
 If `--checkpoint` is enabled and there is a non-empty diff:
-- Stage all modified files: `git add -A`
+- Stage only files modified during this cycle: `git add <touched files>`
 - Commit: `git commit -m "checkpoint(lean4): [summary]"`
 
 If no files changed during this cycle, emit:

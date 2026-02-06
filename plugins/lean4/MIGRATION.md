@@ -170,7 +170,7 @@ Run `/lean4:doctor` for full diagnostics.
 Both share the same cycle engine and most flags. Key differences:
 - **prove-only:** `--deep=ask` (interactive prompt), `--planning=ask`
 - **autoprove-only:** `--max-cycles`, `--max-total-runtime`, `--max-stuck-cycles`, `--max-consecutive-deep-cycles`
-- **Different defaults:** autoprove uses `--batch-size=2`, `--deep=stuck`, `--golf=never`; prove uses `--batch-size=1`, `--deep=never`, `--golf=prompt`
+- **Different defaults:** autoprove uses `--batch-size=2`, `--deep=stuck`, `--golf=never`, `--commit=auto`; prove uses `--batch-size=1`, `--deep=never`, `--golf=prompt`, `--commit=ask`
 
 ## See Also
 

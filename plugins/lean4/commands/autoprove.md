@@ -33,6 +33,7 @@ Autonomous multi-cycle theorem proving. Runs cycles automatically with hard stop
 | --max-deep-per-cycle | No | 1 | Max deep invocations per cycle |
 | --max-consecutive-deep-cycles | No | 2 | Hard cap on consecutive cycles using deep mode |
 | --batch-size | No | 2 | Sorries to attempt per cycle |
+| --commit | No | auto | `ask` (confirm before first commit), `auto`, or `never` |
 | --golf | No | never | `prompt`, `auto`, or `never` |
 | --max-cycles | No | 20 | Hard stop: max total cycles |
 | --max-total-runtime | No | 120m | Hard stop: max total runtime |
@@ -86,14 +87,17 @@ See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) for detailed
    - If no witness quickly → continue to proof attempts
 4. **Try tactics** — `rfl`, `simp`, `ring`, `linarith`, `exact?`, `aesop`
 5. **Validate** — Use LSP diagnostics (`lean_diagnostic_messages`) to check sorry count decreased. Reserve `lake build` for review checkpoints or explicit `/lean4:checkpoint`.
-6. **Commit** — `git commit -m "fill: [theorem] - [tactic]"`
+6. **Stage & Commit** — Stage only files touched during this sorry (`git add <edited files>`), then commit:
+   `git commit -m "fill: [theorem] - [tactic]"`
+
+   Default `--commit=auto` — commits without prompting. Use `--commit=ask` for first-commit confirmation (same prompt as `/lean4:prove`). Use `--commit=never` to skip all commits.
 
 **Constraints:** Max 3 candidates per sorry, ≤80 lines diff, NO statement changes, NO cross-file refactoring (fast path).
 
 ### Phase 3: Checkpoint
 
 If `--checkpoint` is enabled and there is a non-empty diff:
-- Stage all modified files: `git add -A`
+- Stage only files modified during this cycle: `git add <touched files>`
 - Commit: `git commit -m "checkpoint(lean4): [summary]"`
 
 If no files changed during this cycle, emit:
