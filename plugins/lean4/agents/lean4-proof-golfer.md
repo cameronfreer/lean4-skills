@@ -1,7 +1,7 @@
 ---
 name: lean4-proof-golfer
 description: Golf Lean 4 proofs after they compile; reduce tactics/lines without changing semantics. Use after successful compilation to achieve 30-40% size reduction.
-tools: Read, Grep, Glob, Edit, Bash
+tools: Read, Grep, Glob, Edit, Bash, lean_goal
 model: opus
 thinking: on
 ---
@@ -85,6 +85,10 @@ Savings: 1 line
 
 ## Tools
 
+**LSP** (fall back to scripts if unavailable):
+- `lean_goal(file, line)` — understand proof goal during optimization
+
+**Scripts:**
 ```bash
 $LEAN4_SCRIPTS/find_golfable.py        # Pattern detection
 $LEAN4_SCRIPTS/analyze_let_usage.py    # Safety verification (CRITICAL)

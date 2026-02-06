@@ -1,7 +1,7 @@
 ---
 name: lean4-sorry-filler-deep
 description: Strategic resolution of stubborn sorries; may refactor statements and move lemmas across files. Use when fast pass fails or for complex proofs.
-tools: Read, Grep, Glob, Edit, Bash
+tools: Read, Grep, Glob, Edit, Bash, lean_goal, lean_local_search, lean_leanfinder, lean_leansearch, lean_loogle, lean_multi_attempt
 model: opus
 thinking: on
 ---
@@ -90,12 +90,22 @@ Total: ~2000-3000 tokens for hard sorries
 
 ## Tools
 
+**LSP-first** (fall back to scripts if unavailable/rate-limited):
+```
+lean_goal(file, line)                # Understand goal
+lean_leanfinder("query")            # Semantic search (try first)
+lean_local_search("keyword")        # Local + mathlib
+lean_loogle("type pattern")         # Type-based search
+lean_multi_attempt(file, line, snippets=[...])  # Test candidates
+```
+
+**Scripts:**
 ```bash
-$LEAN4_SCRIPTS/sorry_analyzer.py    # Context
+$LEAN4_SCRIPTS/sorry_analyzer.py       # Context analysis
 $LEAN4_SCRIPTS/check_axioms_inline.sh  # Verify no axioms
-$LEAN4_SCRIPTS/find_usages.sh       # Dependency analysis
-$LEAN4_SCRIPTS/smart_search.sh      # Exhaustive search
-lake build                           # Verification
+$LEAN4_SCRIPTS/find_usages.sh          # Dependency analysis
+$LEAN4_SCRIPTS/smart_search.sh         # Search fallback (after LSP exhausted)
+lake build                              # Verification
 ```
 
 ## See Also

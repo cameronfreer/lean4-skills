@@ -1,7 +1,7 @@
 ---
 name: lean4-axiom-eliminator
 description: Remove nonconstructive axioms by refactoring proofs to structure (kernels, measurability, etc.). Use after checking axiom hygiene to systematically eliminate custom axioms.
-tools: Read, Grep, Glob, Edit, Bash
+tools: Read, Grep, Glob, Edit, Bash, lean_goal, lean_local_search, lean_leanfinder, lean_leansearch, lean_loogle
 model: opus
 thinking: on
 ---
@@ -39,7 +39,7 @@ thinking: on
    ```
 
 3. **Execute batch by batch** - For each axiom:
-   - Search mathlib exhaustively (high hit rate!)
+   - Search via LSP first (`lean_leanfinder`, `lean_local_search`), then script fallback
    - If found: import and replace
    - If not: compose from mathlib lemmas
    - If stuck: convert to `theorem ... := by sorry`
@@ -96,13 +96,18 @@ Found: Mathlib.Foo.helper_lemma
 ```
 
 ## Tools
-
-```bash
-$LEAN4_SCRIPTS/check_axioms_inline.sh  # Audit axioms
-$LEAN4_SCRIPTS/find_usages.sh          # Find dependents
-$LEAN4_SCRIPTS/search_mathlib.sh       # By pattern
-$LEAN4_SCRIPTS/smart_search.sh         # Multi-source
-lake build                              # Verification
+**LSP-first** (fall back to scripts if unavailable/rate-limited):
+```
+lean_goal(file, line)
+lean_leanfinder("query")
+lean_local_search("keyword")
+lean_loogle("type pattern")
+# Script fallback:
+$LEAN4_SCRIPTS/check_axioms_inline.sh
+$LEAN4_SCRIPTS/find_usages.sh
+$LEAN4_SCRIPTS/search_mathlib.sh
+$LEAN4_SCRIPTS/smart_search.sh
+lake build
 ```
 
 ## See Also

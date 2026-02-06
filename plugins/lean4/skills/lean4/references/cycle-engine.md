@@ -30,7 +30,7 @@ LSP tools are the normative first-pass for all discovery, search, and validation
 **Work phase (per sorry):**
 1. Refresh `lean_goal(file, line)` at start
 2. Run up to 2 LSP search tools before any script fallback (skip if trivial goal or prior planning search was conclusive)
-3. Generate 2-4 candidate proof snippets from search results
+3. Generate 2-3 candidate proof snippets from search results
 4. Test with `lean_multi_attempt(file, line, snippets=[...])`
 5. Prefer shortest passing candidate; only then edit/commit
 

@@ -1,7 +1,7 @@
 ---
 name: lean4-proof-repair
 description: Compiler-guided iterative proof repair with two-stage model escalation (Haiku → Opus). Use for error-driven proof fixing with small sampling budgets (K=1).
-tools: Read, Grep, Glob, Edit, Bash
+tools: Read, Grep, Glob, Edit, Bash, lean_goal, lean_local_search, lean_leanfinder, lean_leansearch, lean_loogle, lean_multi_attempt
 model: haiku
 thinking: off
 ---
@@ -26,10 +26,9 @@ Structured error context (JSON):
 
 1. **Classify error** from errorType
 2. **Apply error-specific strategy** (see table below)
-3. **Search mathlib** if needed:
-   ```bash
-   bash $LEAN4_SCRIPTS/search_mathlib.sh "keyword" content
-   ```
+3. **Search** if needed (LSP-first, fall back to scripts if unavailable):
+   - `lean_leanfinder("query")` or `lean_local_search("keyword")` first
+   - Script fallback: `$LEAN4_SCRIPTS/search_mathlib.sh` only after LSP exhausted
 4. **Generate minimal diff** (1-5 lines)
 5. **Output unified diff ONLY** - no explanations
 

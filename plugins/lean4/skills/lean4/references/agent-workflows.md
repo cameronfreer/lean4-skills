@@ -161,8 +161,8 @@ Stage 1 outputs (after 3 failures, escalates to Stage 2):
 }
 ```
 
-Search: `bash $LEAN4_SCRIPTS/search_mathlib.sh "continuous.*real" name`
-Found: `Real.continuous_ofReal`
+LSP search: `lean_leanfinder("continuous real function")` → `Real.continuous_ofReal`
+Fallback if needed: `$LEAN4_SCRIPTS/search_mathlib.sh "continuous.*real" name`
 
 ```diff
 --- Core.lean
@@ -305,8 +305,8 @@ Continue? (yes/no)
 **Strategy:** mathlib_import
 
 **Search results:**
-bash $LEAN4_SCRIPTS/search_mathlib.sh "continuous.*comp" name
-→ Found: Continuous.comp in Mathlib.Topology.Basic
+LSP: lean_leanfinder("continuous composition") → Continuous.comp (Mathlib.Topology.Basic)
+Fallback: $LEAN4_SCRIPTS/search_mathlib.sh "continuous.*comp" name
 
 **Changes made:**
 - Removed `axiom helper_continuous`

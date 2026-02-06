@@ -78,7 +78,7 @@ See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) for detailed
 
 1. **Understand** — refresh `lean_goal(file, line)` + read surrounding code
 2. **Search** — up to 2 LSP search tools (`lean_local_search` + one of `lean_leanfinder`/`lean_leansearch`/`lean_loogle`) before script fallback (skip if trivial or prior search was conclusive)
-3. **Generate candidates** — 2-4 candidate snippets from search results
+3. **Generate candidates** — 2-3 candidate snippets from search results
 4. **Test** — `lean_multi_attempt(file, line, snippets=[...])`, prefer shortest passing candidate
 5. **Preflight falsification** (if goal is decidable/finite)
    - Only for: `Fin n`, `Bool`, `Option`, small `Sum` types, bound-quantified `Nat`

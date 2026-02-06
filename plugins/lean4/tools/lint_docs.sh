@@ -122,6 +122,20 @@ check_agents() {
             warn "$agent.md: Missing 'thinking:' in frontmatter"
         fi
 
+        # Validate tool names against allowed set
+        local allowed_tools="Read Grep Glob Edit Bash lean_goal lean_local_search lean_leanfinder lean_leansearch lean_loogle lean_multi_attempt lean_hover_info lean_diagnostic_messages"
+        local tools_line
+        tools_line=$(grep "^tools:" "$file" | sed 's/^tools: *//')
+        if [[ -n "$tools_line" ]]; then
+            IFS=',' read -ra tool_list <<< "$tools_line"
+            for tool in "${tool_list[@]}"; do
+                tool=$(echo "$tool" | xargs)  # trim whitespace
+                if ! echo "$allowed_tools" | grep -qw "$tool"; then
+                    warn "$agent.md: Unknown tool '$tool' in frontmatter"
+                fi
+            done
+        fi
+
         # Check for required sections
         if ! grep -q "^## Inputs" "$file"; then
             warn "$agent.md: Missing '## Inputs' section"
