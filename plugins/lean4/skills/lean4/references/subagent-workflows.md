@@ -88,7 +88,7 @@
 
 **When to use:**
 - "Find all files using MeasurableSpace"
-- "Run sorry_analyzer.py and report count"
+- "Run $LEAN4_SCRIPTS/sorry_analyzer.py and report count"
 - "Search mathlib for continuous function lemmas"
 
 ### General-Purpose Agent (Thorough, Multi-Step)
@@ -126,10 +126,10 @@ You do not invoke these directly. See [agent-workflows.md](agent-workflows.md) f
 ```
 Task: "Optimize these 5 proofs"
 ✅ Use /lean4:golf (specialized workflow with safety checks)
-❌ Dispatch general-purpose agent to run find_golfable.py (misses false-positive filtering)
+❌ Dispatch general-purpose agent to run $LEAN4_SCRIPTS/find_golfable.py (misses false-positive filtering)
 
 Task: "Find mathlib lemmas for this sorry"
-✅ Dispatch Explore agent to run smart_search.sh (simple delegation)
+✅ Dispatch Explore agent to run $LEAN4_SCRIPTS/smart_search.sh (simple delegation)
 ✅ Use lean_local_search or lean_leansearch LSP tools directly
 
 Task: "Fill all 15 sorries in this file"
@@ -354,7 +354,7 @@ to find the right mathlib lemma..."
 
 ### Token Economics
 
-**Scenario:** Running sorry_analyzer.py on a medium project
+**Scenario:** Running $LEAN4_SCRIPTS/sorry_analyzer.py on a medium project
 
 **Without subagent (direct execution):**
 - Script output: ~500 tokens (100 lines @ 5 tokens/line)

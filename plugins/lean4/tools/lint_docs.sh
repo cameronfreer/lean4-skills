@@ -334,6 +334,64 @@ check_stale_commands() {
     ok "Stale command check done"
 }
 
+# Check 8: Bare script names in behavioral docs
+check_bare_scripts() {
+    log ""
+    log "Checking for bare script invocations..."
+
+    local _bs_base _bs_line _bs_match _bs_severity _bs_scripts _bs_pattern _bs_script
+
+    # Build script list dynamically from lib/scripts/
+    _bs_scripts=""
+    for f in "$PLUGIN_ROOT"/lib/scripts/*.py "$PLUGIN_ROOT"/lib/scripts/*.sh; do
+        [[ -f "$f" ]] && _bs_scripts="$_bs_scripts $(basename "$f")"
+    done
+    _bs_scripts=$(echo "$_bs_scripts" | xargs)  # trim
+
+    if [[ -z "$_bs_scripts" ]]; then
+        ok "No scripts found in lib/scripts/, skipping bare-script check"
+        return
+    fi
+
+    # Build grep alternation: sorry_analyzer\.py|check_axioms_inline\.sh|...
+    _bs_pattern=$(echo "$_bs_scripts" | tr ' ' '\n' | sed 's/\./\\./g' | paste -sd '|' -)
+
+    while IFS= read -r file; do
+        _bs_base=$(basename "$file")
+
+        # Skip files where bare names are expected
+        [[ "$_bs_base" == "MIGRATION.md" ]] && continue
+        [[ "$_bs_base" == "SKILL.md" ]] && continue
+        case "$file" in */lib/scripts/*) continue ;; esac
+
+        # Severity: FAIL for commands/ and agents/, note for others
+        _bs_severity="note"
+        case "$file" in */commands/*|*/agents/*) _bs_severity="fail" ;; esac
+
+        # Find lines containing any script name
+        while IFS=: read -r _bs_line _bs_match; do
+            [[ -z "$_bs_line" ]] && continue
+            # Per-script check: for each known script, test if it appears bare on this line
+            for _bs_script in $_bs_scripts; do
+                # Skip if this script isn't on this line
+                echo "$_bs_match" | grep -qF "$_bs_script" || continue
+                # Skip if every occurrence is prefixed with LEAN4_SCRIPTS/
+                # Check: does a bare (non-prefixed) occurrence exist?
+                if echo "$_bs_match" | grep -qP "(?<!LEAN4_SCRIPTS/)(?<![/a-zA-Z0-9_])$( echo "$_bs_script" | sed 's/\./\\./g' )"; then
+                    if [[ "$_bs_severity" == "fail" ]]; then
+                        warn "$_bs_base:$_bs_line: Bare script '$_bs_script' (use \$LEAN4_SCRIPTS/ prefix)"
+                    else
+                        [[ -n "$VERBOSE" ]] && log "  note: $_bs_base:$_bs_line: Bare '$_bs_script' in reference"
+                    fi
+                    break  # One warning per line is enough
+                fi
+            done
+        done < <(grep -nE "($_bs_pattern)" "$file" 2>/dev/null || true)
+    done < <(find "$PLUGIN_ROOT" -name "*.md" -type f)
+
+    ok "Bare script check done"
+}
+
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
@@ -346,6 +404,7 @@ check_scripts
 check_cross_refs
 check_reference_links
 check_stale_commands
+check_bare_scripts
 
 log ""
 log "================================"

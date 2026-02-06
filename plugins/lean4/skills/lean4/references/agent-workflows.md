@@ -189,7 +189,7 @@ Pattern found at line 45:
   have h := property x
   exact h
 
-Running: analyze_let_usage.py Core.lean --line 45
+Running: $LEAN4_SCRIPTS/analyze_let_usage.py Core.lean --line 45
 Result: x used 1 time, h used 1 time
 
 Safety: ✓ Safe to inline (both used ≤2 times)
@@ -214,7 +214,7 @@ Pattern found at line 78:
   let bound := expensive_computation
   ...uses bound 6 times...
 
-Running: analyze_let_usage.py Core.lean --line 78
+Running: $LEAN4_SCRIPTS/analyze_let_usage.py Core.lean --line 78
 Result: bound used 6 times
 
 Safety: ✗ SKIP - would expand code 6× (from 1 expr to 6)

@@ -34,7 +34,7 @@ LSP tools are the normative first-pass for all discovery, search, and validation
 4. Test with `lean_multi_attempt(file, line, snippets=[...])`
 5. Prefer shortest passing candidate; only then edit/commit
 
-**Fallback gate:** Script fallback (`smart_search.sh`, `search_mathlib.sh`) and repair agents are permitted when:
+**Fallback gate:** Script fallback (`$LEAN4_SCRIPTS/smart_search.sh`, `$LEAN4_SCRIPTS/search_mathlib.sh`) and repair agents are permitted when:
 - LSP search budget is exhausted (at least 2 searches returning empty/inconclusive), OR
 - LSP server is confirmed unavailable, timing out, or rate-limited
 

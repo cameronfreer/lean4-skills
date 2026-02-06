@@ -76,7 +76,7 @@ Pattern found at line 45:
   let x := expr
   exact property x
 
-Running: analyze_let_usage.py --line 45
+Running: $LEAN4_SCRIPTS/analyze_let_usage.py --line 45
 Result: x used 1 time → Safe
 
 Before (2 lines):

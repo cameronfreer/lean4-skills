@@ -145,6 +145,15 @@ Set by `bootstrap.sh` at session start:
 | `LEAN4_REFS` | References directory |
 | `LEAN4_PYTHON_BIN` | Python interpreter |
 
+**Script troubleshooting:**
+```bash
+echo "$LEAN4_SCRIPTS"
+ls -l "$LEAN4_SCRIPTS/sorry_analyzer.py"
+${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/sorry_analyzer.py . --format=summary
+```
+
+If `$LEAN4_SCRIPTS` is unset, run `/lean4:doctor` to reinitialize.
+
 ## File Structure
 
 ```

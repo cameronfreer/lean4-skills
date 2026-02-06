@@ -86,7 +86,7 @@ grep -A 1 "rw \[" file.lean | grep "exact"
 
 For each let+have+exact pattern:
 
-1. Count let binding uses (or use `analyze_let_usage.py`)
+1. Count let binding uses (or use `$LEAN4_SCRIPTS/analyze_let_usage.py`)
 2. If used ≥3 times → SKIP (false positive)
 3. If used ≤2 times → Proceed with optimization
 
@@ -103,7 +103,7 @@ When search mode is enabled, replacement candidates follow the same safety rules
 ### Phase 3: Apply with Testing (5 min per pattern)
 
 1. Apply optimization
-2. Run `lake build`
+2. Run `lean_diagnostic_messages(file)` (per change); `lake build` for final verification only
 3. If fails: revert immediately, move to next
 4. If succeeds: continue
 
