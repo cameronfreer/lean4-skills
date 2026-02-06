@@ -31,6 +31,12 @@ Guided, cycle-by-cycle theorem proving. Asks before each cycle, supports deep es
 | --deep-sorry-budget | No | 1 | Max sorries per deep invocation |
 | --deep-time-budget | No | 10m | Max time per deep invocation |
 | --max-deep-per-cycle | No | 1 | Max deep invocations per cycle |
+| --deep-snapshot | No | stash | V1: `stash` only |
+| --deep-rollback | No | on-regression | `on-regression`, `on-no-improvement`, `always`, or `never` |
+| --deep-scope | No | target | `target` or `cross-file` |
+| --deep-max-files | No | 1 | Max files per deep invocation |
+| --deep-max-lines | No | 120 | Max added+deleted lines per deep invocation |
+| --deep-regression-gate | No | strict | `strict` (auto-abort on regression) or `off` |
 | --batch-size | No | 1 | Sorries to attempt per cycle |
 | --commit | No | ask | `ask` (prompt before each commit), `auto`, or `never` |
 | --golf | No | prompt | `prompt`, `auto`, or `never` |
@@ -110,6 +116,7 @@ If `--commit=never` (or the user chose **never** at the commit prompt), skip the
 Otherwise, if `--checkpoint` is enabled and there is a non-empty diff:
 - Stage only files from **accepted** fills that were not already committed individually: `git add <accepted files>`
 - Do **not** re-stage files from declined fills — those stay in the working tree only
+- Do **not** re-stage files from rolled-back deep invocations — those are restored to pre-deep state
 - Commit: `git commit -m "checkpoint(lean4): [summary]"`
 
 If no files changed during this cycle, emit:
@@ -149,7 +156,11 @@ Modes: `never` | `ask` (prompt first) | `stuck` (auto on stuck) | `always` (auto
 
 Statement changes require interactive approval. Deep allows multi-file refactoring, helper extraction, and statement generalization (with approval).
 
-See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#deep-mode) for budget parameters and prove/autoprove comparison.
+**Safety:** Deep creates a path-scoped pre-deep snapshot (`--deep-snapshot`), enforces scope/diff budgets (`--deep-scope`, `--deep-max-files`, `--deep-max-lines`), and auto-rolls back on regression (`--deep-regression-gate`). Rollback marks the sorry as stuck with reason.
+
+**Validation:** Deep-safety flags are validated at startup; invalid values produce descriptive errors.
+
+See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#deep-mode) for full semantics, definitions, and prove/autoprove comparison.
 
 ## Stuck Definition
 

@@ -55,8 +55,6 @@ Final summary (~200-300 tokens):
 **Axioms:** 0
 ```
 
-Total: ~2000-3000 tokens for hard sorries
-
 ## Constraints
 
 - May refactor across files (with compile verification)
@@ -66,6 +64,9 @@ Total: ~2000-3000 tokens for hard sorries
 - May NOT make large architectural changes without approval
 - May NOT delete existing working proofs
 - Must compile after every phase
+- Engine creates path-scoped snapshot before deep and rolls back on regression or scope exceeded
+- Engine enforces `--deep-scope`, `--deep-max-files`, `--deep-max-lines` — do not bypass
+- Agent must not run git snapshot/rollback commands directly; on rollback, sorry is marked stuck and agent must stop
 
 ## Example (Happy Path)
 
@@ -78,7 +79,6 @@ Total: ~2000-3000 tokens for hard sorries
 2. Add filter_eventually_of_set helper
 3. Prove using helper
 
----
 ## Phase 1 Complete
 **Actions:** Generalized signature, added import
 **Compile:** ✓

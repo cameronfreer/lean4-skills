@@ -391,6 +391,65 @@ check_bare_scripts() {
     ok "Bare script check done"
 }
 
+# Check 9: Deep-safety invariants in prove/autoprove/cycle-engine
+check_deep_safety() {
+    log ""
+    log "Checking deep-safety invariants..."
+
+    local cmd_dir="$PLUGIN_ROOT/commands"
+    local ref_dir="$PLUGIN_ROOT/skills/lean4/references"
+    local _ds_file _ds_base
+
+    # Required deep-safety flags as exact table rows in prove.md and autoprove.md
+    local deep_flags="deep-snapshot deep-rollback deep-scope deep-max-files deep-max-lines deep-regression-gate"
+
+    for cmd in prove autoprove; do
+        _ds_file="$cmd_dir/$cmd.md"
+        _ds_base="$cmd.md"
+        for flag in $deep_flags; do
+            if ! grep -q "| --$flag " "$_ds_file" 2>/dev/null; then
+                warn "$_ds_base: Missing --$flag row in input table"
+            fi
+        done
+    done
+
+    # autoprove.md must have deep-safety coercion text
+    _ds_file="$cmd_dir/autoprove.md"
+    for coercion in "deep-rollback=never" "deep-regression-gate=off"; do
+        if ! grep -q "$coercion" "$_ds_file" 2>/dev/null; then
+            warn "autoprove.md: Missing coercion for $coercion"
+        fi
+    done
+
+    # Both prove.md and autoprove.md must exclude rolled-back deep edits from checkpoint
+    for cmd in prove autoprove; do
+        _ds_file="$cmd_dir/$cmd.md"
+        _ds_base="$cmd.md"
+        if ! grep -q "rolled-back deep" "$_ds_file" 2>/dev/null; then
+            warn "$_ds_base: Missing checkpoint exclusion for rolled-back deep edits"
+        fi
+    done
+
+    # cycle-engine.md must have deep-safety sections
+    _ds_file="$ref_dir/cycle-engine.md"
+    _ds_base="cycle-engine.md"
+    for heading in "Deep Safety Definitions" "Deep Snapshot and Rollback" "Deep Scope Fence" "Deep Regression Gate" "Deep Safety Coercions"; do
+        if ! grep -q "$heading" "$_ds_file" 2>/dev/null; then
+            warn "$_ds_base: Missing section: $heading"
+        fi
+    done
+
+    # cycle-engine.md must document path-scoped snapshot and identical file set
+    if ! grep -q "path-scoped" "$_ds_file" 2>/dev/null; then
+        warn "$_ds_base: Missing path-scoped snapshot documentation"
+    fi
+    if ! grep -q "identical for baseline and comparison" "$_ds_file" 2>/dev/null; then
+        warn "$_ds_base: Missing identical file set guarantee for regression gate"
+    fi
+
+    ok "Deep-safety invariants checked"
+}
+
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
@@ -404,6 +463,7 @@ check_cross_refs
 check_reference_links
 check_stale_commands
 check_bare_scripts
+check_deep_safety
 
 log ""
 log "================================"

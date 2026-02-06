@@ -169,6 +169,51 @@ See [cycle-engine.md](cycle-engine.md#stuck-definition) for stuck detection logi
 - Review stuck blockers: Core.lean:89, Core.lean:156, Bounds.lean:42
 ```
 
+### Deep Rollback Example
+
+```
+[Cycle 4] Working on Core.lean:89 - `main_theorem`...
+Stuck after 3 attempts. Escalating to deep mode (--deep=stuck)...
+
+Creating snapshot (--deep-snapshot=stash)...
+Snapshot captured: <snapshot-id>
+
+Deep phase 1: Extracting helper lemma to Helpers.lean
+  Compile: ✓ (sorry count: 1 → 1, no new diagnostics)
+Deep phase 2: Filling sorry using helper
+  Compile: ✗ — sorry count increased (1 → 3)
+
+Regression detected (--deep-regression-gate=strict):
+  Sorry count: 1 → 3 (+2 regression)
+  Rolling back to <snapshot-id>...
+  Rollback: ✓
+  Marking stuck: "deep: regression — sorry count increased from 1 to 3"
+
+Stuck handoff:
+- Deep abort reason: regression (sorry count +2)
+- Strategy attempted: helper extraction to Helpers.lean
+- LSP queries: lean_leanfinder("convergence bound"), lean_local_search("tendsto")
+- Recommendation: try alternative approach or manual guidance
+
+Running stuck review...
+
+Note: if rollback itself fails, the cycle stops immediately —
+no checkpoint is created, and the sorry is marked stuck with
+"deep: rollback failed".
+```
+
+**Edge case — new diagnostic errors (sorry count unchanged):**
+
+```
+Deep phase 1: Refactoring Filter usage in Core.lean
+  Compile: sorry count 1 → 1, but 2 new type mismatch errors
+
+Regression detected (--deep-regression-gate=strict):
+  New diagnostics: 2 errors not present in pre-deep baseline
+  Rolling back to <snapshot-id>...
+  Marking stuck: "deep: regression — new errors"
+```
+
 ---
 
 ## checkpoint

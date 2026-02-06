@@ -85,7 +85,7 @@ If `$LEAN4_SCRIPTS` is unset or missing, run `/lean4:doctor` and stay LSP-only u
 - **prove** — guided, asks before each cycle. Ideal for interactive sessions.
 - **autoprove** — autonomous, loops with hard stop rules. Ideal for unattended runs.
 
-Both share the same cycle engine (plan → work → checkpoint → review → replan → continue/stop) and follow the [LSP-first protocol](references/cycle-engine.md#lsp-first-protocol): LSP tools are normative for discovery and search; script fallback only when LSP is unavailable or exhausted. Compiler-guided repair is escalation-only — not the first response to build errors. For complex proofs, they may delegate to internal workflows for deep sorry-filling, proof repair, or axiom elimination. You don't invoke these directly.
+Both share the same cycle engine (plan → work → checkpoint → review → replan → continue/stop) and follow the [LSP-first protocol](references/cycle-engine.md#lsp-first-protocol): LSP tools are normative for discovery and search; script fallback only when LSP is unavailable or exhausted. Compiler-guided repair is escalation-only — not the first response to build errors. For complex proofs, they may delegate to internal workflows for deep sorry-filling (with snapshot, rollback, and scope budgets), proof repair, or axiom elimination. You don't invoke these directly.
 
 ## Skill-Only Behavior
 

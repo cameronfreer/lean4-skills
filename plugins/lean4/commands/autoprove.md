@@ -32,6 +32,12 @@ Autonomous multi-cycle theorem proving. Runs cycles automatically with hard stop
 | --deep-time-budget | No | 20m | Max time per deep invocation |
 | --max-deep-per-cycle | No | 1 | Max deep invocations per cycle |
 | --max-consecutive-deep-cycles | No | 2 | Hard cap on consecutive cycles using deep mode |
+| --deep-snapshot | No | stash | V1: `stash` only |
+| --deep-rollback | No | on-regression | `on-regression`, `on-no-improvement`, `always`, or `never` (see coercion below) |
+| --deep-scope | No | target | `target` or `cross-file` |
+| --deep-max-files | No | 2 | Max files per deep invocation |
+| --deep-max-lines | No | 200 | Max added+deleted lines per deep invocation |
+| --deep-regression-gate | No | strict | `strict` or `off` (see coercion below) |
 | --batch-size | No | 2 | Sorries to attempt per cycle |
 | --commit | No | auto | `auto` or `never` (`ask` coerced to `auto` — see note below) |
 | --golf | No | never | `prompt`, `auto`, or `never` |
@@ -105,7 +111,8 @@ See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) for detailed
 If `--commit=never`, skip the checkpoint commit entirely — changes remain in the working tree.
 
 Otherwise, if `--checkpoint` is enabled and there is a non-empty diff:
-- Stage only files modified during this cycle: `git add <touched files>`
+- Stage only files from successful, non-rolled-back work: `git add <successful files>`
+- Do NOT stage files from rolled-back deep invocations — those are restored to pre-deep state
 - Commit: `git commit -m "checkpoint(lean4): [summary]"`
 
 If no files changed during this cycle, emit:
@@ -170,7 +177,13 @@ Modes: `never` | `stuck` (default, auto on stuck) | `always` (auto on any failur
 
 Statement changes are logged but auto-skipped. Use `/lean4:prove` for interactive approval.
 
-See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#deep-mode) for budget parameters and prove/autoprove comparison.
+**Safety:** Deep creates a path-scoped pre-deep snapshot, enforces scope/diff budgets, and auto-rolls back on regression. Rollback marks the sorry as stuck with reason.
+
+**Deep safety coercions** (validated and applied at startup with warnings):
+- `--deep-rollback=never` → coerced to `on-regression`
+- `--deep-regression-gate=off` → coerced to `strict`
+
+See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#deep-mode) for full semantics, definitions, and prove/autoprove comparison.
 
 ## Stuck Definition
 
