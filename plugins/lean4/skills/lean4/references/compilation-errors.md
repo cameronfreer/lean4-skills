@@ -725,4 +725,4 @@ lake build 2>&1 | tee "$LOG"
 - Enables grep without rebuilding
 - Links log to specific commit state
 
-**See also:** [Repair Mode](../../../commands/autoprover.md#repair-mode) for error-driven fixes.
+**See also:** [Repair Mode](../../../commands/prove.md#repair-mode) for error-driven fixes.

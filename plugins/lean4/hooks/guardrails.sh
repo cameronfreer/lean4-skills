@@ -30,7 +30,7 @@ fi
 
 # Block git commit --amend (broad pattern)
 if echo "$COMMAND" | grep -qE -- '\bgit\b.*\bcommit\b.*--amend\b'; then
-  echo "BLOCKED: git commit --amend - autoprover creates new commits" >&2
+  echo "BLOCKED: git commit --amend - proving workflow creates new commits for safe rollback" >&2
   exit 2
 fi
 

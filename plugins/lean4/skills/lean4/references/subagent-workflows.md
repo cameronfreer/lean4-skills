@@ -109,9 +109,9 @@
 
 ### Specialized Workflows (Integrated)
 
-The lean4 plugin includes internal workflows for complex tasks, orchestrated automatically by `/lean4:autoprover` and `/lean4:golf`.
+The lean4 plugin includes internal workflows for complex tasks, orchestrated automatically by `/lean4:prove`, `/lean4:autoprove`, and `/lean4:golf`.
 
-**What autoprover may delegate:**
+**What prove/autoprove may delegate:**
 - Deep sorry-filling (when `--deep` enabled and fast path fails)
 - Proof repair (compiler-guided fixes)
 - Axiom elimination (when custom axioms detected)
@@ -133,7 +133,7 @@ Task: "Find mathlib lemmas for this sorry"
 ✅ Use lean_local_search or lean_leansearch LSP tools directly
 
 Task: "Fill all 15 sorries in this file"
-✅ Use /lean4:autoprover (batch processing with testing)
+✅ Use /lean4:prove or /lean4:autoprove (batch processing with testing)
 ❌ Manual iteration in main conversation (inefficient)
 ```
 
@@ -454,13 +454,14 @@ The lean4 plugin provides these main commands:
 
 | Command | Purpose |
 |---------|---------|
-| `/lean4:autoprover` | Main workflow - planning, filling, repair |
+| `/lean4:prove` | Guided cycle-by-cycle proving |
+| `/lean4:autoprove` | Autonomous multi-cycle proving |
 | `/lean4:checkpoint` | Verified commit with axiom check |
 | `/lean4:review` | Read-only quality review |
 | `/lean4:golf` | Optimize proofs |
 | `/lean4:doctor` | Diagnostics and migration |
 
-**Note:** Individual operations like "search mathlib" or "analyze sorries" are now internal workflows within `/lean4:autoprover` rather than separate commands. This simplifies the UX while preserving all functionality.
+**Note:** Individual operations like "search mathlib" or "analyze sorries" are now internal workflows within `/lean4:prove` (or `/lean4:autoprove`) rather than separate commands. This simplifies the UX while preserving all functionality.
 
 ### Using LSP Tools Directly
 
@@ -500,13 +501,13 @@ Run $LEAN4_SCRIPTS/sorry_analyzer.py . --format=text
 and report total sorry count"
 ```
 
-**Use autoprover planning phase (richer workflow):**
+**Use prove planning phase (richer workflow):**
 ```
-"Run /lean4:autoprover which will analyze sorries in the planning phase
+"Run /lean4:prove which will analyze sorries in the planning phase
 and show a prioritized list before asking how to proceed"
 ```
 
-**Key difference:** The autoprover provides interpretation and planning, scripts provide raw data.
+**Key difference:** The proving commands provide interpretation and planning, scripts provide raw data.
 
 ## Troubleshooting
 

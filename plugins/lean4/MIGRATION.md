@@ -16,8 +16,8 @@ This guide helps you upgrade from the legacy 3-plugin system (v3.x) to the unifi
 
 | V3 Command | V4 Command |
 |------------|------------|
-| `/lean4-theorem-proving:fill-sorry` | `/lean4:autoprover` |
-| `/lean4-theorem-proving:repair-file` | `/lean4:autoprover --repair-only` |
+| `/lean4-theorem-proving:fill-sorry` | `/lean4:prove` (or `/lean4:autoprove`) |
+| `/lean4-theorem-proving:repair-file` | `/lean4:prove --repair-only` |
 | `/lean4-theorem-proving:check-axioms` | `/lean4:checkpoint` (includes axiom check) |
 | `/lean4-theorem-proving:golf-proofs` | `/lean4:golf` |
 | `/lean4-theorem-proving:build-lean` | Use `lake build` directly |
@@ -86,16 +86,18 @@ Or run `/lean4:doctor cleanup` for guided removal.
 4. git commit                         # Manual
 ```
 
-### V4 Workflow (planning-first)
+### V4 Workflow (guided proving)
 
 ```
-1. /lean4:autoprover       # Planning phase asks your preferences
-2. (autoprover handles fills, builds, commits)
+1. /lean4:prove            # Guided: asks preferences, cycle-by-cycle
+2. (prove handles fills, builds, commits per cycle)
 3. /lean4:review           # Read-only quality check
 4. /lean4:golf             # Optional optimization
 5. /lean4:checkpoint       # Verified save point
 6. git push                # Manual (safety guardrail)
 ```
+
+Or for unattended work: `/lean4:autoprove` (autonomous with stop rules).
 
 ## Key Differences
 
@@ -115,7 +117,7 @@ V4 blocks certain git operations during sessions:
 
 ### Memory System (REMOVED)
 
-The v3 `lean4-memories` plugin is not included in v4. It was unreliable and has been removed. The autoprover workflow provides better guidance without the memory overhead.
+The v3 `lean4-memories` plugin is not included in v4. It was unreliable and has been removed. The proving workflow provides better guidance without the memory overhead.
 
 ## Legacy Access
 
@@ -158,6 +160,14 @@ $LEAN4_SCRIPTS/sorry_analyzer.py .
 ### Need help?
 
 Run `/lean4:doctor` for full diagnostics.
+
+## V4.0.4 → V4.0.5
+
+**`/lean4:autoprover` split into two commands:**
+- `/lean4:prove` — guided, cycle-by-cycle (asks before each cycle)
+- `/lean4:autoprove` — autonomous, with hard stop rules
+
+No flag changes needed. Both share the same cycle engine and flags.
 
 ## See Also
 

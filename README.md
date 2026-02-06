@@ -2,7 +2,7 @@
 
 [![Run in Smithery](https://smithery.ai/badge/skills/cameronfreer)](https://smithery.ai/skills?ns=cameronfreer&utm_source=github&utm_medium=badge)
 
-Claude Code plugin for automated Lean 4 theorem proving with planning-first workflow.
+Claude Code plugin for automated Lean 4 theorem proving with guided and autonomous proving commands.
 
 ## Installation
 
@@ -18,7 +18,8 @@ Claude Code plugin for automated Lean 4 theorem proving with planning-first work
 
 | Command | Description |
 |---------|-------------|
-| `/lean4:autoprover` | Main entry - planning-first sorry filling and repair |
+| `/lean4:prove` | Guided cycle-by-cycle theorem proving |
+| `/lean4:autoprove` | Autonomous multi-cycle proving with stop rules |
 | `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
 | `/lean4:review` | Read-only quality review with optional external hooks |
 | `/lean4:golf` | Optimize proofs for brevity |
@@ -27,7 +28,8 @@ Claude Code plugin for automated Lean 4 theorem proving with planning-first work
 ## Quick Start
 
 ```
-/lean4:autoprover          # Start filling sorries
+/lean4:prove               # Guided sorry filling (interactive)
+/lean4:autoprove           # Or autonomous (unattended)
 /lean4:review              # Check quality (read-only)
 /lean4:golf                # Optimize proofs
 /lean4:checkpoint          # Verified commit
@@ -85,6 +87,14 @@ See `/lean4:doctor migrate` for detailed migration help.
 - [Commands](plugins/lean4/commands/) - Command documentation
 
 ## Changelog
+
+**v4.0.5** (February 2026)
+- Split `/lean4:autoprover` into `/lean4:prove` (guided) and `/lean4:autoprove` (autonomous)
+- prove: asks before each cycle, startup questionnaire, interactive deep approval
+- autoprove: autonomous loop with hard stop rules, structured summary on stop
+- Shared cycle engine: plan → work → checkpoint → review → replan → continue/stop
+- Stuck definition uses exact signature hashing for precision
+- Checkpoint skips commit on empty diff
 
 **v4.0.0** (February 2026)
 - Unified into single `lean4` plugin

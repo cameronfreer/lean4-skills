@@ -48,7 +48,7 @@ Read-only review of Lean proofs for quality, style, and optimization opportuniti
 - No args → `--scope=changed`
 - Target file provided → `--scope=file`
 - Target + `--line` → `--scope=sorry`
-- Triggered by autoprover → matches current focus (`sorry` or `file`)
+- Triggered by prove/autoprove → matches current focus (`sorry` or `file`)
 
 **Note:** Scope filtering is implemented by the reviewing agent, not the underlying scripts. The agent reads script output and filters results to match the requested scope.
 
@@ -72,10 +72,10 @@ Proceed? (yes / no)
 - Use: Regular cadence reviews, manual quality checks
 
 **Stuck mode:**
-- Trigger: Autoprover invokes stuck mode per its detection triggers. Can also be invoked manually.
+- Trigger: prove/autoprove invokes stuck mode per its detection triggers. Can also be invoked manually.
 - Purpose: "What's blocking progress on current focus"
 - Output: Top 3 blockers with actionable next steps
-- Use: Triggered by autoprover when no progress detected
+- Use: Triggered by prove/autoprove when no progress detected
 - Lightweight: Skips full golf analysis and complexity metrics; focuses on blockers only
 
 **Stuck mode output format:**
@@ -95,7 +95,7 @@ Proceed? (yes / no)
 **Falsification flag:** Include when analysis suggests statement may be false:
 - Decidable goal that failed `decide` or `native_decide`
 - Repeated proof failures with no viable approach
-- Autoprover passed falsification signal from earlier preflight
+- prove/autoprove passed falsification signal from earlier preflight
 
 Example: `**Flag:** Statement may be false (decidable goal failed decide)`
 
@@ -198,9 +198,9 @@ If "yes":
 1. Enter plan mode
 2. Create plan with one task per high-priority suggestion
 3. Get user approval before execution
-4. Use `/lean4:autoprover` to apply fixes (review itself remains read-only)
+4. Use `/lean4:prove` to apply fixes (review itself remains read-only)
 
-**Note:** When `--mode=stuck` is triggered by autoprover, skip this prompt—autoprover handles the follow-up with its own "Apply this plan? [yes/no]" prompt.
+**Note:** When `--mode=stuck` is triggered by prove/autoprove, skip this prompt—the proving command handles the follow-up with its own "Apply this plan? [yes/no]" prompt.
 
 ## JSON Output Schema
 
@@ -288,6 +288,14 @@ $(cat Core.lean)
 
 See [Codex SDK Cookbook](https://cookbook.openai.com/examples/codex/build_code_review_with_codex_sdk) for CI integration patterns.
 
+> **Future autonomous external review:** External review is currently manual-handoff only. Future versions may support autonomous external review via non-interactive CLI execution (e.g., `codex exec`) behind an explicit opt-in flag (`--external-autonomous`). Until then, unattended autoprove runs default to internal review.
+>
+> Requirements for autonomous external review:
+> 1. Stable JSON input/output contract
+> 2. Timeout + retry + cost budgets
+> 3. Safe fallback to internal review on external failure
+> 4. Explicit opt-in flag, not default behavior
+
 ## Safety
 
 - Read-only (does not modify files permanently)
@@ -297,7 +305,8 @@ See [Codex SDK Cookbook](https://cookbook.openai.com/examples/codex/build_code_r
 
 ## See Also
 
-- `/lean4:autoprover` - Fill sorries and fix proofs
+- `/lean4:prove` - Guided cycle-by-cycle proving
+- `/lean4:autoprove` - Autonomous multi-cycle proving
 - `/lean4:golf` - Apply golfing optimizations
 - [mathlib-style.md](../skills/lean4/references/mathlib-style.md)
 - [Examples](../skills/lean4/references/command-examples.md#review)

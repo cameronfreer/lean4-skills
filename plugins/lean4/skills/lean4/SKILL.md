@@ -21,7 +21,8 @@ Use this skill whenever you're editing Lean 4 proofs or debugging Lean builds. I
 
 | Command | Purpose |
 |---------|---------|
-| `/lean4:autoprover` | Planning-first sorry filling and repair |
+| `/lean4:prove` | Guided cycle-by-cycle theorem proving |
+| `/lean4:autoprove` | Autonomous multi-cycle proving with stop rules |
 | `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
 | `/lean4:review` | Quality audit (`--mode=batch` or `--mode=stuck`) |
 | `/lean4:golf` | Optimize proofs for brevity |
@@ -30,7 +31,8 @@ Use this skill whenever you're editing Lean 4 proofs or debugging Lean builds. I
 ## Typical Workflow
 
 ```
-/lean4:autoprover          Fill sorries (may trigger review automatically)
+/lean4:prove               Guided cycle-by-cycle proving (asks before each cycle)
+/lean4:autoprove           Autonomous multi-cycle proving (runs with stop rules)
         ↓
 /lean4:golf                Optimize proofs (optional, prompted at end)
         ↓
@@ -38,7 +40,8 @@ Use this skill whenever you're editing Lean 4 proofs or debugging Lean builds. I
 ```
 
 **Notes:**
-- Autoprover triggers `/lean4:review` at configured intervals (`--review-every`)
+- `/lean4:prove` asks before each cycle; `/lean4:autoprove` loops autonomously with hard stop conditions
+- Both trigger `/lean4:review` at configured intervals (`--review-every`)
 - When reviews run (via `--review-every`), they act as gates: review → replan → approval → continue
 - Review supports `--mode=batch` (default) or `--mode=stuck` (triage)
 - If you hit environment issues, run `/lean4:doctor` to diagnose
@@ -71,11 +74,20 @@ lean_multi_attempt(file, line, snippets=[...])  # Test multiple tactics
 
 ## Automation
 
-`/lean4:autoprover` handles most tasks. It asks once per session:
-- **Autonomy mode** (manual/assisted/auto)
-- **Review source** (internal/external/both/none)
+`/lean4:prove` and `/lean4:autoprove` handle most tasks:
+- **prove** — guided, asks before each cycle. Ideal for interactive sessions.
+- **autoprove** — autonomous, loops with hard stop rules. Ideal for unattended runs.
 
-For complex proofs, it may delegate to internal workflows for deep sorry-filling, proof repair, or axiom elimination. You don't invoke these directly.
+Both share the same cycle engine (plan → work → checkpoint → review → replan → continue/stop). For complex proofs, they may delegate to internal workflows for deep sorry-filling, proof repair, or axiom elimination. You don't invoke these directly.
+
+## Skill-Only Behavior
+
+When editing `.lean` files without invoking a command, the skill runs **one bounded pass**:
+- Attempt to fix the immediate issue (build error, single sorry)
+- No looping, no deep escalation, no multi-cycle behavior
+- End with suggestions:
+  > Use `/lean4:prove` for guided cycle-by-cycle help.
+  > Use `/lean4:autoprove` for autonomous cycles with stop safeguards.
 
 ## Common Fixes
 

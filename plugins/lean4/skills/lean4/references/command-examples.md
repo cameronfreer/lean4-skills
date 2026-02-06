@@ -4,20 +4,20 @@ Extended examples and session transcripts for Lean4 plugin commands.
 
 ---
 
-## autoprover
+## prove
 
 ### Basic Usage
 
 ```
-/lean4:autoprover                    # Start interactive session
-/lean4:autoprover File.lean          # Focus on specific file
-/lean4:autoprover --repair-only      # Fix build errors without filling sorries
+/lean4:prove                         # Start guided session
+/lean4:prove File.lean               # Focus on specific file
+/lean4:prove --repair-only           # Fix build errors without filling sorries
 ```
 
 ### Full Session Example
 
 ```
-User: /lean4:autoprover
+User: /lean4:prove
 
 Claude: Discovering current state...
 
@@ -25,7 +25,7 @@ Using LSP:
 - lean_diagnostic_messages(.) → 2 errors, 5 warnings
 - lean_goal at each sorry → 8 goals to prove
 
-## Autoprover Plan
+## Prove Plan
 
 **Found:** 8 sorries in 3 files
 **Approach:** Balanced
@@ -58,7 +58,7 @@ Committing: "fill: trivial_lemma - exact Nat.zero_le"
 ### Repair Mode Example
 
 ```
-User: /lean4:autoprover --repair-only
+User: /lean4:prove --repair-only
 
 Claude: Running repair mode...
 
@@ -103,6 +103,72 @@ Building... ✓
 
 ---
 
+## autoprove
+
+### Basic Usage
+
+```
+/lean4:autoprove                        # Start autonomous session
+/lean4:autoprove File.lean              # Focus on specific file
+/lean4:autoprove --max-cycles=10        # Limit total cycles
+```
+
+### Full Session Example
+
+```
+User: /lean4:autoprove
+
+Claude: Discovering current state...
+
+Using LSP:
+- lean_diagnostic_messages(.) → 2 errors, 5 warnings
+- lean_goal at each sorry → 8 goals to prove
+
+Starting autonomous loop (max-cycles=20, max-stuck=3)...
+
+[Cycle 1] Working on Helpers.lean:15 - `trivial_lemma`...
+Goal: ⊢ 0 ≤ 1
+Applying: `exact Nat.zero_le 1` ✓
+Committing: "fill: trivial_lemma - exact Nat.zero_le"
+
+[Cycle 1] Working on Helpers.lean:42 - `helper_bound`...
+Goal: ⊢ a + b ≤ b + a
+Applying: `linarith` ✓
+Committing: "fill: helper_bound - linarith"
+
+Checkpoint: 2 sorries filled, build passing ✓
+Review: No blockers found, continuing...
+
+[Cycle 2] Working on Core.lean:89 - `main_theorem`...
+Stuck: Same error after 2 attempts
+Running stuck review...
+Replanning: Search Mathlib.Topology.Order for tendsto variants
+[continues autonomously...]
+```
+
+### Stop Condition Example
+
+```
+## Autoprove Summary
+
+**Reason stopped:** max-stuck (3 consecutive stuck cycles)
+
+| Metric | Value |
+|--------|-------|
+| Sorries before | 8 |
+| Sorries after | 3 |
+| Cycles run | 7 |
+| Stuck cycles | 3 |
+| Deep invocations | 2 |
+| Time elapsed | 45m |
+
+**Handoff recommendations:**
+- Run /lean4:prove for guided work on remaining 3 sorries
+- Review stuck blockers: Core.lean:89, Core.lean:156, Bounds.lean:42
+```
+
+---
+
 ## checkpoint
 
 ### Basic Usage
@@ -142,7 +208,7 @@ Sorries: 3 remaining
 Axioms: standard only
 
 Next steps:
-- Continue with /lean4:autoprover
+- Continue with /lean4:prove
 - Push manually when ready: git push
 ```
 
@@ -206,7 +272,7 @@ Claude: Running diagnostics...
 ### Status: Ready
 
 Your environment is configured correctly.
-Run /lean4:autoprover to fill the 3 remaining sorries.
+Run /lean4:prove to fill the 3 remaining sorries.
 ```
 
 ### Migration Example

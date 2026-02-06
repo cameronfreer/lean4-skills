@@ -1,12 +1,13 @@
 # Lean 4 Plugin
 
-Unified Lean 4 theorem proving with planning-first autoprover.
+Unified Lean 4 theorem proving with guided and autonomous proving commands.
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `/lean4:autoprover` | Main entry - planning-first sorry filling and repair |
+| `/lean4:prove` | Guided cycle-by-cycle theorem proving |
+| `/lean4:autoprove` | Autonomous multi-cycle proving with stop rules |
 | `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
 | `/lean4:review` | Read-only quality review with optional external hooks |
 | `/lean4:golf` | Optimize proofs for brevity |
@@ -15,7 +16,8 @@ Unified Lean 4 theorem proving with planning-first autoprover.
 ## Quick Start
 
 ```bash
-/lean4:autoprover          # Start filling sorries
+/lean4:prove               # Guided sorry filling (interactive)
+/lean4:autoprove           # Autonomous sorry filling (unattended)
 /lean4:review              # Check quality (read-only)
 /lean4:golf                # Optimize proofs
 /lean4:checkpoint          # Verified commit
@@ -26,7 +28,7 @@ git push                   # Manual, after review
 
 ### Planning-First Workflow
 
-Before any changes, autoprover asks:
+Before any changes, the prover asks:
 - **Scope:** All sorries / specific files / specific theorems
 - **Approach:** Conservative / Balanced / Aggressive
 - **Review cadence:** Every change / every 5 / manual

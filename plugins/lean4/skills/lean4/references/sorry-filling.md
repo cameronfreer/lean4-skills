@@ -1,6 +1,6 @@
 # Sorry Filling Reference
 
-> **Primary reference** for sorry-filling tactics. Autoprover Phase 2 implements this workflow; see [command-examples.md](command-examples.md) for session transcripts.
+> **Primary reference** for sorry-filling tactics. The prove/autoprove work phase implements this workflow; see [command-examples.md](command-examples.md) for session transcripts.
 
 Quick reference for filling Lean 4 sorries systematically.
 
@@ -194,13 +194,13 @@ Otherwise you'll wait 30+ minutes for mathlib to recompile from scratch.
 - Break into smaller sub-sorries
 - Extract as helper lemma
 - Document as TODO with strategy
-- Use `/lean4:autoprover --deep` for deep sorry-filling workflow
+- Use `/lean4:prove --deep=stuck` for deep sorry-filling workflow
 
 **If statement may be false:**
 - Run preflight falsification (decide, small enumeration)
 - If counterexample found, create `T_counterexample`
 - Create `T_salvaged` with weaker/corrected statement
-- See autoprover stuck → salvage workflow
+- See prove/autoprove stuck → salvage workflow
 
 ## Output Size Limits
 

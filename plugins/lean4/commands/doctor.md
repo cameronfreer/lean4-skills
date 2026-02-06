@@ -203,6 +203,6 @@ No changes made. Run `/lean4:doctor cleanup --apply` to remove.
 
 ## See Also
 
-- `/lean4:autoprover` - Main workflow
+- `/lean4:prove` - Guided cycle-by-cycle proving
 - `/lean4:checkpoint` - Save progress
 - [Examples](../skills/lean4/references/command-examples.md#doctor)

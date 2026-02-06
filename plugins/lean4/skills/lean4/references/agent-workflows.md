@@ -4,7 +4,7 @@
 
 **For Claude Code users:** See [subagent-workflows.md](subagent-workflows.md) for user-facing delegation patterns.
 
-**Review source** is chosen at autoprover start. External review (Codex) provides advice only—it cannot apply fixes directly.
+**Review source** is chosen at prove/autoprove start. External review provides advice only—it cannot apply fixes directly.
 
 Extended workflow examples for Lean4 plugin internal workflows.
 

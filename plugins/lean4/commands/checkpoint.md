@@ -50,7 +50,7 @@ Creates a verified checkpoint of your current proof progress.
 **Axioms:** [status]
 
 **Next steps:**
-- Continue with `/lean4:autoprover`
+- Continue with `/lean4:prove`
 - Push manually when ready: `git push`
 ```
 
@@ -73,6 +73,6 @@ git reset HEAD~N          # Undo last N commits
 
 ## See Also
 
-- `/lean4:autoprover` - Main theorem-proving workflow
+- `/lean4:prove` - Guided cycle-by-cycle proving
 - `/lean4:review` - Read-only code review
 - [Examples](../skills/lean4/references/command-examples.md#checkpoint)

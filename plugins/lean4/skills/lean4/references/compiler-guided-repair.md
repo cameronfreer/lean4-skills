@@ -55,14 +55,14 @@ Generate attempt → Lean error → Route to specific fix → Retry (max 24 atte
 
 ## Quick Start
 
-Repair is integrated into `/lean4:autoprover`:
+Repair is integrated into `/lean4:prove` and `/lean4:autoprove`:
 
 ```
-/lean4:autoprover --repair-only    # Fix build errors only
-/lean4:autoprover                  # Full workflow (includes repair when needed)
+/lean4:prove --repair-only         # Fix build errors only (guided)
+/lean4:prove                       # Full workflow (includes repair when needed)
 ```
 
-Repair is triggered automatically when a build fails during autoprover.
+Repair is triggered automatically when a build fails during prove/autoprove.
 
 ---
 
@@ -526,10 +526,10 @@ python3 $LEAN4_SCRIPTS/parse_lean_errors.py errors.txt
 python3 $LEAN4_SCRIPTS/solver_cascade.py context.json FILE.lean
 ```
 
-**Via autoprover:**
+**Via prove/autoprove:**
 ```
-/lean4:autoprover --repair-only    # Repair mode
-/lean4:autoprover                  # Full workflow with repair
+/lean4:prove --repair-only         # Repair mode (guided)
+/lean4:prove                       # Full workflow with repair
 ```
 
 **Search (LSP preferred):**
@@ -681,17 +681,17 @@ Review `.repair/attempts.ndjson` to see what strategies worked. Build intuition 
 
 **Repair loop stuck on same error:**
 - Check if error is truly at fault line
-- Run `/lean4:autoprover` with "every change" review cadence to see attempts
+- Run `/lean4:prove` with "every change" review cadence to see attempts
 - May need manual intervention
 
 **Agent generates wrong fixes:**
 - Fast approaches optimize for speed → may miss context
-- Use `/lean4:autoprover` with conservative approach for better understanding
+- Use `/lean4:prove` with conservative approach for better understanding
 - Or fix manually and continue
 
 **Solver cascade too aggressive:**
 - Some proofs need structure, not automation
-- Fix manually and continue with `/lean4:autoprover`
+- Fix manually and continue with `/lean4:prove`
 
 **Cost concerns:**
 - Solver cascade is free (use it!)
@@ -707,7 +707,7 @@ Review `.repair/attempts.ndjson` to see what strategies worked. Build intuition 
 - Consider the statement may be false
 - Try explicit counterexample search on small domains
 - If found, create counterexample lemma instead of continuing repair
-- See `/lean4:autoprover` stuck → salvage workflow
+- See prove/autoprove stuck → salvage workflow
 
 ---
 
