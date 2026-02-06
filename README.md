@@ -36,28 +36,23 @@ Claude Code plugin for automated Lean 4 theorem proving with guided and autonomo
 git push                   # Manual, after review
 ```
 
-## Features
+## How It Works
 
-- **Planning-first workflow** - Establishes scope before any changes
-- **LSP-first approach** - Sub-second feedback and search tools via Lean LSP MCP
-- **Search before prove** - 90% of sorries exist in mathlib
-- **Safety guardrails** - Blocks push/amend/pr during sessions
-- **Atomic commits** - One sorry = one commit for easy rollback
+**`/lean4:prove`** — Guided, interactive. Asks preferences at startup, confirms before the first commit, pauses between cycles. Start here.
+
+**`/lean4:autoprove`** — Autonomous, unattended. No questionnaire, auto-commits, loops until done or a stop condition fires (max cycles/time/stuck).
+
+Both run the same cycle engine: **Plan → Work → Checkpoint → Review → Replan → Continue/Stop**. Each sorry gets a mathlib search, tactic attempts, validation, and its own commit. When stuck, both force a review + replan.
+
+**Without a command:** Editing `.lean` files activates the skill for one bounded pass — fix the immediate issue, then suggest `/lean4:prove` or `/lean4:autoprove` for more.
+
+The other commands: **`/lean4:review`** (read-only quality check), **`/lean4:checkpoint`** (build + axiom check + commit), **`/lean4:golf`** (proof optimization), **`/lean4:doctor`** (diagnostics).
+
+See [plugin README](plugins/lean4/README.md) for the full command guide.
 
 ## Recommended: Lean LSP MCP Server
 
-The [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) server provides sub-second feedback and access to search tools (LeanSearch, Loogle, LeanFinder):
-
-```
-lean_goal(file, line)                           # See exact goal
-lean_local_search("keyword")                    # Fast local + mathlib (unlimited)
-lean_leanfinder("goal or query")                # Semantic, goal-aware (rate-limited)
-lean_leansearch("natural language")             # Semantic search (rate-limited)
-lean_loogle("?a → ?b → _")                      # Type-pattern (rate-limited)
-lean_multi_attempt(file, line, snippets=[...])  # Test tactics
-```
-
-**Setup:** See [INSTALLATION.md](INSTALLATION.md#lean-lsp-server)
+[lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) provides sub-second feedback and search (LeanSearch, Loogle, LeanFinder). **Setup:** See [INSTALLATION.md](INSTALLATION.md#lean-lsp-server)
 
 ## Migrating from V3
 
