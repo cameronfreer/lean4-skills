@@ -69,10 +69,10 @@ Total: ~2000-3000 tokens per batch
 
 ## Constraints
 
-- Search mathlib exhaustively before proving
+- Lemma search required before proving (LSP-first, script fallback)
 - Compile and verify after EACH elimination
 - May NOT add new axioms while eliminating
-- May NOT skip mathlib search
+- May NOT skip lemma search
 - May NOT break dependent theorems
 - Must track axiom count (trending down)
 
