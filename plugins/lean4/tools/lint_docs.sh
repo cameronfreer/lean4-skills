@@ -261,6 +261,79 @@ check_cross_refs() {
     ok "Cross-references checked"
 }
 
+# Check 6: Reference file link validation
+check_reference_links() {
+    log ""
+    log "Checking reference links..."
+
+    local _rl_dir _rl_base _rl_targets _rl_target _rl_path _rl_anchor _rl_resolved _rl_found _rl_heading _rl_slug
+
+    # Check all relative markdown links across plugin .md files
+    while IFS= read -r file; do
+        _rl_dir=$(dirname "$file")
+        _rl_base=$(basename "$file")
+
+        # Extract markdown links: [text](path.md) or [text](path.md#anchor)
+        _rl_targets=$(grep -oE '\]\([a-zA-Z0-9_./-]+\.md(#[a-zA-Z0-9_-]+)?\)' "$file" 2>/dev/null | sed 's/\](\(.*\))/\1/' | sort -u || true)
+        for _rl_target in $_rl_targets; do
+            _rl_path="${_rl_target%%#*}"
+            _rl_anchor="${_rl_target#*#}"
+            [[ "$_rl_anchor" == "$_rl_target" ]] && _rl_anchor=""
+
+            # Resolve relative to file's directory
+            _rl_resolved=$(cd "$_rl_dir" && realpath -q "$_rl_path" 2>/dev/null || echo "")
+
+            # Check target file exists
+            if [[ -z "$_rl_resolved" || ! -f "$_rl_resolved" ]]; then
+                warn "$_rl_base: Broken link to $_rl_path"
+                continue
+            fi
+
+            # Check anchor exists as any heading level (if specified)
+            if [[ -n "$_rl_anchor" ]]; then
+                _rl_found=false
+                while IFS= read -r _rl_heading; do
+                    # Strip leading #s and space, lowercase, spaces→dashes, strip non-alnum-dash
+                    _rl_slug=$(echo "$_rl_heading" | sed 's/^#\+ //' | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g; s/[^a-z0-9-]//g')
+                    if [[ "$_rl_slug" == "$_rl_anchor" ]]; then
+                        _rl_found=true
+                        break
+                    fi
+                done < <(grep -E "^#{1,6} " "$_rl_resolved")
+                if [[ "$_rl_found" != "true" ]]; then
+                    warn "$_rl_base: Broken anchor #$_rl_anchor in $_rl_path"
+                fi
+            fi
+        done
+    done < <(find "$PLUGIN_ROOT" -name "*.md" -type f)
+
+    ok "Reference links checked"
+}
+
+# Check 7: Stale command names in runnable snippets
+check_stale_commands() {
+    log ""
+    log "Checking for stale command names..."
+
+    # Old names that should not appear outside MIGRATION.md
+    local banned_commands="autoprover"
+    local _sc_base _sc_line
+
+    while IFS= read -r file; do
+        # Skip MIGRATION.md (historical mentions OK)
+        [[ "$(basename "$file")" == "MIGRATION.md" ]] && continue
+        _sc_base=$(basename "$file")
+        for cmd in $banned_commands; do
+            if grep -qn "/lean4:$cmd" "$file" 2>/dev/null; then
+                _sc_line=$(grep -n "/lean4:$cmd" "$file" | head -1 | cut -d: -f1)
+                warn "$_sc_base:$_sc_line: Stale command /lean4:$cmd (renamed — see MIGRATION.md)"
+            fi
+        done
+    done < <(find "$PLUGIN_ROOT" -name "*.md" -type f)
+
+    ok "Stale command check done"
+}
+
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
@@ -271,6 +344,8 @@ check_agents
 check_references
 check_scripts
 check_cross_refs
+check_reference_links
+check_stale_commands
 
 log ""
 log "================================"
