@@ -40,7 +40,7 @@ Structured error context (JSON):
 | 1 (Fast) | haiku | OFF | 6 | ~2s/attempt |
 | 2 (Precise) | opus | ON | 18 | ~10s/attempt |
 
-**Escalation triggers:** Same error 3× in Stage 1, `synth_instance`/`timeout`, Stage 1 exhausted
+**Escalation triggers:** Same error 3× in Stage 1, `synth_instance`/`timeout`, Stage 1 exhausted. Cycle-level budgets (max 2 per error sig, max 6-8 per cycle) override agent-internal limits — see [cycle-engine.md](../skills/lean4/references/cycle-engine.md#repair-mode).
 
 ## Repair Strategies
 
@@ -88,10 +88,19 @@ Output:
 
 ## Tools
 
+**LSP-first order** (use before scripts):
+```
+lean_goal(file, line)                # LSP live goal
+lean_leanfinder("query")            # Semantic search (try first)
+lean_local_search("keyword")        # Local + mathlib
+lean_loogle("type pattern")         # Type-based search
+lean_multi_attempt(file, line, snippets=[...])  # Test candidates
+```
+
+**Script fallback** (only after LSP budget exhausted):
 ```bash
 $LEAN4_SCRIPTS/search_mathlib.sh    # Search by pattern
 $LEAN4_SCRIPTS/smart_search.sh      # Multi-source
-lean_goal(file, line)               # LSP live goal
 ```
 
 ## See Also

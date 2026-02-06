@@ -57,12 +57,11 @@ Autoprove accepts all `--review-source` values for flag compatibility with `/lea
 
 No questionnaire. Discover state and start immediately.
 
-1. **Discover state** via LSP or fallback:
-   ```
-   lean_diagnostic_messages(file)    # errors/warnings
-   lean_goal(file, line)             # at each sorry
-   ```
-2. If `--planning=on` (default): run planning phase — list sorries, set order, then start
+1. **Discover state** (LSP-first is **normative**, see [cycle-engine.md](../skills/lean4/references/cycle-engine.md#lsp-first-protocol)):
+   - `lean_diagnostic_messages(file)` for errors/warnings
+   - `lean_goal(file, line)` at each sorry
+   - Up to 3 LSP search tools (~30s); record top candidates per sorry
+2. If `--planning=on` (default): run planning phase — list sorries with candidates, set order, then start
 3. If `--planning=off`: skip planning, start immediately. Stuck-triggered replan is still mandatory (see Stuck Definition).
 
 ## Actions
@@ -71,23 +70,25 @@ Each cycle has 6 phases (same engine as `/lean4:prove`):
 
 ### Phase 1: Plan
 
-Discover current state, identify sorries, set order.
+Discover current state via LSP-first protocol (see [cycle-engine.md](../skills/lean4/references/cycle-engine.md#lsp-first-protocol)): `lean_goal` at each sorry, up to 3 LSP search tools (~30s), record top candidates. Identify sorries, set order.
 
 ### Phase 2: Work (Per Sorry)
 
-See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) for detailed tactics.
+See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) for detailed tactics. LSP-first is **normative** (see [cycle-engine.md](../skills/lean4/references/cycle-engine.md#lsp-first-protocol)).
 
-1. **Understand** — `lean_goal` + read surrounding code
-2. **Search first** — `lean_leansearch`, `lean_loogle`, `lean_local_search`
-3. **Preflight falsification** (if goal is decidable/finite)
+1. **Understand** — refresh `lean_goal(file, line)` + read surrounding code
+2. **Search** — up to 2 LSP search tools (`lean_local_search` + one of `lean_leanfinder`/`lean_leansearch`/`lean_loogle`) before script fallback (skip if trivial or prior search was conclusive)
+3. **Generate candidates** — 2-4 candidate snippets from search results
+4. **Test** — `lean_multi_attempt(file, line, snippets=[...])`, prefer shortest passing candidate
+5. **Preflight falsification** (if goal is decidable/finite)
    - Only for: `Fin n`, `Bool`, `Option`, small `Sum` types, bound-quantified `Nat`
    - Try: `decide`, `simp with decide`, `native_decide`
    - Time-boxed: 30–60s max
    - If counterexample found → create `T_counterexample`, skip to salvage
    - If no witness quickly → continue to proof attempts
-4. **Try tactics** — `rfl`, `simp`, `ring`, `linarith`, `exact?`, `aesop`
-5. **Validate** — Use LSP diagnostics (`lean_diagnostic_messages`) to check sorry count decreased. Reserve `lake build` for review checkpoints or explicit `/lean4:checkpoint`.
-6. **Stage & Commit** — If `--commit=never`, skip staging and committing entirely. Otherwise, stage only files touched during this sorry (`git add <edited files>`), then commit:
+6. **Try tactics** (if no candidate passed) — `rfl`, `simp`, `ring`, `linarith`, `exact?`, `aesop`
+7. **Validate** — Use LSP diagnostics (`lean_diagnostic_messages`) to check sorry count decreased. Reserve `lake build` for review checkpoints or explicit `/lean4:checkpoint`.
+8. **Stage & Commit** — If `--commit=never`, skip staging and committing entirely. Otherwise, stage only files touched during this sorry (`git add <edited files>`), then commit:
    `git commit -m "fill: [theorem] - [tactic]"`
 
    Default `--commit=auto` — commits without prompting. Use `--commit=never` to skip all commits.
@@ -175,7 +176,7 @@ See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#deep-mode) for 
 
 A sorry is **stuck** when: same failure 2-3x, same build error 2x, no progress 10+ min, or empty LSP search 2x.
 
-**When stuck:** auto-review → planner mode → revised plan → next cycle executes plan. On falsification flag: auto counterexample/salvage pass.
+**When stuck:** auto-review → planner mode → revised plan → next cycle executes plan. On falsification flag: auto counterexample/salvage pass. Handoff must include LSP queries attempted, top candidates, and `lean_multi_attempt` outcomes.
 
 See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#stuck-definition) for full detection logic and blocker signature computation.
 
@@ -187,7 +188,9 @@ See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#falsification-a
 
 ## Repair Mode
 
-When build fails, shift to repair workflow. See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#repair-mode) for error table and [compilation-errors.md](../skills/lean4/references/compilation-errors.md) for detailed fixes.
+Compiler-guided repair is **escalation-only** — not the default response to a first failure. Auto-invoke only when compiler errors are the active blocker: same blocker 2x, same build error 2x, or 3+ errors in scope. Apply direct fixes first. Budgets: max 2 per error signature, max 8 total per cycle. No improvement after 2 attempts → stuck + review + replan. Interactive repair options are coerced to autonomous (auto-select next strategy).
+
+See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#repair-mode) for full policy and [compilation-errors.md](../skills/lean4/references/compilation-errors.md) for error-specific fixes.
 
 ## Safety
 

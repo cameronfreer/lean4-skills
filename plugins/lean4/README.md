@@ -121,7 +121,7 @@ Blocked during all sessions:
 
 ### LSP-First Approach
 
-The plugin prefers [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) for sub-second feedback and search:
+LSP tools are **normative** (required first-pass), not merely preferred. Both prove and autoprove follow the [LSP-first protocol](skills/lean4/references/cycle-engine.md#lsp-first-protocol):
 
 ```
 lean_goal(file, line)                           # See exact goal
@@ -132,7 +132,7 @@ lean_loogle("?a → ?b → _")                      # Type-pattern (rate-limited
 lean_multi_attempt(file, line, snippets=[...])  # Test multiple tactics
 ```
 
-Scripts provide sorry analysis, axiom checking, and search fallback when LSP is unavailable.
+Scripts provide sorry analysis, axiom checking, and search fallback when LSP is unavailable or LSP budget is exhausted. Compiler-guided repair is escalation-only — it triggers when compiler errors resist LSP-first tactics, not on first failure.
 
 ## Environment Variables
 

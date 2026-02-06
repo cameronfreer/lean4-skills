@@ -78,7 +78,7 @@ lean_multi_attempt(file, line, snippets=[...])  # Test multiple tactics
 - **prove** — guided, asks before each cycle. Ideal for interactive sessions.
 - **autoprove** — autonomous, loops with hard stop rules. Ideal for unattended runs.
 
-Both share the same cycle engine (plan → work → checkpoint → review → replan → continue/stop). For complex proofs, they may delegate to internal workflows for deep sorry-filling, proof repair, or axiom elimination. You don't invoke these directly.
+Both share the same cycle engine (plan → work → checkpoint → review → replan → continue/stop) and follow the [LSP-first protocol](references/cycle-engine.md#lsp-first-protocol): LSP tools are normative for discovery and search; script fallback only when LSP is unavailable or exhausted. Compiler-guided repair is escalation-only — not the first response to build errors. For complex proofs, they may delegate to internal workflows for deep sorry-filling, proof repair, or axiom elimination. You don't invoke these directly.
 
 ## Skill-Only Behavior
 
@@ -133,7 +133,7 @@ A proof is complete when:
 
 **Search:** [mathlib-guide](references/mathlib-guide.md) (read when searching for existing lemmas), [lean-phrasebook](references/lean-phrasebook.md) (math→Lean translations)
 
-**Errors:** [compilation-errors](references/compilation-errors.md) (read first for any build error), [instance-pollution](references/instance-pollution.md) (typeclass conflicts — grep `## Sub-` for patterns), [compiler-guided-repair](references/compiler-guided-repair.md) (systematic repair)
+**Errors:** [compilation-errors](references/compilation-errors.md) (read first for any build error), [instance-pollution](references/instance-pollution.md) (typeclass conflicts — grep `## Sub-` for patterns), [compiler-guided-repair](references/compiler-guided-repair.md) (escalation-only repair — not first-pass)
 
 **Tactics:** [tactics-reference](references/tactics-reference.md) (tactic lookup — grep `^### TacticName`), [tactic-patterns](references/tactic-patterns.md), [calc-patterns](references/calc-patterns.md), [simp-hygiene](references/simp-hygiene.md)
 

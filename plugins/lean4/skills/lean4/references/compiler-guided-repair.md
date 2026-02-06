@@ -62,7 +62,7 @@ Repair is integrated into `/lean4:prove` and `/lean4:autoprove`:
 /lean4:prove                       # Full workflow (includes repair when needed)
 ```
 
-Repair is triggered automatically when a build fails during prove/autoprove.
+Repair is **escalation-only**: it triggers when compiler errors are the active blocker and LSP-first tactics cannot resolve them (same blocker 2x, same build error 2x, or 3+ errors). Not the default on first failure. See [cycle-engine.md](cycle-engine.md#repair-mode) for the full invocation policy.
 
 ---
 
@@ -167,6 +167,8 @@ lake build FILE.lean
 ```
 
 If success → done! If fail → next iteration (max 24 attempts)
+
+**Cycle-level budget:** The 24-attempt internal limit is the agent ceiling. Within prove/autoprove, tighter cycle budgets apply: max 2 per error signature, max 6 (prove) or 8 (autoprove) per cycle. No improvement after 2 consecutive attempts on same signature → stuck.
 
 ---
 
