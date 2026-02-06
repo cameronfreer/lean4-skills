@@ -48,10 +48,18 @@ check_commands() {
         local lines
         lines=$(wc -l < "$file")
 
-        if [[ $lines -gt 120 ]]; then
-            warn "$cmd.md: $lines lines (target: 80-120)"
+        # Per-command line limits: prove/autoprove/doctor/review are inherently larger
+        local max_lines=120
+        case "$cmd" in
+            prove|autoprove) max_lines=230 ;;
+            doctor)          max_lines=220 ;;
+            review)          max_lines=320 ;;
+        esac
+
+        if [[ $lines -gt $max_lines ]]; then
+            warn "$cmd.md: $lines lines (target: 60-$max_lines)"
         elif [[ $lines -lt 60 ]]; then
-            warn "$cmd.md: $lines lines (too short, target: 80-120)"
+            warn "$cmd.md: $lines lines (too short, target: 60-$max_lines)"
         else
             [[ -n "$VERBOSE" ]] && ok "$cmd.md: $lines lines"
         fi
@@ -155,6 +163,12 @@ check_references() {
         warn "Missing agent-workflows.md"
     fi
 
+    if [[ -f "$ref_dir/cycle-engine.md" ]]; then
+        ok "cycle-engine.md exists"
+    else
+        warn "Missing cycle-engine.md"
+    fi
+
     log "Total reference files: $ref_count"
 }
 
@@ -192,6 +206,9 @@ check_cross_refs() {
     # Valid anchors for agent-workflows.md
     local agent_anchors="lean4-sorry-filler-deep lean4-proof-repair lean4-proof-golfer lean4-axiom-eliminator"
 
+    # Valid anchors for cycle-engine.md
+    local engine_anchors="six-phase-cycle review-phase replan-phase stuck-definition deep-mode checkpoint-logic falsification-artifacts repair-mode safety"
+
     while IFS= read -r file; do
         # Check links to command-examples.md
         if grep -q "command-examples.md#" "$file" 2>/dev/null; then
@@ -211,6 +228,17 @@ check_cross_refs() {
             for anchor in $anchors; do
                 if ! echo "$agent_anchors" | grep -qw "$anchor"; then
                     warn "$(basename "$file"): Invalid anchor #$anchor in agent-workflows.md link"
+                fi
+            done
+        fi
+
+        # Check links to cycle-engine.md
+        if grep -q "cycle-engine.md#" "$file" 2>/dev/null; then
+            local anchors
+            anchors=$(grep -oE "cycle-engine\.md#[a-z-]+" "$file" | sed 's/.*#//' | sort -u)
+            for anchor in $anchors; do
+                if ! echo "$engine_anchors" | grep -qw "$anchor"; then
+                    warn "$(basename "$file"): Invalid anchor #$anchor in cycle-engine.md link"
                 fi
             done
         fi

@@ -165,86 +165,33 @@ When autoprove stops (for any reason), emit:
 
 Bounded subroutine for stubborn sorries. Default: `stuck` (auto-escalate when stuck).
 
-| Mode | Behavior |
-|------|----------|
-| `never` | No deep escalation |
-| `stuck` | Auto-escalate only when stuck (default) |
-| `always` | Auto-escalate on any fast-path failure |
+Modes: `never` | `stuck` (default, auto on stuck) | `always` (auto on any failure). Note: `ask` is coerced to `stuck` (no interactive prompting in autoprove).
 
-**Budget enforcement:**
-- `--deep-sorry-budget` — max sorries per deep invocation (default: 2)
-- `--deep-time-budget` — max time per deep invocation (default: 20m)
-- `--max-deep-per-cycle` — max deep invocations per cycle (default: 1)
-- `--max-consecutive-deep-cycles` — hard cap on consecutive cycles using deep mode (default: 2)
+Statement changes are logged but auto-skipped. Use `/lean4:prove` for interactive approval.
 
-If deep budget is exhausted with no progress → stuck.
-
-**Statement changes:** In autoprove, statement changes are logged but auto-skipped (no interactive approval). Use `/lean4:prove` for interactive approval of statement changes.
+See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#deep-mode) for budget parameters and prove/autoprove comparison.
 
 ## Stuck Definition
 
-A sorry or repair target is **stuck** when any of these hold:
+A sorry is **stuck** when: same failure 2-3x, same build error 2x, no progress 10+ min, or empty LSP search 2x.
 
-1. Same sorry failed 2–3 times with no new approach
-2. Same build error repeats after 2 repair attempts
-3. No sorry count decrease for 10+ minutes
-4. LSP search returns empty twice for same goal
+**When stuck:** auto-review → planner mode → revised plan → next cycle executes plan. On falsification flag: auto counterexample/salvage pass.
 
-**Same blocker** is computed as `(file, line, primary_error_code_or_text_hash)`. Two consecutive iterations producing the same blocker signature = same blocker.
-
-**When stuck detected:**
-1. Run `/lean4:review <file> --scope=sorry --line=N --mode=stuck`
-2. Enter planner mode → revised plan
-3. Next cycle executes the revised plan
-
-**Important:** Stuck-triggered replan is mandatory even if `--planning=off`. It is a safety mechanism, not optional planning.
-
-### Stuck → Counterexample / Salvage
-
-When stuck and review includes a falsification flag:
-1. Explicit witness search (small domain or concrete instantiation)
-2. If found → create `T_counterexample` lemma
-3. Create `T_salvaged` (weaker version that is provable)
-4. Follow default falsification policy (counterexample + salvage only)
+See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#stuck-definition) for full detection logic and blocker signature computation.
 
 ## Falsification Artifacts
 
-**Counterexample lemma (preferred):**
-```lean
-/-- Counterexample to the naive statement `T`. -/
-theorem T_counterexample : ∃ w : α, ¬ P w := by
-  refine ⟨w0, ?_⟩
-  -- proof
-```
+When a statement is disproved, create `T_counterexample` and `T_salvaged` lemmas. Avoid proving `¬ P` if original sorry exists.
 
-**Salvage lemma:**
-```lean
-/-- Salvage: a weaker version of `T` that is true. -/
-theorem T_salvaged (extra_assumptions...) : Q := by
-  -- proof
-```
-
-**Safety:** Avoid proving `¬ P` if a `theorem T : P := by sorry` exists.
+See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#falsification-artifacts) for Lean code templates.
 
 ## Repair Mode
 
-When build fails, shift to repair workflow:
-
-| Error | Typical Fix |
-|-------|-------------|
-| `type mismatch` | Add coercion, `convert`, fix argument |
-| `unknown identifier` | Search mathlib, add import |
-| `failed to synthesize` | Add `haveI`/`letI` |
-| `timeout` | Narrow `simp`, add explicit types |
-
-For detailed fixes, see [compilation-errors.md](../skills/lean4/references/compilation-errors.md). For persistent issues, [capture a build log](../skills/lean4/references/compilation-errors.md#build-log-capture) for inspection.
+When build fails, shift to repair workflow. See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#repair-mode) for error table and [compilation-errors.md](../skills/lean4/references/compilation-errors.md) for detailed fixes.
 
 ## Safety
 
-- `git push` blocked (review first)
-- `git commit --amend` blocked (preserve history)
-- `gh pr create` blocked (review first)
-- `git checkout --`/`git restore`/`git reset --hard`/`git clean` blocked (use `git stash push -u` or revert commit)
+Destructive git commands are blocked. See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#safety) for the full list.
 
 ## See Also
 
@@ -252,4 +199,5 @@ For detailed fixes, see [compilation-errors.md](../skills/lean4/references/compi
 - `/lean4:checkpoint` - Manual save point
 - `/lean4:review` - Quality check (read-only)
 - `/lean4:golf` - Optimize proofs
+- [Cycle Engine](../skills/lean4/references/cycle-engine.md) - Shared prove/autoprove mechanics
 - [Examples](../skills/lean4/references/command-examples.md#autoprove)

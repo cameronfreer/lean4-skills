@@ -146,6 +146,8 @@ Replanning: Search Mathlib.Topology.Order for tendsto variants
 [continues autonomously...]
 ```
 
+See [cycle-engine.md](cycle-engine.md#stuck-definition) for stuck detection logic and [deep mode](cycle-engine.md#deep-mode) for escalation behavior.
+
 ### Stop Condition Example
 
 ```
@@ -499,6 +501,8 @@ See [review-hook-schema.md](review-hook-schema.md) for full input/output schemas
 
 ### Stuck Review Example
 
+See [cycle-engine.md](cycle-engine.md#stuck-definition) for stuck detection criteria.
+
 ```
 [Autoprover detects no progress on Core.lean:89]
 
@@ -553,6 +557,8 @@ Claude: Golfing Core.lean...
 ```
 
 ### Counterexample Discovery Example
+
+See [cycle-engine.md](cycle-engine.md#falsification-artifacts) for artifact templates.
 
 ```
 Claude: Working on Core.lean:42 - `naive_bound`...

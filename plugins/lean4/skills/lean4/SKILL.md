@@ -1,6 +1,6 @@
 ---
 name: lean4
-description: "Use when editing .lean files, seeing sorry/failed to synthesize instance, lake build errors, or searching mathlib."
+description: "Use when editing .lean files, seeing type mismatch/sorry/failed to synthesize instance/axiom warnings, lake build errors, or searching mathlib for theorem proofs."
 ---
 
 # Lean 4 Theorem Proving
@@ -91,13 +91,7 @@ When editing `.lean` files without invoking a command, the skill runs **one boun
 
 ## Common Fixes
 
-| Error | Fix |
-|-------|-----|
-| `type mismatch` | Add coercion `(x : ℝ)` or `((x : ℝ))`, use `convert`, fix argument order |
-| `unknown identifier` | Add import, qualify name (`Mathlib.X.Y.foo`), check spelling |
-| `failed to synthesize` | Add `haveI`/`letI`, use `open scoped`, check instance args |
-| `maximum recursion` | Provide explicit instance with `letI` |
-| `timeout` | Replace `simp [*]` with `simp only [...]` or targeted lemmas |
+See [compilation-errors](references/compilation-errors.md) for error-by-error guidance (type mismatch, unknown identifier, failed to synthesize, timeout, etc.).
 
 ## Type Class Patterns
 
@@ -119,6 +113,10 @@ Try in order (stop on first success):
 
 Note: `exact?`/`apply?` query mathlib (slow). `grind` and `aesop` are powerful but may timeout.
 
+## Troubleshooting
+
+If LSP tools aren't responding, scripts provide fallback for all operations. If environment variables (`LEAN4_SCRIPTS`, `LEAN4_REFS`) are missing, run `/lean4:doctor` to diagnose.
+
 ## Quality Gate
 
 A proof is complete when:
@@ -129,22 +127,24 @@ A proof is complete when:
 
 ## References
 
-**LSP Tools:** [lean-lsp-server](references/lean-lsp-server.md) (quick start), [lean-lsp-tools-api](references/lean-lsp-tools-api.md) (full API details)
+**Cycle Engine:** [cycle-engine](references/cycle-engine.md) — shared prove/autoprove logic (stuck, deep mode, falsification, safety)
 
-**Search:** [mathlib-guide](references/mathlib-guide.md) (finding lemmas), [lean-phrasebook](references/lean-phrasebook.md) (math-to-Lean translations)
+**LSP Tools:** [lean-lsp-server](references/lean-lsp-server.md) (quick start), [lean-lsp-tools-api](references/lean-lsp-tools-api.md) (full API — grep `^##` for tool names)
 
-**Errors:** [compilation-errors](references/compilation-errors.md) (when build fails), [instance-pollution](references/instance-pollution.md) (when typeclass issues persist), [compiler-guided-repair](references/compiler-guided-repair.md) (systematic repair workflow)
+**Search:** [mathlib-guide](references/mathlib-guide.md) (read when searching for existing lemmas), [lean-phrasebook](references/lean-phrasebook.md) (math→Lean translations)
 
-**Tactics:** [tactics-reference](references/tactics-reference.md) (tactic lookup), [tactic-patterns](references/tactic-patterns.md) (common patterns), [calc-patterns](references/calc-patterns.md) (calculation proofs), [simp-hygiene](references/simp-hygiene.md) (simp troubleshooting)
+**Errors:** [compilation-errors](references/compilation-errors.md) (read first for any build error), [instance-pollution](references/instance-pollution.md) (typeclass conflicts — grep `## Sub-` for patterns), [compiler-guided-repair](references/compiler-guided-repair.md) (systematic repair)
 
-**Proof Development:** [proof-templates](references/proof-templates.md) (starting points), [proof-refactoring](references/proof-refactoring.md) (restructuring proofs), [sorry-filling](references/sorry-filling.md) (sorry elimination)
+**Tactics:** [tactics-reference](references/tactics-reference.md) (tactic lookup — grep `^### TacticName`), [tactic-patterns](references/tactic-patterns.md), [calc-patterns](references/calc-patterns.md), [simp-hygiene](references/simp-hygiene.md)
 
-**Optimization:** [proof-golfing](references/proof-golfing.md) (shortening proofs), [proof-golfing-patterns](references/proof-golfing-patterns.md) (specific techniques), [proof-golfing-safety](references/proof-golfing-safety.md) (avoiding breakage), [performance-optimization](references/performance-optimization.md) (slow proof fixes)
+**Proof Development:** [proof-templates](references/proof-templates.md), [proof-refactoring](references/proof-refactoring.md) (28K — grep by topic), [sorry-filling](references/sorry-filling.md)
 
-**Domain-Specific:** [domain-patterns](references/domain-patterns.md) (by math area), [measure-theory](references/measure-theory.md) (measure/probability), [axiom-elimination](references/axiom-elimination.md) (removing sorry/axiom)
+**Optimization:** [proof-golfing](references/proof-golfing.md), [proof-golfing-patterns](references/proof-golfing-patterns.md), [proof-golfing-safety](references/proof-golfing-safety.md), [performance-optimization](references/performance-optimization.md) (grep by symptom)
 
-**Style:** [mathlib-style](references/mathlib-style.md) (naming/formatting conventions)
+**Domain:** [domain-patterns](references/domain-patterns.md) (25K — grep `## Area`), [measure-theory](references/measure-theory.md) (28K), [axiom-elimination](references/axiom-elimination.md)
 
-**Workflows:** [agent-workflows](references/agent-workflows.md) (internal agents), [subagent-workflows](references/subagent-workflows.md) (delegation patterns), [command-examples](references/command-examples.md) (usage examples)
+**Style:** [mathlib-style](references/mathlib-style.md)
 
-**Internals:** [review-hook-schema](references/review-hook-schema.md) (hook configuration)
+**Workflows:** [agent-workflows](references/agent-workflows.md), [subagent-workflows](references/subagent-workflows.md), [command-examples](references/command-examples.md)
+
+**Internals:** [review-hook-schema](references/review-hook-schema.md)
