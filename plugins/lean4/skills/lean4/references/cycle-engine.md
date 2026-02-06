@@ -124,7 +124,7 @@ If deep budget is exhausted with no progress → stuck.
 
 - **Regression**: sorry count increases, new diagnostic errors appear, or new blocker signatures introduced compared to pre-deep snapshot
 - **No improvement**: sorry count unchanged AND no diagnostic improvement after deep completes
-- **Rollback**: restore working tree to pre-deep snapshot via saved stash ref; mark sorry as stuck with reason (e.g., `"deep: regression — sorry count increased from 3 to 5"`)
+- **Rollback**: restore working tree to pre-deep snapshot via saved snapshot id/ref; mark sorry as stuck with reason (e.g., `"deep: regression — sorry count increased from 3 to 5"`)
 
 ### Deep Snapshot and Rollback
 
@@ -134,7 +134,7 @@ The snapshot mechanism is implementation-defined; the contract is that rollback 
 
 Example (illustrative, not contractual):
 ```bash
-# Snapshot: git stash push -u -- <deep-managed-files> -m "deep-snapshot: <sorry-id>" and record ref
+# Snapshot: git stash push -u -m "deep-snapshot: <sorry-id>" -- <deep-managed-files> and record ref
 # Rollback: git stash apply <saved-ref> && git stash drop <saved-ref>
 ```
 
@@ -189,7 +189,7 @@ If `--commit=never`, skip the checkpoint commit entirely — changes remain in t
 
 Otherwise, if `--checkpoint` is enabled and there is a non-empty diff:
 - **prove:** Stage only files from **accepted** fills (exclude declined fills)
-- **autoprove:** Stage all files modified during this cycle
+- **autoprove:** Stage only files from successful, non-rolled-back work
 - **Both:** Exclude files from rolled-back deep invocations — those files are restored to pre-deep state and must not be staged
 - Commit: `git commit -m "checkpoint(lean4): [summary]"`
 
