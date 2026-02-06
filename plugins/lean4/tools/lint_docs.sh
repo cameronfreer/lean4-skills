@@ -281,7 +281,7 @@ check_reference_links() {
             [[ "$_rl_anchor" == "$_rl_target" ]] && _rl_anchor=""
 
             # Resolve relative to file's directory
-            _rl_resolved=$(cd "$_rl_dir" && realpath -q "$_rl_path" 2>/dev/null || echo "")
+            _rl_resolved=$(cd "$_rl_dir" && realpath "$_rl_path" 2>/dev/null || echo "")
 
             # Check target file exists
             if [[ -z "$_rl_resolved" || ! -f "$_rl_resolved" ]]; then

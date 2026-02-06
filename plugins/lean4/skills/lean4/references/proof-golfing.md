@@ -53,7 +53,7 @@
 1. **Audit:** Remove commented code, fix linter warnings, run `lake build`
 2. **Discover:** Use grep patterns to find targets (see [safety guide](proof-golfing-safety.md#phase-1-pattern-discovery-5-min))
 3. **Verify:** Count binding usages before inlining
-4. **Apply:** Make change → `lake build` → revert if fails
+4. **Apply:** Make change → `lean_diagnostic_messages` → revert if fails; `lake build` for final verification
 5. **Stop:** When success rate < 20% or time > 15 min per optimization
 
 ## Lemma Replacement

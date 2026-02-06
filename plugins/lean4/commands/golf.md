@@ -44,7 +44,7 @@ Optimize Lean proofs that already compile. Reduce tactic count, shorten proofs, 
    ```bash
    ${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/analyze_let_usage.py [file] --line [line]
    ```
-5. **Apply** - Make changes with `lake build` verification after each
+5. **Apply** - Make changes with `lean_diagnostic_messages` after each; `lake build` for final verification
 6. **Report** - Show savings and saturation status
 
 ## Golfing Patterns
