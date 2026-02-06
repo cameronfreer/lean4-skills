@@ -167,7 +167,10 @@ Run `/lean4:doctor` for full diagnostics.
 - `/lean4:prove` — guided, cycle-by-cycle (asks before each cycle)
 - `/lean4:autoprove` — autonomous, with hard stop rules
 
-No flag changes needed. Both share the same cycle engine and flags.
+Both share the same cycle engine and most flags. Key differences:
+- **prove-only:** `--deep=ask` (interactive prompt), `--planning=ask`
+- **autoprove-only:** `--max-cycles`, `--max-total-runtime`, `--max-stuck-cycles`, `--max-consecutive-deep-cycles`
+- **Different defaults:** autoprove uses `--batch-size=2`, `--deep=stuck`, `--golf=never`; prove uses `--batch-size=1`, `--deep=never`, `--golf=prompt`
 
 ## See Also
 

@@ -93,7 +93,8 @@ See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) for detailed
 ### Phase 3: Checkpoint
 
 If `--checkpoint` is enabled and there is a non-empty diff:
-- Stage and commit: `git commit -m "checkpoint(lean4): [summary]"`
+- Stage all modified files: `git add -A`
+- Commit: `git commit -m "checkpoint(lean4): [summary]"`
 
 If no files changed during this cycle, emit:
 > No changes this cycle — skipping checkpoint
