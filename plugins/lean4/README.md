@@ -37,7 +37,7 @@ When you edit `.lean` files in a normal conversation, the plugin activates autom
 
 Start here if you're new or want to stay in control.
 
-At startup, `prove` asks your preferences: planning on/off, review source, scope. It confirms before the first commit (shows the diff, you pick `yes-all` or `never` for the session). Between every cycle it pauses:
+At startup, `prove` asks your preferences: planning on/off and review source. It confirms before the first commit (shows the diff, you pick `yes-all` or `never` for the session). Between every cycle it pauses:
 
 ```
 Cycle complete. Filled 2/8 sorries this cycle.
@@ -52,7 +52,7 @@ It never auto-starts the next cycle. You decide when to continue.
 
 Use when you want to kick it off and walk away.
 
-No questionnaire — discovers state and starts immediately. Commits without prompting. Loops automatically with checkpoint + review + replan at each cycle boundary. Stops on the first condition met:
+No questionnaire — discovers state and starts immediately. Commits without prompting by default (`--commit=auto`). Loops automatically with checkpoint + review + replan at each cycle boundary. Stops on the first condition met:
 
 - All sorries filled
 - 3 consecutive stuck cycles (`--max-stuck-cycles`)
