@@ -375,9 +375,8 @@ check_bare_scripts() {
             for _bs_script in $_bs_scripts; do
                 # Skip if this script isn't on this line
                 echo "$_bs_match" | grep -qF "$_bs_script" || continue
-                # Skip if every occurrence is prefixed with LEAN4_SCRIPTS/
-                # Check: does a bare (non-prefixed) occurrence exist?
-                if echo "$_bs_match" | grep -qP "(?<!LEAN4_SCRIPTS/)(?<![/a-zA-Z0-9_])$( echo "$_bs_script" | sed 's/\./\\./g' )"; then
+                # Portable: strip prefixed occurrences, check if bare name remains
+                if echo "$_bs_match" | sed "s|LEAN4_SCRIPTS/$_bs_script||g" | grep -qF "$_bs_script"; then
                     if [[ "$_bs_severity" == "fail" ]]; then
                         warn "$_bs_base:$_bs_line: Bare script '$_bs_script' (use \$LEAN4_SCRIPTS/ prefix)"
                     else

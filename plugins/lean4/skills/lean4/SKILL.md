@@ -73,8 +73,8 @@ lean_multi_attempt(file, line, snippets=[...])  # Test multiple tactics
 **Usage:** Invoked by commands automatically. See [references/](references/) for details.
 
 **Invocation contract:** Never run bare script names. Always use:
-- Python: `${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/script.py ...`
-- Shell: `bash $LEAN4_SCRIPTS/script.sh ...`
+- Python: `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/script.py" ...`
+- Shell: `bash "$LEAN4_SCRIPTS/script.sh" ...`
 
 If `$LEAN4_SCRIPTS` is unset or missing, run `/lean4:doctor` and stay LSP-only until resolved.
 
@@ -127,7 +127,7 @@ If LSP tools aren't responding, scripts provide fallback for all operations. If 
 ```bash
 echo "$LEAN4_SCRIPTS"
 ls -l "$LEAN4_SCRIPTS/sorry_analyzer.py"
-${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/sorry_analyzer.py . --format=summary
+${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary
 ```
 
 ## Quality Gate

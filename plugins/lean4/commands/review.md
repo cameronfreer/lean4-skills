@@ -111,10 +111,10 @@ Example: `**Flag:** Statement may be false (decidable goal failed decide)`
 The agent selects files based on scope, then runs these analyses (per file or directory):
 
 1. **Build Status** - `lake build`
-2. **Sorry Audit** - `${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/sorry_analyzer.py <target> --format=json`
-3. **Axiom Check** - `bash $LEAN4_SCRIPTS/check_axioms_inline.sh <target>`
+2. **Sorry Audit** - `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" <target> --format=json`
+3. **Axiom Check** - `bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target>`
 4. **Style Review** - Check mathlib conventions (naming, structure, tactics)
-5. **Golfing Opportunities** - `${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/find_golfable.py <target> --filter-false-positives`
+5. **Golfing Opportunities** - `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/find_golfable.py" <target> --filter-false-positives`
 6. **Complexity Metrics** - Proof sizes, longest proofs, tactic patterns
 
 **Stuck mode:** Steps 5–6 are skipped; focus is on blockers (steps 1–4) for quick triage.
