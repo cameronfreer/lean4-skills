@@ -37,7 +37,7 @@ When you edit `.lean` files in a normal conversation, the plugin activates autom
 
 Start here if you're new or want to stay in control.
 
-At startup, `prove` asks your preferences: planning on/off and review source. It confirms before the first commit (shows the diff, you pick `yes-all` or `never` for the session). Between every cycle it pauses:
+At startup, `prove` asks your preferences: planning on/off and review source. Before each commit it shows the diff and asks — pick `yes-all` to stop prompting, or `never` to skip all commits for the session. Between every cycle it pauses:
 
 ```
 Cycle complete. Filled 2/8 sorries this cycle.
@@ -107,7 +107,7 @@ Checks your environment (lean, lake, python, git), plugin structure, project hea
 
 ### Commit Behavior
 
-- `prove` defaults to `--commit=ask` — confirms before first commit, then follows your session choice
+- `prove` defaults to `--commit=ask` — prompts before each commit (`yes-all` / `never` to stop prompting)
 - `autoprove` defaults to `--commit=auto` — commits without prompting
 - Both stage only files actually touched during the work, never `git add -A`
 

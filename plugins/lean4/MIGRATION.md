@@ -168,7 +168,7 @@ Run `/lean4:doctor` for full diagnostics.
 - `/lean4:autoprove` — autonomous, with hard stop rules
 
 Both share the same cycle engine and most flags. Key differences:
-- **prove-only:** `--deep=ask` (interactive prompt), `--planning=ask`, `--commit=ask` (first-commit confirmation)
+- **prove-only:** `--deep=ask` (interactive prompt), `--planning=ask`, `--commit=ask` (per-commit confirmation)
 - **autoprove-only:** `--max-cycles`, `--max-total-runtime`, `--max-stuck-cycles`, `--max-consecutive-deep-cycles` (autoprove coerces `--commit=ask` and `--review-source=external` to non-interactive values)
 - **Different defaults:** autoprove uses `--batch-size=2`, `--deep=stuck`, `--golf=never`, `--commit=auto`; prove uses `--batch-size=1`, `--deep=never`, `--golf=prompt`, `--commit=ask`
 

@@ -32,7 +32,7 @@ Guided, cycle-by-cycle theorem proving. Asks before each cycle, supports deep es
 | --deep-time-budget | No | 10m | Max time per deep invocation |
 | --max-deep-per-cycle | No | 1 | Max deep invocations per cycle |
 | --batch-size | No | 1 | Sorries to attempt per cycle |
-| --commit | No | ask | `ask` (confirm before first commit), `auto`, or `never` |
+| --commit | No | ask | `ask` (prompt before each commit), `auto`, or `never` |
 | --golf | No | prompt | `prompt`, `auto`, or `never` |
 
 ## Startup Behavior
@@ -82,8 +82,8 @@ See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) for detailed
 5. **Validate** — Use LSP diagnostics (`lean_diagnostic_messages`) to check sorry count decreased. Reserve `lake build` for review checkpoints or explicit `/lean4:checkpoint`.
 6. **Stage & Commit** — If `--commit=never`, skip staging and committing entirely. Otherwise, stage only files touched during this sorry (`git add <edited files>`), then:
 
-   **First commit gate** (when `--commit=ask`, the default):
-   Before the very first commit of the session, show the diff and ask:
+   **Commit prompt** (when `--commit=ask`, the default):
+   Show the diff and ask before each commit:
    ```
    About to commit: fill: trivial_lemma - exact Nat.zero_le
    Files: Helpers.lean
@@ -91,12 +91,12 @@ See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) for detailed
 
    Commit this? [yes / yes-all / no / never]
    ```
-   - **yes** — commit this one, ask again next time
-   - **yes-all** — commit this and all future commits without asking
-   - **no** — unstage (`git reset HEAD <files>`), skip this commit, ask again next time
-   - **never** — unstage (`git reset HEAD <files>`), skip all commits for rest of session
+   - **yes** — commit this fill, prompt again for the next one
+   - **yes-all** — commit this and all future fills without prompting (switches to `auto` for rest of session)
+   - **no** — unstage (`git reset HEAD <files>`), skip this fill's commit, prompt again for the next one
+   - **never** — unstage (`git reset HEAD <files>`), skip all commits for rest of session (switches to `never` mode)
 
-   On **no** or **never**, always unstage the files so they are not carried into a later commit.
+   On **no** or **never**, always unstage so declined changes are not carried into a later commit.
 
    If `--commit=auto`, commit without prompting.
 
@@ -104,10 +104,11 @@ See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) for detailed
 
 ### Phase 3: Checkpoint
 
-If `--commit=never` (or the user chose **never** at the commit gate), skip the checkpoint commit entirely — changes remain in the working tree.
+If `--commit=never` (or the user chose **never** at the commit prompt), skip the checkpoint commit entirely — changes remain in the working tree.
 
 Otherwise, if `--checkpoint` is enabled and there is a non-empty diff:
-- Stage only files modified during this cycle: `git add <touched files>`
+- Stage only files from **accepted** fills that were not already committed individually: `git add <accepted files>`
+- Do **not** re-stage files from declined fills — those stay in the working tree only
 - Commit: `git commit -m "checkpoint(lean4): [summary]"`
 
 If no files changed during this cycle, emit:

@@ -38,7 +38,7 @@ git push                   # Manual, after review
 
 ## How It Works
 
-**`/lean4:prove`** — Guided, interactive. Asks preferences at startup, confirms before the first commit, pauses between cycles. Start here.
+**`/lean4:prove`** — Guided, interactive. Asks preferences at startup, prompts before each commit, pauses between cycles. Start here.
 
 **`/lean4:autoprove`** — Autonomous, unattended. No questionnaire, auto-commits, loops until done or a stop condition fires (max cycles/time/stuck).
 
