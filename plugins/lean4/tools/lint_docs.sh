@@ -453,6 +453,128 @@ check_deep_safety() {
     ok "Deep-safety invariants checked"
 }
 
+# Check 10: Guardrail documentation completeness
+check_guardrail_docs() {
+    log ""
+    log "Checking guardrail documentation..."
+
+    local _gd_file _gd_base
+
+    for doc in README.md MIGRATION.md; do
+        _gd_file="$PLUGIN_ROOT/$doc"
+        _gd_base="$doc"
+
+        if [[ ! -f "$_gd_file" ]]; then
+            warn "$_gd_base: File not found"
+            continue
+        fi
+
+        if ! grep -qiE 'Lean project' "$_gd_file" 2>/dev/null; then
+            warn "$_gd_base: Missing Lean project scope statement in guardrails section"
+        fi
+        if ! grep -q 'LEAN4_GUARDRAILS_DISABLE' "$_gd_file" 2>/dev/null; then
+            warn "$_gd_base: Missing LEAN4_GUARDRAILS_DISABLE documentation"
+        fi
+        if ! grep -q 'LEAN4_GUARDRAILS_FORCE' "$_gd_file" 2>/dev/null; then
+            warn "$_gd_base: Missing LEAN4_GUARDRAILS_FORCE documentation"
+        fi
+    done
+
+    ok "Guardrail documentation checked"
+}
+
+# Check 11: Guardrail implementation invariants
+check_guardrail_impl() {
+    log ""
+    log "Checking guardrail implementation..."
+
+    local _gi_file="$PLUGIN_ROOT/hooks/guardrails.sh"
+
+    if [[ ! -f "$_gi_file" ]]; then
+        warn "guardrails.sh: File not found"
+        return
+    fi
+
+    if ! grep -q 'LEAN4_GUARDRAILS_DISABLE' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Missing LEAN4_GUARDRAILS_DISABLE support"
+    fi
+    if ! grep -q 'LEAN4_GUARDRAILS_FORCE' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Missing LEAN4_GUARDRAILS_FORCE support"
+    fi
+    # Lean marker detection
+    for marker in lakefile.lean lean-toolchain lakefile.toml; do
+        if ! grep -q "$marker" "$_gi_file" 2>/dev/null; then
+            warn "guardrails.sh: Missing Lean marker detection for $marker"
+        fi
+    done
+    # Message prefix: must have qualified prefix, must not have bare "BLOCKED:" without qualifier
+    if ! grep -q 'BLOCKED (Lean guardrail):' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Missing 'BLOCKED (Lean guardrail):' message prefix"
+    fi
+    # Reject any BLOCKED that isn't followed by " (Lean guardrail)" — catches quotes, format changes
+    if grep -E 'BLOCKED[^(]' "$_gi_file" 2>/dev/null | grep -vq 'BLOCKED (Lean guardrail)' 2>/dev/null; then
+        warn "guardrails.sh: Found bare BLOCKED without '(Lean guardrail)' qualifier"
+    fi
+
+    ok "Guardrail implementation checked"
+}
+
+# Check 12: Backward-compat scripts alias
+check_compat_alias() {
+    log ""
+    log "Checking compat alias..."
+
+    local _ca_link="$PLUGIN_ROOT/scripts"
+    local _ca_target
+
+    if [[ ! -L "$_ca_link" ]]; then
+        warn "scripts: Missing compat symlink (expected scripts -> lib/scripts)"
+        return
+    fi
+
+    _ca_target=$(readlink "$_ca_link")
+    if [[ "$_ca_target" != "lib/scripts" ]]; then
+        warn "scripts: Symlink points to '$_ca_target' (expected lib/scripts)"
+    else
+        [[ -n "$VERBOSE" ]] && ok "scripts -> lib/scripts symlink"
+    fi
+
+    ok "Compat alias checked"
+}
+
+# Check 13: Suspicious script path patterns in docs
+check_path_patterns() {
+    log ""
+    log "Checking for suspicious script path patterns..."
+
+    local _pp_base _pp_line _pp_match
+
+    while IFS= read -r file; do
+        _pp_base=$(basename "$file")
+
+        # Skip files where raw paths are expected
+        [[ "$_pp_base" == "MIGRATION.md" ]] && continue
+        case "$file" in */lib/scripts/*|*/tools/*) continue ;; esac
+
+        # Detect hardcoded cache paths: .claude/plugins/.../scripts/
+        while IFS=: read -r _pp_line _pp_match; do
+            [[ -z "$_pp_line" ]] && continue
+            warn "$_pp_base:$_pp_line: Hardcoded cache path (use \$LEAN4_SCRIPTS/ instead)"
+        done < <(grep -nE '\.claude/plugins/.*/scripts/' "$file" 2>/dev/null || true)
+
+        # Detect bare /scripts/*.py|.sh that aren't lib/scripts or $LEAN4_SCRIPTS
+        while IFS=: read -r _pp_line _pp_match; do
+            [[ -z "$_pp_line" ]] && continue
+            if echo "$_pp_match" | grep -qE '(lib/scripts|\$LEAN4_SCRIPTS|\$\{LEAN4_SCRIPTS)'; then
+                continue
+            fi
+            warn "$_pp_base:$_pp_line: Suspicious path pattern (use lib/scripts/ or \$LEAN4_SCRIPTS/)"
+        done < <(grep -nE '/scripts/[a-zA-Z_]+\.(py|sh)' "$file" 2>/dev/null || true)
+    done < <(find "$PLUGIN_ROOT" \( -name "*.md" -o -name "*.sh" \) -type f)
+
+    ok "Path pattern check done"
+}
+
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
@@ -467,6 +589,10 @@ check_reference_links
 check_stale_commands
 check_bare_scripts
 check_deep_safety
+check_guardrail_docs
+check_guardrail_impl
+check_compat_alias
+check_path_patterns
 
 log ""
 log "================================"

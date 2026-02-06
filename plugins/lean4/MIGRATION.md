@@ -110,10 +110,13 @@ V4 asks for your preferences before making changes:
 
 ### Safety Guardrails (NEW)
 
-V4 blocks certain git operations during sessions:
+V4 blocks certain git operations when working inside a Lean project (detected by `lakefile.lean`, `lean-toolchain`, or `lakefile.toml` in the directory tree). Outside Lean projects, guardrails do not fire.
+
 - `git push` - Use `/lean4:checkpoint`, then push manually
 - `git commit --amend` - Each change is a new commit
 - `gh pr create` - Review first with `/lean4:review`
+
+Override with `LEAN4_GUARDRAILS_DISABLE=1` (skip all) or `LEAN4_GUARDRAILS_FORCE=1` (enforce everywhere). `LEAN4_GUARDRAILS_DISABLE` takes precedence over `LEAN4_GUARDRAILS_FORCE`.
 
 ### Memory System (REMOVED)
 
@@ -156,6 +159,8 @@ The scripts now live in the plugin directory. Use `$LEAN4_SCRIPTS/` prefix:
 ```bash
 $LEAN4_SCRIPTS/sorry_analyzer.py .
 ```
+
+Both `lib/scripts/` and `scripts/` (compat alias) resolve to the same directory. If your environment doesn't preserve symlinks (e.g., archive extraction), use `$LEAN4_SCRIPTS` as the canonical path.
 
 ### Need help?
 

@@ -113,12 +113,23 @@ Checks your environment (lean, lake, python, git), plugin structure, project hea
 
 ### Safety Guardrails
 
-Blocked during all sessions:
+Guardrails activate only in Lean project context (a directory tree containing `lakefile.lean`, `lean-toolchain`, or `lakefile.toml`). Outside Lean projects, they are silently skipped.
+
+Blocked during Lean project sessions:
 - `git push` → Use `/lean4:checkpoint`, then push manually
 - `git commit --amend` → Each change is a new commit for safe rollback
 - `gh pr create` → Review first with `/lean4:review`
 - Destructive git operations (`checkout --`, `restore`, `reset --hard`, `clean -f`) → Use `git stash push -u`
 - Deep sorry-filling has snapshot, rollback, scope budgets, and regression gates — see [Cycle Engine](skills/lean4/references/cycle-engine.md#deep-mode)
+
+**Override environment variables:**
+
+| Variable | Effect |
+|----------|--------|
+| `LEAN4_GUARDRAILS_DISABLE=1` | Skip all guardrails regardless of context |
+| `LEAN4_GUARDRAILS_FORCE=1` | Enforce guardrails even outside Lean projects |
+
+`LEAN4_GUARDRAILS_DISABLE` takes precedence over `LEAN4_GUARDRAILS_FORCE`.
 
 ### LSP-First Approach
 
@@ -146,6 +157,13 @@ Set by `bootstrap.sh` at session start:
 | `LEAN4_REFS` | References directory |
 | `LEAN4_PYTHON_BIN` | Python interpreter |
 
+Optional user overrides (not set by bootstrap):
+
+| Variable | Purpose |
+|----------|---------|
+| `LEAN4_GUARDRAILS_DISABLE` | Skip all guardrails (set to `1`) |
+| `LEAN4_GUARDRAILS_FORCE` | Force guardrails outside Lean projects (set to `1`) |
+
 **Script troubleshooting:**
 ```bash
 echo "$LEAN4_SCRIPTS"
@@ -164,8 +182,9 @@ plugins/lean4/
 ├── skills/lean4/
 │   ├── SKILL.md        # Core skill reference
 │   └── references/     # 23 reference docs
-├── agents/             # 5 specialized agents
+├── agents/             # 4 specialized agents
 ├── hooks/              # Bootstrap and guardrails
+├── scripts/           # Compat alias → lib/scripts
 └── lib/scripts/        # 12 hard-primitive scripts
 ```
 

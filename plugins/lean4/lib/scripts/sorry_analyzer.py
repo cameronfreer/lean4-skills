@@ -3,7 +3,7 @@
 sorry_analyzer.py - Extract and analyze sorry statements in Lean 4 code
 
 Usage:
-    ./sorry_analyzer.py <file-or-directory> [--format=text|json|markdown|summary] [--interactive] [--include-deps] [--exit-zero-on-findings]
+    ./sorry_analyzer.py <file-or-directory> [--format=FORMAT | --format FORMAT] [--interactive] [--include-deps] [--exit-zero-on-findings]
 
 This script finds all 'sorry' instances in Lean files and extracts:
 - Location (file, line number)
@@ -13,7 +13,7 @@ This script finds all 'sorry' instances in Lean files and extracts:
 
 Modes:
     --interactive: Interactive mode to pick which sorry to work on
-    --format=FORMAT: Output format (text, json, markdown, summary)
+    --format=FORMAT (or --format FORMAT): Output format (text, json, markdown, summary)
     --include-deps: Include .lake/ directories (dependencies) in search (excluded by default)
     --exit-zero-on-findings (or --report-only): Exit 0 even when sorries are found (real errors still exit 1)
 
@@ -23,6 +23,7 @@ Examples:
     ./sorry_analyzer.py . --format=json > sorries.json
     ./sorry_analyzer.py . --format=summary
     ./sorry_analyzer.py . --interactive
+    ./sorry_analyzer.py . --format json              # space-separated format flag
 """
 
 import re
@@ -352,6 +353,12 @@ def main():
         print(__doc__)
         sys.exit(1)
 
+    # Catch common mistake: flag where target path is expected
+    if sys.argv[1].startswith('-'):
+        print("Error: missing target path (first argument must be a file or directory)", file=sys.stderr)
+        print("Usage: sorry_analyzer.py <file-or-directory> [--format=FORMAT | --format FORMAT]", file=sys.stderr)
+        sys.exit(1)
+
     target = Path(sys.argv[1])
     format_type = 'text'
     interactive = False
@@ -360,9 +367,20 @@ def main():
 
     # Parse arguments
     valid_formats = ('text', 'json', 'markdown', 'summary')
-    for arg in sys.argv[2:]:
+    i = 2
+    while i < len(sys.argv):
+        arg = sys.argv[i]
         if arg.startswith('--format='):
             format_type = arg.split('=', 1)[1]
+            if format_type not in valid_formats:
+                print(f"Error: Unknown format '{format_type}'. Valid: {', '.join(valid_formats)}", file=sys.stderr)
+                sys.exit(1)
+        elif arg == '--format':
+            i += 1
+            if i >= len(sys.argv):
+                print("Error: --format requires a value", file=sys.stderr)
+                sys.exit(1)
+            format_type = sys.argv[i]
             if format_type not in valid_formats:
                 print(f"Error: Unknown format '{format_type}'. Valid: {', '.join(valid_formats)}", file=sys.stderr)
                 sys.exit(1)
@@ -375,6 +393,7 @@ def main():
         else:
             print(f"Error: Unknown flag: {arg}", file=sys.stderr)
             sys.exit(1)
+        i += 1
 
     if not target.exists():
         print(f"Error: {target} does not exist", file=sys.stderr)
