@@ -92,6 +92,14 @@ For each let+have+exact pattern:
 
 **Other patterns:** Verify compilation test will catch issues.
 
+### Phase 2.5: Lemma Replacement Safety
+
+When search mode is enabled, replacement candidates follow the same safety rules:
+- Only accept if `lean_multi_attempt` passes
+- Only accept if net proof size decreases
+- Max one new import per replacement
+- If replacement type-mismatches or needs statement changes → skip (hand off to axiom-eliminator)
+
 ### Phase 3: Apply with Testing (5 min per pattern)
 
 1. Apply optimization

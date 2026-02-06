@@ -419,6 +419,43 @@ Success rate dropped to 15% (below 20% threshold).
 Recommend stopping further golfing on this file.
 ```
 
+### Search Mode Example
+
+```
+User: /lean4:golf Core.lean --search=quick
+
+Claude: Verifying build...
+✓ Core.lean compiles
+
+Finding golfing opportunities...
+Found 4 syntactic patterns + 2 lemma replacement candidates
+
+[1/6] Line 23: rw [h]; exact → rwa [h]
+  Diagnostics... ✓
+
+[2/6] Line 30: custom_continuous_comp → Continuous.comp (mathlib)
+  LSP search: lean_local_search("continuous comp")
+  Testing replacement... ✓ (1/2 candidates passed)
+  Import: Mathlib.Topology.Basic
+  Diagnostics... ✓
+
+[3/6] Line 45: Inline let (1 use)
+  Diagnostics... ✓
+
+[4/6] Line 67: custom_bound_lemma → replacement candidate
+  LSP search: lean_leanfinder("bound monotone")
+  Testing replacement... ✗ type mismatch (0/2 passed)
+  Skipped (hand off to axiom-eliminator for deeper work)
+
+## Golf Results
+
+Optimizations applied: 3/6
+Replacements: 1 lemma (mathlib)
+Skipped: 1 (safety), 1 (needs axiom-eliminator)
+Total savings: 5 lines (~8%)
+Build status: ✓ passing
+```
+
 ---
 
 ## review

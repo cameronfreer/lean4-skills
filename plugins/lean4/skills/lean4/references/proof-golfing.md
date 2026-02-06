@@ -56,6 +56,18 @@
 4. **Apply:** Make change → `lake build` → revert if fails
 5. **Stop:** When success rate < 20% or time > 15 min per optimization
 
+## Lemma Replacement
+
+When `--search` is enabled, the golfer performs a bounded LSP search pass before syntactic golfing:
+
+1. Search for mathlib equivalents of custom helpers/axioms
+2. Test replacements with `lean_multi_attempt`
+3. Accept only if: replacement passes, net size decreases, and at most one new import needed
+
+**Budgets:** `quick` = 1 search, ≤2 candidates; `full` = 2 searches, ≤3 candidates. Max 3 search calls total, ≤60s.
+
+**Handoff:** If replacement needs statement changes or multi-file refactor → hand off to axiom-eliminator.
+
 ## Detailed References
 
 **Pattern details:** [proof-golfing-patterns.md](proof-golfing-patterns.md) - Full explanations with examples for all patterns

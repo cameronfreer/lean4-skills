@@ -245,6 +245,29 @@ Status: Good progress, some room remains.
 Continue? (yes/no)
 ```
 
+### LSP Lemma Replacement
+
+```
+Pattern found at line 30:
+  exact custom_continuous_comp f g
+
+LSP search: lean_local_search("continuous comp") → Continuous.comp
+Replacement: lean_multi_attempt(file, 30, ["exact Continuous.comp f g"])
+  Result: ✓ passes
+
+Before (1 line):
+  exact custom_continuous_comp f g
+
+After (1 line + import):
+  exact Continuous.comp f g
+
+Diagnostics: lean_diagnostic_messages(file) → no errors
+Import added: Mathlib.Topology.Basic
+
+Savings: replaced custom helper with mathlib lemma
+Handoff: not needed (single-line, no statement change)
+```
+
 ---
 
 ## lean4-axiom-eliminator

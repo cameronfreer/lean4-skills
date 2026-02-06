@@ -17,6 +17,7 @@ Optimize Lean proofs that already compile. Reduce tactic count, shorten proofs, 
 /lean4:golf File.lean           # Golf specific file
 /lean4:golf File.lean:42        # Golf proof at specific line
 /lean4:golf --dry-run           # Show opportunities without applying
+/lean4:golf --search=full          # Include lemma replacement pass
 ```
 
 ## Inputs
@@ -25,6 +26,7 @@ Optimize Lean proofs that already compile. Reduce tactic count, shorten proofs, 
 |-----|----------|-------------|
 | target | No | File or file:line to golf |
 | --dry-run | No | Preview only, no changes |
+| --search | No | `off`, `quick` (default), or `full` — LSP lemma replacement pass |
 
 ## Actions
 
@@ -33,12 +35,17 @@ Optimize Lean proofs that already compile. Reduce tactic count, shorten proofs, 
    ```bash
    ${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/find_golfable.py [file] --filter-false-positives
    ```
-3. **Verify Safety** - Check usage before inlining:
+3. **Lemma Replacement** (if `--search=quick` or `full`):
+   - Run LSP searches per candidate; test with `lean_multi_attempt`
+   - `quick`: 1 search, ≤2 candidates; `full`: 2 searches, ≤3 candidates; budget ≤3 search calls, ≤60s
+   - Accept only shortest passing replacement with net size decrease
+   - Hand off to axiom-eliminator if replacement needs statement changes or multi-file refactor
+4. **Verify Safety** - Check usage before inlining:
    ```bash
    ${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/analyze_let_usage.py [file] --line [line]
    ```
-4. **Apply** - Make changes with `lake build` verification after each
-5. **Report** - Show savings and saturation status
+5. **Apply** - Make changes with `lake build` verification after each
+6. **Report** - Show savings and saturation status
 
 ## Golfing Patterns
 
@@ -84,6 +91,7 @@ Stop when success rate < 20% or last 3 attempts failed.
 - Requires passing build to start
 - Reverts immediately on build failure
 - Does not create commits (use `/lean4:checkpoint`)
+- `--search` replacements follow same revert-on-failure policy
 
 ## See Also
 
