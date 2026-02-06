@@ -27,7 +27,7 @@ Autonomous multi-cycle theorem proving. Runs cycles automatically with hard stop
 | --review-source | No | internal | `internal`, `external`, `both`, or `none` (see coercion below) |
 | --review-every | No | checkpoint | `N` (sorries), `checkpoint`, or `never` |
 | --checkpoint | No | true | Create checkpoint commits after each cycle |
-| --deep | No | stuck | `never`, `stuck`, or `always` |
+| --deep | No | stuck | `never`, `stuck`, or `always` (`ask` coerced to `stuck` — see Deep Mode) |
 | --deep-sorry-budget | No | 2 | Max sorries per deep invocation |
 | --deep-time-budget | No | 20m | Max time per deep invocation |
 | --max-deep-per-cycle | No | 1 | Max deep invocations per cycle |
@@ -191,7 +191,7 @@ When build fails, shift to repair workflow. See [cycle-engine.md](../skills/lean
 
 ## Safety
 
-Destructive git commands are blocked. See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#safety) for the full list.
+Guardrailed git commands are blocked. See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#safety) for the full list.
 
 ## See Also
 

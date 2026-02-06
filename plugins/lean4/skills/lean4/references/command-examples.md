@@ -504,7 +504,7 @@ See [review-hook-schema.md](review-hook-schema.md) for full input/output schemas
 See [cycle-engine.md](cycle-engine.md#stuck-definition) for stuck detection criteria.
 
 ```
-[Autoprover detects no progress on Core.lean:89]
+[Autoprove detects no progress on Core.lean:89]
 
 Claude: No progress on Core.lean:89 after 3 attempts. Running stuck review...
 

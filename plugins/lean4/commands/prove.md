@@ -196,7 +196,7 @@ When build fails, shift to repair workflow. See [cycle-engine.md](../skills/lean
 
 ## Safety
 
-Destructive git commands are blocked. See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#safety) for the full list.
+Guardrailed git commands are blocked. See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#safety) for the full list.
 
 ## See Also
 
