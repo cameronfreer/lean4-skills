@@ -359,15 +359,22 @@ def main():
     exit_zero_on_findings = False
 
     # Parse arguments
+    valid_formats = ('text', 'json', 'markdown', 'summary')
     for arg in sys.argv[2:]:
         if arg.startswith('--format='):
-            format_type = arg.split('=')[1]
+            format_type = arg.split('=', 1)[1]
+            if format_type not in valid_formats:
+                print(f"Error: Unknown format '{format_type}'. Valid: {', '.join(valid_formats)}", file=sys.stderr)
+                sys.exit(1)
         elif arg == '--interactive':
             interactive = True
         elif arg == '--include-deps':
             include_deps = True
         elif arg in ('--exit-zero-on-findings', '--report-only'):
             exit_zero_on_findings = True
+        else:
+            print(f"Error: Unknown flag: {arg}", file=sys.stderr)
+            sys.exit(1)
 
     if not target.exists():
         print(f"Error: {target} does not exist", file=sys.stderr)

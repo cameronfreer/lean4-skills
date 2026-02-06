@@ -99,7 +99,7 @@ done
 # Validate input
 if [[ ${#FILES[@]} -eq 0 ]]; then
     echo -e "${RED}Error: No files specified${NC}" >&2
-    echo "Usage: $0 <file-or-pattern> [--verbose]" >&2
+    echo "Usage: $0 <file-or-pattern> [--verbose] [--exit-zero-on-findings]" >&2
     echo "Examples:" >&2
     echo "  $0 MyFile.lean" >&2
     echo "  $0 src/**/*.lean" >&2
