@@ -34,6 +34,9 @@ Extract all `sorry` statements with context and documentation.
 
 # JSON output for tooling
 ./sorry_analyzer.py . --format=json
+
+# Report-only (exit 0 even with sorries)
+./sorry_analyzer.py . --format=summary --report-only
 ```
 
 ### check_axioms_inline.sh
@@ -46,6 +49,9 @@ Verify theorems use only standard mathlib axioms.
 
 # Check multiple files (batch mode)
 ./check_axioms_inline.sh "src/**/*.lean"
+
+# Report-only (exit 0 even with custom axioms)
+./check_axioms_inline.sh MyFile.lean --report-only
 ```
 
 **Standard axioms (acceptable):** `propext`, `Quot.sound`, `Classical.choice`
@@ -134,6 +140,9 @@ Find unused theorems, lemmas, and definitions.
 
 ```bash
 ./unused_declarations.sh src/
+
+# Report-only (exit 0 even with unused declarations)
+./unused_declarations.sh src/ --report-only
 ```
 
 ### find_golfable.py
@@ -161,6 +170,22 @@ Analyze let binding usage to avoid bad optimizations.
 - **Lean 4 project** with `lake`
 - **mathlib** in `.lake/packages/mathlib` (for search)
 - **ripgrep** (optional, 10-100x faster)
+
+## Exit Code Conventions
+
+Most scripts exit non-zero only on real errors (missing arguments, invalid paths, compilation failures).
+
+Three grep-style scripts also exit non-zero on findings by default — useful for CI gating:
+- `sorry_analyzer.py` — exit 1 when sorries found
+- `check_axioms_inline.sh` — exit 1 when custom axioms found
+- `unused_declarations.sh` — exit 1 when unused declarations found
+
+**`--exit-zero-on-findings`** (alias: `--report-only`): Makes findings exit 0 while real errors still exit 1. Use in report-only contexts (reviews, troubleshooting); do not use in gate commands like `/lean4:checkpoint`:
+
+```bash
+${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary --report-only
+bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" src/*.lean --report-only
+```
 
 ## Reference Documentation
 

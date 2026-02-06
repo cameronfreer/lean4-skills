@@ -3,7 +3,7 @@
 sorry_analyzer.py - Extract and analyze sorry statements in Lean 4 code
 
 Usage:
-    ./sorry_analyzer.py <file-or-directory> [--format=text|json|markdown|summary] [--interactive] [--include-deps]
+    ./sorry_analyzer.py <file-or-directory> [--format=text|json|markdown|summary] [--interactive] [--include-deps] [--exit-zero-on-findings]
 
 This script finds all 'sorry' instances in Lean files and extracts:
 - Location (file, line number)
@@ -15,6 +15,7 @@ Modes:
     --interactive: Interactive mode to pick which sorry to work on
     --format=FORMAT: Output format (text, json, markdown, summary)
     --include-deps: Include .lake/ directories (dependencies) in search (excluded by default)
+    --exit-zero-on-findings (or --report-only): Exit 0 even when sorries are found (real errors still exit 1)
 
 Examples:
     ./sorry_analyzer.py MyFile.lean
@@ -355,6 +356,7 @@ def main():
     format_type = 'text'
     interactive = False
     include_deps = False
+    exit_zero_on_findings = False
 
     # Parse arguments
     for arg in sys.argv[2:]:
@@ -364,6 +366,8 @@ def main():
             interactive = True
         elif arg == '--include-deps':
             include_deps = True
+        elif arg in ('--exit-zero-on-findings', '--report-only'):
+            exit_zero_on_findings = True
 
     if not target.exists():
         print(f"Error: {target} does not exist", file=sys.stderr)
@@ -375,7 +379,7 @@ def main():
     # Interactive mode takes precedence
     if interactive:
         interactive_mode(sorries)
-        sys.exit(0 if len(sorries) == 0 else 1)
+        sys.exit(0 if len(sorries) == 0 or exit_zero_on_findings else 1)
 
     # Format output
     if format_type == 'json':
@@ -388,7 +392,7 @@ def main():
         print(format_text(sorries))
 
     # Exit code: 0 if no sorries, 1 if sorries found
-    sys.exit(0 if len(sorries) == 0 else 1)
+    sys.exit(0 if len(sorries) == 0 or exit_zero_on_findings else 1)
 
 if __name__ == '__main__':
     main()

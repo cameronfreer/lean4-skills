@@ -75,6 +75,7 @@ lean_multi_attempt(file, line, snippets=[...])  # Test multiple tactics
 **Invocation contract:** Never run bare script names. Always use:
 - Python: `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/script.py" ...`
 - Shell: `bash "$LEAN4_SCRIPTS/script.sh" ...`
+- Report-only calls: add `--report-only` to `sorry_analyzer.py`, `check_axioms_inline.sh`, `unused_declarations.sh` — suppresses exit 1 on findings; real errors still exit 1. Do not use in gate commands like `/lean4:checkpoint`.
 
 If `$LEAN4_SCRIPTS` is unset or missing, run `/lean4:doctor` and stay LSP-only until resolved.
 
@@ -127,7 +128,7 @@ If LSP tools aren't responding, scripts provide fallback for all operations. If 
 ```bash
 echo "$LEAN4_SCRIPTS"
 ls -l "$LEAN4_SCRIPTS/sorry_analyzer.py"
-${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary
+${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary --report-only
 ```
 
 ## Quality Gate

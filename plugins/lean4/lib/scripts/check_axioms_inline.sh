@@ -3,9 +3,9 @@
 # check_axioms_inline.sh - Check axioms in Lean 4 files using inline #print axioms
 #
 # Usage:
-#   ./check_axioms_inline.sh <file-or-pattern> [--verbose]
+#   ./check_axioms_inline.sh <file-or-pattern> [--verbose] [--exit-zero-on-findings]
 #   ./check_axioms_inline.sh src/**/*.lean
-#   ./check_axioms_inline.sh MyFile.lean --verbose
+#   ./check_axioms_inline.sh MyFile.lean --verbose --report-only
 #
 # This script temporarily appends #print axioms commands to Lean files,
 # runs Lean to check axioms, then removes the additions.
@@ -51,6 +51,7 @@ trap cleanup EXIT INT TERM
 
 # Configuration
 VERBOSE=""
+EXIT_ZERO_ON_FINDINGS=""
 FILES=()
 MARKER="-- AUTO_AXIOM_CHECK_MARKER_DO_NOT_COMMIT"
 
@@ -66,23 +67,33 @@ STANDARD_AXIOMS="propext|quot.sound|Classical.choice|Quot.sound"
 
 # Parse arguments
 for arg in "$@"; do
-    if [[ "$arg" == "--verbose" ]]; then
-        VERBOSE="--verbose"
-    else
-        # Expand globs
-        if [[ "$arg" == *"*"* ]]; then
-            # shellcheck disable=SC2206
-            expanded=($arg)
-            for file in "${expanded[@]}"; do
-                [[ -f "$file" ]] && FILES+=("$file")
-            done
-        elif [[ -f "$arg" ]]; then
-            FILES+=("$arg")
-        else
-            echo -e "${RED}Error: $arg is not a file${NC}" >&2
+    case "$arg" in
+        --verbose)
+            VERBOSE="--verbose"
+            ;;
+        --exit-zero-on-findings|--report-only)
+            EXIT_ZERO_ON_FINDINGS="true"
+            ;;
+        --*)
+            echo -e "${RED}Error: Unknown flag: $arg${NC}" >&2
             exit 1
-        fi
-    fi
+            ;;
+        *)
+            # Expand globs
+            if [[ "$arg" == *"*"* ]]; then
+                # shellcheck disable=SC2206
+                expanded=($arg)
+                for file in "${expanded[@]}"; do
+                    [[ -f "$file" ]] && FILES+=("$file")
+                done
+            elif [[ -f "$arg" ]]; then
+                FILES+=("$arg")
+            else
+                echo -e "${RED}Error: $arg is not a file${NC}" >&2
+                exit 1
+            fi
+            ;;
+    esac
 done
 
 # Validate input
@@ -343,7 +354,7 @@ echo "  • Classical.choice (axiom of choice)"
 if [[ $FILES_WITH_CUSTOM -gt 0 ]]; then
     echo
     echo -e "${YELLOW}Tip: Non-standard axioms should have elimination plans${NC}"
-    exit 1
+    [[ -z "$EXIT_ZERO_ON_FINDINGS" ]] && exit 1
 fi
 
 if [[ ${#FAILED_FILES[@]} -gt 0 ]]; then

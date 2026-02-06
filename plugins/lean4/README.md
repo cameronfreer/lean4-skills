@@ -149,7 +149,7 @@ Set by `bootstrap.sh` at session start:
 ```bash
 echo "$LEAN4_SCRIPTS"
 ls -l "$LEAN4_SCRIPTS/sorry_analyzer.py"
-${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary
+${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary --report-only
 ```
 
 If `$LEAN4_SCRIPTS` is unset, run `/lean4:doctor` to reinitialize.

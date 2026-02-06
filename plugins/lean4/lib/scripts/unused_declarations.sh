@@ -3,7 +3,7 @@
 # unused_declarations.sh - Find unused theorems, lemmas, and definitions in Lean 4 project
 #
 # Usage:
-#   ./unused_declarations.sh [directory]
+#   ./unused_declarations.sh [directory] [--exit-zero-on-findings]
 #
 # Finds declarations (theorem, lemma, def) that are never used in the project.
 #
@@ -28,7 +28,32 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 # Configuration
-SEARCH_DIR="${1:-.}"
+EXIT_ZERO_ON_FINDINGS=""
+SEARCH_DIR=""
+for arg in "$@"; do
+    case "$arg" in
+        --exit-zero-on-findings|--report-only)
+            EXIT_ZERO_ON_FINDINGS="true"
+            ;;
+        --*)
+            echo -e "${RED}Error: Unknown flag: $arg${NC}" >&2
+            exit 1
+            ;;
+        *)
+            if [[ -n "$SEARCH_DIR" ]]; then
+                echo -e "${RED}Error: Multiple directories specified: $SEARCH_DIR and $arg${NC}" >&2
+                exit 1
+            fi
+            SEARCH_DIR="$arg"
+            ;;
+    esac
+done
+SEARCH_DIR="${SEARCH_DIR:-.}"
+
+if [[ ! -d "$SEARCH_DIR" ]]; then
+    echo -e "${RED}Error: $SEARCH_DIR is not a directory${NC}" >&2
+    exit 1
+fi
 
 # Detect if ripgrep is available
 if command -v rg &> /dev/null; then
@@ -209,4 +234,8 @@ fi
 echo ""
 
 # Exit code: 0 if all used, 1 if unused found
-exit $([[ $UNUSED_COUNT -eq 0 ]] && echo 0 || echo 1)
+if [[ $UNUSED_COUNT -eq 0 || -n "$EXIT_ZERO_ON_FINDINGS" ]]; then
+    exit 0
+else
+    exit 1
+fi
