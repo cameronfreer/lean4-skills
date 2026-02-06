@@ -446,6 +446,9 @@ check_deep_safety() {
     if ! grep -q "identical for baseline and comparison" "$_ds_file" 2>/dev/null; then
         warn "$_ds_base: Missing identical file set guarantee for regression gate"
     fi
+    if ! grep -q "rollback.*fails.*skip checkpoint" "$_ds_file" 2>/dev/null; then
+        warn "$_ds_base: Missing rollback-failure => skip checkpoint wording"
+    fi
 
     ok "Deep-safety invariants checked"
 }

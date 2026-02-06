@@ -133,9 +133,9 @@ Before entering deep mode, the engine captures a **path-scoped** snapshot of all
 The snapshot mechanism is implementation-defined; the contract is that rollback restores the snapshotted files to their exact pre-deep state without affecting other files.
 
 Example (illustrative, not contractual):
-```bash
-# Snapshot: git stash push -u -m "deep-snapshot: <sorry-id>" -- <deep-managed-files> and record ref
-# Rollback: git stash apply <saved-ref> && git stash drop <saved-ref>
+```
+# Snapshot: <snapshot-create-command>(deep-managed-files, label="deep-snapshot: <sorry-id>") → <snapshot-id>
+# Rollback: <snapshot-restore-command>(<snapshot-id>) → files restored, snapshot discarded
 ```
 
 **Rollback triggers** (per `--deep-rollback`):
