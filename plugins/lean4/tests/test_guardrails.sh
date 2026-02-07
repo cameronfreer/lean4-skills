@@ -55,6 +55,18 @@ run_test "command -p git push (block)"              "command -p git push origin 
 run_test "sudo /usr/bin/git push (block)"           "sudo /usr/bin/git push origin main"    2
 
 echo ""
+echo "-- Fix 6: bash -c nested shell bypass --"
+run_test "bash -c 'git push' (block)"              "bash -c 'git push origin main'"         2
+run_test "bash -lc 'git push' (block)"             "bash -lc 'git push origin main'"        2
+run_test "sh -c 'git push' (block)"                "sh -c 'git push origin main'"           2
+
+echo ""
+echo "-- Fix 7: quoted flags must still be detected --"
+run_test "git reset \"--hard\" (block)"             'git reset "--hard"'                     2
+run_test "git checkout \"--\" file (block)"         'git checkout "--" file.txt'              2
+run_test "git clean \"-f\" (block)"                 'git clean "-f"'                         2
+
+echo ""
 echo "-- Sanity: existing behavior --"
 run_test "git push (block)"                        "git push origin main"                   2
 run_test "sudo git push (block)"                   "sudo git push origin main"              2

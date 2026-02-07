@@ -114,6 +114,18 @@ _strip_wrappers() {
       s="${s#${s%%[[:space:]]*}}"; s="${s#"${s%%[![:space:]]*}"}"
     done
   fi
+  # Strip shell -c invocation: bash -c 'cmd' / bash -lc 'cmd' → cmd
+  if [[ "$s" =~ ^(bash|sh|zsh)([[:space:]]+-[a-zA-Z]+)*[[:space:]]+-[a-zA-Z]*c[[:space:]] ]]; then
+    s="${s#${s%%[[:space:]]*}}"; s="${s#"${s%%[![:space:]]*}"}"
+    while [[ "$s" == -* ]]; do
+      _next="${s%%[[:space:]]*}"
+      s="${s#${_next}}"; s="${s#"${s%%[![:space:]]*}"}"
+      if [[ "$_next" == *c ]]; then break; fi
+    done
+    # Unquote the -c argument if quoted
+    if [[ "$s" == \'*\' ]]; then s="${s#\'}"; s="${s%\'}";
+    elif [[ "$s" == \"*\" ]]; then s="${s#\"}"; s="${s%\"}"; fi
+  fi
   # Normalize /path/to/exe → exe for known commands
   if [[ "${s%%[[:space:]]*}" == */* ]]; then
     _next="${s%%[[:space:]]*}"
@@ -160,11 +172,14 @@ _split_segments() {
   if [[ -n "$seg" ]]; then echo "$seg"; fi
 }
 
-# Strip quoted strings so patterns match only unquoted tokens.
+# Normalize quoted strings: unquote single-token strings ("--hard" → --hard),
+# remove multi-token strings ("mention git push" → removed).
 _strip_quotes() {
   local s="$1"
-  s=$(echo "$s" | sed -E 's/"([^"\\]|\\.)*"//g')
-  s=$(echo "$s" | sed "s/'[^']*'//g")
+  # Double-quoted: unquote no-space tokens, then remove the rest
+  s=$(echo "$s" | sed -E 's/"([^"[:space:]]*)"/ \1 /g; s/"([^"\\]|\\.)*"//g')
+  # Single-quoted: unquote no-space tokens, then remove the rest
+  s=$(echo "$s" | sed -E "s/'([^'[:space:]]*)'/ \1 /g; s/'[^']*'//g")
   echo "$s"
 }
 
