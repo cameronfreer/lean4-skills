@@ -84,6 +84,13 @@ fi
 _strip_wrappers() {
   local s="$1" _next
   s="${s#"${s%%[![:space:]]*}"}"
+  # Normalize /path/to/exe → exe for known commands and wrappers
+  if [[ "${s%%[[:space:]]*}" == */* ]]; then
+    _next="${s%%[[:space:]]*}"
+    case "${_next##*/}" in
+      git|gh|lake|sudo|env|bash|sh|zsh|command) s="${_next##*/}${s#"${_next}"}" ;;
+    esac
+  fi
   # Strip sudo with options
   if [[ "$s" =~ ^sudo[[:space:]] ]]; then
     s="${s#sudo}"; s="${s#"${s%%[![:space:]]*}"}"
@@ -115,22 +122,22 @@ _strip_wrappers() {
     done
   fi
   # Strip shell -c invocation: bash -c 'cmd' / bash -lc 'cmd' → cmd
-  if [[ "$s" =~ ^(bash|sh|zsh)([[:space:]]+-[a-zA-Z]+)*[[:space:]]+-[a-zA-Z]*c[[:space:]] ]]; then
+  if [[ "$s" =~ ^(bash|sh|zsh)([[:space:]]+-[a-zA-Z-]+)*[[:space:]]+-[a-zA-Z]*c[[:space:]] ]]; then
     s="${s#${s%%[[:space:]]*}}"; s="${s#"${s%%[![:space:]]*}"}"
     while [[ "$s" == -* ]]; do
       _next="${s%%[[:space:]]*}"
       s="${s#${_next}}"; s="${s#"${s%%[![:space:]]*}"}"
-      if [[ "$_next" == *c ]]; then break; fi
+      if [[ "$_next" == *c && "$_next" != --* ]]; then break; fi
     done
     # Unquote the -c argument if quoted
     if [[ "$s" == \'*\' ]]; then s="${s#\'}"; s="${s%\'}";
     elif [[ "$s" == \"*\" ]]; then s="${s#\"}"; s="${s%\"}"; fi
   fi
-  # Normalize /path/to/exe → exe for known commands
+  # Normalize again: wrappers may have exposed a path-qualified command
   if [[ "${s%%[[:space:]]*}" == */* ]]; then
     _next="${s%%[[:space:]]*}"
     case "${_next##*/}" in
-      git|gh|lake) s="${_next##*/}${s#"${_next}"}" ;;
+      git|gh|lake|sudo|env|bash|sh|zsh|command) s="${_next##*/}${s#"${_next}"}" ;;
     esac
   fi
   echo "$s"

@@ -53,12 +53,15 @@ run_test "/usr/bin/git push (block)"                "/usr/bin/git push origin ma
 run_test "command git push (block)"                 "command git push origin main"           2
 run_test "command -p git push (block)"              "command -p git push origin main"        2
 run_test "sudo /usr/bin/git push (block)"           "sudo /usr/bin/git push origin main"    2
+run_test "/usr/bin/env -i git push (block)"         "/usr/bin/env -i git push origin main"  2
 
 echo ""
 echo "-- Fix 6: bash -c nested shell bypass --"
 run_test "bash -c 'git push' (block)"              "bash -c 'git push origin main'"         2
 run_test "bash -lc 'git push' (block)"             "bash -lc 'git push origin main'"        2
 run_test "sh -c 'git push' (block)"                "sh -c 'git push origin main'"           2
+run_test "/bin/bash -c 'git push' (block)"          "/bin/bash -c 'git push origin main'"   2
+run_test "bash --norc -c 'git push' (block)"        "bash --norc -c 'git push origin main'" 2
 
 echo ""
 echo "-- Fix 7: quoted flags must still be detected --"
