@@ -63,24 +63,35 @@ if ! is_lean_project "$TOOL_CWD"; then
   [[ "${LEAN4_GUARDRAILS_FORCE:-}" == "1" ]] || exit 0
 fi
 
+# One-shot bypass: token anywhere in command prefix (before the actual command)
+# Accepts: LEAN4_GUARDRAILS_BYPASS=1 git push ...
+#          env LEAN4_GUARDRAILS_BYPASS=1 git push ...
+#          FOO=bar LEAN4_GUARDRAILS_BYPASS=1 git push ...
+if [[ "$COMMAND" =~ (^|[[:space:]])LEAN4_GUARDRAILS_BYPASS=1([[:space:]]|$) ]]; then
+  exit 0
+fi
+
 # Block git push (broad: catches git -C, sudo git, etc.)
 # Allows: git push --dry-run, git stash push
 if echo "$COMMAND" | grep -qE '\bgit\b.*\bpush\b' && \
    ! echo "$COMMAND" | grep -qE -- '--dry-run\b' && \
    ! echo "$COMMAND" | grep -qE '\bgit\b.*\bstash\b.*\bpush\b'; then
   echo "BLOCKED (Lean guardrail): git push - use /lean4:checkpoint, then push manually" >&2
+  echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
   exit 2
 fi
 
 # Block git commit --amend (broad pattern)
 if echo "$COMMAND" | grep -qE -- '\bgit\b.*\bcommit\b.*--amend\b'; then
   echo "BLOCKED (Lean guardrail): git commit --amend - proving workflow creates new commits for safe rollback" >&2
+  echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
   exit 2
 fi
 
 # Block gh pr create
 if echo "$COMMAND" | grep -qE '\bgh\b.*\bpr\b.*\bcreate\b'; then
   echo "BLOCKED (Lean guardrail): gh pr create - review first, then create PR manually" >&2
+  echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
   exit 2
 fi
 
@@ -89,10 +100,12 @@ fi
 # Blocks: git checkout -- <path>, git checkout . (anywhere after checkout)
 if echo "$COMMAND" | grep -qE '\bgit\b.*\bcheckout\b.*\s--\s'; then
   echo "BLOCKED (Lean guardrail): destructive git checkout. Use git stash push -u or create a revert commit." >&2
+  echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
   exit 2
 fi
 if echo "$COMMAND" | grep -qE '\bgit\b.*\bcheckout\b\s+\.(\s|$)'; then
   echo "BLOCKED (Lean guardrail): git checkout . discards changes. Use git stash push -u or create a revert commit." >&2
+  echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
   exit 2
 fi
 
@@ -105,6 +118,7 @@ if echo "$COMMAND" | grep -qE '\bgit\b.*\brestore\b'; then
     : # allowed - pure unstaging
   else
     echo "BLOCKED (Lean guardrail): git restore discards changes. Use git stash push -u or create a revert commit." >&2
+    echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
     exit 2
   fi
 fi
@@ -112,6 +126,7 @@ fi
 # Block git reset --hard (discards commits and changes)
 if echo "$COMMAND" | grep -qE -- '\bgit\b.*\breset\b.*--hard\b'; then
   echo "BLOCKED (Lean guardrail): git reset --hard. Use git stash push -u or create a revert commit." >&2
+  echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
   exit 2
 fi
 
@@ -119,6 +134,7 @@ fi
 # Matches: -f, -fd, -fx, -nfd, --force, etc.
 if echo "$COMMAND" | grep -qE '\bgit\b.*\bclean\b.*(-[a-zA-Z]*f|--force)'; then
   echo "BLOCKED (Lean guardrail): git clean deletes untracked files. Use git stash push -u instead." >&2
+  echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
   exit 2
 fi
 

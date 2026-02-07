@@ -117,6 +117,7 @@ V4 blocks certain git operations when working inside a Lean project (detected by
 - `gh pr create` - Review first with `/lean4:review`
 
 Override with `LEAN4_GUARDRAILS_DISABLE=1` (skip all) or `LEAN4_GUARDRAILS_FORCE=1` (enforce everywhere). `LEAN4_GUARDRAILS_DISABLE` takes precedence over `LEAN4_GUARDRAILS_FORCE`.
+For a single command, prefix with the bypass token instead: `LEAN4_GUARDRAILS_BYPASS=1 git push origin main`.
 
 ### Memory System (REMOVED)
 

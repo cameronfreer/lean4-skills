@@ -478,6 +478,13 @@ check_guardrail_docs() {
         if ! grep -q 'LEAN4_GUARDRAILS_FORCE' "$_gd_file" 2>/dev/null; then
             warn "$_gd_base: Missing LEAN4_GUARDRAILS_FORCE documentation"
         fi
+        if ! grep -q 'LEAN4_GUARDRAILS_BYPASS' "$_gd_file" 2>/dev/null; then
+            warn "$_gd_base: Missing LEAN4_GUARDRAILS_BYPASS documentation"
+        fi
+        # Bypass must not be listed as bootstrap-set
+        if grep -A2 'bootstrap' "$_gd_file" 2>/dev/null | grep -q 'LEAN4_GUARDRAILS_BYPASS'; then
+            warn "$_gd_base: LEAN4_GUARDRAILS_BYPASS incorrectly listed as bootstrap-set"
+        fi
     done
 
     ok "Guardrail documentation checked"
@@ -500,6 +507,12 @@ check_guardrail_impl() {
     fi
     if ! grep -q 'LEAN4_GUARDRAILS_FORCE' "$_gi_file" 2>/dev/null; then
         warn "guardrails.sh: Missing LEAN4_GUARDRAILS_FORCE support"
+    fi
+    if ! grep -q 'LEAN4_GUARDRAILS_BYPASS' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Missing LEAN4_GUARDRAILS_BYPASS support"
+    fi
+    if ! grep -q 'prefix with.*LEAN4_GUARDRAILS_BYPASS' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Missing bypass hint in block messages"
     fi
     # Lean marker detection
     for marker in lakefile.lean lean-toolchain lakefile.toml; do
