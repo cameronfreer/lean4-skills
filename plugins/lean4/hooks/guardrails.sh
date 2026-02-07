@@ -76,11 +76,36 @@ if [[ "$COMMAND" =~ ^(env[[:space:]]+)?([A-Za-z_][A-Za-z_0-9]*=[^[:space:]]*[[:s
 fi
 BYPASSED=0
 
-# Block git push (broad: catches git -C, sudo git, etc.)
-# Allows: git push --dry-run, git stash push
-if echo "$COMMAND" | grep -qE '\bgit\b.*\bpush\b' && \
-   ! echo "$COMMAND" | grep -qE -- '--dry-run\b' && \
-   ! echo "$COMMAND" | grep -qE '\bgit\b.*\bstash\b.*\bpush\b'; then
+# --- Segment-based command parsing ---
+# Split command on shell operators (&&, ||, ;, |) into executable segments.
+# Strip env-var prefixes to isolate the actual command in each segment.
+# Prevents non-command contexts (echo git push) from triggering blocks,
+# and scopes exemptions (--dry-run) to the correct segment.
+SEGMENTS=()
+while IFS= read -r _seg; do
+  _seg="${_seg#"${_seg%%[![:space:]]*}"}"
+  [[ -z "$_seg" ]] && continue
+  _stripped=$(echo "$_seg" | sed -E 's/^(env[[:space:]]+)?([A-Za-z_][A-Za-z_0-9]*=[^[:space:]]*[[:space:]]+)*//')
+  SEGMENTS+=("$_stripped")
+done < <(echo "$COMMAND" | sed -E 's/(\|\||&&|[;|])/\n/g')
+
+# Helper: true if any segment starts with $1 (or sudo $1) and matches $2.
+# Optional $3: skip segments matching this pattern (scoped exemption).
+seg_match() {
+  local exe="$1" pattern="$2" exclude="${3:-}" _sm_seg
+  for _sm_seg in "${SEGMENTS[@]}"; do
+    echo "$_sm_seg" | grep -qE -- "^(sudo[[:space:]]+)?${exe}\b" || continue
+    echo "$_sm_seg" | grep -qE -- "$pattern" || continue
+    [[ -n "$exclude" ]] && echo "$_sm_seg" | grep -qE -- "$exclude" && continue
+    return 0
+  done
+  return 1
+}
+
+# --- Collaboration ops (bypassable) ---
+
+# Block git push (not --dry-run, not stash push — exemptions scoped per-segment)
+if seg_match git '\bpush\b' '--dry-run\b|\bstash\b.*\bpush\b'; then
   if [[ $BYPASS -eq 1 ]]; then BYPASSED=1; else
     echo "BLOCKED (Lean guardrail): git push - use /lean4:checkpoint, then push manually" >&2
     echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
@@ -88,8 +113,8 @@ if echo "$COMMAND" | grep -qE '\bgit\b.*\bpush\b' && \
   fi
 fi
 
-# Block git commit --amend (broad pattern)
-if echo "$COMMAND" | grep -qE -- '\bgit\b.*\bcommit\b.*--amend\b'; then
+# Block git commit --amend
+if seg_match git '\bcommit\b.*--amend\b'; then
   if [[ $BYPASS -eq 1 ]]; then BYPASSED=1; else
     echo "BLOCKED (Lean guardrail): git commit --amend - proving workflow creates new commits for safe rollback" >&2
     echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
@@ -98,7 +123,7 @@ if echo "$COMMAND" | grep -qE -- '\bgit\b.*\bcommit\b.*--amend\b'; then
 fi
 
 # Block gh pr create
-if echo "$COMMAND" | grep -qE '\bgh\b.*\bpr\b.*\bcreate\b'; then
+if seg_match gh '\bpr\b.*\bcreate\b'; then
   if [[ $BYPASS -eq 1 ]]; then BYPASSED=1; else
     echo "BLOCKED (Lean guardrail): gh pr create - review first, then create PR manually" >&2
     echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
@@ -106,14 +131,16 @@ if echo "$COMMAND" | grep -qE '\bgh\b.*\bpr\b.*\bcreate\b'; then
   fi
 fi
 
+# --- Destructive ops (never bypassable) ---
+
 # Block destructive checkout (discards uncommitted changes)
-# Allows: git checkout <branch>, git checkout -b <branch>, git checkout HEAD (detach)
-# Blocks: git checkout -- <path>, git checkout . (anywhere after checkout)
-if echo "$COMMAND" | grep -qE '\bgit\b.*\bcheckout\b.*\s--\s'; then
+# Allows: git checkout <branch>, git checkout -b <branch>
+# Blocks: git checkout -- <path>, git checkout .
+if seg_match git '\bcheckout\b.*\s--\s'; then
   echo "BLOCKED (Lean guardrail): destructive git checkout. Use git stash push -u or create a revert commit." >&2
   exit 2
 fi
-if echo "$COMMAND" | grep -qE '\bgit\b.*\bcheckout\b\s+\.(\s|$)'; then
+if seg_match git '\bcheckout\b\s+\.(\s|$)'; then
   echo "BLOCKED (Lean guardrail): git checkout . discards changes. Use git stash push -u or create a revert commit." >&2
   exit 2
 fi
@@ -121,28 +148,28 @@ fi
 # Block git restore (worktree changes only, allow pure unstaging)
 # Blocks: git restore <path>, git restore --source=..., git restore --staged --worktree
 # Allows: git restore --staged <path> (without --worktree)
-if echo "$COMMAND" | grep -qE '\bgit\b.*\brestore\b'; then
-  # Allow if --staged is present AND --worktree is NOT present
-  if echo "$COMMAND" | grep -qE -- '--staged\b' && ! echo "$COMMAND" | grep -qE -- '--worktree\b'; then
-    : # allowed - pure unstaging
-  else
-    echo "BLOCKED (Lean guardrail): git restore discards changes. Use git stash push -u or create a revert commit." >&2
-    exit 2
+for _seg in "${SEGMENTS[@]}"; do
+  echo "$_seg" | grep -qE '^(sudo[[:space:]]+)?git\b' || continue
+  echo "$_seg" | grep -qE '\brestore\b' || continue
+  if echo "$_seg" | grep -qE -- '--staged\b' && ! echo "$_seg" | grep -qE -- '--worktree\b'; then
+    continue  # allowed - pure unstaging
   fi
-fi
+  echo "BLOCKED (Lean guardrail): git restore discards changes. Use git stash push -u or create a revert commit." >&2
+  exit 2
+done
 
 # Block git reset --hard (discards commits and changes)
-if echo "$COMMAND" | grep -qE -- '\bgit\b.*\breset\b.*--hard\b'; then
+if seg_match git '\breset\b.*--hard\b'; then
   echo "BLOCKED (Lean guardrail): git reset --hard. Use git stash push -u or create a revert commit." >&2
   exit 2
 fi
 
 # Block git clean with -f/--force anywhere (deletes untracked files)
 # Matches: -f, -fd, -fx, -nfd, --force, etc.
-if echo "$COMMAND" | grep -qE '\bgit\b.*\bclean\b.*(-[a-zA-Z]*f|--force)'; then
+if seg_match git '\bclean\b.*(-[a-zA-Z]*f|--force)'; then
   echo "BLOCKED (Lean guardrail): git clean deletes untracked files. Use git stash push -u instead." >&2
   exit 2
 fi
 
-# All destructive checks passed — resolve deferred bypass or allow normally
+# All checks passed — resolve deferred bypass or allow normally
 exit 0

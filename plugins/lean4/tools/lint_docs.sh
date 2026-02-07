@@ -530,6 +530,10 @@ check_guardrail_impl() {
     if grep -E 'BYPASS.*exit 0|exit 0.*BYPASS' "$_gi_file" 2>/dev/null | grep -vq '^\s*#'; then
         warn "guardrails.sh: Bypass must not exit 0 directly (must defer past destructive checks)"
     fi
+    # Commands must be checked per-segment, not with raw whole-string matching
+    if ! grep -q 'seg_match\|SEGMENTS' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Missing segment-based command parsing (raw-string matching is insufficient)"
+    fi
     # Lean marker detection
     for marker in lakefile.lean lean-toolchain lakefile.toml; do
         if ! grep -q "$marker" "$_gi_file" 2>/dev/null; then
