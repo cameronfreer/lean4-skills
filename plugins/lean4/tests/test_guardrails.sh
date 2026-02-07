@@ -93,6 +93,8 @@ run_test "FOO=\`cmd\` git push (block)"              'FOO=`printf "a b"` git pus
 run_test "FOO=a\\ b git push (block)"                'FOO=a\ b git push origin main'             2
 run_test "FOO=\$(cmd;cmd) git push (block)"          'FOO=$(echo "a b"; echo c) git push origin main' 2
 run_test "FOO=\${BAR:-x y} git push (block)"         'FOO=${BAR:-x y} git push origin main'     2
+run_test "FOO=\$(echo \")b\";cmd) git push (block)"  'FOO=$(echo "a)b"; echo c) git push origin main' 2
+run_test "FOO=\$(echo \")b\";cmd) reset (block)"     'FOO=$(echo "a)b"; echo c) git reset --hard'     2
 
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="

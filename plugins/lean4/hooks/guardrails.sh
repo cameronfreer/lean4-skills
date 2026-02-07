@@ -136,7 +136,18 @@ _strip_wrappers() {
         _vi=$((_vi + 2)); _depth=1
         while [[ $_vi -lt $_vlen && $_depth -gt 0 ]]; do
           _vc="${s:_vi:1}"
-          if [[ "$_vc" == '(' ]]; then _depth=$((_depth + 1));
+          if [[ "$_vc" == '"' ]]; then
+            _vi=$((_vi + 1))
+            while [[ $_vi -lt $_vlen && "${s:_vi:1}" != '"' ]]; do
+              if [[ "${s:_vi:1}" == "\\" ]]; then _vi=$((_vi + 1)); fi
+              _vi=$((_vi + 1))
+            done
+          elif [[ "$_vc" == "'" ]]; then
+            _vi=$((_vi + 1))
+            while [[ $_vi -lt $_vlen && "${s:_vi:1}" != "'" ]]; do
+              _vi=$((_vi + 1))
+            done
+          elif [[ "$_vc" == '(' ]]; then _depth=$((_depth + 1));
           elif [[ "$_vc" == ')' ]]; then _depth=$((_depth - 1));
           elif [[ "$_vc" == "\\" ]]; then _vi=$((_vi + 1)); fi
           _vi=$((_vi + 1))
@@ -217,13 +228,6 @@ _split_segments() {
       fi
       seg+="$c"
       if [[ "$c" == '"' ]]; then in_dq=0; fi
-      if [[ "$c" == '$' && "$nc" == '(' ]]; then
-        seg+="$nc"; paren_depth=$((paren_depth + 1)); i=$((i + 2)); continue
-      fi
-      if [[ $paren_depth -gt 0 ]]; then
-        if [[ "$c" == '(' ]]; then paren_depth=$((paren_depth + 1)); fi
-        if [[ "$c" == ')' ]]; then paren_depth=$((paren_depth - 1)); fi
-      fi
     elif [[ $in_bt -eq 1 ]]; then
       seg+="$c"
       if [[ "$c" == "\\" && -n "$nc" ]]; then
