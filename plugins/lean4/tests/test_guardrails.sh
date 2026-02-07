@@ -95,6 +95,14 @@ run_test "FOO=\$(cmd;cmd) git push (block)"          'FOO=$(echo "a b"; echo c) 
 run_test "FOO=\${BAR:-x y} git push (block)"         'FOO=${BAR:-x y} git push origin main'     2
 run_test "FOO=\$(echo \")b\";cmd) git push (block)"  'FOO=$(echo "a)b"; echo c) git push origin main' 2
 run_test "FOO=\$(echo \")b\";cmd) reset (block)"     'FOO=$(echo "a)b"; echo c) git reset --hard'     2
+run_test "FOO=\$(echo \")b\";cmd) clean (block)"     'FOO=$(echo "a)b"; echo c) git clean -fd'        2
+
+echo ""
+echo "-- Fix 9: mixed nested syntax in assignments --"
+run_test "nested \${..\$(..;..)} git push (block)"    'FOO=${BAR:-$(echo x; echo y)} git push origin main'    2
+run_test "backtick inside \$() git push (block)"      'FOO=$(echo `whoami`) git push origin main'             2
+run_test "double-quote + \$() + ; git reset (block)"  'X="a b" Y=$(echo c; echo d) git reset --hard'         2
+run_test "\$() in env prefix git push (block)"        '/usr/bin/env FOO=$(echo "a;b") git push origin main'   2
 
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
