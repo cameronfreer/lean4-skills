@@ -110,9 +110,17 @@ _strip_wrappers() {
       s="${s#${s%%[[:space:]]*}}"; s="${s#"${s%%[![:space:]]*}"}"
     done
   fi
-  # Strip env-var assignments
-  while [[ "$s" =~ ^[A-Za-z_][A-Za-z_0-9]*=[^[:space:]]*[[:space:]] ]]; do
-    s="${s#${BASH_REMATCH[0]}}"
+  # Strip env-var assignments (unquoted, double-quoted, or single-quoted values)
+  while true; do
+    if [[ "$s" =~ ^[A-Za-z_][A-Za-z_0-9]*=\"[^\"]*\"[[:space:]] ]]; then
+      s="${s#${BASH_REMATCH[0]}}"
+    elif [[ "$s" =~ ^[A-Za-z_][A-Za-z_0-9]*=\'[^\']*\'[[:space:]] ]]; then
+      s="${s#${BASH_REMATCH[0]}}"
+    elif [[ "$s" =~ ^[A-Za-z_][A-Za-z_0-9]*=[^[:space:]]*[[:space:]] ]]; then
+      s="${s#${BASH_REMATCH[0]}}"
+    else
+      break
+    fi
   done
   # Strip 'command' prefix (with optional flags like -p)
   if [[ "$s" =~ ^command[[:space:]] ]]; then
