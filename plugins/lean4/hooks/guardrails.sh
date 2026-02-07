@@ -76,10 +76,9 @@ if [[ "$COMMAND" =~ ^(env[[:space:]]+)?([A-Za-z_][A-Za-z_0-9]*=[^[:space:]]*[[:s
 fi
 
 # --- Segment-based command parsing ---
-# Split command on shell operators (&&, ||, ;, |) into executable segments.
-# Strip wrapper prefixes (sudo, env, VAR=val) to isolate the actual command.
-# Prevents non-command contexts (echo git push) from triggering blocks,
-# and scopes exemptions (--dry-run) to the correct segment.
+# Split command on unquoted shell operators (&&, ||, ;, |) into segments.
+# Normalize each segment: strip wrappers (sudo, env, VAR=val), then strip
+# quoted strings so patterns match only real command/flag tokens.
 
 # Strip sudo (with options), env (with options), and VAR=val prefixes.
 _strip_wrappers() {
@@ -111,13 +110,58 @@ _strip_wrappers() {
   echo "$s"
 }
 
+# Quote-aware segment splitting: split on unquoted &&, ||, ;, |.
+_split_segments() {
+  local cmd="$1"
+  local i=0 len=${#cmd} seg="" c="" nc="" in_sq=0 in_dq=0
+  while [[ $i -lt $len ]]; do
+    c="${cmd:i:1}"
+    nc="${cmd:i+1:1}"
+    if [[ $in_sq -eq 1 ]]; then
+      seg+="$c"
+      if [[ "$c" == "'" ]]; then in_sq=0; fi
+    elif [[ $in_dq -eq 1 ]]; then
+      if [[ "$c" == "\\" && -n "$nc" ]]; then
+        seg+="$c$nc"; i=$((i + 2)); continue
+      fi
+      seg+="$c"
+      if [[ "$c" == '"' ]]; then in_dq=0; fi
+    elif [[ "$c" == "\\" && -n "$nc" ]]; then
+      seg+="$c$nc"; i=$((i + 2)); continue
+    elif [[ "$c" == "'" ]]; then
+      in_sq=1; seg+="$c"
+    elif [[ "$c" == '"' ]]; then
+      in_dq=1; seg+="$c"
+    elif [[ "$c" == "&" && "$nc" == "&" ]]; then
+      echo "$seg"; seg=""; i=$((i + 2)); continue
+    elif [[ "$c" == "|" && "$nc" == "|" ]]; then
+      echo "$seg"; seg=""; i=$((i + 2)); continue
+    elif [[ "$c" == ";" || "$c" == "|" ]]; then
+      echo "$seg"; seg=""
+    else
+      seg+="$c"
+    fi
+    i=$((i + 1))
+  done
+  if [[ -n "$seg" ]]; then echo "$seg"; fi
+}
+
+# Strip quoted strings so patterns match only unquoted tokens.
+_strip_quotes() {
+  local s="$1"
+  s=$(echo "$s" | sed -E 's/"([^"\\]|\\.)*"//g')
+  s=$(echo "$s" | sed "s/'[^']*'//g")
+  echo "$s"
+}
+
 SEGMENTS=()
 while IFS= read -r _seg; do
   _seg="${_seg#"${_seg%%[![:space:]]*}"}"
   [[ -z "$_seg" ]] && continue
   _stripped=$(_strip_wrappers "$_seg")
+  _stripped=$(_strip_quotes "$_stripped")
   SEGMENTS+=("$_stripped")
-done < <(echo "$COMMAND" | sed -E 's/(\|\||&&|[;|])/\n/g')
+done < <(_split_segments "$COMMAND")
 
 # Helper: true if any segment starts with $1 and matches $2.
 # Optional $3: skip segments matching this pattern (scoped exemption).

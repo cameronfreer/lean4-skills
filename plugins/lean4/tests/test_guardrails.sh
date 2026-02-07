@@ -37,6 +37,17 @@ run_test "sudo -u root git push (block)"           "sudo -u root git push origin
 run_test "env -i git push (block)"                 "env -i git push origin main"            2
 
 echo ""
+echo "-- Fix 3: quoted arguments false positive --"
+run_test "git commit -m mentioning push (allow)"   'git commit -m "mention git push"'       0
+run_test "git commit -m mentioning amend (allow)"   'git commit -m "avoid --amend"'          0
+run_test "gh issue body mentioning pr create (allow)" 'gh issue create --body "later gh pr create"' 0
+
+echo ""
+echo "-- Fix 4: quoted operators not splitting --"
+run_test "semicolon inside quotes (allow)"          'git commit -m "fix; git push"'          0
+run_test "ampersand inside quotes (allow)"          'git commit -m "a && git push"'          0
+
+echo ""
 echo "-- Sanity: existing behavior --"
 run_test "git push (block)"                        "git push origin main"                   2
 run_test "sudo git push (block)"                   "sudo git push origin main"              2
