@@ -48,6 +48,13 @@ run_test "semicolon inside quotes (allow)"          'git commit -m "fix; git pus
 run_test "ampersand inside quotes (allow)"          'git commit -m "a && git push"'          0
 
 echo ""
+echo "-- Fix 5: absolute-path and command-prefix bypass --"
+run_test "/usr/bin/git push (block)"                "/usr/bin/git push origin main"          2
+run_test "command git push (block)"                 "command git push origin main"           2
+run_test "command -p git push (block)"              "command -p git push origin main"        2
+run_test "sudo /usr/bin/git push (block)"           "sudo /usr/bin/git push origin main"    2
+
+echo ""
 echo "-- Sanity: existing behavior --"
 run_test "git push (block)"                        "git push origin main"                   2
 run_test "sudo git push (block)"                   "sudo git push origin main"              2

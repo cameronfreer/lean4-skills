@@ -107,6 +107,20 @@ _strip_wrappers() {
   while [[ "$s" =~ ^[A-Za-z_][A-Za-z_0-9]*=[^[:space:]]*[[:space:]] ]]; do
     s="${s#${BASH_REMATCH[0]}}"
   done
+  # Strip 'command' prefix (with optional flags like -p)
+  if [[ "$s" =~ ^command[[:space:]] ]]; then
+    s="${s#command}"; s="${s#"${s%%[![:space:]]*}"}"
+    while [[ "$s" == -* ]]; do
+      s="${s#${s%%[[:space:]]*}}"; s="${s#"${s%%[![:space:]]*}"}"
+    done
+  fi
+  # Normalize /path/to/exe → exe for known commands
+  if [[ "${s%%[[:space:]]*}" == */* ]]; then
+    _next="${s%%[[:space:]]*}"
+    case "${_next##*/}" in
+      git|gh|lake) s="${_next##*/}${s#"${_next}"}" ;;
+    esac
+  fi
   echo "$s"
 }
 
