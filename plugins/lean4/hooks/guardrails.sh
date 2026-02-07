@@ -74,27 +74,57 @@ BYPASS=0
 if [[ "$COMMAND" =~ ^(env[[:space:]]+)?([A-Za-z_][A-Za-z_0-9]*=[^[:space:]]*[[:space:]]+)*LEAN4_GUARDRAILS_BYPASS=1([[:space:]]|$) ]]; then
   BYPASS=1
 fi
-BYPASSED=0
 
 # --- Segment-based command parsing ---
 # Split command on shell operators (&&, ||, ;, |) into executable segments.
-# Strip env-var prefixes to isolate the actual command in each segment.
+# Strip wrapper prefixes (sudo, env, VAR=val) to isolate the actual command.
 # Prevents non-command contexts (echo git push) from triggering blocks,
 # and scopes exemptions (--dry-run) to the correct segment.
+
+# Strip sudo (with options), env (with options), and VAR=val prefixes.
+_strip_wrappers() {
+  local s="$1" _next
+  s="${s#"${s%%[![:space:]]*}"}"
+  # Strip sudo with options
+  if [[ "$s" =~ ^sudo[[:space:]] ]]; then
+    s="${s#sudo}"; s="${s#"${s%%[![:space:]]*}"}"
+    while [[ "$s" == -* ]]; do
+      s="${s#${s%%[[:space:]]*}}"; s="${s#"${s%%[![:space:]]*}"}"
+      _next="${s%%[[:space:]]*}"
+      if [[ -n "$_next" && "$_next" != -* && ! "$_next" =~ ^[A-Za-z_][A-Za-z_0-9]*= ]]; then
+        case "$_next" in git|gh|lake|env|sudo) break ;; esac
+        s="${s#${_next}}"; s="${s#"${s%%[![:space:]]*}"}"
+      fi
+    done
+  fi
+  # Strip env with options
+  if [[ "$s" =~ ^env[[:space:]] ]]; then
+    s="${s#env}"; s="${s#"${s%%[![:space:]]*}"}"
+    while [[ "$s" == -* ]]; do
+      s="${s#${s%%[[:space:]]*}}"; s="${s#"${s%%[![:space:]]*}"}"
+    done
+  fi
+  # Strip env-var assignments
+  while [[ "$s" =~ ^[A-Za-z_][A-Za-z_0-9]*=[^[:space:]]*[[:space:]] ]]; do
+    s="${s#${BASH_REMATCH[0]}}"
+  done
+  echo "$s"
+}
+
 SEGMENTS=()
 while IFS= read -r _seg; do
   _seg="${_seg#"${_seg%%[![:space:]]*}"}"
   [[ -z "$_seg" ]] && continue
-  _stripped=$(echo "$_seg" | sed -E 's/^(env[[:space:]]+)?([A-Za-z_][A-Za-z_0-9]*=[^[:space:]]*[[:space:]]+)*//')
+  _stripped=$(_strip_wrappers "$_seg")
   SEGMENTS+=("$_stripped")
 done < <(echo "$COMMAND" | sed -E 's/(\|\||&&|[;|])/\n/g')
 
-# Helper: true if any segment starts with $1 (or sudo $1) and matches $2.
+# Helper: true if any segment starts with $1 and matches $2.
 # Optional $3: skip segments matching this pattern (scoped exemption).
 seg_match() {
   local exe="$1" pattern="$2" exclude="${3:-}" _sm_seg
   for _sm_seg in "${SEGMENTS[@]}"; do
-    echo "$_sm_seg" | grep -qE -- "^(sudo[[:space:]]+)?${exe}\b" || continue
+    echo "$_sm_seg" | grep -qE -- "^${exe}\b" || continue
     echo "$_sm_seg" | grep -qE -- "$pattern" || continue
     [[ -n "$exclude" ]] && echo "$_sm_seg" | grep -qE -- "$exclude" && continue
     return 0
@@ -105,8 +135,8 @@ seg_match() {
 # --- Collaboration ops (bypassable) ---
 
 # Block git push (not --dry-run, not stash push — exemptions scoped per-segment)
-if seg_match git '\bpush\b' '--dry-run\b|\bstash\b.*\bpush\b'; then
-  if [[ $BYPASS -eq 1 ]]; then BYPASSED=1; else
+if seg_match git '[[:space:]]push([[:space:]]|$)' '--dry-run\b|\bstash\b.*\bpush\b'; then
+  if [[ $BYPASS -ne 1 ]]; then
     echo "BLOCKED (Lean guardrail): git push - use /lean4:checkpoint, then push manually" >&2
     echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
     exit 2
@@ -115,7 +145,7 @@ fi
 
 # Block git commit --amend
 if seg_match git '\bcommit\b.*--amend\b'; then
-  if [[ $BYPASS -eq 1 ]]; then BYPASSED=1; else
+  if [[ $BYPASS -ne 1 ]]; then
     echo "BLOCKED (Lean guardrail): git commit --amend - proving workflow creates new commits for safe rollback" >&2
     echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
     exit 2
@@ -124,7 +154,7 @@ fi
 
 # Block gh pr create
 if seg_match gh '\bpr\b.*\bcreate\b'; then
-  if [[ $BYPASS -eq 1 ]]; then BYPASSED=1; else
+  if [[ $BYPASS -ne 1 ]]; then
     echo "BLOCKED (Lean guardrail): gh pr create - review first, then create PR manually" >&2
     echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
     exit 2
@@ -149,7 +179,7 @@ fi
 # Blocks: git restore <path>, git restore --source=..., git restore --staged --worktree
 # Allows: git restore --staged <path> (without --worktree)
 for _seg in "${SEGMENTS[@]}"; do
-  echo "$_seg" | grep -qE '^(sudo[[:space:]]+)?git\b' || continue
+  echo "$_seg" | grep -qE '^git\b' || continue
   echo "$_seg" | grep -qE '\brestore\b' || continue
   if echo "$_seg" | grep -qE -- '--staged\b' && ! echo "$_seg" | grep -qE -- '--worktree\b'; then
     continue  # allowed - pure unstaging
