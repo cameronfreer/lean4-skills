@@ -103,6 +103,8 @@ run_test "nested \${..\$(..;..)} git push (block)"    'FOO=${BAR:-$(echo x; echo
 run_test "backtick inside \$() git push (block)"      'FOO=$(echo `whoami`) git push origin main'             2
 run_test "double-quote + \$() + ; git reset (block)"  'X="a b" Y=$(echo c; echo d) git reset --hard'         2
 run_test "\$() in env prefix git push (block)"        '/usr/bin/env FOO=$(echo "a;b") git push origin main'   2
+run_test "\$() + ; gh pr create (block)"              'FOO=$(echo "a)b"; echo c) gh pr create --title test'   2
+run_test "echo with \$() assignment (allow)"          'echo FOO=$(echo "a)b"; echo c)'                       0
 
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
