@@ -511,8 +511,20 @@ check_guardrail_impl() {
     if ! grep -q 'LEAN4_GUARDRAILS_BYPASS' "$_gi_file" 2>/dev/null; then
         warn "guardrails.sh: Missing LEAN4_GUARDRAILS_BYPASS support"
     fi
-    if ! grep -q 'prefix with.*LEAN4_GUARDRAILS_BYPASS' "$_gi_file" 2>/dev/null; then
-        warn "guardrails.sh: Missing bypass hint in block messages"
+    # Bypass regex must be prefix-anchored (starts with ^)
+    if ! grep -E 'LEAN4_GUARDRAILS_BYPASS' "$_gi_file" 2>/dev/null | grep -q '\^'; then
+        warn "guardrails.sh: Bypass regex not prefix-anchored (must start with ^)"
+    fi
+    # Exactly 3 bypass hints (one per collaboration block: push, amend, pr create)
+    local _gi_hint_count
+    _gi_hint_count=$(grep -c 'prefix with.*LEAN4_GUARDRAILS_BYPASS' "$_gi_file" 2>/dev/null) || _gi_hint_count=0
+    if [[ $_gi_hint_count -ne 3 ]]; then
+        warn "guardrails.sh: Expected 3 bypass hints (collaboration blocks), found $_gi_hint_count"
+    fi
+    # Bypass hint must not appear in destructive blocks (reset, clean, checkout --, restore)
+    # Check: no bypass hint line immediately after a destructive BLOCKED message
+    if grep -A1 'BLOCKED.*reset --hard\|BLOCKED.*clean\|BLOCKED.*destructive git checkout\|BLOCKED.*checkout \. \|BLOCKED.*restore' "$_gi_file" 2>/dev/null | grep -q 'LEAN4_GUARDRAILS_BYPASS'; then
+        warn "guardrails.sh: Bypass hint found in destructive block (must be collaboration-only)"
     fi
     # Lean marker detection
     for marker in lakefile.lean lean-toolchain lakefile.toml; do

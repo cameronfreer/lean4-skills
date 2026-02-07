@@ -129,17 +129,17 @@ Blocked during Lean project sessions:
 | `LEAN4_GUARDRAILS_DISABLE=1` | Skip all guardrails regardless of context |
 | `LEAN4_GUARDRAILS_FORCE=1` | Enforce guardrails even outside Lean projects |
 
-`LEAN4_GUARDRAILS_DISABLE` overrides everything. `LEAN4_GUARDRAILS_FORCE` controls whether guardrails activate outside Lean projects. `LEAN4_GUARDRAILS_BYPASS=1` (command prefix) allows a single guarded command through.
+`LEAN4_GUARDRAILS_DISABLE` overrides everything. `LEAN4_GUARDRAILS_FORCE` controls whether guardrails activate outside Lean projects.
 
-**One-shot bypass:**
+**One-shot bypass (collaboration ops only):**
 
-To override a single blocked command, prefix it with the bypass token:
+To override a single blocked collaboration command (`git push`, `git commit --amend`, `gh pr create`), prefix it with the bypass token:
 
 ```bash
 LEAN4_GUARDRAILS_BYPASS=1 git push origin main
 ```
 
-The bypass applies only to that one command — subsequent commands are still guarded. The token is parsed from the command text, not the environment.
+The token must appear in the leading env-assignment prefix of the command (command prefix only, not an environment variable). Destructive operations (`checkout --`, `restore`, `reset --hard`, `clean -f`) are always blocked — bypass does not apply to them.
 
 ### LSP-First Approach
 
