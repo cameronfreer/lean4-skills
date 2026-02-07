@@ -111,7 +111,7 @@ _strip_wrappers() {
     done
   fi
   # Strip env-var assignments: NAME=VALUE where VALUE may contain quotes,
-  # backslash escapes, $(...) command substitution, or backtick substitution.
+  # backslash escapes, $(...), ${...}, or backtick substitution.
   # Uses index-based scanning (not glob-based ${s#...}) to avoid infinite
   # loops when BASH_REMATCH contains backslashes interpreted as glob escapes.
   while [[ "$s" =~ ^[A-Za-z_][A-Za-z_0-9]*= ]]; do
@@ -138,6 +138,15 @@ _strip_wrappers() {
           _vc="${s:_vi:1}"
           if [[ "$_vc" == '(' ]]; then _depth=$((_depth + 1));
           elif [[ "$_vc" == ')' ]]; then _depth=$((_depth - 1));
+          elif [[ "$_vc" == "\\" ]]; then _vi=$((_vi + 1)); fi
+          _vi=$((_vi + 1))
+        done
+      elif [[ "$_vc" == '$' && "${s:_vi+1:1}" == '{' ]]; then
+        _vi=$((_vi + 2)); _depth=1
+        while [[ $_vi -lt $_vlen && $_depth -gt 0 ]]; do
+          _vc="${s:_vi:1}"
+          if [[ "$_vc" == '{' ]]; then _depth=$((_depth + 1));
+          elif [[ "$_vc" == '}' ]]; then _depth=$((_depth - 1));
           elif [[ "$_vc" == "\\" ]]; then _vi=$((_vi + 1)); fi
           _vi=$((_vi + 1))
         done
@@ -192,9 +201,10 @@ _strip_wrappers() {
 }
 
 # Quote-aware segment splitting: split on unquoted &&, ||, ;, |.
+# Tracks $() nesting and backticks so separators inside them don't split.
 _split_segments() {
   local cmd="$1"
-  local i=0 len=${#cmd} seg="" c="" nc="" in_sq=0 in_dq=0
+  local i=0 len=${#cmd} seg="" c="" nc="" in_sq=0 in_dq=0 paren_depth=0 in_bt=0
   while [[ $i -lt $len ]]; do
     c="${cmd:i:1}"
     nc="${cmd:i+1:1}"
@@ -207,12 +217,38 @@ _split_segments() {
       fi
       seg+="$c"
       if [[ "$c" == '"' ]]; then in_dq=0; fi
+      if [[ "$c" == '$' && "$nc" == '(' ]]; then
+        seg+="$nc"; paren_depth=$((paren_depth + 1)); i=$((i + 2)); continue
+      fi
+      if [[ $paren_depth -gt 0 ]]; then
+        if [[ "$c" == '(' ]]; then paren_depth=$((paren_depth + 1)); fi
+        if [[ "$c" == ')' ]]; then paren_depth=$((paren_depth - 1)); fi
+      fi
+    elif [[ $in_bt -eq 1 ]]; then
+      seg+="$c"
+      if [[ "$c" == "\\" && -n "$nc" ]]; then
+        seg+="$nc"; i=$((i + 2)); continue
+      fi
+      if [[ "$c" == '`' ]]; then in_bt=0; fi
+    elif [[ $paren_depth -gt 0 ]]; then
+      seg+="$c"
+      if [[ "$c" == "\\" && -n "$nc" ]]; then
+        seg+="$nc"; i=$((i + 2)); continue
+      fi
+      if [[ "$c" == "'" ]]; then in_sq=1;
+      elif [[ "$c" == '"' ]]; then in_dq=1;
+      elif [[ "$c" == '(' ]]; then paren_depth=$((paren_depth + 1));
+      elif [[ "$c" == ')' ]]; then paren_depth=$((paren_depth - 1)); fi
     elif [[ "$c" == "\\" && -n "$nc" ]]; then
       seg+="$c$nc"; i=$((i + 2)); continue
     elif [[ "$c" == "'" ]]; then
       in_sq=1; seg+="$c"
     elif [[ "$c" == '"' ]]; then
       in_dq=1; seg+="$c"
+    elif [[ "$c" == '$' && "$nc" == '(' ]]; then
+      paren_depth=$((paren_depth + 1)); seg+="$c$nc"; i=$((i + 2)); continue
+    elif [[ "$c" == '`' ]]; then
+      in_bt=1; seg+="$c"
     elif [[ "$c" == "&" && "$nc" == "&" ]]; then
       echo "$seg"; seg=""; i=$((i + 2)); continue
     elif [[ "$c" == "|" && "$nc" == "|" ]]; then
