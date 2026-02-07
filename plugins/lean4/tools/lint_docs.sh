@@ -526,6 +526,10 @@ check_guardrail_impl() {
     if grep -A1 'BLOCKED.*reset --hard\|BLOCKED.*clean\|BLOCKED.*destructive git checkout\|BLOCKED.*checkout \. \|BLOCKED.*restore' "$_gi_file" 2>/dev/null | grep -q 'LEAN4_GUARDRAILS_BYPASS'; then
         warn "guardrails.sh: Bypass hint found in destructive block (must be collaboration-only)"
     fi
+    # Bypass must never exit 0 directly — must defer through all destructive checks
+    if grep -E 'BYPASS.*exit 0|exit 0.*BYPASS' "$_gi_file" 2>/dev/null | grep -vq '^\s*#'; then
+        warn "guardrails.sh: Bypass must not exit 0 directly (must defer past destructive checks)"
+    fi
     # Lean marker detection
     for marker in lakefile.lean lean-toolchain lakefile.toml; do
         if ! grep -q "$marker" "$_gi_file" 2>/dev/null; then

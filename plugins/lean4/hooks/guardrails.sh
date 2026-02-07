@@ -69,36 +69,41 @@ fi
 #          FOO=bar LEAN4_GUARDRAILS_BYPASS=1 git push ...
 # Rejects: echo LEAN4_GUARDRAILS_BYPASS=1 && git push ... (token after a command word)
 # Applies to collaboration ops only (push, amend, pr create), not destructive ops.
+# Never exits early — all destructive checks run first; bypass resolves at end.
 BYPASS=0
 if [[ "$COMMAND" =~ ^(env[[:space:]]+)?([A-Za-z_][A-Za-z_0-9]*=[^[:space:]]*[[:space:]]+)*LEAN4_GUARDRAILS_BYPASS=1([[:space:]]|$) ]]; then
   BYPASS=1
 fi
+BYPASSED=0
 
 # Block git push (broad: catches git -C, sudo git, etc.)
 # Allows: git push --dry-run, git stash push
 if echo "$COMMAND" | grep -qE '\bgit\b.*\bpush\b' && \
    ! echo "$COMMAND" | grep -qE -- '--dry-run\b' && \
    ! echo "$COMMAND" | grep -qE '\bgit\b.*\bstash\b.*\bpush\b'; then
-  [[ $BYPASS -eq 1 ]] && exit 0
-  echo "BLOCKED (Lean guardrail): git push - use /lean4:checkpoint, then push manually" >&2
-  echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
-  exit 2
+  if [[ $BYPASS -eq 1 ]]; then BYPASSED=1; else
+    echo "BLOCKED (Lean guardrail): git push - use /lean4:checkpoint, then push manually" >&2
+    echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
+    exit 2
+  fi
 fi
 
 # Block git commit --amend (broad pattern)
 if echo "$COMMAND" | grep -qE -- '\bgit\b.*\bcommit\b.*--amend\b'; then
-  [[ $BYPASS -eq 1 ]] && exit 0
-  echo "BLOCKED (Lean guardrail): git commit --amend - proving workflow creates new commits for safe rollback" >&2
-  echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
-  exit 2
+  if [[ $BYPASS -eq 1 ]]; then BYPASSED=1; else
+    echo "BLOCKED (Lean guardrail): git commit --amend - proving workflow creates new commits for safe rollback" >&2
+    echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
+    exit 2
+  fi
 fi
 
 # Block gh pr create
 if echo "$COMMAND" | grep -qE '\bgh\b.*\bpr\b.*\bcreate\b'; then
-  [[ $BYPASS -eq 1 ]] && exit 0
-  echo "BLOCKED (Lean guardrail): gh pr create - review first, then create PR manually" >&2
-  echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
-  exit 2
+  if [[ $BYPASS -eq 1 ]]; then BYPASSED=1; else
+    echo "BLOCKED (Lean guardrail): gh pr create - review first, then create PR manually" >&2
+    echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
+    exit 2
+  fi
 fi
 
 # Block destructive checkout (discards uncommitted changes)
@@ -139,4 +144,5 @@ if echo "$COMMAND" | grep -qE '\bgit\b.*\bclean\b.*(-[a-zA-Z]*f|--force)'; then
   exit 2
 fi
 
+# All destructive checks passed — resolve deferred bypass or allow normally
 exit 0
