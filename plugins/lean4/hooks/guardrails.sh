@@ -179,31 +179,44 @@ _split_segments() {
   if [[ -n "$seg" ]]; then echo "$seg"; fi
 }
 
-# Normalize quoted strings: unquote single-token strings ("--hard" → --hard),
-# remove multi-token strings ("mention git push" → removed).
+# Remove all quoted strings (for collaboration-op matching where argument
+# values like commit messages must not contribute to pattern matching).
 _strip_quotes() {
   local s="$1"
-  # Double-quoted: unquote no-space tokens, then remove the rest
+  s=$(echo "$s" | sed -E 's/"([^"\\]|\\.)*"//g')
+  s=$(echo "$s" | sed "s/'[^']*'//g")
+  echo "$s"
+}
+
+# Unquote single-token quoted strings ("--hard" → --hard), remove
+# multi-token ones ("mention git push" → removed).  For destructive-op
+# matching where quoted flags must still be detected.
+_unquote_tokens() {
+  local s="$1"
   s=$(echo "$s" | sed -E 's/"([^"[:space:]]*)"/ \1 /g; s/"([^"\\]|\\.)*"//g')
-  # Single-quoted: unquote no-space tokens, then remove the rest
   s=$(echo "$s" | sed -E "s/'([^'[:space:]]*)'/ \1 /g; s/'[^']*'//g")
   echo "$s"
 }
 
+# Two segment arrays: SEGMENTS (all quotes removed) for collaboration-op
+# checks, SEGMENTS_UQ (single-word unquoted) for destructive-op checks.
 SEGMENTS=()
+SEGMENTS_UQ=()
 while IFS= read -r _seg; do
   _seg="${_seg#"${_seg%%[![:space:]]*}"}"
   [[ -z "$_seg" ]] && continue
   _stripped=$(_strip_wrappers "$_seg")
-  _stripped=$(_strip_quotes "$_stripped")
-  SEGMENTS+=("$_stripped")
+  SEGMENTS+=("$(_strip_quotes "$_stripped")")
+  SEGMENTS_UQ+=("$(_unquote_tokens "$_stripped")")
 done < <(_split_segments "$COMMAND")
 
-# Helper: true if any segment starts with $1 and matches $2.
-# Optional $3: skip segments matching this pattern (scoped exemption).
+# Helper: true if any segment in the named array (default SEGMENTS) starts
+# with $1 and matches $2.  Optional $3: exclude pattern.  Optional $4:
+# array name (SEGMENTS for collaboration ops, SEGMENTS_UQ for destructive).
 seg_match() {
   local exe="$1" pattern="$2" exclude="${3:-}" _sm_seg
-  for _sm_seg in "${SEGMENTS[@]}"; do
+  local -n _sm_arr="${4:-SEGMENTS}"
+  for _sm_seg in "${_sm_arr[@]}"; do
     echo "$_sm_seg" | grep -qE -- "^${exe}\b" || continue
     echo "$_sm_seg" | grep -qE -- "$pattern" || continue
     [[ -n "$exclude" ]] && echo "$_sm_seg" | grep -qE -- "$exclude" && continue
@@ -246,11 +259,11 @@ fi
 # Block destructive checkout (discards uncommitted changes)
 # Allows: git checkout <branch>, git checkout -b <branch>
 # Blocks: git checkout -- <path>, git checkout .
-if seg_match git '\bcheckout\b.*\s--\s'; then
+if seg_match git '\bcheckout\b.*\s--\s' '' SEGMENTS_UQ; then
   echo "BLOCKED (Lean guardrail): destructive git checkout. Use git stash push -u or create a revert commit." >&2
   exit 2
 fi
-if seg_match git '\bcheckout\b\s+\.(\s|$)'; then
+if seg_match git '\bcheckout\b\s+\.(\s|$)' '' SEGMENTS_UQ; then
   echo "BLOCKED (Lean guardrail): git checkout . discards changes. Use git stash push -u or create a revert commit." >&2
   exit 2
 fi
@@ -258,7 +271,7 @@ fi
 # Block git restore (worktree changes only, allow pure unstaging)
 # Blocks: git restore <path>, git restore --source=..., git restore --staged --worktree
 # Allows: git restore --staged <path> (without --worktree)
-for _seg in "${SEGMENTS[@]}"; do
+for _seg in "${SEGMENTS_UQ[@]}"; do
   echo "$_seg" | grep -qE '^git\b' || continue
   echo "$_seg" | grep -qE '\brestore\b' || continue
   if echo "$_seg" | grep -qE -- '--staged\b' && ! echo "$_seg" | grep -qE -- '--worktree\b'; then
@@ -269,14 +282,14 @@ for _seg in "${SEGMENTS[@]}"; do
 done
 
 # Block git reset --hard (discards commits and changes)
-if seg_match git '\breset\b.*--hard\b'; then
+if seg_match git '\breset\b.*--hard\b' '' SEGMENTS_UQ; then
   echo "BLOCKED (Lean guardrail): git reset --hard. Use git stash push -u or create a revert commit." >&2
   exit 2
 fi
 
 # Block git clean with -f/--force anywhere (deletes untracked files)
 # Matches: -f, -fd, -fx, -nfd, --force, etc.
-if seg_match git '\bclean\b.*(-[a-zA-Z]*f|--force)'; then
+if seg_match git '\bclean\b.*(-[a-zA-Z]*f|--force)' '' SEGMENTS_UQ; then
   echo "BLOCKED (Lean guardrail): git clean deletes untracked files. Use git stash push -u instead." >&2
   exit 2
 fi
