@@ -191,7 +191,7 @@ plugins/lean4/
 ├── commands/           # User-invocable commands
 ├── skills/lean4/
 │   ├── SKILL.md        # Core skill reference
-│   └── references/     # 23 reference docs
+│   └── references/     # Reference docs
 ├── agents/             # 4 specialized agents
 ├── hooks/              # Bootstrap and guardrails
 ├── scripts/           # Compat alias → lib/scripts

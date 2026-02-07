@@ -103,10 +103,9 @@ Or for unattended work: `/lean4:autoprove` (autonomous with stop rules).
 
 ### Planning Phase (NEW)
 
-V4 asks for your preferences before making changes:
-- **Scope:** All sorries / specific files / specific theorems
-- **Approach:** Conservative / Balanced / Aggressive
-- **Review cadence:** Every change / every 5 / manual
+`/lean4:prove` asks for your preferences at startup (if not passed via flags):
+- **Planning preference:** Start with a planning phase or skip straight to work
+- **Review source:** Internal (planner mode) / External (interactive handoff) / Both / None
 
 ### Safety Guardrails (NEW)
 
@@ -158,7 +157,7 @@ Make sure you installed from the v4 version:
 
 The scripts now live in the plugin directory. Use `$LEAN4_SCRIPTS/` prefix:
 ```bash
-$LEAN4_SCRIPTS/sorry_analyzer.py .
+${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary --report-only
 ```
 
 Both `lib/scripts/` and `scripts/` (compat alias) resolve to the same directory. If your environment doesn't preserve symlinks (e.g., archive extraction), use `$LEAN4_SCRIPTS` as the canonical path.

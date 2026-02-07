@@ -96,7 +96,7 @@ See `/lean4:doctor migrate` for detailed migration help.
 - New `/lean4:autoprover` - planning-first workflow
 - New `/lean4:golf` - standalone proof optimization
 - LSP-first approach throughout
-- Safety guardrails (blocks push/amend/pr)
+- Safety guardrails in Lean projects (blocks push/amend/pr; one-shot bypass for collaboration ops). See [plugin README safety section](plugins/lean4/README.md#safety-guardrails).
 - Removed memory integration (didn't work reliably)
 
 **v3.4.2** (January 2026) - [Legacy branch](../../tree/legacy-marketplace)
