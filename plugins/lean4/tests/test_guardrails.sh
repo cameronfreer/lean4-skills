@@ -64,12 +64,12 @@ run_test "/bin/bash -c 'git push' (block)"          "/bin/bash -c 'git push orig
 run_test "bash --norc -c 'git push' (block)"        "bash --norc -c 'git push origin main'" 2
 
 echo ""
-echo "-- Fix 7: single-word quoted args must not trigger collab ops --"
+echo "-- Fix 7: quoted args/flags handled correctly --"
 run_test "git commit -m \"push\" (allow)"           'git commit -m "push"'                   0
 run_test "git commit -m \"--amend\" (allow)"        'git commit -m "--amend"'                0
-
-echo ""
-echo "-- Fix 8: quoted flags must still be detected for destructive ops --"
+run_test "git commit \"--amend\" -m x (block)"      'git commit "--amend" -m x'              2
+run_test "git \"push\" origin main (block)"         'git "push" origin main'                 2
+run_test "git push \"--dry-run\" (allow)"           'git push "--dry-run"'                   0
 run_test "git reset \"--hard\" (block)"             'git reset "--hard"'                     2
 run_test "git checkout \"--\" file (block)"         'git checkout "--" file.txt'              2
 run_test "git clean \"-f\" (block)"                 'git clean "-f"'                         2
