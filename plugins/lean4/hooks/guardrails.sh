@@ -82,7 +82,7 @@ fi
 
 # Strip sudo (with options), env (with options), and VAR=val prefixes.
 _strip_wrappers() {
-  local s="$1" _next
+  local s="$1" _next _vi _vlen _vc _depth
   s="${s#"${s%%[![:space:]]*}"}"
   # Normalize /path/to/exe → exe for known commands and wrappers
   if [[ "${s%%[[:space:]]*}" == */* ]]; then
@@ -110,17 +110,57 @@ _strip_wrappers() {
       s="${s#${s%%[[:space:]]*}}"; s="${s#"${s%%[![:space:]]*}"}"
     done
   fi
-  # Strip env-var assignments (unquoted, double-quoted, or single-quoted values)
-  while true; do
-    if [[ "$s" =~ ^[A-Za-z_][A-Za-z_0-9]*=\"[^\"]*\"[[:space:]] ]]; then
-      s="${s#${BASH_REMATCH[0]}}"
-    elif [[ "$s" =~ ^[A-Za-z_][A-Za-z_0-9]*=\'[^\']*\'[[:space:]] ]]; then
-      s="${s#${BASH_REMATCH[0]}}"
-    elif [[ "$s" =~ ^[A-Za-z_][A-Za-z_0-9]*=[^[:space:]]*[[:space:]] ]]; then
-      s="${s#${BASH_REMATCH[0]}}"
-    else
-      break
-    fi
+  # Strip env-var assignments: NAME=VALUE where VALUE may contain quotes,
+  # backslash escapes, $(...) command substitution, or backtick substitution.
+  # Uses index-based scanning (not glob-based ${s#...}) to avoid infinite
+  # loops when BASH_REMATCH contains backslashes interpreted as glob escapes.
+  while [[ "$s" =~ ^[A-Za-z_][A-Za-z_0-9]*= ]]; do
+    _vi=${#BASH_REMATCH[0]}
+    _vlen=${#s}
+    while [[ $_vi -lt $_vlen ]]; do
+      _vc="${s:_vi:1}"
+      if [[ "$_vc" == '"' ]]; then
+        _vi=$((_vi + 1))
+        while [[ $_vi -lt $_vlen && "${s:_vi:1}" != '"' ]]; do
+          if [[ "${s:_vi:1}" == "\\" ]]; then _vi=$((_vi + 1)); fi
+          _vi=$((_vi + 1))
+        done
+        _vi=$((_vi + 1))
+      elif [[ "$_vc" == "'" ]]; then
+        _vi=$((_vi + 1))
+        while [[ $_vi -lt $_vlen && "${s:_vi:1}" != "'" ]]; do
+          _vi=$((_vi + 1))
+        done
+        _vi=$((_vi + 1))
+      elif [[ "$_vc" == '$' && "${s:_vi+1:1}" == '(' ]]; then
+        _vi=$((_vi + 2)); _depth=1
+        while [[ $_vi -lt $_vlen && $_depth -gt 0 ]]; do
+          _vc="${s:_vi:1}"
+          if [[ "$_vc" == '(' ]]; then _depth=$((_depth + 1));
+          elif [[ "$_vc" == ')' ]]; then _depth=$((_depth - 1));
+          elif [[ "$_vc" == "\\" ]]; then _vi=$((_vi + 1)); fi
+          _vi=$((_vi + 1))
+        done
+      elif [[ "$_vc" == '`' ]]; then
+        _vi=$((_vi + 1))
+        while [[ $_vi -lt $_vlen && "${s:_vi:1}" != '`' ]]; do
+          if [[ "${s:_vi:1}" == "\\" ]]; then _vi=$((_vi + 1)); fi
+          _vi=$((_vi + 1))
+        done
+        _vi=$((_vi + 1))
+      elif [[ "$_vc" == "\\" ]]; then
+        _vi=$((_vi + 2))
+      elif [[ "$_vc" == " " || "$_vc" == $'\t' ]]; then
+        break
+      else
+        _vi=$((_vi + 1))
+      fi
+    done
+    if [[ $_vi -ge $_vlen ]]; then s=""; break; fi
+    while [[ $_vi -lt $_vlen && ("${s:_vi:1}" == " " || "${s:_vi:1}" == $'\t') ]]; do
+      _vi=$((_vi + 1))
+    done
+    s="${s:_vi}"
   done
   # Strip 'command' prefix (with optional flags like -p)
   if [[ "$s" =~ ^command[[:space:]] ]]; then

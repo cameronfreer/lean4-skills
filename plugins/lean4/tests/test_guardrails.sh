@@ -88,6 +88,9 @@ echo "-- Fix 8: quoted env-assignment prefix bypass --"
 run_test "FOO=\"a b\" git push (block)"              'FOO="a b" git push origin main'         2
 run_test "FOO=\"a b\" git reset --hard (block)"      'FOO="a b" git reset --hard'             2
 run_test "/usr/bin/env FOO=\"a b\" git push (block)" '/usr/bin/env FOO="a b" git push origin main' 2
+run_test "FOO=\$(cmd) git push (block)"              'FOO=$(printf "a b") git push origin main'  2
+run_test "FOO=\`cmd\` git push (block)"              'FOO=`printf "a b"` git push origin main'   2
+run_test "FOO=a\\ b git push (block)"                'FOO=a\ b git push origin main'             2
 
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
