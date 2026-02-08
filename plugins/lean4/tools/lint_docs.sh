@@ -563,29 +563,41 @@ check_golf_policy() {
     log ""
     log "Checking golf safety policy..."
 
+    # golf.md: section headings anchor the policy blocks
     local file="$PLUGIN_ROOT/commands/golf.md"
     local missing=0
-    for term in "Preflight" "Permission gate" "max-delegates" "Auto-revert" "never launch additional agents after first"; do
-        if ! grep -q "$term" "$file"; then
-            warn "golf.md: Missing policy term: '$term'"
+    for term in \
+        "### Bulk Rewrite Safety" \
+        "### Delegation Execution Policy" \
+        "Auto-revert.*sorry count increases" \
+        "Permission gate.*stop delegation immediately" \
+        "never launch additional agents after first" \
+        "| --max-delegates"; do
+        if ! grep -qE "$term" "$file"; then
+            warn "golf.md: Missing policy anchor: '$term'"
             missing=1
         fi
     done
     if [[ $missing -eq 0 ]]; then
-        ok "golf.md: All safety policy terms present"
+        ok "golf.md: All safety policy anchors present"
     fi
 
-    # Agent-side policy: lean4-proof-golfer.md must echo key constraints
+    # lean4-proof-golfer.md: section heading + policy phrases
     local agent_file="$PLUGIN_ROOT/agents/lean4-proof-golfer.md"
     local agent_missing=0
-    for term in "permission denied" "do NOT retry" "Auto-revert" "max-delegates"; do
-        if ! grep -qi "$term" "$agent_file"; then
-            warn "lean4-proof-golfer.md: Missing policy term: '$term'"
+    for term in \
+        "## Delegation Awareness" \
+        "Auto-revert batch if sorry count" \
+        "permission denied.*stop immediately" \
+        "do NOT retry or request again" \
+        "max-delegates.*parent handles"; do
+        if ! grep -qiE "$term" "$agent_file"; then
+            warn "lean4-proof-golfer.md: Missing policy anchor: '$term'"
             agent_missing=1
         fi
     done
     if [[ $agent_missing -eq 0 ]]; then
-        ok "lean4-proof-golfer.md: All agent policy terms present"
+        ok "lean4-proof-golfer.md: All agent policy anchors present"
     fi
 }
 
