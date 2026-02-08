@@ -490,12 +490,11 @@ check_guardrail_docs() {
         if ! grep -q 'LEAN4_GUARDRAILS_COLLAB_POLICY' "$_gd_file" 2>/dev/null; then
             warn "$_gd_base: Missing LEAN4_GUARDRAILS_COLLAB_POLICY documentation"
         fi
-        # All three mode literals must appear in docs
-        for _gd_mode in ask allow block; do
-            if ! grep -q "$_gd_mode" "$_gd_file" 2>/dev/null; then
-                warn "$_gd_base: Missing collaboration policy mode '$_gd_mode'"
-            fi
-        done
+        # All three mode literals must appear together on one line (anchored to
+        # avoid false-pass from unrelated uses of common words like "ask" or "block")
+        if ! grep -qE 'ask.*allow.*block' "$_gd_file" 2>/dev/null; then
+            warn "$_gd_base: Missing collaboration policy modes (ask, allow, block)"
+        fi
         # Bypass must not be listed as bootstrap-set
         if grep -A2 'bootstrap' "$_gd_file" 2>/dev/null | grep -q 'LEAN4_GUARDRAILS_BYPASS'; then
             warn "$_gd_base: LEAN4_GUARDRAILS_BYPASS incorrectly listed as bootstrap-set"
@@ -526,9 +525,9 @@ check_guardrail_impl() {
     if ! grep -q 'LEAN4_GUARDRAILS_BYPASS' "$_gi_file" 2>/dev/null; then
         warn "guardrails.sh: Missing LEAN4_GUARDRAILS_BYPASS support"
     fi
-    # Bypass regex must be prefix-anchored (starts with ^)
-    if ! grep -E 'LEAN4_GUARDRAILS_BYPASS' "$_gi_file" 2>/dev/null | grep -q '\^'; then
-        warn "guardrails.sh: Bypass regex not prefix-anchored (must start with ^)"
+    # Bypass detection must use _strip_wrappers prefix diff (not raw regex)
+    if ! grep -q '_strip_wrappers.*BYPASS\|_prefix.*BYPASS\|BYPASS.*_prefix' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Bypass detection should use _strip_wrappers prefix diff"
     fi
     if ! grep -q 'LEAN4_GUARDRAILS_COLLAB_POLICY' "$_gi_file" 2>/dev/null; then
         warn "guardrails.sh: Missing LEAN4_GUARDRAILS_COLLAB_POLICY support"

@@ -64,16 +64,15 @@ if ! is_lean_project "$TOOL_CWD"; then
 fi
 
 # One-shot bypass: token in leading env-assignment prefix only (not arbitrary position)
+# Detected per-segment during normalization using _strip_wrappers prefix diff.
 # Accepts: LEAN4_GUARDRAILS_BYPASS=1 git push ...
 #          env LEAN4_GUARDRAILS_BYPASS=1 git push ...
-#          FOO=bar LEAN4_GUARDRAILS_BYPASS=1 git push ...
+#          FOO="a b" LEAN4_GUARDRAILS_BYPASS=1 git push ...
 # Rejects: echo LEAN4_GUARDRAILS_BYPASS=1 && git push ... (token after a command word)
+#          FOO="LEAN4_GUARDRAILS_BYPASS=1" git push ...  (token inside quoted value)
 # Applies to collaboration ops only (push, amend, pr create), not destructive ops.
 # Never exits early — all destructive checks run first; bypass resolves at end.
 BYPASS=0
-if [[ "$COMMAND" =~ ^(env[[:space:]]+)?([A-Za-z_][A-Za-z_0-9]*=[^[:space:]]*[[:space:]]+)*LEAN4_GUARDRAILS_BYPASS=1([[:space:]]|$) ]]; then
-  BYPASS=1
-fi
 
 # Collaboration policy: ask (default) | allow | block
 # - ask:   require human confirmation; block unless one-shot bypass token present
@@ -299,11 +298,20 @@ _unquote_tokens() {
 }
 
 # Normalization pipeline: strip wrappers → strip option values → unquote tokens.
+# Also detects bypass token: _strip_wrappers consumes env-var prefixes, so the
+# prefix zone is raw minus stripped suffix.  A whitespace-bounded match there
+# confirms a standalone assignment (not buried inside another var's quoted value).
 SEGMENTS=()
 while IFS= read -r _seg; do
   _seg="${_seg#"${_seg%%[![:space:]]*}"}"
   [[ -z "$_seg" ]] && continue
   _stripped=$(_strip_wrappers "$_seg")
+  if [[ $BYPASS -eq 0 ]]; then
+    _prefix="${_seg%"$_stripped"}"
+    if [[ "$_prefix" =~ (^|[[:space:]])LEAN4_GUARDRAILS_BYPASS=1([[:space:]]|$) ]]; then
+      BYPASS=1
+    fi
+  fi
   _stripped=$(_strip_optvals "$_stripped")
   _stripped=$(_unquote_tokens "$_stripped")
   SEGMENTS+=("$_stripped")

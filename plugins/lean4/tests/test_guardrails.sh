@@ -127,6 +127,12 @@ run_test "\$() + ; gh pr create (block)"              'FOO=$(echo "a)b"; echo c)
 run_test "echo with \$() assignment (allow)"          'echo FOO=$(echo "a)b"; echo c)'                       0
 
 echo ""
+echo "-- Fix 10: bypass with quoted-value env prefix --"
+run_test "FOO=\"a b\" BYPASS=1 git push (allow)"       'FOO="a b" LEAN4_GUARDRAILS_BYPASS=1 git push origin main'    0
+run_test "FOO=\$(cmd) BYPASS=1 git push (allow)"       'FOO=$(echo "x y") LEAN4_GUARDRAILS_BYPASS=1 git push main'   0
+run_test "FOO=\"BYPASS=1\" git push (block)"            'FOO="LEAN4_GUARDRAILS_BYPASS=1" git push origin main'        2
+
+echo ""
 echo "-- Collaboration policy: ask mode --"
 run_test_policy "ask: git push (block)"                 ask "git push origin main"            2
 run_test_policy "ask: git commit --amend (block)"       ask "git commit --amend"              2
