@@ -501,6 +501,30 @@ Total savings: 5 lines (~8%)
 Build status: ✓ passing
 ```
 
+### Delegation Preflight Failure Example
+
+```
+User: /lean4:golf --max-delegates=3
+
+Claude: Verifying build...
+✓ Project compiles
+
+Running preflight: delegating Core.lean:23 to golfer subagent...
+
+⚠ Preflight subagent hit Edit permission prompt.
+Stopping delegation immediately — switching to direct mode.
+
+Continuing in main agent (no subagents will be launched)...
+
+[1/6] Line 23: rw [h]; exact → rwa [h]
+  Diagnostics... ✓
+
+[2/6] Line 45: ext x; rfl → rfl
+  Diagnostics... ✓
+
+[continues directly without delegation...]
+```
+
 ---
 
 ## review

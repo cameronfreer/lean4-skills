@@ -574,6 +574,19 @@ check_golf_policy() {
     if [[ $missing -eq 0 ]]; then
         ok "golf.md: All safety policy terms present"
     fi
+
+    # Agent-side policy: lean4-proof-golfer.md must echo key constraints
+    local agent_file="$PLUGIN_ROOT/agents/lean4-proof-golfer.md"
+    local agent_missing=0
+    for term in "permission denied" "do NOT retry" "Auto-revert" "max-delegates"; do
+        if ! grep -qi "$term" "$agent_file"; then
+            warn "lean4-proof-golfer.md: Missing policy term: '$term'"
+            agent_missing=1
+        fi
+    done
+    if [[ $agent_missing -eq 0 ]]; then
+        ok "lean4-proof-golfer.md: All agent policy terms present"
+    fi
 }
 
 # Check 13: Backward-compat scripts alias
