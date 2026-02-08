@@ -572,7 +572,7 @@ check_golf_policy() {
         "Auto-revert.*sorry count increases" \
         "Permission gate.*stop delegation immediately" \
         "never launch additional agents after first" \
-        "| --max-delegates"; do
+        "\\| --max-delegates"; do
         if ! grep -qE "$term" "$file"; then
             warn "golf.md: Missing policy anchor: '$term'"
             missing=1
