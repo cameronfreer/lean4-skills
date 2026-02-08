@@ -116,7 +116,8 @@ V4 blocks certain git operations when working inside a Lean project (detected by
 - `gh pr create` - Review first with `/lean4:review`
 
 Override with `LEAN4_GUARDRAILS_DISABLE=1` (skip all) or `LEAN4_GUARDRAILS_FORCE=1` (enforce everywhere). `LEAN4_GUARDRAILS_DISABLE` takes precedence over `LEAN4_GUARDRAILS_FORCE`.
-For a single collaboration command, prefix with the bypass token instead (command prefix only, not an env var): `LEAN4_GUARDRAILS_BYPASS=1 git push origin main`. Destructive operations remain hard-blocked.
+Set `LEAN4_GUARDRAILS_COLLAB_POLICY` to control collaboration ops: `ask` (default, current behavior), `allow` (no prompts), or `block` (unconditional block). Default `ask` mode preserves current behavior — set `allow` for no prompts on collaboration ops.
+For a single collaboration command in `ask` mode, prefix with the bypass token instead (command prefix only, not an env var): `LEAN4_GUARDRAILS_BYPASS=1 git push origin main`. Destructive operations remain hard-blocked regardless of policy.
 
 ### Memory System (REMOVED)
 

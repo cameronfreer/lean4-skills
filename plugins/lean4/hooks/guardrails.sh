@@ -75,6 +75,16 @@ if [[ "$COMMAND" =~ ^(env[[:space:]]+)?([A-Za-z_][A-Za-z_0-9]*=[^[:space:]]*[[:s
   BYPASS=1
 fi
 
+# Collaboration policy: ask (default) | allow | block
+# - ask:   require human confirmation; block unless one-shot bypass token present
+# - allow: permit collaboration ops without bypass token
+# - block: block collaboration ops even with bypass token
+COLLAB_POLICY="${LEAN4_GUARDRAILS_COLLAB_POLICY:-ask}"
+case "$COLLAB_POLICY" in
+  ask|allow|block) ;;
+  *) COLLAB_POLICY="ask" ;;
+esac
+
 # --- Segment-based command parsing ---
 # Split command on unquoted shell operators (&&, ||, ;, |) into segments.
 # Normalize each segment: strip wrappers (sudo, env, VAR=val), then strip
@@ -312,33 +322,42 @@ seg_match() {
   return 1
 }
 
-# --- Collaboration ops (bypassable) ---
+# Collaboration-op policy enforcement.
+# $1 = short label (e.g. "git push")
+# $2 = user-facing message suffix
+_check_collab_op() {
+  local label="$1" msg="$2"
+  case "$COLLAB_POLICY" in
+    allow) return 0 ;;
+    block)
+      echo "BLOCKED (Lean guardrail): $label - $msg [policy=block]" >&2
+      exit 2
+      ;;
+    *)  # ask (default): confirmation-gated; bypass is the one-time confirmed rerun path
+      if [[ $BYPASS -ne 1 ]]; then
+        echo "BLOCKED (Lean guardrail): $label - $msg [policy=ask, confirm then rerun]" >&2
+        echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
+        exit 2
+      fi
+      ;;
+  esac
+}
+
+# --- Collaboration ops (policy-controlled) ---
 
 # Block git push (not --dry-run, not stash push — exemptions scoped per-segment)
 if seg_match git '[[:space:]]push([[:space:]]|$)' '--dry-run\b|\bstash\b.*\bpush\b'; then
-  if [[ $BYPASS -ne 1 ]]; then
-    echo "BLOCKED (Lean guardrail): git push - use /lean4:checkpoint, then push manually" >&2
-    echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
-    exit 2
-  fi
+  _check_collab_op "git push" "use /lean4:checkpoint, then push manually"
 fi
 
 # Block git commit --amend
 if seg_match git '\bcommit\b.*--amend\b'; then
-  if [[ $BYPASS -ne 1 ]]; then
-    echo "BLOCKED (Lean guardrail): git commit --amend - proving workflow creates new commits for safe rollback" >&2
-    echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
-    exit 2
-  fi
+  _check_collab_op "git commit --amend" "proving workflow creates new commits for safe rollback"
 fi
 
 # Block gh pr create
 if seg_match gh '\bpr\b.*\bcreate\b'; then
-  if [[ $BYPASS -ne 1 ]]; then
-    echo "BLOCKED (Lean guardrail): gh pr create - review first, then create PR manually" >&2
-    echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
-    exit 2
-  fi
+  _check_collab_op "gh pr create" "review first, then create PR manually"
 fi
 
 # --- Destructive ops (never bypassable) ---

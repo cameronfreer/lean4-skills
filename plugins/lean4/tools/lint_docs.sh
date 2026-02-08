@@ -487,6 +487,15 @@ check_guardrail_docs() {
         if ! grep -q 'LEAN4_GUARDRAILS_BYPASS' "$_gd_file" 2>/dev/null; then
             warn "$_gd_base: Missing LEAN4_GUARDRAILS_BYPASS documentation"
         fi
+        if ! grep -q 'LEAN4_GUARDRAILS_COLLAB_POLICY' "$_gd_file" 2>/dev/null; then
+            warn "$_gd_base: Missing LEAN4_GUARDRAILS_COLLAB_POLICY documentation"
+        fi
+        # All three mode literals must appear in docs
+        for _gd_mode in ask allow block; do
+            if ! grep -q "$_gd_mode" "$_gd_file" 2>/dev/null; then
+                warn "$_gd_base: Missing collaboration policy mode '$_gd_mode'"
+            fi
+        done
         # Bypass must not be listed as bootstrap-set
         if grep -A2 'bootstrap' "$_gd_file" 2>/dev/null | grep -q 'LEAN4_GUARDRAILS_BYPASS'; then
             warn "$_gd_base: LEAN4_GUARDRAILS_BYPASS incorrectly listed as bootstrap-set"
@@ -521,11 +530,25 @@ check_guardrail_impl() {
     if ! grep -E 'LEAN4_GUARDRAILS_BYPASS' "$_gi_file" 2>/dev/null | grep -q '\^'; then
         warn "guardrails.sh: Bypass regex not prefix-anchored (must start with ^)"
     fi
-    # Exactly 3 bypass hints (one per collaboration block: push, amend, pr create)
+    if ! grep -q 'LEAN4_GUARDRAILS_COLLAB_POLICY' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Missing LEAN4_GUARDRAILS_COLLAB_POLICY support"
+    fi
+    # Invalid policy must fall back to ask (the *) default case)
+    if ! grep -qE 'COLLAB_POLICY="ask"' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Missing invalid-policy fallback to ask"
+    fi
+    # At least 1 bypass hint in collaboration helper
     local _gi_hint_count
     _gi_hint_count=$(grep -c 'prefix with.*LEAN4_GUARDRAILS_BYPASS' "$_gi_file" 2>/dev/null) || _gi_hint_count=0
-    if [[ $_gi_hint_count -ne 3 ]]; then
-        warn "guardrails.sh: Expected 3 bypass hints (collaboration blocks), found $_gi_hint_count"
+    if [[ $_gi_hint_count -lt 1 ]]; then
+        warn "guardrails.sh: Missing bypass hint in collaboration policy helper"
+    fi
+    # Exactly 3 collaboration-op policy calls (push, amend, pr create)
+    # Anchored to indented call sites, excludes function definition and comments
+    local _gi_collab_count
+    _gi_collab_count=$(grep -cE '^[[:space:]]+_check_collab_op[[:space:]]' "$_gi_file" 2>/dev/null) || _gi_collab_count=0
+    if [[ $_gi_collab_count -ne 3 ]]; then
+        warn "guardrails.sh: Expected 3 _check_collab_op calls (push, amend, pr create), found $_gi_collab_count"
     fi
     # Bypass hint must not appear in destructive blocks (reset, clean, checkout --, restore)
     # Check: no bypass hint line immediately after a destructive BLOCKED message

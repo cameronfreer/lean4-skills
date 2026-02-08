@@ -128,8 +128,19 @@ Blocked during Lean project sessions:
 |----------|--------|
 | `LEAN4_GUARDRAILS_DISABLE=1` | Skip all guardrails regardless of context |
 | `LEAN4_GUARDRAILS_FORCE=1` | Enforce guardrails even outside Lean projects |
+| `LEAN4_GUARDRAILS_COLLAB_POLICY` | Collaboration op policy: `ask` (default), `allow`, `block` |
 
 `LEAN4_GUARDRAILS_DISABLE` overrides everything. `LEAN4_GUARDRAILS_FORCE` controls whether guardrails activate outside Lean projects.
+
+**Collaboration policy (`LEAN4_GUARDRAILS_COLLAB_POLICY`):**
+
+Controls how collaboration ops (`git push`, `git commit --amend`, `gh pr create`) are handled:
+
+- **`ask`** (default) — block unless a one-shot bypass token is present. The hook is non-interactive; in `ask` mode the assistant asks you yes/no, then reruns the command with the bypass token once.
+- **`allow`** — permit collaboration ops without a bypass token.
+- **`block`** — block collaboration ops unconditionally, even with a bypass token.
+
+Invalid values fall back to `ask`. Destructive operations (`checkout --`, `restore`, `reset --hard`, `clean -f`) are always blocked regardless of policy.
 
 **One-shot bypass (collaboration ops only):**
 
@@ -139,7 +150,7 @@ To override a single blocked collaboration command (`git push`, `git commit --am
 LEAN4_GUARDRAILS_BYPASS=1 git push origin main
 ```
 
-The token must appear in the leading env-assignment prefix of the command (command prefix only, not an environment variable). Destructive operations (`checkout --`, `restore`, `reset --hard`, `clean -f`) are always blocked — bypass does not apply to them.
+The token must appear in the leading env-assignment prefix of the command (command prefix only, not an environment variable). Bypass is effective only in `ask` mode (default); it is unnecessary in `allow` mode and ignored in `block` mode. Destructive operations (`checkout --`, `restore`, `reset --hard`, `clean -f`) are always blocked — bypass does not apply to them.
 
 ### LSP-First Approach
 
@@ -173,6 +184,7 @@ Optional user overrides (not set by bootstrap):
 |----------|---------|
 | `LEAN4_GUARDRAILS_DISABLE` | Skip all guardrails (set to `1`) |
 | `LEAN4_GUARDRAILS_FORCE` | Force guardrails outside Lean projects (set to `1`) |
+| `LEAN4_GUARDRAILS_COLLAB_POLICY` | Collaboration op policy: `ask`, `allow`, `block` |
 
 **Script troubleshooting:**
 ```bash

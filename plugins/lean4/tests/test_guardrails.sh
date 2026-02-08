@@ -25,6 +25,26 @@ run_test() {
   fi
 }
 
+# Run a test with a specific collaboration policy.
+# $1=desc  $2=policy value (ask|allow|block|"" for unset)  $3=command  $4=expected exit
+run_test_policy() {
+  local desc="$1" policy="$2" cmd="$3" expected="$4" actual
+  actual=0
+  local policy_env=()
+  if [[ -n "$policy" ]]; then
+    policy_env=(LEAN4_GUARDRAILS_COLLAB_POLICY="$policy")
+  fi
+  echo "{\"tool_input\":{\"command\":$(printf '%s' "$cmd" | jq -Rs .)}}" \
+    | env LEAN4_GUARDRAILS_FORCE=1 "${policy_env[@]}" bash "$HOOK" >/dev/null 2>&1 || actual=$?
+  if [[ "$actual" -eq "$expected" ]]; then
+    echo "  PASS: $desc"
+    (( ++PASS ))
+  else
+    echo "  FAIL: $desc (expected exit $expected, got $actual)"
+    (( ++FAIL ))
+  fi
+}
+
 echo "=== guardrails.sh regression tests ==="
 echo ""
 
@@ -105,6 +125,41 @@ run_test "double-quote + \$() + ; git reset (block)"  'X="a b" Y=$(echo c; echo 
 run_test "\$() in env prefix git push (block)"        '/usr/bin/env FOO=$(echo "a;b") git push origin main'   2
 run_test "\$() + ; gh pr create (block)"              'FOO=$(echo "a)b"; echo c) gh pr create --title test'   2
 run_test "echo with \$() assignment (allow)"          'echo FOO=$(echo "a)b"; echo c)'                       0
+
+echo ""
+echo "-- Collaboration policy: ask mode --"
+run_test_policy "ask: git push (block)"                 ask "git push origin main"            2
+run_test_policy "ask: git commit --amend (block)"       ask "git commit --amend"              2
+run_test_policy "ask: gh pr create (block)"             ask "gh pr create --title test"       2
+run_test_policy "ask: bypass git push (allow)"          ask "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   0
+run_test_policy "ask: bypass git commit --amend (allow)" ask "LEAN4_GUARDRAILS_BYPASS=1 git commit --amend"    0
+run_test_policy "ask: bypass gh pr create (allow)"      ask "LEAN4_GUARDRAILS_BYPASS=1 gh pr create --title t" 0
+
+echo ""
+echo "-- Collaboration policy: allow mode --"
+run_test_policy "allow: git push (allow)"               allow "git push origin main"          0
+run_test_policy "allow: git commit --amend (allow)"     allow "git commit --amend"            0
+run_test_policy "allow: gh pr create (allow)"           allow "gh pr create --title test"     0
+run_test_policy "allow: reset --hard (still block)"     allow "git reset --hard"              2
+run_test_policy "allow: clean -f (still block)"         allow "git clean -f"                  2
+run_test_policy "allow: checkout -- (still block)"      allow "git checkout -- file.txt"      2
+
+echo ""
+echo "-- Collaboration policy: block mode --"
+run_test_policy "block: git push (block)"               block "git push origin main"          2
+run_test_policy "block: git commit --amend (block)"     block "git commit --amend"            2
+run_test_policy "block: gh pr create (block)"           block "gh pr create --title test"     2
+run_test_policy "block: bypass git push (still block)"  block "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   2
+run_test_policy "block: bypass amend (still block)"     block "LEAN4_GUARDRAILS_BYPASS=1 git commit --amend"     2
+run_test_policy "block: bypass pr create (still block)" block "LEAN4_GUARDRAILS_BYPASS=1 gh pr create --title t" 2
+run_test_policy "block: reset --hard (still block)"     block "git reset --hard"              2
+
+echo ""
+echo "-- Collaboration policy: invalid/default --"
+run_test_policy "invalid: yolo push (block=ask)"        yolo "git push origin main"           2
+run_test_policy "invalid: yolo bypass push (allow=ask)" yolo "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   0
+run_test_policy "unset: plain push (block=ask)"         ""   "git push origin main"           2
+run_test_policy "unset: bypass push (allow=ask)"        ""   "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   0
 
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
