@@ -18,6 +18,7 @@ Optimize Lean proofs that already compile. Reduce tactic count, shorten proofs, 
 /lean4:golf File.lean:42        # Golf proof at specific line
 /lean4:golf --dry-run           # Show opportunities without applying
 /lean4:golf --search=full          # Include lemma replacement pass
+/lean4:golf --max-delegates=3    # Override default 2 concurrent subagents
 ```
 
 ## Inputs
@@ -27,6 +28,7 @@ Optimize Lean proofs that already compile. Reduce tactic count, shorten proofs, 
 | target | No | File or file:line to golf |
 | --dry-run | No | Preview only, no changes |
 | --search | No | `off`, `quick` (default), or `full` — LSP lemma replacement pass |
+| --max-delegates | No | `2` — max concurrent golfer subagents (preflight must pass first) |
 
 ## Actions
 
@@ -92,6 +94,33 @@ Stop when success rate < 20% or last 3 attempts failed.
 - Reverts immediately on build failure
 - Does not create commits (use `/lean4:checkpoint`)
 - `--search` replacements follow same revert-on-failure policy
+
+### Bulk Rewrite Safety
+
+sed/bulk rewrites are **opt-in** for whitelisted syntax-only patterns at declaration RHS / term-wrapper positions only; never inside tactic blocks. Default: individual edits with per-edit verification.
+
+**Whitelist:** `:= by exact t` → `:= t`, `by rfl` → `rfl`
+
+**Bulk workflow (still obeys 3-hunk cap per agent run):**
+1. Preview — match count + 3-5 sample hunks before applying
+2. Batch apply — per-file, max 10 replacements per batch
+3. Validate — capture baseline diagnostics on touched files before batch; after batch run `lean_diagnostic_messages(file)` and compare: new diagnostics vs baseline + sorry-count delta
+4. Auto-revert — if sorry count increases or new diagnostics appear relative to baseline, revert batch immediately
+5. On permission denial — abort bulk mode, continue with individual edits
+
+**Never bulk-rewrite:** semantic patterns, proof structure changes, let/have inlining, anything inside tactic blocks
+
+### Delegation Execution Policy
+
+When delegating to `lean4-proof-golfer` subagents:
+
+1. **Preflight** — run one golfer task on a small target first
+2. **Permission gate** — if preflight hits Edit/Bash permission prompt → stop delegation immediately, switch to direct mode in main agent; never launch additional agents after first permission denial
+3. **Max `--max-delegates` concurrent** (default 2; only after preflight succeeds)
+4. **Batch by value** — Batch 1: high-priority instant wins, then prompt user for checkpoint; Batch 2: medium-priority; ask before continuing
+5. **After each batch** — diagnostics summary, changed files, `Continue? [yes/no]`
+6. **One plan message** per batch — no repeated "launching more agents" narration
+7. **Fallback contract** — if ANY subagent cannot obtain Edit/Bash permission → abort all delegation, continue direct; do NOT queue new delegates after a permission error
 
 ## See Also
 

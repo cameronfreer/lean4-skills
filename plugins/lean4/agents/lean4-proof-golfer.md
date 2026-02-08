@@ -69,6 +69,21 @@ Total savings:
 - May NOT skip safety verification
 - If replacement needs statement changes or multi-file refactor → hand off to axiom-eliminator
 
+**Bulk rewrite constraints (obeys 3-hunk cap):**
+- sed is opt-in for whitelisted syntax wrappers at declaration RHS / term-wrapper positions only (`:= by exact t` → `:= t`, `by rfl` → `rfl`); never inside tactic blocks
+- Preview required: match count + 3-5 sample hunks before applying
+- Max 10 replacements per file per batch; validate vs pre-batch baseline diagnostics + sorry count
+- Auto-revert batch if sorry count increases or new diagnostics appear vs baseline
+- On permission denial → stop immediately, report back to parent agent
+
+## Delegation Awareness
+
+When invoked as a background subagent:
+
+- If Edit/Bash permission denied → stop immediately, do NOT retry or request again
+- Report to parent: `"Permission denied — completed N/M patterns"`
+- Default max 2 concurrent golfer agents (parent may override via `--max-delegates`); parent handles batching and checkpointing
+
 ## Example (Happy Path)
 
 ```

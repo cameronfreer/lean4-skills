@@ -53,6 +53,7 @@ check_commands() {
         case "$cmd" in
             prove|autoprove) max_lines=230 ;;
             doctor)          max_lines=220 ;;
+            golf)            max_lines=150 ;;
             review)          max_lines=320 ;;
         esac
 
@@ -103,10 +104,15 @@ check_agents() {
         local lines
         lines=$(wc -l < "$file")
 
-        if [[ $lines -gt 115 ]]; then
-            warn "$agent.md: $lines lines (target: 80-110)"
+        local max_lines=115
+        case "$agent" in
+            lean4-proof-golfer) max_lines=135 ;;
+        esac
+
+        if [[ $lines -gt $max_lines ]]; then
+            warn "$agent.md: $lines lines (target: 80-$max_lines)"
         elif [[ $lines -lt 60 ]]; then
-            warn "$agent.md: $lines lines (too short, target: 80-110)"
+            warn "$agent.md: $lines lines (too short, target: 80-$max_lines)"
         else
             [[ -n "$VERBOSE" ]] && ok "$agent.md: $lines lines"
         fi
@@ -552,7 +558,25 @@ check_guardrail_impl() {
     ok "Guardrail implementation checked"
 }
 
-# Check 12: Backward-compat scripts alias
+# Check 12: Golf safety policy terms
+check_golf_policy() {
+    log ""
+    log "Checking golf safety policy..."
+
+    local file="$PLUGIN_ROOT/commands/golf.md"
+    local missing=0
+    for term in "Preflight" "Permission gate" "max-delegates" "Auto-revert" "never launch additional agents after first"; do
+        if ! grep -q "$term" "$file"; then
+            warn "golf.md: Missing policy term: '$term'"
+            missing=1
+        fi
+    done
+    if [[ $missing -eq 0 ]]; then
+        ok "golf.md: All safety policy terms present"
+    fi
+}
+
+# Check 13: Backward-compat scripts alias
 check_compat_alias() {
     log ""
     log "Checking compat alias..."
@@ -575,7 +599,7 @@ check_compat_alias() {
     ok "Compat alias checked"
 }
 
-# Check 13: Suspicious script path patterns in docs
+# Check 14: Suspicious script path patterns in docs
 check_path_patterns() {
     log ""
     log "Checking for suspicious script path patterns..."
@@ -624,6 +648,7 @@ check_bare_scripts
 check_deep_safety
 check_guardrail_docs
 check_guardrail_impl
+check_golf_policy
 check_compat_alias
 check_path_patterns
 
