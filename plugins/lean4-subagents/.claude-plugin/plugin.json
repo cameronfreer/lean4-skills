@@ -1,9 +1,0 @@
-{
-  "name": "lean4-subagents",
-  "version": "1.4.0",
-  "description": "Specialized subagents for Lean 4 proof development workflows (proof-golfer, sorry-filler, axiom-eliminator, proof-repair)",
-  "author": {
-    "name": "Cameron Freer",
-    "email": "cameronfreer@gmail.com"
-  }
-}

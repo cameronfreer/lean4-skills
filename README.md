@@ -2,82 +2,110 @@
 
 [![Run in Smithery](https://smithery.ai/badge/skills/cameronfreer)](https://smithery.ai/skills?ns=cameronfreer&utm_source=github&utm_medium=badge)
 
-Claude Skills, commands, and agents for systematic development of formal proofs in Lean 4.
+Claude Code plugin for automated Lean 4 theorem proving with guided and autonomous proving commands.
 
-## Plugins
+## Installation
 
-| Plugin | Provides | Description |
-|--------|----------|-------------|
-| **[lean4-theorem-proving](plugins/lean4-theorem-proving/)** | Skill + 8 Commands | Core workflows, LSP integration, automation tools |
-| **[lean4-memories](plugins/lean4-memories/)** | Skill | Persistent learning across sessions (requires MCP memory server) |
-| **[lean4-subagents](plugins/lean4-subagents/)** | 5 Agents | Proof repair, sorry filling, axiom elimination, proof golfing |
+```bash
+# Add marketplace
+/plugin marketplace add cameronfreer/lean4-skills
+
+# Install plugin
+/plugin install lean4
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `/lean4:prove` | Guided cycle-by-cycle theorem proving |
+| `/lean4:autoprove` | Autonomous multi-cycle proving with stop rules |
+| `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
+| `/lean4:review` | Read-only quality review with optional external hooks |
+| `/lean4:golf` | Optimize proofs for brevity |
+| `/lean4:doctor` | Diagnostics and migration help |
 
 ## Quick Start
 
-```bash
-# Via Marketplace (Recommended)
-/plugin marketplace add cameronfreer/lean4-skills
-/plugin install lean4-theorem-proving    # Core (required)
-/plugin install lean4-subagents          # Optional: specialized agents
-/plugin install lean4-memories           # Optional: persistent memory
+```
+/lean4:prove               # Guided sorry filling (interactive)
+/lean4:autoprove           # Or autonomous (unattended)
+/lean4:review              # Check quality (read-only)
+/lean4:golf                # Optimize proofs
+/lean4:checkpoint          # Verified commit
+git push                   # Manual, after review
 ```
 
-Skills activate automatically when you work on Lean 4 files. Commands appear in autocomplete with `/lean4-theorem-proving:` prefix.
+## How It Works
 
-## What You Get
+**`/lean4:prove`** — Guided, interactive. Asks preferences at startup, prompts before each commit, pauses between cycles. Start here.
 
-- **Lean LSP integration** - Sub-second feedback vs 30s builds
-- **8 commands** - `/build-lean`, `/fill-sorry`, `/repair-file`, `/golf-proofs`, `/check-axioms`, `/analyze-sorries`, `/refactor-have`, `/search-mathlib`
-- **5 specialized agents** - Proof repair, sorry filling (fast + deep), axiom elimination, proof golfing
-- **Automation scripts** - 16 tools for search, analysis, verification
-- **mathlib patterns** - Type class management, domain-specific tactics
+**`/lean4:autoprove`** — Autonomous, unattended. No questionnaire, auto-commits, loops until done or a stop condition fires (max cycles/time/stuck).
 
-## Highly recommended add-on: install the Lean LSP MCP Server alongside these plugins
+Both run the same cycle engine: **Plan → Work → Checkpoint → Review → Replan → Continue/Stop**. Each sorry gets a mathlib search, tactic attempts, and validation. By default, each successful fill is committed individually (`--commit` controls this). When stuck, both force a review + replan.
 
-The [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) server provides **12+ tools** for rapid feedback, goal inspection, parallel tactic testing, and integrated lemma search. This dramatic speedup turns frustrating trial-and-error into smooth, interactive problem-solving. Our Lean 4 skill adds comprehensive workflow guides that teach the LLM to use the LSP tools effectively.
+**Without a command:** Editing `.lean` files activates the skill for one bounded pass — fix the immediate issue, then suggest `/lean4:prove` or `/lean4:autoprove` for more.
 
-**Setup:** [INSTALLATION.md](INSTALLATION.md#lean-lsp-server) (<1 minute)
+The other commands: **`/lean4:review`** (read-only quality check), **`/lean4:checkpoint`** (build + axiom check + commit), **`/lean4:golf`** (proof optimization), **`/lean4:doctor`** (diagnostics).
+
+See [plugin README](plugins/lean4/README.md) for the full command guide.
+
+## Recommended: Lean LSP MCP Server
+
+[lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) provides sub-second feedback and search (LeanSearch, Loogle, LeanFinder). **Setup:** See [INSTALLATION.md](INSTALLATION.md#lean-lsp-server)
+
+## Migrating from V3
+
+If upgrading from the 3-plugin system:
+
+```bash
+# Uninstall old plugins
+/plugin uninstall lean4-theorem-proving
+/plugin uninstall lean4-memories
+/plugin uninstall lean4-subagents
+
+# Install unified plugin
+/plugin install lean4
+
+# Verify
+/lean4:doctor
+```
+
+**Legacy access:** Pin to `@v3.4.2-legacy` or use `#legacy-marketplace` branch.
+
+See `/lean4:doctor migrate` for detailed migration help.
 
 ## Documentation
 
-- [lean4-theorem-proving/README.md](plugins/lean4-theorem-proving/README.md) - Core skill guide
-- [lean4-subagents/README.md](plugins/lean4-subagents/README.md) - Specialized agents
-- [lean4-memories/README.md](plugins/lean4-memories/README.md) - Memory integration
-- [INSTALLATION.md](INSTALLATION.md) - Platform-specific setup, LSP server
+- [SKILL.md](plugins/lean4/skills/lean4/SKILL.md) - Core skill reference
+- [INSTALLATION.md](INSTALLATION.md) - Setup guide
+- [Commands](plugins/lean4/commands/) - Command documentation
 
 ## Changelog
 
-**v3.4.2** (January 2026)
-- Updated lean-lsp-mcp documentation for v0.16-v0.19 features:
-  - New `lean_profile_proof` tool for identifying slow tactics
-  - Structured diagnostics output with `success` and `failed_dependencies`
-  - Expanded local Loogle setup instructions
-- Added `lake build | tee` tip to avoid redundant builds
+**v4.0.5** (February 2026)
+- Split `/lean4:autoprover` into `/lean4:prove` (guided) and `/lean4:autoprove` (autonomous)
+- prove: asks before each cycle, startup questionnaire, interactive deep approval
+- autoprove: autonomous loop with hard stop rules, structured summary on stop
+- Shared cycle engine: plan → work → checkpoint → review → replan → continue/stop
+- Stuck definition uses exact signature hashing for precision
+- Checkpoint skips commit on empty diff
 
-**v3.4.1** (January 2026)
-- Expanded `/refactor-have` to support both inlining and extraction
-- Added mathlib style guidance for idiomatic proofs
+**v4.0.0** (February 2026)
+- Unified into single `lean4` plugin
+- New `/lean4:autoprover` - planning-first workflow
+- New `/lean4:golf` - standalone proof optimization
+- LSP-first approach throughout
+- Safety guardrails in Lean projects (blocks push/amend/pr; one-shot bypass for collaboration ops). See [plugin README safety section](plugins/lean4/README.md#safety-guardrails).
+- Removed memory integration (didn't work reliably)
 
-**v3.4.0** (January 2026)
-- Added `/refactor-have` command for extracting long have-blocks
-- Added `/repair-interactive` command for interactive proof repair
-- Added `lean4-sorry-filler-deep` agent for complex sorries
-- Improved LSP integration and error handling
-
-**v3.3.0** (December 2025)
-- Added `/repair-file` command for full-file compiler-guided repair
-- Streamlined agent descriptions per Anthropic best practices
-
-**v3.2.0** (November 2025)
-- Enhanced mathlib search capabilities
-- Improved type class instance resolution patterns
-
-**v3.1.0** (October 2025)
-- Restructured as Claude Code marketplace with 3 plugins
+**v3.4.2** (January 2026) - [Legacy branch](../../tree/legacy-marketplace)
+- Last version of 3-plugin system
+- Available via `@v3.4.2-legacy` tag
 
 ## Contributing
 
-Contributions welcome! Open an issue or PR at https://github.com/cameronfreer/lean4-skills
+Issues and PRs welcome at https://github.com/cameronfreer/lean4-skills
 
 ## License
 

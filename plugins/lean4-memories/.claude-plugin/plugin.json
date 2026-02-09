@@ -1,9 +1,0 @@
-{
-  "name": "lean4-memories",
-  "version": "1.0.0",
-  "description": "Persistent learning across Lean 4 sessions (patterns, dead-ends, conventions)",
-  "author": {
-    "name": "Cameron Freer",
-    "email": "cameronfreer@gmail.com"
-  }
-}

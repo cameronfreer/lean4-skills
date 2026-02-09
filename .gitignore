@@ -14,5 +14,9 @@
 *.tmp
 *.bak
 
+# Python
+__pycache__/
+*.pyc
+
 # Claude Code
 .claude

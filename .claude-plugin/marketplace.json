@@ -5,24 +5,14 @@
     "email": "cameronfreer@gmail.com"
   },
   "metadata": {
-    "description": "Claude Skills and agents for systematic Lean 4 proof development",
-    "version": "3.4.2"
+    "description": "Lean 4 theorem proving with guided + autonomous proving, LSP-first workflows, and guardrails",
+    "version": "4.0.6"
   },
   "plugins": [
     {
-      "name": "lean4-theorem-proving",
-      "description": "Lean 4 workflows (skills + commands)",
-      "source": "./plugins/lean4-theorem-proving"
-    },
-    {
-      "name": "lean4-memories",
-      "description": "Persistent memory integration for Lean 4 formalization",
-      "source": "./plugins/lean4-memories"
-    },
-    {
-      "name": "lean4-subagents",
-      "description": "Specialized subagents for Lean 4 development",
-      "source": "./plugins/lean4-subagents"
+      "name": "lean4",
+      "description": "Unified Lean 4 plugin (prove, autoprove, review, golf, checkpoint) — LSP-first, scripts fallback",
+      "source": "./plugins/lean4"
     }
   ]
 }

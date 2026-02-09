@@ -1,0 +1,412 @@
+#!/bin/bash
+set -euo pipefail
+
+# Override: skip all guardrails if explicitly disabled
+[[ "${LEAN4_GUARDRAILS_DISABLE:-}" == "1" ]] && exit 0
+
+# Lean project detection: walk ancestors for lakefile.lean, lean-toolchain, lakefile.toml
+# No depth cap — deep monorepos are common. Terminates at filesystem root.
+is_lean_project() {
+  local dir="$1"
+  [[ -d "$dir" ]] || return 1
+  while true; do
+    [[ -f "$dir/lakefile.lean" || -f "$dir/lean-toolchain" || -f "$dir/lakefile.toml" ]] && return 0
+    [[ "$dir" == "/" ]] && break
+    dir=$(dirname "$dir")
+  done
+  return 1
+}
+
+# Read JSON input from stdin
+INPUT=$(cat)
+
+# Parse command with jq, fall back to python3; default empty on parse failure
+if command -v jq >/dev/null 2>&1; then
+  COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // .command // empty' 2>/dev/null) || COMMAND=""
+else
+  COMMAND=$(echo "$INPUT" | python3 -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+    ti = data.get("tool_input") or {}
+    print(ti.get("command") or data.get("command") or "")
+except Exception:
+    print("")
+' 2>/dev/null) || COMMAND=""
+fi
+
+# If no command, allow
+[ -z "$COMMAND" ] && exit 0
+
+# Determine working directory: .cwd → .tool_input.cwd → .tool_input.workdir → $PWD
+# Fail-safe: parse failure → empty → falls through to $PWD default
+if command -v jq >/dev/null 2>&1; then
+  TOOL_CWD=$(echo "$INPUT" | jq -r '(.cwd // .tool_input.cwd // .tool_input.workdir) // empty' 2>/dev/null) || TOOL_CWD=""
+else
+  TOOL_CWD=$(echo "$INPUT" | python3 -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+    ti = data.get("tool_input") or {}
+    print(data.get("cwd") or ti.get("cwd") or ti.get("workdir") or "")
+except Exception:
+    print("")
+' 2>/dev/null) || TOOL_CWD=""
+fi
+TOOL_CWD="${TOOL_CWD:-$PWD}"
+
+# Normalize path (portable: realpath → cd+pwd -P → raw)
+TOOL_CWD=$(realpath "$TOOL_CWD" 2>/dev/null || (cd "$TOOL_CWD" 2>/dev/null && pwd -P) || echo "$TOOL_CWD")
+
+# Skip guardrails if not in a Lean project (unless forced)
+if ! is_lean_project "$TOOL_CWD"; then
+  [[ "${LEAN4_GUARDRAILS_FORCE:-}" == "1" ]] || exit 0
+fi
+
+# One-shot bypass: token in leading env-assignment prefix only (not arbitrary position)
+# Detected per-segment during normalization using _strip_wrappers prefix diff.
+# Accepts: LEAN4_GUARDRAILS_BYPASS=1 git push ...
+#          env LEAN4_GUARDRAILS_BYPASS=1 git push ...
+#          FOO="a b" LEAN4_GUARDRAILS_BYPASS=1 git push ...
+# Rejects: echo LEAN4_GUARDRAILS_BYPASS=1 && git push ... (token after a command word)
+#          FOO="LEAN4_GUARDRAILS_BYPASS=1" git push ...  (token inside quoted value)
+# Applies to collaboration ops only (push, amend, pr create), not destructive ops.
+# Never exits early — all destructive checks run first; bypass resolves at end.
+BYPASS=0
+
+# Collaboration policy: ask (default) | allow | block
+# - ask:   require human confirmation; block unless one-shot bypass token present
+# - allow: permit collaboration ops without bypass token
+# - block: block collaboration ops even with bypass token
+COLLAB_POLICY="${LEAN4_GUARDRAILS_COLLAB_POLICY:-ask}"
+case "$COLLAB_POLICY" in
+  ask|allow|block) ;;
+  *) COLLAB_POLICY="ask" ;;
+esac
+
+# --- Segment-based command parsing ---
+# Split command on unquoted shell operators (&&, ||, ;, |) into segments.
+# Normalize each segment: strip wrappers (sudo, env, VAR=val), then strip
+# quoted strings so patterns match only real command/flag tokens.
+
+# Strip sudo (with options), env (with options), and VAR=val prefixes.
+_strip_wrappers() {
+  local s="$1" _next _vi _vlen _vc _depth
+  s="${s#"${s%%[![:space:]]*}"}"
+  # Normalize /path/to/exe → exe for known commands and wrappers
+  if [[ "${s%%[[:space:]]*}" == */* ]]; then
+    _next="${s%%[[:space:]]*}"
+    case "${_next##*/}" in
+      git|gh|lake|sudo|env|bash|sh|zsh|command) s="${_next##*/}${s#"${_next}"}" ;;
+    esac
+  fi
+  # Strip sudo with options
+  if [[ "$s" =~ ^sudo[[:space:]] ]]; then
+    s="${s#sudo}"; s="${s#"${s%%[![:space:]]*}"}"
+    while [[ "$s" == -* ]]; do
+      s="${s#${s%%[[:space:]]*}}"; s="${s#"${s%%[![:space:]]*}"}"
+      _next="${s%%[[:space:]]*}"
+      if [[ -n "$_next" && "$_next" != -* && ! "$_next" =~ ^[A-Za-z_][A-Za-z_0-9]*= ]]; then
+        case "$_next" in git|gh|lake|env|sudo) break ;; esac
+        s="${s#${_next}}"; s="${s#"${s%%[![:space:]]*}"}"
+      fi
+    done
+  fi
+  # Strip env with options
+  if [[ "$s" =~ ^env[[:space:]] ]]; then
+    s="${s#env}"; s="${s#"${s%%[![:space:]]*}"}"
+    while [[ "$s" == -* ]]; do
+      s="${s#${s%%[[:space:]]*}}"; s="${s#"${s%%[![:space:]]*}"}"
+    done
+  fi
+  # Strip env-var assignments: NAME=VALUE where VALUE may contain quotes,
+  # backslash escapes, $(...), ${...}, or backtick substitution.
+  # Uses index-based scanning (not glob-based ${s#...}) to avoid infinite
+  # loops when BASH_REMATCH contains backslashes interpreted as glob escapes.
+  while [[ "$s" =~ ^[A-Za-z_][A-Za-z_0-9]*= ]]; do
+    _vi=${#BASH_REMATCH[0]}
+    _vlen=${#s}
+    while [[ $_vi -lt $_vlen ]]; do
+      _vc="${s:_vi:1}"
+      if [[ "$_vc" == '"' ]]; then
+        _vi=$((_vi + 1))
+        while [[ $_vi -lt $_vlen && "${s:_vi:1}" != '"' ]]; do
+          if [[ "${s:_vi:1}" == "\\" ]]; then _vi=$((_vi + 1)); fi
+          _vi=$((_vi + 1))
+        done
+        _vi=$((_vi + 1))
+      elif [[ "$_vc" == "'" ]]; then
+        _vi=$((_vi + 1))
+        while [[ $_vi -lt $_vlen && "${s:_vi:1}" != "'" ]]; do
+          _vi=$((_vi + 1))
+        done
+        _vi=$((_vi + 1))
+      elif [[ "$_vc" == '$' && "${s:_vi+1:1}" == '(' ]]; then
+        _vi=$((_vi + 2)); _depth=1
+        while [[ $_vi -lt $_vlen && $_depth -gt 0 ]]; do
+          _vc="${s:_vi:1}"
+          if [[ "$_vc" == '"' ]]; then
+            _vi=$((_vi + 1))
+            while [[ $_vi -lt $_vlen && "${s:_vi:1}" != '"' ]]; do
+              if [[ "${s:_vi:1}" == "\\" ]]; then _vi=$((_vi + 1)); fi
+              _vi=$((_vi + 1))
+            done
+          elif [[ "$_vc" == "'" ]]; then
+            _vi=$((_vi + 1))
+            while [[ $_vi -lt $_vlen && "${s:_vi:1}" != "'" ]]; do
+              _vi=$((_vi + 1))
+            done
+          elif [[ "$_vc" == '(' ]]; then _depth=$((_depth + 1));
+          elif [[ "$_vc" == ')' ]]; then _depth=$((_depth - 1));
+          elif [[ "$_vc" == "\\" ]]; then _vi=$((_vi + 1)); fi
+          _vi=$((_vi + 1))
+        done
+      elif [[ "$_vc" == '$' && "${s:_vi+1:1}" == '{' ]]; then
+        _vi=$((_vi + 2)); _depth=1
+        while [[ $_vi -lt $_vlen && $_depth -gt 0 ]]; do
+          _vc="${s:_vi:1}"
+          if [[ "$_vc" == '{' ]]; then _depth=$((_depth + 1));
+          elif [[ "$_vc" == '}' ]]; then _depth=$((_depth - 1));
+          elif [[ "$_vc" == "\\" ]]; then _vi=$((_vi + 1)); fi
+          _vi=$((_vi + 1))
+        done
+      elif [[ "$_vc" == '`' ]]; then
+        _vi=$((_vi + 1))
+        while [[ $_vi -lt $_vlen && "${s:_vi:1}" != '`' ]]; do
+          if [[ "${s:_vi:1}" == "\\" ]]; then _vi=$((_vi + 1)); fi
+          _vi=$((_vi + 1))
+        done
+        _vi=$((_vi + 1))
+      elif [[ "$_vc" == "\\" ]]; then
+        _vi=$((_vi + 2))
+      elif [[ "$_vc" == " " || "$_vc" == $'\t' ]]; then
+        break
+      else
+        _vi=$((_vi + 1))
+      fi
+    done
+    if [[ $_vi -ge $_vlen ]]; then s=""; break; fi
+    while [[ $_vi -lt $_vlen && ("${s:_vi:1}" == " " || "${s:_vi:1}" == $'\t') ]]; do
+      _vi=$((_vi + 1))
+    done
+    s="${s:_vi}"
+  done
+  # Strip 'command' prefix (with optional flags like -p)
+  if [[ "$s" =~ ^command[[:space:]] ]]; then
+    s="${s#command}"; s="${s#"${s%%[![:space:]]*}"}"
+    while [[ "$s" == -* ]]; do
+      s="${s#${s%%[[:space:]]*}}"; s="${s#"${s%%[![:space:]]*}"}"
+    done
+  fi
+  # Strip shell -c invocation: bash -c 'cmd' / bash -lc 'cmd' → cmd
+  if [[ "$s" =~ ^(bash|sh|zsh)([[:space:]]+-[a-zA-Z-]+)*[[:space:]]+-[a-zA-Z]*c[[:space:]] ]]; then
+    s="${s#${s%%[[:space:]]*}}"; s="${s#"${s%%[![:space:]]*}"}"
+    while [[ "$s" == -* ]]; do
+      _next="${s%%[[:space:]]*}"
+      s="${s#${_next}}"; s="${s#"${s%%[![:space:]]*}"}"
+      if [[ "$_next" == *c && "$_next" != --* ]]; then break; fi
+    done
+    # Unquote the -c argument if quoted
+    if [[ "$s" == \'*\' ]]; then s="${s#\'}"; s="${s%\'}";
+    elif [[ "$s" == \"*\" ]]; then s="${s#\"}"; s="${s%\"}"; fi
+  fi
+  # Normalize again: wrappers may have exposed a path-qualified command
+  if [[ "${s%%[[:space:]]*}" == */* ]]; then
+    _next="${s%%[[:space:]]*}"
+    case "${_next##*/}" in
+      git|gh|lake|sudo|env|bash|sh|zsh|command) s="${_next##*/}${s#"${_next}"}" ;;
+    esac
+  fi
+  echo "$s"
+}
+
+# Quote-aware segment splitting: split on unquoted &&, ||, ;, |.
+# Tracks $() nesting and backticks so separators inside them don't split.
+_split_segments() {
+  local cmd="$1"
+  local i=0 len=${#cmd} seg="" c="" nc="" in_sq=0 in_dq=0 paren_depth=0 in_bt=0
+  while [[ $i -lt $len ]]; do
+    c="${cmd:i:1}"
+    nc="${cmd:i+1:1}"
+    if [[ $in_sq -eq 1 ]]; then
+      seg+="$c"
+      if [[ "$c" == "'" ]]; then in_sq=0; fi
+    elif [[ $in_dq -eq 1 ]]; then
+      if [[ "$c" == "\\" && -n "$nc" ]]; then
+        seg+="$c$nc"; i=$((i + 2)); continue
+      fi
+      seg+="$c"
+      if [[ "$c" == '"' ]]; then in_dq=0; fi
+    elif [[ $in_bt -eq 1 ]]; then
+      seg+="$c"
+      if [[ "$c" == "\\" && -n "$nc" ]]; then
+        seg+="$nc"; i=$((i + 2)); continue
+      fi
+      if [[ "$c" == '`' ]]; then in_bt=0; fi
+    elif [[ $paren_depth -gt 0 ]]; then
+      seg+="$c"
+      if [[ "$c" == "\\" && -n "$nc" ]]; then
+        seg+="$nc"; i=$((i + 2)); continue
+      fi
+      if [[ "$c" == "'" ]]; then in_sq=1;
+      elif [[ "$c" == '"' ]]; then in_dq=1;
+      elif [[ "$c" == '(' ]]; then paren_depth=$((paren_depth + 1));
+      elif [[ "$c" == ')' ]]; then paren_depth=$((paren_depth - 1)); fi
+    elif [[ "$c" == "\\" && -n "$nc" ]]; then
+      seg+="$c$nc"; i=$((i + 2)); continue
+    elif [[ "$c" == "'" ]]; then
+      in_sq=1; seg+="$c"
+    elif [[ "$c" == '"' ]]; then
+      in_dq=1; seg+="$c"
+    elif [[ "$c" == '$' && "$nc" == '(' ]]; then
+      paren_depth=$((paren_depth + 1)); seg+="$c$nc"; i=$((i + 2)); continue
+    elif [[ "$c" == '`' ]]; then
+      in_bt=1; seg+="$c"
+    elif [[ "$c" == "&" && "$nc" == "&" ]]; then
+      echo "$seg"; seg=""; i=$((i + 2)); continue
+    elif [[ "$c" == "|" && "$nc" == "|" ]]; then
+      echo "$seg"; seg=""; i=$((i + 2)); continue
+    elif [[ "$c" == ";" || "$c" == "|" ]]; then
+      echo "$seg"; seg=""
+    else
+      seg+="$c"
+    fi
+    i=$((i + 1))
+  done
+  if [[ -n "$seg" ]]; then echo "$seg"; fi
+}
+
+# Strip known text-value option pairs (-m "msg", --body "text", etc.) so
+# argument content doesn't contribute to pattern matching.
+# Anchored to token boundaries so patterns don't match inside quoted strings.
+_strip_optvals() {
+  local s="$1"
+  # Short options with text values: -m "msg", -m'msg', -mmsg, -am "msg", -F file
+  s=$(echo "$s" | sed -E "s/(^|[[:space:]])-[a-zA-Z]*[mF][[:space:]]*(\"[^\"]*\"|'[^']*'|[^[:space:]]+)/\1/g")
+  # Long options with text values: --message/--file/--body/--title (= or space)
+  s=$(echo "$s" | sed -E "s/(^|[[:space:]])--(message|file|body|title)(=(\"[^\"]*\"|'[^']*'|[^[:space:]]+)|[[:space:]]+(\"[^\"]*\"|'[^']*'|[^[:space:]]+))/\1/g")
+  echo "$s"
+}
+
+# Unquote single-token quoted strings ("--hard" → --hard), remove
+# multi-token ones ("mention git push" → removed).
+_unquote_tokens() {
+  local s="$1"
+  s=$(echo "$s" | sed -E 's/"([^"[:space:]]*)"/ \1 /g; s/"([^"\\]|\\.)*"//g')
+  s=$(echo "$s" | sed -E "s/'([^'[:space:]]*)'/ \1 /g; s/'[^']*'//g")
+  echo "$s"
+}
+
+# Normalization pipeline: strip wrappers → strip option values → unquote tokens.
+# Also detects bypass token: _strip_wrappers consumes env-var prefixes, so the
+# prefix zone is raw minus stripped suffix.  A whitespace-bounded match there
+# confirms a standalone assignment (not buried inside another var's quoted value).
+SEGMENTS=()
+while IFS= read -r _seg; do
+  _seg="${_seg#"${_seg%%[![:space:]]*}"}"
+  [[ -z "$_seg" ]] && continue
+  _stripped=$(_strip_wrappers "$_seg")
+  if [[ $BYPASS -eq 0 ]]; then
+    _prefix="${_seg%"$_stripped"}"
+    if [[ "$_prefix" =~ (^|[[:space:]])LEAN4_GUARDRAILS_BYPASS=1([[:space:]]|$) ]]; then
+      BYPASS=1
+    fi
+  fi
+  _stripped=$(_strip_optvals "$_stripped")
+  _stripped=$(_unquote_tokens "$_stripped")
+  SEGMENTS+=("$_stripped")
+done < <(_split_segments "$COMMAND")
+
+# Helper: true if any segment starts with $1 and matches $2.
+# Optional $3: skip segments matching this pattern (scoped exemption).
+seg_match() {
+  local exe="$1" pattern="$2" exclude="${3:-}" _sm_seg
+  for _sm_seg in "${SEGMENTS[@]}"; do
+    echo "$_sm_seg" | grep -qE -- "^${exe}\b" || continue
+    echo "$_sm_seg" | grep -qE -- "$pattern" || continue
+    [[ -n "$exclude" ]] && echo "$_sm_seg" | grep -qE -- "$exclude" && continue
+    return 0
+  done
+  return 1
+}
+
+# Collaboration-op policy enforcement.
+# $1 = short label (e.g. "git push")
+# $2 = user-facing message suffix
+_check_collab_op() {
+  local label="$1" msg="$2"
+  case "$COLLAB_POLICY" in
+    allow) return 0 ;;
+    block)
+      echo "BLOCKED (Lean guardrail): $label - $msg [policy=block]" >&2
+      exit 2
+      ;;
+    *)  # ask (default): confirmation-gated; bypass is the one-time confirmed rerun path
+      if [[ $BYPASS -ne 1 ]]; then
+        echo "BLOCKED (Lean guardrail): $label - $msg [policy=ask, confirm then rerun]" >&2
+        echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
+        exit 2
+      fi
+      ;;
+  esac
+}
+
+# --- Collaboration ops (policy-controlled) ---
+
+# Block git push (not --dry-run, not stash push — exemptions scoped per-segment)
+if seg_match git '[[:space:]]push([[:space:]]|$)' '--dry-run\b|\bstash\b.*\bpush\b'; then
+  _check_collab_op "git push" "use /lean4:checkpoint, then push manually"
+fi
+
+# Block git commit --amend
+if seg_match git '\bcommit\b.*--amend\b'; then
+  _check_collab_op "git commit --amend" "proving workflow creates new commits for safe rollback"
+fi
+
+# Block gh pr create
+if seg_match gh '\bpr\b.*\bcreate\b'; then
+  _check_collab_op "gh pr create" "review first, then create PR manually"
+fi
+
+# --- Destructive ops (never bypassable) ---
+
+# Block destructive checkout (discards uncommitted changes)
+# Allows: git checkout <branch>, git checkout -b <branch>
+# Blocks: git checkout -- <path>, git checkout .
+if seg_match git '\bcheckout\b.*\s--\s'; then
+  echo "BLOCKED (Lean guardrail): destructive git checkout. Use git stash push -u or create a revert commit." >&2
+  exit 2
+fi
+if seg_match git '\bcheckout\b\s+\.(\s|$)'; then
+  echo "BLOCKED (Lean guardrail): git checkout . discards changes. Use git stash push -u or create a revert commit." >&2
+  exit 2
+fi
+
+# Block git restore (worktree changes only, allow pure unstaging)
+# Blocks: git restore <path>, git restore --source=..., git restore --staged --worktree
+# Allows: git restore --staged <path> (without --worktree)
+for _seg in "${SEGMENTS[@]}"; do
+  echo "$_seg" | grep -qE '^git\b' || continue
+  echo "$_seg" | grep -qE '\brestore\b' || continue
+  if echo "$_seg" | grep -qE -- '--staged\b' && ! echo "$_seg" | grep -qE -- '--worktree\b'; then
+    continue  # allowed - pure unstaging
+  fi
+  echo "BLOCKED (Lean guardrail): git restore discards changes. Use git stash push -u or create a revert commit." >&2
+  exit 2
+done
+
+# Block git reset --hard (discards commits and changes)
+if seg_match git '\breset\b.*--hard\b'; then
+  echo "BLOCKED (Lean guardrail): git reset --hard. Use git stash push -u or create a revert commit." >&2
+  exit 2
+fi
+
+# Block git clean with -f/--force anywhere (deletes untracked files)
+# Matches: -f, -fd, -fx, -nfd, --force, etc.
+if seg_match git '\bclean\b.*(-[a-zA-Z]*f|--force)'; then
+  echo "BLOCKED (Lean guardrail): git clean deletes untracked files. Use git stash push -u instead." >&2
+  exit 2
+fi
+
+# All checks passed — resolve deferred bypass or allow normally
+exit 0
