@@ -97,18 +97,20 @@ Stop when success rate < 20% or last 3 attempts failed.
 
 ### Bulk Rewrite Safety
 
-sed/bulk rewrites are **opt-in** for whitelisted syntax-only patterns at declaration RHS / term-wrapper positions only; never inside tactic blocks. Default: individual edits with per-edit verification.
+sed/bulk rewrites are **opt-in** for whitelisted syntax-only patterns at declaration RHS / term-wrapper positions only; never inside tactic blocks or calc blocks. Default: individual edits with per-edit verification.
 
 **Whitelist:** `:= by exact t` → `:= t`, `by rfl` → `rfl`
 
-**Bulk workflow (still obeys 3-hunk cap per agent run):**
+**Skip rules:** Skip candidate when the replacement TERM introduces a nested tactic-mode boundary (a `by` at non-top-level position in the term). If context classification is uncertain, skip the rewrite — never force.
+
+**Bulk workflow (still obeys 3-hunk cap per agent run; batch cap max 10 per file obeys per-agent-run limit of 3 hunks × 60 lines):**
 1. Preview — match count + 3-5 sample hunks before applying
 2. Batch apply — per-file, max 10 replacements per batch
 3. Validate — capture baseline diagnostics on touched files before batch; after batch run `lean_diagnostic_messages(file)` and compare: new diagnostics vs baseline + sorry-count delta
 4. Auto-revert — if sorry count increases or new diagnostics appear relative to baseline, revert batch immediately
 5. On permission denial — abort bulk mode, continue with individual edits
 
-**Never bulk-rewrite:** semantic patterns, proof structure changes, let/have inlining, anything inside tactic blocks
+**Never bulk-rewrite:** semantic patterns, proof structure changes, let/have inlining, anything inside tactic blocks or calc blocks
 
 ### Delegation Execution Policy
 
