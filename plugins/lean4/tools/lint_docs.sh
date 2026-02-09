@@ -626,6 +626,21 @@ check_golf_policy() {
     if [[ $agent_missing -eq 0 ]]; then
         ok "lean4-proof-golfer.md: All agent policy anchors present"
     fi
+
+    # proof-golfing.md: bulk trigger wording must match command+agent
+    local ref_file="$PLUGIN_ROOT/skills/lean4/references/proof-golfing.md"
+    local ref_missing=0
+    for term in \
+        "≥4 whitelisted.*candidates|>=4 whitelisted.*candidates" \
+        "preview.*confirmation.*gate|user confirms.*preview"; do
+        if ! grep -qE "$term" "$ref_file"; then
+            warn "proof-golfing.md: Missing bulk-trigger anchor: '$term'"
+            ref_missing=1
+        fi
+    done
+    if [[ $ref_missing -eq 0 ]]; then
+        ok "proof-golfing.md: Bulk-trigger anchors present"
+    fi
 }
 
 # Check 13: Backward-compat scripts alias

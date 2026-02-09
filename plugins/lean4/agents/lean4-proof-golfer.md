@@ -93,7 +93,7 @@ Pattern found at line 45:
   let x := expr
   exact property x
 
-Running: $LEAN4_SCRIPTS/analyze_let_usage.py --line 45
+Running: ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/analyze_let_usage.py" --line 45
 Result: x used 1 time → Safe
 
 Before (2 lines):
@@ -121,8 +121,8 @@ lean_diagnostic_messages(file)         # Per-edit validation
 
 **Scripts:**
 ```bash
-"$LEAN4_SCRIPTS/find_golfable.py"       # Pattern detection
-"$LEAN4_SCRIPTS/analyze_let_usage.py"  # Safety verification (CRITICAL)
+${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/find_golfable.py"       # Pattern detection
+${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/analyze_let_usage.py"  # Safety verification (CRITICAL)
 lake build                              # Final verification
 ```
 
