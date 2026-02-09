@@ -594,7 +594,10 @@ check_golf_policy() {
         "Auto-revert.*sorry count increases" \
         "Permission gate.*stop delegation immediately" \
         "never launch additional agents after first" \
-        "\\| --max-delegates"; do
+        "\\| --max-delegates" \
+        "never inside tactic blocks or calc blocks" \
+        "context.*(uncertain|ambiguous).*skip|skip.*never force" \
+        "nested tactic.mode boundary|nested.*by.*skip"; do
         if ! grep -qE "$term" "$file"; then
             warn "golf.md: Missing policy anchor: '$term'"
             missing=1
@@ -612,7 +615,9 @@ check_golf_policy() {
         "Auto-revert batch if sorry count" \
         "permission denied.*stop immediately" \
         "do NOT retry or request again" \
-        "max-delegates.*parent handles"; do
+        "max-delegates.*parent handles" \
+        "nested tactic.mode|nested.*by.*skip" \
+        "no broad replace-all|broad replace"; do
         if ! grep -qiE "$term" "$agent_file"; then
             warn "lean4-proof-golfer.md: Missing policy anchor: '$term'"
             agent_missing=1
