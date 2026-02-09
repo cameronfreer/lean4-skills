@@ -100,6 +100,17 @@ When search mode is enabled, replacement candidates follow the same safety rules
 - Max one new import per replacement
 - If replacement type-mismatches or needs statement changes → skip (hand off to axiom-eliminator)
 
+### Phase 2.6: Bulk Rewrite Context Safety
+
+**Non-equivalent contexts:** Term-wrapper rewrites (`:= by exact t` → `:= t`) are not universally equivalent in all elaboration contexts. The `by` keyword switches to tactic mode; removing it changes how Lean elaborates the term. All rewrites are still validated against baseline diagnostics and auto-reverted on regression.
+
+**Disallowed bulk contexts:**
+- `calc` blocks — step terms have specialized elaboration
+- Tactic blocks — `by exact t` inside a `by` block is not the same as `t`
+- Ambiguous context — when surrounding syntax makes equivalence uncertain, skip
+
+**Nested tactic-mode boundary:** Skip candidate when the replacement TERM introduces a nested `by` (tactic-mode boundary at non-top-level position). This is a syntax/context check — the surrounding AST structure determines whether the `by` is top-level (safe to remove) or nested (unsafe). A plain regex on `by` would produce false skips on identifiers like `standby` or comments.
+
 ### Phase 3: Apply with Testing (5 min per pattern)
 
 1. Apply optimization
@@ -108,6 +119,15 @@ When search mode is enabled, replacement candidates follow the same safety rules
 4. If succeeds: continue
 
 **Strategy:** Apply 3-5 optimizations, then batch test.
+
+### Phase 3.5: Batch Rollback Protocol
+
+For bulk rewrites (when opt-in is active):
+
+1. **Pre-batch snapshot** — capture file content before each batch
+2. **Apply batch** — max 10 replacements per file (still obeys 3-hunk × 60-line per-agent-run limit)
+3. **Validate** — run `lean_diagnostic_messages(file)` and compare: new diagnostics vs pre-batch baseline + sorry-count delta
+4. **Revert on regression** — if sorry count increases or new diagnostics appear, restore from pre-batch file snapshot immediately (full batch revert, not partial)
 
 ### Phase 4: Check Saturation
 

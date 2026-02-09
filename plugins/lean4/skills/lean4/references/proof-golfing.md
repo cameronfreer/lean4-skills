@@ -68,6 +68,28 @@ When `--search` is enabled, the golfer performs a bounded LSP search pass before
 
 **Handoff:** If replacement needs statement changes or multi-file refactor → hand off to axiom-eliminator.
 
+## Bulk Rewrite Rules
+
+When bulk rewrites are opted into (default: off):
+
+| Context | Allowed | Notes |
+|---------|---------|-------|
+| Declaration RHS (`:= by exact t`) | Yes | Whitelisted; validated with baseline + revert |
+| `have` / `let` body | Yes | Same wrapper position; validated with baseline + revert |
+| Inside `calc` block | No | Specialized step elaboration |
+| Inside tactic block | No | `by exact t` ≠ `t` in tactic mode |
+| TERM has nested tactic-mode `by` | No | Ambiguous elaboration boundary |
+
+**Pre-apply checklist:**
+1. Context check — declaration RHS, `have`, or `let` body only
+2. Nested-by check — skip if TERM introduces a nested tactic-mode boundary (syntax/context check, not raw substring)
+3. Symbol/signature check — verify symbol resolves in current imports, argument order matches
+
+**Post-apply checklist:**
+1. Diagnostics delta — compare vs pre-batch baseline
+2. Sorry delta — no new sorries
+3. Optional `lake build` — when import-sensitive edits occur (e.g., lemma replacement added an import)
+
 ## Detailed References
 
 **Pattern details:** [proof-golfing-patterns.md](proof-golfing-patterns.md) - Full explanations with examples for all patterns

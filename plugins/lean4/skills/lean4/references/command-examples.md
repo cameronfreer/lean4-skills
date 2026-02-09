@@ -525,6 +525,64 @@ Continuing in main agent (no subagents will be launched)...
 [continues directly without delegation...]
 ```
 
+### Bulk Rewrite Auto-Revert Example
+
+```
+User: /lean4:golf Core.lean
+
+Claude: Verifying build...
+✓ Core.lean compiles
+
+Finding golfing opportunities...
+Found 8 `:= by exact` candidates (bulk rewrite opt-in)
+
+Capturing baseline diagnostics...
+Baseline: 0 diagnostics, 0 sorries
+
+Applying batch (8 replacements, Core.lean)...
+Running lean_diagnostic_messages(Core.lean)...
+
+⚠ Regression detected:
+  - 2 new diagnostics (type mismatch at lines 45, 89)
+  - Sorry count: 0 → 0 (unchanged)
+
+Restoring from pre-batch snapshot...
+✓ Core.lean restored to pre-batch state
+
+Falling back to individual edits...
+[1/8] Line 23: `:= by exact h` → `:= h`
+  Diagnostics... ✓
+[2/8] Line 45: `:= by exact rfl` — skipped (calc block context)
+[3/8] Line 89: `:= by exact (by ring)` — skipped (nested tactic-mode boundary)
+
+Applied 5/8, skipped 2 (context rules), reverted 1 (regression)
+```
+
+### Context-Ambiguous Skip Example
+
+```
+User: /lean4:golf Lemmas.lean
+
+Claude: Finding golfing opportunities...
+
+Found 5 `:= by exact` candidates
+
+[1/5] Line 12: `:= by exact h`
+  Context: declaration RHS ✓, no nested tactic boundary ✓
+  Diagnostics... ✓
+
+[2/5] Line 34: `:= by exact (by simp)`
+  Skipped: nested tactic-mode boundary in TERM
+
+[3/5] Line 56: inside `calc` block
+  Skipped: disallowed context (calc)
+
+[4/5] Line 78: uncertain elaboration context
+  Skipped: context classification uncertain — never force
+
+Applied 3/5, skipped 2 (context rules)
+```
+
 ---
 
 ## review
