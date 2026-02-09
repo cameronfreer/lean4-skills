@@ -125,7 +125,7 @@ When search mode is enabled, replacement candidates follow the same safety rules
 For bulk rewrites (activates automatically when ≥4 whitelisted candidates found; user confirms preview):
 
 1. **Pre-batch snapshot** — capture file content before each batch
-2. **Apply batch** — effective per-run limit: min(10 replacements/file, 3 hunks × 60 lines); overflow carries to next run
+2. **Apply batch** — effective per-run limit: min(10 replacements/file, 3 hunks × 60 lines); overflow recomputed on next invocation — no persistent queue
 3. **Validate** — run `lean_diagnostic_messages(file)` and compare: new diagnostics vs pre-batch baseline + sorry-count delta
 4. **Revert on regression** — if sorry count increases or new diagnostics appear, restore from pre-batch file snapshot immediately (full batch revert, not partial)
 

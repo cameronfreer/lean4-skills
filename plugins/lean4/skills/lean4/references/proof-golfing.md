@@ -70,7 +70,7 @@ When `--search` is enabled, the golfer performs a bounded LSP search pass before
 
 ## Bulk Rewrite Rules
 
-When bulk rewrites are opted into (default: off):
+Bulk mode activates automatically when ≥4 whitelisted candidates are found in a file; the preview step is the user confirmation gate:
 
 | Context | Allowed | Notes |
 |---------|---------|-------|

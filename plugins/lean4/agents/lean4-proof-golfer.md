@@ -18,12 +18,12 @@ thinking: on
 
 1. **Find patterns** with false-positive filtering:
    ```bash
-   ${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/find_golfable.py FILE.lean --filter-false-positives
+   ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/find_golfable.py" FILE.lean --filter-false-positives
    ```
 
 2. **Verify safety** before inlining any binding:
    ```bash
-   ${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/analyze_let_usage.py FILE.lean --line LINE
+   ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/analyze_let_usage.py" FILE.lean --line LINE
    ```
    - 1-2 uses: Safe to inline
    - 3-4 uses: Check carefully (40% worth optimizing)
@@ -72,12 +72,11 @@ Total savings:
 **Bulk rewrite constraints (obeys 3-hunk cap):**
 - sed activates automatically when ≥4 whitelisted syntax wrappers found at declaration RHS / term-wrapper positions (`:= by exact t` → `:= t`, `by rfl` → `rfl`); never inside tactic blocks or calc blocks; preview + user confirmation required before applying
 - Preview required: match count + 3-5 sample hunks before applying
-- Effective per-run limit: min(10 replacements/file, 3 hunks × 60 lines); overflow carries to next run; validate vs pre-batch baseline diagnostics + sorry count
+- Effective per-run limit: min(10 replacements/file, 3 hunks × 60 lines); overflow recomputed on next invocation — no persistent queue; validate vs pre-batch baseline diagnostics + sorry count
 - Auto-revert batch if sorry count increases or new diagnostics appear vs baseline
 - On permission denial → stop immediately, report back to parent agent
 - Skip candidate when replacement TERM introduces a nested tactic-mode boundary (`by` at non-top-level); if context classification is uncertain, skip
 - Verify symbol resolves in current imports and argument order matches before replacing; no broad replace-all
-- Batch cap and hunk cap are unified: effective limit is min(10, hunk/line cap); overflow to next run
 
 ## Delegation Awareness
 
@@ -122,8 +121,8 @@ lean_diagnostic_messages(file)         # Per-edit validation
 
 **Scripts:**
 ```bash
-$LEAN4_SCRIPTS/find_golfable.py        # Pattern detection
-$LEAN4_SCRIPTS/analyze_let_usage.py    # Safety verification (CRITICAL)
+"$LEAN4_SCRIPTS/find_golfable.py"       # Pattern detection
+"$LEAN4_SCRIPTS/analyze_let_usage.py"  # Safety verification (CRITICAL)
 lake build                              # Final verification
 ```
 

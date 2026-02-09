@@ -103,7 +103,7 @@ sed/bulk rewrites activate automatically when ≥4 whitelisted syntax-only patte
 
 **Skip rules:** Skip candidate when the replacement TERM introduces a nested tactic-mode boundary (a `by` at non-top-level position in the term). If context classification is uncertain, skip the rewrite — never force.
 
-**Bulk workflow (effective per-run limit: min(10 replacements/file, 3 hunks × 60 lines); overflow carries to next run):**
+**Bulk workflow (effective per-run limit: min(10 replacements/file, 3 hunks × 60 lines); overflow recomputed on next invocation — no persistent queue):**
 1. Preview — match count + 3-5 sample hunks; user confirms before applying
 2. Batch apply — per-file, up to min(10, hunk/line cap) replacements
 3. Validate — capture baseline diagnostics on touched files before batch; after batch run `lean_diagnostic_messages(file)` and compare: new diagnostics vs baseline + sorry-count delta
