@@ -70,14 +70,14 @@ Total savings:
 - If replacement needs statement changes or multi-file refactor → hand off to axiom-eliminator
 
 **Bulk rewrite constraints (obeys 3-hunk cap):**
-- sed is opt-in for whitelisted syntax wrappers at declaration RHS / term-wrapper positions only (`:= by exact t` → `:= t`, `by rfl` → `rfl`); never inside tactic blocks or calc blocks
+- sed activates automatically when ≥4 whitelisted syntax wrappers found at declaration RHS / term-wrapper positions (`:= by exact t` → `:= t`, `by rfl` → `rfl`); never inside tactic blocks or calc blocks; preview + user confirmation required before applying
 - Preview required: match count + 3-5 sample hunks before applying
-- Max 10 replacements per file per batch; validate vs pre-batch baseline diagnostics + sorry count
+- Effective per-run limit: min(10 replacements/file, 3 hunks × 60 lines); overflow carries to next run; validate vs pre-batch baseline diagnostics + sorry count
 - Auto-revert batch if sorry count increases or new diagnostics appear vs baseline
 - On permission denial → stop immediately, report back to parent agent
 - Skip candidate when replacement TERM introduces a nested tactic-mode boundary (`by` at non-top-level); if context classification is uncertain, skip
 - Verify symbol resolves in current imports and argument order matches before replacing; no broad replace-all
-- Bulk batch cap (max 10 per file) still obeys 3-hunk × 60-line per-run limit
+- Batch cap and hunk cap are unified: effective limit is min(10, hunk/line cap); overflow to next run
 
 ## Delegation Awareness
 

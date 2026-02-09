@@ -534,7 +534,16 @@ Claude: Verifying build...
 ✓ Core.lean compiles
 
 Finding golfing opportunities...
-Found 8 `:= by exact` candidates (bulk rewrite opt-in)
+Found 8 `:= by exact` candidates in declaration RHS positions (≥4 → bulk mode)
+
+Preview (3 of 8):
+  Line 23: `:= by exact h` → `:= h`
+  Line 67: `:= by exact rfl` → `:= rfl`
+  Line 101: `:= by exact Nat.zero_le 1` → `:= Nat.zero_le 1`
+
+Apply as batch? [yes / individual / skip]
+
+User: yes
 
 Capturing baseline diagnostics...
 Baseline: 0 diagnostics, 0 sorries

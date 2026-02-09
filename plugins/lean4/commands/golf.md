@@ -35,7 +35,7 @@ Optimize Lean proofs that already compile. Reduce tactic count, shorten proofs, 
 1. **Verify Build** - Ensure code compiles before optimizing
 2. **Find Patterns** - Detect golfable patterns:
    ```bash
-   ${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/find_golfable.py [file] --filter-false-positives
+   ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/find_golfable.py" [file] --filter-false-positives
    ```
 3. **Lemma Replacement** (if `--search=quick` or `full`):
    - Run LSP searches per candidate; test with `lean_multi_attempt`
@@ -44,7 +44,7 @@ Optimize Lean proofs that already compile. Reduce tactic count, shorten proofs, 
    - Hand off to axiom-eliminator if replacement needs statement changes or multi-file refactor
 4. **Verify Safety** - Check usage before inlining:
    ```bash
-   ${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/analyze_let_usage.py [file] --line [line]
+   ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/analyze_let_usage.py" [file] --line [line]
    ```
 5. **Apply** - Make changes with `lean_diagnostic_messages` after each; `lake build` for final verification
 6. **Report** - Show savings and saturation status
@@ -97,15 +97,15 @@ Stop when success rate < 20% or last 3 attempts failed.
 
 ### Bulk Rewrite Safety
 
-sed/bulk rewrites are **opt-in** for whitelisted syntax-only patterns at declaration RHS / term-wrapper positions only; never inside tactic blocks or calc blocks. Default: individual edits with per-edit verification.
+sed/bulk rewrites activate automatically when ≥4 whitelisted syntax-only patterns are found at declaration RHS / term-wrapper positions in a file; never inside tactic blocks or calc blocks. The preview step (step 1 below) is the user confirmation gate. Default when <4 candidates: individual edits with per-edit verification.
 
 **Whitelist:** `:= by exact t` → `:= t`, `by rfl` → `rfl`
 
 **Skip rules:** Skip candidate when the replacement TERM introduces a nested tactic-mode boundary (a `by` at non-top-level position in the term). If context classification is uncertain, skip the rewrite — never force.
 
-**Bulk workflow (still obeys 3-hunk cap per agent run; batch cap max 10 per file obeys per-agent-run limit of 3 hunks × 60 lines):**
-1. Preview — match count + 3-5 sample hunks before applying
-2. Batch apply — per-file, max 10 replacements per batch
+**Bulk workflow (effective per-run limit: min(10 replacements/file, 3 hunks × 60 lines); overflow carries to next run):**
+1. Preview — match count + 3-5 sample hunks; user confirms before applying
+2. Batch apply — per-file, up to min(10, hunk/line cap) replacements
 3. Validate — capture baseline diagnostics on touched files before batch; after batch run `lean_diagnostic_messages(file)` and compare: new diagnostics vs baseline + sorry-count delta
 4. Auto-revert — if sorry count increases or new diagnostics appear relative to baseline, revert batch immediately
 5. On permission denial — abort bulk mode, continue with individual edits
