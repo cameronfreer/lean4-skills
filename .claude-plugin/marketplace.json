@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Lean 4 theorem proving with guided + autonomous proving, LSP-first workflows, and guardrails",
-    "version": "4.0.5"
+    "version": "4.0.6"
   },
   "plugins": [
     {
