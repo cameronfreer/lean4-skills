@@ -711,7 +711,7 @@ check_path_patterns() {
     ok "Path pattern check done"
 }
 
-# Check 14: Custom syntax reference integrity
+# Check 15: Custom syntax reference integrity
 check_custom_syntax_refs() {
     log ""
     log "Checking custom syntax references..."
@@ -719,17 +719,17 @@ check_custom_syntax_refs() {
     local skill_md="$PLUGIN_ROOT/skills/lean4/SKILL.md"
     local syntax_ref="$PLUGIN_ROOT/skills/lean4/references/lean4-custom-syntax.md"
 
-    # SKILL.md must link both new refs
-    if grep -q 'lean4-custom-syntax' "$skill_md" 2>/dev/null; then
+    # SKILL.md must have actual markdown link targets to both refs
+    if grep -qE '\(references/lean4-custom-syntax\.md\)' "$skill_md" 2>/dev/null; then
         ok "SKILL.md links lean4-custom-syntax.md"
     else
-        warn "SKILL.md missing link to lean4-custom-syntax.md"
+        warn "SKILL.md missing link to references/lean4-custom-syntax.md"
     fi
 
-    if grep -q 'scaffold-dsl' "$skill_md" 2>/dev/null; then
+    if grep -qE '\(references/scaffold-dsl\.md\)' "$skill_md" 2>/dev/null; then
         ok "SKILL.md links scaffold-dsl.md"
     else
-        warn "SKILL.md missing link to scaffold-dsl.md"
+        warn "SKILL.md missing link to references/scaffold-dsl.md"
     fi
 
     # lean4-custom-syntax.md must contain the scope guard
