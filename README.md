@@ -83,6 +83,11 @@ See `/lean4:doctor migrate` for detailed migration help.
 
 ## Changelog
 
+**v4.0.7** (February 2026)
+- Custom syntax reference: notations, macros, elaborators, DSLs (from PR #5, Alok Singh)
+- DSL scaffold template with precedence-correct examples
+- Version-compat note for MetaM/TacticM API drift across toolchains
+
 **v4.0.5** (February 2026)
 - Split `/lean4:autoprover` into `/lean4:prove` (guided) and `/lean4:autoprove` (autonomous)
 - prove: asks before each cycle, startup questionnaire, interactive deep approval

@@ -219,3 +219,5 @@ See [MIGRATION.md](MIGRATION.md) for upgrade guide.
 - [SKILL.md](skills/lean4/SKILL.md) - Core skill reference
 - [Commands](commands/) - Command documentation
 - [Scripts](lib/scripts/README.md) - Script reference
+- [Custom Syntax](skills/lean4/references/lean4-custom-syntax.md) - Notations, macros, elaborators, DSLs
+- [DSL Scaffold](skills/lean4/references/scaffold-dsl.md) - Copy-paste DSL template
