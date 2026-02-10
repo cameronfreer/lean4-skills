@@ -1,5 +1,7 @@
 # Lean 4 Custom Syntax
 
+> **Version note:** API names in `MetaM`, `TacticM`, and `MacroM` can change across Lean toolchain versions. If a function listed here is not found, check the current Lean 4 source or run `#check @functionName` to verify availability in your toolchain.
+
 ## Scope
 
 Reference for Lean 4 syntax extensions: notations, macros, elaborators, and embedded DSLs. Covers the full escalation path from `infixl` to `declare_syntax_cat` + `elab_rules`.
@@ -7,6 +9,22 @@ Reference for Lean 4 syntax extensions: notations, macros, elaborators, and embe
 **Read when:** building custom notation, creating embedded DSLs, writing tactic extensions, or debugging macro expansion issues.
 
 **Not part of the prove/autoprove default loop.** This is supplemental reference material for projects that define or modify custom syntax.
+
+## Contents
+
+- [Decision Tree](#decision-tree) — notation vs macro vs elaborator
+- [Precedence](#precedence) — associativity and binding power
+- [Elaborator Monads](#elaborator-monads) — MacroM, TermElabM, CommandElabM, TacticM
+- [API Cheat Sheet](#api-cheat-sheet) — MacroM and syntax extraction
+- [MetaM Utilities](#metam-utilities) — expression building, telescopes, transforms
+- [TacticM Utilities](#tacticm-utilities) — goals, context, lifting
+- [Breaking Hygiene](#breaking-hygiene) — mkIdent, addMacroScope, user names
+- [Unexpanders](#unexpanders) — auto-generated vs manual
+- [Syntax Categories](#syntax-categories) — declare, bridge, recursion
+- [Repetition and Splice Syntax](#repetition-and-splice-syntax) — `*`, `+`, `?`, antiquotation
+- [Gotchas](#gotchas) — hygiene, precedence, TSyntax, MetaM pitfalls
+- [Patterns](#patterns) — hierarchical categories, sanitization, multi-pass
+- [Troubleshooting](#troubleshooting) — diagnostic workflow, error table, escalation
 
 ## Decision Tree
 

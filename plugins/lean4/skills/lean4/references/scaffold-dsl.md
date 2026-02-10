@@ -2,6 +2,8 @@
 
 Copy-paste starting point for a new embedded DSL. Includes syntax categories, bridge macro, AST, elaboration, and tests.
 
+**How to use:** Copy the template below into a new `.lean` file. Replace `MyDSL`/`myDSL`/`myExpr`/`myAtom` with your DSL's names and `Expr` with your target AST type. Run `lake build` to verify, then inspect expansion with `set_option pp.notation false in #check [myDSL| ...]`. See [lean4-custom-syntax.md](lean4-custom-syntax.md) for the full API reference.
+
 ```lean
 import Lean
 open Lean Elab Meta

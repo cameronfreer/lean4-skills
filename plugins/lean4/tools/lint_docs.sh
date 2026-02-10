@@ -711,6 +711,35 @@ check_path_patterns() {
     ok "Path pattern check done"
 }
 
+# Check 14: Custom syntax reference integrity
+check_custom_syntax_refs() {
+    log ""
+    log "Checking custom syntax references..."
+
+    local skill_md="$PLUGIN_ROOT/skills/lean4/SKILL.md"
+    local syntax_ref="$PLUGIN_ROOT/skills/lean4/references/lean4-custom-syntax.md"
+
+    # SKILL.md must link both new refs
+    if grep -q 'lean4-custom-syntax' "$skill_md" 2>/dev/null; then
+        ok "SKILL.md links lean4-custom-syntax.md"
+    else
+        warn "SKILL.md missing link to lean4-custom-syntax.md"
+    fi
+
+    if grep -q 'scaffold-dsl' "$skill_md" 2>/dev/null; then
+        ok "SKILL.md links scaffold-dsl.md"
+    else
+        warn "SKILL.md missing link to scaffold-dsl.md"
+    fi
+
+    # lean4-custom-syntax.md must contain the scope guard
+    if grep -q 'Not part of the prove/autoprove default loop' "$syntax_ref" 2>/dev/null; then
+        ok "lean4-custom-syntax.md contains scope guard"
+    else
+        warn "lean4-custom-syntax.md missing scope guard ('Not part of the prove/autoprove default loop')"
+    fi
+}
+
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
@@ -730,6 +759,7 @@ check_guardrail_impl
 check_golf_policy
 check_compat_alias
 check_path_patterns
+check_custom_syntax_refs
 
 log ""
 log "================================"
