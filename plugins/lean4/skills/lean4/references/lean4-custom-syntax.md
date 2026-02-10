@@ -1,9 +1,12 @@
----
-name: lean4-syntax
-description: Lean 4 custom syntax - DSLs, macros, elaborators. Use when building notation, embedded languages, or tactic extensions.
----
-
 # Lean 4 Custom Syntax
+
+## Scope
+
+Reference for Lean 4 syntax extensions: notations, macros, elaborators, and embedded DSLs. Covers the full escalation path from `infixl` to `declare_syntax_cat` + `elab_rules`.
+
+**Read when:** building custom notation, creating embedded DSLs, writing tactic extensions, or debugging macro expansion issues.
+
+**Not part of the prove/autoprove default loop.** This is supplemental reference material for projects that define or modify custom syntax.
 
 ## Decision Tree
 
@@ -64,6 +67,23 @@ Right-assoc: syntax:25 term:26 " → " term   -- left operand higher
 Non-assoc:   syntax:50 term:51 " = " term:51
 ```
 
+## Elaborator Monads
+
+| Monad | Purpose | Key Functions |
+|-------|---------|---------------|
+| `MacroM` | Syntax → Syntax | `addMacroScope`, `throwErrorAt`, `hasDecl` |
+| `TermElabM` | Syntax → Expr | `elabTerm`, `inferType`, `synthInstance`, `isDefEq` |
+| `CommandElabM` | Top-level commands | `getEnv`, `modifyEnv`, `elabCommand` |
+| `TacticM` | Proof tactics | `getMainGoal`, `closeMainGoal`, `getLocalHyps` |
+
+**MacroM limitations** (use elaborator if you need these):
+- No IO
+- No environment modification
+- No local context access
+- No unification
+
+**Lifting**: `liftMacroM` to use MacroM inside CommandElabM
+
 ## API Cheat Sheet
 
 ```lean
@@ -113,10 +133,187 @@ withLocalDecl `x BinderInfo.default xTy fun x => do
   let body ← elaborate x
   mkLambdaFVars #[x] body
 
+-- Expression building (literals and constants)
+mkNatLit 42                     -- Nat literal
+mkStrLit "hello"                -- String literal
+.const ``Nat.zero []            -- constant with no levels
+Expr.app f x                    -- direct application
+mkAppN f #[a, b, c]             -- multi-arg application
+
 -- Expression transformation
 transform e (pre := fun e => match e with
   | .const n _ => .visit (mkConst newN)
   | _ => .continue)
+```
+
+## TacticM Utilities
+
+```lean
+-- Goal access
+getMainGoal                     -- current goal MVarId
+getMainTarget                   -- goal type (shortcut)
+getGoals / setGoals             -- all goals
+replaceMainGoal [g1, g2]        -- replace main with multiple
+
+-- Context
+withMainContext do ...          -- REQUIRED for lctx access
+getLCtx                         -- local context
+lctx.findDeclM? fun d => ...    -- search hypotheses
+
+-- Goal manipulation
+closeMainGoal `tac expr         -- close with proof term
+mvarId.assign expr              -- assign metavariable
+mvarId.define `n ty val         -- add let-binding
+mvarId.assert `n ty val         -- add hypothesis
+
+-- Lifting
+liftMetaTactic fun g => do      -- run MetaM, return new goals
+  let gs ← someMetaOp g
+  return gs
+liftMetaTactic1 fun g => ...    -- for single goal result
+
+-- Error handling
+tryTactic? tac                  -- Option α (no throw)
+closeUsingOrAdmit tac           -- try or admit with warning
+throwTacticEx `name goal msg    -- formatted tactic error
+
+-- Tactic evaluation
+evalTactic (← `(tactic| simp))  -- run tactic syntax
+focus do ...                    -- focus on first goal only
+```
+
+## Breaking Hygiene
+
+```lean
+-- Method 1: mkIdent with raw name (captures user's binding)
+let x := Lean.mkIdent `x
+`(let $x := 42; $body)  -- 'x' visible in body
+
+-- Method 2: Fresh guaranteed-unique name
+let fresh ← Macro.addMacroScope `tmp
+`(let $fresh := 42; ...)
+
+-- Method 3: User provides name (naturally in their scope)
+macro "bind" x:ident ":=" v:term "in" b:term : term =>
+  `(let $x := $v; $b)  -- $x is user's, so visible
+```
+
+**Test hygiene:**
+```lean
+let x := "user"
+myMacro x  -- should use user's x, not macro's internal x
+```
+
+## Unexpanders
+
+**Auto-generated when:**
+- RHS is single function application
+- Each param appears exactly once
+- Params in same order as notation
+
+```lean
+-- Gets auto unexpander:
+notation "⟨" a ", " b "⟩" => Prod.mk a b
+
+-- NO auto unexpander (reordered):
+notation "swap" a b => Prod.mk b a
+
+-- NO auto unexpander (duplicated):
+notation "dup" a => Prod.mk a a
+```
+
+**Manual unexpander:**
+```lean
+@[app_unexpander myFunc]
+def unexpandMyFunc : Unexpander
+  | `($_ $a $b) => `(myNotation $a $b)
+  | _ => throw ()
+```
+
+## Pretty Printing
+
+```lean
+-- Delaborator (Expr → Syntax, for #check output)
+@[delab app.myFunc]
+def delabMyFunc : Delab := do
+  let e ← getExpr
+  guard $ e.isAppOfArity' `myFunc 2
+  let a ← withAppFn (withAppArg delab)
+  let b ← withAppArg delab
+  `(myNotation $a $b)
+```
+
+## Syntax Categories
+
+**Declare:**
+```lean
+declare_syntax_cat myDSL
+declare_syntax_cat myDSL (behavior := symbol)  -- treat idents as symbols
+```
+
+**Bridge to term (required!):**
+```lean
+syntax "[myDSL|" myDSL "]" : term
+```
+
+**Recursive with precedence (avoid infinite loop):**
+```lean
+syntax:65 myDSL " + " myDSL:66 : myDSL  -- left-assoc, :66 stops recursion
+```
+
+## Indentation-Sensitive Syntax
+
+```lean
+syntax withPosition("block" colGt term+) : term
+-- terms must be indented past "block"
+
+colGt   -- strictly greater column
+colGe   -- greater or equal
+colEq   -- exact column
+lineEq  -- same line
+```
+
+## Repetition and Splice Syntax
+
+```lean
+-- Repetition
+term*      -- zero or more
+term+      -- one or more
+term?      -- optional
+term,*     -- comma-separated
+term,+     -- comma-separated, at least one
+term,*,?   -- with optional trailing comma
+
+-- Splices (antiquotation)
+`($x)           -- single
+`($args*)       -- array as separate args
+`([$items,*])   -- array with separator
+`($opt?)        -- optional element
+`($[: $ty]?)    -- optional with prefix literal
+
+-- Access array in macro:
+let elems := xs.getElems
+for e in elems do ...
+```
+
+## MonadQuotation
+
+```lean
+getRef                          -- current syntax reference
+withRef stx do ...              -- set reference for errors
+getCurrMacroScope               -- current scope number
+withFreshMacroScope do ...      -- fresh scope for loops
+```
+
+## Message Formatting
+
+```lean
+-- Use m!"..." for MessageData (pretty-prints Exprs)
+logInfo m!"type is {← inferType e}"
+throwError m!"expected {expected}, got {actual}"
+
+-- Use f!"..." only for simple strings
+dbg_trace f!"count = {n}"
 ```
 
 ## Gotchas
@@ -140,8 +337,8 @@ transform e (pre := fun e => match e with
 - Pattern match extracts typed syntax: `| \`([dsl| $n:num]) => ...`
 
 **MetaM:**
-- `whnf` only reduces head - call repeatedly for nested structures
-- `isAssigned` misses delayed assignments - check both `isAssigned` AND `isDelayedAssigned`
+- `whnf` only reduces head — call repeatedly for nested structures
+- `isAssigned` misses delayed assignments — check both `isAssigned` AND `isDelayedAssigned`
 - Always `instantiateMVars` after assigning metavariables
 - Use `withTransparency .all` to unfold everything (default skips `@[irreducible]`)
 
@@ -181,66 +378,6 @@ def translateCode (stx) := ...    -- executable → function calls
 let vars ← collectFreeVars body    -- pass 1: analysis
 let code ← translateCode body       -- pass 2: synthesis
 ```
-
-**Builtin detection as first-pass filter:**
-```lean
-def isBuiltin (s : String) : Bool :=
-  ["+", "-", "if", "cons", "car", "cdr"].contains s
-
--- Skip builtins when collecting free variables
-if isBuiltin name then [] else [mkIdent (sanitize name)]
-```
-
-## TacticM Utilities
-
-```lean
--- Goal access
-getMainGoal                     -- current goal MVarId
-getMainTarget                   -- goal type (shortcut)
-getGoals / setGoals             -- all goals
-replaceMainGoal [g1, g2]        -- replace main with multiple
-
--- Context
-withMainContext do ...          -- REQUIRED for lctx access
-getLCtx                         -- local context
-lctx.findDeclM? fun d => ...    -- search hypotheses
-
--- Goal manipulation
-closeMainGoal `tac expr         -- close with proof term
-mvarId.assign expr              -- assign metavariable
-mvarId.define `n ty val         -- add let-binding
-mvarId.assert `n ty val         -- add hypothesis
-
--- Lifting
-liftMetaTactic fun g => do      -- run MetaM, return new goals
-  let gs ← someMetaOp g
-  return gs
-liftMetaTactic1 fun g => ...    -- for single goal result
-
--- Error handling
-tryTactic? tac                  -- Option α (no throw)
-closeUsingOrAdmit tac           -- try or admit with warning
-throwTacticEx `name goal msg    -- formatted tactic error
-
--- Tactic evaluation
-evalTactic (← `(tactic| simp))  -- run tactic syntax
-focus do ...                    -- focus on first goal only
-```
-
-## Pretty Printing
-
-```lean
--- Delaborator (Expr → Syntax, for #check output)
-@[delab app.myFunc]
-def delabMyFunc : Delab := do
-  let e ← getExpr
-  guard $ e.isAppOfArity' `myFunc 2
-  let a ← withAppFn (withAppArg delab)
-  let b ← withAppArg delab
-  `(myNotation $a $b)
-```
-
-See reference.md for unexpanders (Syntax → Syntax).
 
 ## Troubleshooting
 
@@ -293,4 +430,4 @@ logInfo m!"{e}"                      -- permanent, pretty-prints Expr
 
 - [Lean 4 Manual: Notations and Macros](https://lean-lang.org/doc/reference/latest/Notations-and-Macros)
 - [Metaprogramming in Lean 4](https://leanprover-community.github.io/lean4-metaprogramming-book/)
-- [Lean Community Blog](https://leanprover-community.github.io/blog/) - simprocs, search
+- [Lean Community Blog](https://leanprover-community.github.io/blog/) — simprocs, search

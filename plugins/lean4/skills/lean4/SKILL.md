@@ -159,6 +159,8 @@ A proof is complete when:
 
 **Style:** [mathlib-style](references/mathlib-style.md)
 
+**Custom Syntax:** [lean4-custom-syntax](references/lean4-custom-syntax.md) (read when building notations, macros, elaborators, or DSLs), [scaffold-dsl](references/scaffold-dsl.md) (copy-paste DSL template)
+
 **Workflows:** [agent-workflows](references/agent-workflows.md), [subagent-workflows](references/subagent-workflows.md), [command-examples](references/command-examples.md)
 
 **Internals:** [review-hook-schema](references/review-hook-schema.md)

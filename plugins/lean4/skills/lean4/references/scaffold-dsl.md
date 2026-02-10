@@ -1,10 +1,6 @@
----
-description: Scaffold a new DSL with syntax category, bridge, and elaboration
----
+# DSL Scaffold Template
 
-# Scaffold DSL
-
-Generate this template, then customize:
+Copy-paste starting point for a new embedded DSL. Includes syntax categories, bridge macro, AST, elaboration, and tests.
 
 ```lean
 import Lean

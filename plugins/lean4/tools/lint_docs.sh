@@ -189,6 +189,18 @@ check_references() {
         warn "Missing cycle-engine.md"
     fi
 
+    if [[ -f "$ref_dir/lean4-custom-syntax.md" ]]; then
+        ok "lean4-custom-syntax.md exists"
+    else
+        warn "Missing lean4-custom-syntax.md"
+    fi
+
+    if [[ -f "$ref_dir/scaffold-dsl.md" ]]; then
+        ok "scaffold-dsl.md exists"
+    else
+        warn "Missing scaffold-dsl.md"
+    fi
+
     log "Total reference files: $ref_count"
 }
 
