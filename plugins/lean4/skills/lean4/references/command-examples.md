@@ -772,3 +772,42 @@ theorem naive_bound_salvaged : ∀ n : Fin 3, n.val < 3 := by
 
 Committing: "disprove: naive_bound - counterexample at n=3"
 ```
+
+---
+
+## File Verification
+
+### Three-Tier Verification Ladder
+
+Use the lightest tool that answers the question:
+
+| Tier | Tool | When | Speed |
+|------|------|------|-------|
+| Per-edit | `lean_diagnostic_messages(file)` | After every edit | Sub-second |
+| File compile | `lake env lean <path/to/File.lean>` | File-level gate, import checks | Seconds |
+| Project gate | `lake build` | Checkpoint, final gate, `/lean4:checkpoint` | Minutes |
+
+Run `lake env lean` from the Lean project root; pass repo-relative file paths.
+
+### Anti-Pattern: `lake build` with File Arguments
+
+```
+# ✗ Wrong — lake build does not accept file path arguments
+lake build InfinitaryLogic/Scott/Sentence.lean
+→ error: unknown target 'InfinitaryLogic/Scott/Sentence.lean'
+
+# ✓ Correct — use lake env lean for single-file compilation
+lake env lean InfinitaryLogic/Scott/Sentence.lean
+→ (compiles single file with lake environment)
+```
+
+### Typical Verification Flow
+
+```
+1. Edit proof
+2. lean_diagnostic_messages(file)    # immediate feedback
+3. Fix any issues
+4. lake env lean path/to/File.lean   # file-level gate (from project root)
+5. Continue editing...
+6. lake build                        # project gate at checkpoint only
+```
