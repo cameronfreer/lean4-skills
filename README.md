@@ -83,6 +83,11 @@ See `/lean4:doctor migrate` for detailed migration help.
 
 ## Changelog
 
+**v4.0.8** (February 2026)
+- Three-tier build verification policy (diagnostics → `lake env lean` → `lake build`)
+- Fixed incorrect `lake build FILE.lean` patterns across references
+- Lint check prevents `lake build` with file arguments from regressing
+
 **v4.0.7** (February 2026)
 - Custom syntax reference: notations, macros, elaborators, DSLs (from PR #5, Alok Singh)
 - DSL scaffold template with precedence-correct examples
