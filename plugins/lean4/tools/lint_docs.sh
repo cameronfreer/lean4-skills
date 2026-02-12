@@ -745,7 +745,7 @@ check_build_patterns() {
     log ""
     log "Checking build verification patterns..."
 
-    local _bp_base _bp_line _bp_content _bp_prev_line _bp_prev
+    local _bp_base _bp_line _bp_content _bp_prev_line _bp_prev _bp_context _bp_found_root
 
     while IFS= read -r file; do
         _bp_base=$(basename "$file")
@@ -791,8 +791,8 @@ check_build_patterns() {
 
     done < <(find "$PLUGIN_ROOT" -name "*.md" -type f)
 
-    # Anchor check: files mentioning "lake env lean" must also mention "project root"
-    # (prevents ambiguous usage that omits where to run from)
+    # Anchor check: each "lake env lean" file-compilation mention must have
+    # "project root" within ±2 lines (proximity, not file-global)
     while IFS= read -r file; do
         _bp_base=$(basename "$file")
 
@@ -802,12 +802,24 @@ check_build_patterns() {
         esac
         case "$file" in */lib/scripts/*|*/tools/*) continue ;; esac
 
-        # Match file-compilation usage (lake env lean <file>), not --run usage
-        if grep -qE 'lake env lean [^-]' "$file" 2>/dev/null; then
-            if ! grep -qi 'project root' "$file" 2>/dev/null; then
-                warn "$_bp_base: mentions 'lake env lean' without 'project root' guidance"
+        # Match file-compilation usage; exclude --run via \s+[^-] regex
+        while IFS=: read -r _bp_line _bp_content; do
+            [[ -z "$_bp_line" ]] && continue
+            # Skip example/anti-pattern teaching blocks (✓ Correct, ✗ Wrong, etc.)
+            _bp_context=$(sed -n "$(( _bp_line > 2 ? _bp_line - 2 : 1 )),$(( _bp_line + 1 ))p" "$file")
+            if echo "$_bp_context" | grep -qiE '(✓|✗|Correct|Wrong|anti.?pattern|GOOD|BAD)'; then
+                continue
             fi
-        fi
+            # Check ±4 line window for "project root" (covers tables, code blocks)
+            _bp_context=$(sed -n "$(( _bp_line > 4 ? _bp_line - 4 : 1 )),$(( _bp_line + 4 ))p" "$file")
+            _bp_found_root=false
+            if echo "$_bp_context" | grep -qi 'project root'; then
+                _bp_found_root=true
+            fi
+            if [[ "$_bp_found_root" != "true" ]]; then
+                warn "$_bp_base:$_bp_line: 'lake env lean' without nearby 'project root' guidance (±4 lines)"
+            fi
+        done < <(grep -nE 'lake env lean\s+[^-]' "$file" 2>/dev/null || true)
     done < <(find "$PLUGIN_ROOT" -name "*.md" -type f)
 
     ok "Build pattern check done"
