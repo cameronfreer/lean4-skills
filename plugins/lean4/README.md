@@ -97,7 +97,7 @@ Does **not** push — that's always manual (`git push`).
 
 ### `/lean4:golf` — Proof Optimization
 
-Finds and applies safe optimizations: `rw+exact → rwa`, inline single-use `let`, `ext+rfl → rfl`, etc. Builds after each change and reverts failures. Stops when the success rate drops below 20% (saturation).
+Finds and applies safe optimizations: `rw+exact → rwa`, inline single-use `let`, `ext+rfl → rfl`, etc. Verifies with `lean_diagnostic_messages` after each change (`lake build` at final gate only) and reverts failures. Stops when the success rate drops below 20% (saturation).
 
 Usually run after proving, either prompted at the end of a `prove` session or explicitly.
 

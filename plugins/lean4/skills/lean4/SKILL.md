@@ -139,7 +139,7 @@ A proof is complete when:
 - Only standard axioms (`propext`, `Classical.choice`, `Quot.sound`)
 - No statement changes without permission
 
-Verification ladder: `lean_diagnostic_messages(file)` per-edit → `lake env lean <file>` file gate → `lake build` project gate only. See [cycle-engine: Build Target Policy](references/cycle-engine.md#build-target-policy).
+Verification ladder: `lean_diagnostic_messages(file)` per-edit → `lake env lean <path/to/File.lean>` file gate (run from project root) → `lake build` project gate only. See [cycle-engine: Build Target Policy](references/cycle-engine.md#build-target-policy).
 
 ## References
 

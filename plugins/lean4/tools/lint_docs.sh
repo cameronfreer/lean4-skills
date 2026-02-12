@@ -791,6 +791,25 @@ check_build_patterns() {
 
     done < <(find "$PLUGIN_ROOT" -name "*.md" -type f)
 
+    # Anchor check: files mentioning "lake env lean" must also mention "project root"
+    # (prevents ambiguous usage that omits where to run from)
+    while IFS= read -r file; do
+        _bp_base=$(basename "$file")
+
+        # Skip non-guidance files (scripts, tools, changelogs, migration)
+        case "$_bp_base" in
+            MIGRATION.md|CHANGELOG.md) continue ;;
+        esac
+        case "$file" in */lib/scripts/*|*/tools/*) continue ;; esac
+
+        # Match file-compilation usage (lake env lean <file>), not --run usage
+        if grep -qE 'lake env lean [^-]' "$file" 2>/dev/null; then
+            if ! grep -qi 'project root' "$file" 2>/dev/null; then
+                warn "$_bp_base: mentions 'lake env lean' without 'project root' guidance"
+            fi
+        fi
+    done < <(find "$PLUGIN_ROOT" -name "*.md" -type f)
+
     ok "Build pattern check done"
 }
 

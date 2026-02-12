@@ -110,7 +110,7 @@ Example: `**Flag:** Statement may be false (decidable goal failed decide)`
 
 The agent selects files based on scope, then runs these analyses (per file or directory):
 
-1. **Build Status** - `lake build` (project-wide); for scoped review (`--scope=file`), use `lean_diagnostic_messages(file)` + `lake env lean <file>` first
+1. **Build Status** - `lake build` (project-wide); for scoped review (`--scope=file`), use `lean_diagnostic_messages(file)` + `lake env lean <path/to/File.lean>` (run from project root) first
 2. **Sorry Audit** - `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" <target> --format=json --report-only`
 3. **Axiom Check** - `bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target> --report-only`
 4. **Style Review** - Check mathlib conventions (naming, structure, tactics)
