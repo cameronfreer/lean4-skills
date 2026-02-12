@@ -239,7 +239,7 @@ check_cross_refs() {
     local agent_anchors="lean4-sorry-filler-deep lean4-proof-repair lean4-proof-golfer lean4-axiom-eliminator"
 
     # Valid anchors for cycle-engine.md
-    local engine_anchors="six-phase-cycle lsp-first-protocol review-phase replan-phase stuck-definition deep-mode checkpoint-logic falsification-artifacts repair-mode safety"
+    local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic falsification-artifacts repair-mode safety"
 
     while IFS= read -r file; do
         # Check links to command-examples.md
@@ -740,6 +740,60 @@ check_custom_syntax_refs() {
     fi
 }
 
+# Check 16: Build verification patterns
+check_build_patterns() {
+    log ""
+    log "Checking build verification patterns..."
+
+    local _bp_base _bp_line _bp_content _bp_prev_line _bp_prev
+
+    while IFS= read -r file; do
+        _bp_base=$(basename "$file")
+
+        # Skip files where lake build is legitimately project-wide or shows anti-patterns
+        case "$_bp_base" in
+            checkpoint.md|lean-lsp-server.md|MIGRATION.md) continue ;;
+        esac
+
+        # Warn on lake build with .lean file arguments
+        # Skip lines that teach anti-patterns (Never, Do not, Wrong, Incorrect, ✗)
+        # Also check preceding line for anti-pattern context (e.g., "# ✗ Wrong" comment above code)
+        while IFS=: read -r _bp_line _bp_content; do
+            [[ -z "$_bp_line" ]] && continue
+            if echo "$_bp_content" | grep -qiE '(Never|Do not|Wrong|Incorrect|✗|anti.?pattern)'; then
+                continue
+            fi
+            _bp_prev_line=$(( _bp_line - 1 ))
+            if [[ $_bp_prev_line -gt 0 ]]; then
+                _bp_prev=$(sed -n "${_bp_prev_line}p" "$file")
+                if echo "$_bp_prev" | grep -qiE '(Never|Do not|Wrong|Incorrect|✗|anti.?pattern)'; then
+                    continue
+                fi
+            fi
+            warn "$_bp_base:$_bp_line: 'lake build' with .lean file arg (use 'lake env lean <file>')"
+        done < <(grep -nE 'lake build [A-Za-z0-9_./-]+\.lean' "$file" 2>/dev/null || true)
+
+        # Warn on lake build <file placeholder pattern
+        while IFS=: read -r _bp_line _bp_content; do
+            [[ -z "$_bp_line" ]] && continue
+            if echo "$_bp_content" | grep -qiE '(Never|Do not|Wrong|Incorrect|✗|anti.?pattern)'; then
+                continue
+            fi
+            _bp_prev_line=$(( _bp_line - 1 ))
+            if [[ $_bp_prev_line -gt 0 ]]; then
+                _bp_prev=$(sed -n "${_bp_prev_line}p" "$file")
+                if echo "$_bp_prev" | grep -qiE '(Never|Do not|Wrong|Incorrect|✗|anti.?pattern)'; then
+                    continue
+                fi
+            fi
+            warn "$_bp_base:$_bp_line: 'lake build <file' placeholder (use 'lake env lean <file>')"
+        done < <(grep -nE 'lake build <file' "$file" 2>/dev/null || true)
+
+    done < <(find "$PLUGIN_ROOT" -name "*.md" -type f)
+
+    ok "Build pattern check done"
+}
+
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
@@ -760,6 +814,7 @@ check_golf_policy
 check_compat_alias
 check_path_patterns
 check_custom_syntax_refs
+check_build_patterns
 
 log ""
 log "================================"
