@@ -38,7 +38,21 @@ LSP tools are the normative first-pass for all discovery, search, and validation
 - LSP search budget is exhausted (at least 2 searches returning empty/inconclusive), OR
 - LSP server is confirmed unavailable, timing out, or rate-limited
 
-**Validation:** Use `lean_diagnostic_messages(file)` for per-edit checks. Reserve `lake build` for checkpoint verification or explicit `/lean4:checkpoint`.
+**Validation:** Use `lean_diagnostic_messages(file)` for per-edit checks. Reserve `lake build` for checkpoint verification or explicit `/lean4:checkpoint`. See [Build Target Policy](#build-target-policy) for the full ladder.
+
+## Build Target Policy
+
+Three-tier verification ladder — use the lightest tool that answers the question:
+
+| Tier | Tool | When | Speed |
+|------|------|------|-------|
+| Per-edit | `lean_diagnostic_messages(file)` | After every edit | Sub-second |
+| File compile | `lake env lean <path/to/File.lean>` | File-level gate, import checks | Seconds |
+| Project gate | `lake build` | Checkpoint, final gate, `/lean4:checkpoint` | Minutes |
+
+Run `lake env lean` from the Lean project root; pass repo-relative file paths.
+
+**Never use `lake build <file basename>`** — `lake build` does not accept file path arguments. Use `lake env lean <file>` for single-file compilation.
 
 ## Review Phase
 
