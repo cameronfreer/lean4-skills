@@ -158,7 +158,7 @@ theorem iff_example : P ↔ Q := by
 
 1. **Start with the easiest sorry** - Often the base case or simple properties
 2. **Fill in TODOs** - Replace placeholders with actual proof steps
-3. **Build frequently** - `lake build` after each sorry filled
+3. **Verify frequently** — `lean_diagnostic_messages(file)` after each sorry; `lake env lean <path/to/File.lean>` for file gate (run from project root)
 4. **Search before proving** - Most lemmas exist in mathlib
 5. **One sorry at a time** - Commit after each successful fill
 

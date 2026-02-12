@@ -23,14 +23,14 @@ Creates a verified checkpoint of your current proof progress.
 
 ## Actions
 
-1. **Verify Build** - Run `lake build` to ensure code compiles
+1. **Verify Build** - Run `lake build` to ensure code compiles (this is a project-wide gate — runs full `lake build`, not file-level)
 2. **Check Axioms** - Verify no unwanted custom axioms:
    ```bash
-   bash $LEAN4_SCRIPTS/check_axioms_inline.sh src/*.lean
+   bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" src/*.lean
    ```
 3. **Count Sorries** - Report current sorry count:
    ```bash
-   ${LEAN4_PYTHON_BIN:-python3} $LEAN4_SCRIPTS/sorry_analyzer.py . --format=summary
+   ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary
    ```
 4. **Stage and Commit** - Stage changes and create commit:
    ```bash

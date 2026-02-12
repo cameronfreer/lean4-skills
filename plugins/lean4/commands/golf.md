@@ -8,7 +8,7 @@ user_invocable: true
 
 Optimize Lean proofs that already compile. Reduce tactic count, shorten proofs, improve readability.
 
-**Prerequisite:** Code must compile. Run `lake build` first.
+**Prerequisite:** Code must compile. Verify code compiles first (`lean_diagnostic_messages(file)` or `lake env lean <path/to/File.lean>` from project root; `lake build` for project-wide).
 
 ## Usage
 
