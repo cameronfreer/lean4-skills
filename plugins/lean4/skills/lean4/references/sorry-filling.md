@@ -9,7 +9,7 @@ Quick reference for filling Lean 4 sorries systematically.
 1. **Understand Context** - Read surrounding code, identify goal type
 2. **Search Mathlib FIRST** - Most proofs already exist
 3. **Generate Candidates** - 2-3 proof approaches
-4. **Test Before Applying** - Use `lake build` or LSP multi_attempt
+4. **Test Before Applying** - Use `lean_diagnostic_messages(file)` or `lean_multi_attempt`
 5. **Apply Working Solution** - Shortest working proof wins
 
 ## LSP-First Requirement
@@ -41,9 +41,9 @@ List all sorry's in the project, then add each as a single item to the TODO list
 Fill in Sorry #01. DO NOT MOVE ON TO OTHER SORRY'S BEFORE THIS ONE IS FILLED.
 ```
 
-**Step 3: Verify with `lake build`**
+**Step 3: Verify compilation**
 ```bash
-lake build ProjectName.FileName
+lake env lean path/to/File.lean   # run from project root
 ```
 
 **Step 4: Repeat**
@@ -132,7 +132,7 @@ lean_multi_attempt(
 
 **Without LSP:**
 - Apply candidate
-- Run `lake build`
+- Run `lean_diagnostic_messages(file)` per-edit; `lake env lean path/to/File.lean` (from project root) for file gate
 - If fails, try next candidate
 
 ## Common Errors
@@ -153,12 +153,13 @@ lean_multi_attempt(
 
 ## Best Practices
 
-**⚠️ Critical: Verify with `lake build` before moving on**
+**⚠️ Critical: Verify compilation before moving on**
 LSP tools can sometimes show success when problems remain. After a sequence of changes, before moving on to something else entirely, verify with:
-```bash
-lake build ProjectName.FileName
-```
-This is the ground truth - catches issues that LSP may miss.
+- Per-edit: `lean_diagnostic_messages(file)`
+- File gate: `lake env lean path/to/File.lean` (run from project root)
+- Project gate: `lake build` (checkpoint/final only)
+
+This catches issues that per-edit LSP may miss.
 
 **💡 Cache after clean**
 If you run `lake clean`, always follow up with:
@@ -171,7 +172,7 @@ Otherwise you'll wait 30+ minutes for mathlib to recompile from scratch.
 - Search mathlib exhaustively before proving
 - Test all candidates if possible
 - Use shortest working proof
-- Verify with `lake build` (always!)
+- Verify: `lean_diagnostic_messages(file)` per-edit; `lake env lean <file>` for file gate
 - Add necessary imports
 
 ❌ **Don't:**

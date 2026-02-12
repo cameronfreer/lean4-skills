@@ -125,7 +125,7 @@ theorem foo (f g : α → ℝ) (hf : MemLp f (ENNReal.ofReal 2) μ) (h : f =ᵐ[
 
 ### 1. Compile → Extract Error
 ```bash
-lake build FILE.lean 2> errors.txt
+lake env lean FILE.lean 2> errors.txt   # run from project root
 python3 $LEAN4_SCRIPTS/parse_lean_errors.py errors.txt > context.json
 ```
 
@@ -163,7 +163,7 @@ If any succeeds → apply diff, recompile
 
 ```bash
 git apply patch.diff
-lake build FILE.lean
+lake env lean FILE.lean   # run from project root
 ```
 
 If success → done! If fail → next iteration (max 24 attempts)
@@ -634,10 +634,13 @@ lake build  # Now you have errors from all three fixes mixing together!
 
 **Better pattern:**
 ```bash
-# ✅ GOOD: Build after each fix
-fix error 1 && lake build  # See result immediately
-fix error 2 && lake build  # Isolate issues
-fix error 3 && lake build  # Clean feedback
+# ✅ GOOD: Verify after each fix
+# Per-edit: lean_diagnostic_messages(file) for immediate feedback
+# File gate: lake env lean FILE.lean after each fix (run from project root)
+# Milestone: lake build only at checkpoint
+fix error 1  # → lean_diagnostic_messages(file) → lake env lean FILE.lean
+fix error 2  # → lean_diagnostic_messages(file) → lake env lean FILE.lean
+fix error 3  # → lean_diagnostic_messages(file) → lake env lean FILE.lean
 ```
 
 **With LSP (even better):**

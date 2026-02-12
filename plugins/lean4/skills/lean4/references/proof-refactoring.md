@@ -264,7 +264,7 @@ Extract one helper at a time, compile after each:
 1. Copy `have` proof to new lemma
 2. Identify required parameters
 3. Replace original with `have h := helper args`
-4. `lake build` to verify
+4. `lean_diagnostic_messages(file)` per-edit, `lake env lean <file>` for file gate
 5. Commit if successful
 
 ### Step 4: Iterate
@@ -726,7 +726,7 @@ lean_goal(file_path, line)
 
 **Without LSP:**
 ```bash
-lake build FILE.lean  # After each extraction
+lake env lean FILE.lean  # After each extraction (run from project root)
 ```
 
 **Why:** Errors compound. One error at a time is faster than five mixed together.
