@@ -172,7 +172,7 @@ Otherwise you'll wait 30+ minutes for mathlib to recompile from scratch.
 - Search mathlib exhaustively before proving
 - Test all candidates if possible
 - Use shortest working proof
-- Verify: `lean_diagnostic_messages(file)` per-edit; `lake env lean <file>` for file gate
+- Verify: `lean_diagnostic_messages(file)` per-edit; `lake env lean <path/to/File.lean>` for file gate (from project root)
 - Add necessary imports
 
 ❌ **Don't:**

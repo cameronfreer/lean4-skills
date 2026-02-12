@@ -52,7 +52,7 @@ Three-tier verification ladder — use the lightest tool that answers the questi
 
 Run `lake env lean` from the Lean project root; pass repo-relative file paths.
 
-**Never use `lake build <file basename>`** — `lake build` does not accept file path arguments. Use `lake env lean <file>` for single-file compilation.
+**Never use `lake build <file basename>`** — `lake build` does not accept file path arguments. Use `lake env lean <path/to/File.lean>` for single-file compilation.
 
 ## Review Phase
 
