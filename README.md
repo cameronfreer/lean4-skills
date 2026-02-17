@@ -80,8 +80,14 @@ See `/lean4:doctor migrate` for detailed migration help.
 - [SKILL.md](plugins/lean4/skills/lean4/SKILL.md) - Core skill reference
 - [INSTALLATION.md](INSTALLATION.md) - Setup guide
 - [Commands](plugins/lean4/commands/) - Command documentation
+- [Advanced References](plugins/lean4/skills/lean4/references/) - grind, simprocs, metaprogramming, linters, FFI, verso-docs, profiling
 
 ## Changelog
+
+**v4.0.9** (February 2026)
+- Integrated advanced references from PR #10 (Alok Singh): grind tactic, simprocs, metaprogramming, linters, FFI, verso-docs, profiling
+- All new content is reference-only, outside default prove/autoprove loop
+- Lint guards for scope guards, SKILL.md cross-references, stale plugin paths, and command frontmatter
 
 **v4.0.8** (February 2026)
 - Three-tier build verification policy (diagnostics → `lake env lean` → `lake build`)

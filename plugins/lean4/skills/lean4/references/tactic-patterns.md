@@ -93,6 +93,7 @@ Goal contains: `Group`, `Ring`, `Field`, `Monoid`, `comm`, `mul`, `add`
 
 ### Automation
 - `simp` / `simp only [...]` - Simplification
+- `grind` - Mixed-constraint automation (cross-domain fallback)
 - `aesop` - Automated proof search
 - `decide` - Decision procedure (for decidable goals)
 
@@ -113,7 +114,7 @@ Goal contains: `Group`, `Ring`, `Field`, `Monoid`, `comm`, `mul`, `add`
 
 ## Workflow Tips
 
-1. **Try automation first:** `simp`, `aesop`, `ring`, `linarith`
+1. **Try automation first:** `simp`, `ring`, `linarith`, `grind`, `aesop`
 2. **Introduce/destruct:** `intro`, `rcases`, `cases`
 3. **Break it down:** `have`, `suffices`, intermediate lemmas
 4. **Search mathlib:** Most goals are already solved

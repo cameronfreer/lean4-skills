@@ -78,7 +78,7 @@
 
 ### Cross-Domain
 
-**Essential tactics:** `simp only`, `by_cases`, `rcases`, `rw`, `ext`, `apply`, `exact`, `refine`
+**Essential tactics:** `simp only`, `by_cases`, `rcases`, `rw`, `ext`, `apply`, `exact`, `refine`, `grind` (for mixed-constraint cleanup)
 
 **Equality via uniqueness:** Works across all domains (measures, functions, homs)
 

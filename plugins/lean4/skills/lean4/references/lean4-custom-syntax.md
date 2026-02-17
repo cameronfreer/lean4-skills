@@ -446,6 +446,7 @@ logInfo m!"{e}"                      -- permanent, pretty-prints Expr
 
 ## External
 
+- [metaprogramming-patterns.md](metaprogramming-patterns.md) — MetaM/TacticM API patterns, composable blocks, elaborators
 - [Lean 4 Manual: Notations and Macros](https://lean-lang.org/doc/reference/latest/Notations-and-Macros)
 - [Metaprogramming in Lean 4](https://leanprover-community.github.io/lean4-metaprogramming-book/)
 - [Lean Community Blog](https://leanprover-community.github.io/blog/) — simprocs, search

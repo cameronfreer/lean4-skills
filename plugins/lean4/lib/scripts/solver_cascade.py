@@ -12,7 +12,8 @@ Cascade order:
 6. omega (arithmetic automation)
 7. exact? (proof search)
 8. apply? (proof search)
-9. aesop (general automation)
+9. grind (SMT-style mixed-constraint automation)
+10. aesop (general automation)
 
 Returns diff if any solver succeeds.
 
@@ -37,6 +38,7 @@ SOLVERS = [
     ("omega", 3),
     ("exact?", 5),
     ("apply?", 5),
+    ("grind", 8),
     ("aesop", 8),
 ]
 

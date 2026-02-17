@@ -74,6 +74,9 @@ Not every equality should be a simp lemma. Consider:
 ### Testing
 
 Always test new simp lemmas:
+
+Note: this section uses schematic placeholders like `LHS`, `RHS`, and `goal` to illustrate tactic structure.
+
 ```lean
 -- Test 1: Direct application works
 example : LHS = RHS := by simp [your_lemma]
@@ -165,5 +168,6 @@ example : goal := by simp
 ## See Also
 
 - [tactics-reference.md](tactics-reference.md) - Full tactic docs including simp variants
+- [simproc-patterns.md](simproc-patterns.md) - Custom simprocs for deterministic rewrites
 - [performance-optimization.md](performance-optimization.md) - `simp only` for speed
 - [mathlib-style.md](mathlib-style.md) - Style conventions

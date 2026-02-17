@@ -309,7 +309,7 @@ Claude: Running diagnostics...
 
 ### Project
 ✓ lakefile.lean found
-✓ lean-toolchain: leanprover/lean4:v4.15.0
+✓ lean-toolchain: leanprover/lean4:v4.27.0
 ✓ Build passes
 → 3 sorries in Core.lean
 

@@ -136,7 +136,7 @@ Extracts: error type, location, goal state, local context, code snippet
 python3 $LEAN4_SCRIPTS/solver_cascade.py context.json FILE.lean
 ```
 
-Tries in order: `rfl → simp → ring → linarith → nlinarith → omega → exact? → apply? → aesop`
+Tries in order: `rfl → simp → ring → linarith → nlinarith → omega → exact? → apply? → grind → aesop`
 
 If any succeeds → apply diff, recompile
 
@@ -193,7 +193,7 @@ If success → done! If fail → next iteration (max 24 attempts)
 ### unsolved_goals
 
 **Strategies:**
-1. Try automation: `simp?`, `apply?`, `exact?`, `aesop`
+1. Try automation: `simp?`, `apply?`, `exact?`, `grind`, `aesop`
 2. By goal shape:
    - Equality → `rfl`, `ring`, `linarith`
    - ∀ → `intro`

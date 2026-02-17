@@ -201,6 +201,49 @@ check_references() {
         warn "Missing scaffold-dsl.md"
     fi
 
+    # Advanced references (v4.0.9, from PR #10)
+    if [[ -f "$ref_dir/grind-tactic.md" ]]; then
+        ok "grind-tactic.md exists"
+    else
+        warn "Missing grind-tactic.md"
+    fi
+
+    if [[ -f "$ref_dir/simproc-patterns.md" ]]; then
+        ok "simproc-patterns.md exists"
+    else
+        warn "Missing simproc-patterns.md"
+    fi
+
+    if [[ -f "$ref_dir/metaprogramming-patterns.md" ]]; then
+        ok "metaprogramming-patterns.md exists"
+    else
+        warn "Missing metaprogramming-patterns.md"
+    fi
+
+    if [[ -f "$ref_dir/linter-authoring.md" ]]; then
+        ok "linter-authoring.md exists"
+    else
+        warn "Missing linter-authoring.md"
+    fi
+
+    if [[ -f "$ref_dir/ffi-patterns.md" ]]; then
+        ok "ffi-patterns.md exists"
+    else
+        warn "Missing ffi-patterns.md"
+    fi
+
+    if [[ -f "$ref_dir/verso-docs.md" ]]; then
+        ok "verso-docs.md exists"
+    else
+        warn "Missing verso-docs.md"
+    fi
+
+    if [[ -f "$ref_dir/profiling-workflows.md" ]]; then
+        ok "profiling-workflows.md exists"
+    else
+        warn "Missing profiling-workflows.md"
+    fi
+
     log "Total reference files: $ref_count"
 }
 
@@ -825,6 +868,199 @@ check_build_patterns() {
     ok "Build pattern check done"
 }
 
+# Check 17: Integrated advanced references (v4.0.9)
+check_integrated_advanced_refs() {
+    log ""
+    log "Checking integrated advanced references..."
+
+    local skill_md="$PLUGIN_ROOT/skills/lean4/SKILL.md"
+    local ref_dir="$PLUGIN_ROOT/skills/lean4/references"
+    local _ar_file _ar_base
+
+    # Each advanced reference must be linked from SKILL.md and have the scope guard
+    for _ar_base in grind-tactic.md simproc-patterns.md metaprogramming-patterns.md linter-authoring.md ffi-patterns.md verso-docs.md profiling-workflows.md; do
+        _ar_file="$ref_dir/$_ar_base"
+
+        if [[ ! -f "$_ar_file" ]]; then
+            warn "$_ar_base: File not found"
+            continue
+        fi
+
+        # SKILL.md must link this reference
+        if grep -qE "\(references/$_ar_base\)" "$skill_md" 2>/dev/null; then
+            [[ -n "$VERBOSE" ]] && ok "SKILL.md links $_ar_base"
+        else
+            warn "SKILL.md missing link to references/$_ar_base"
+        fi
+
+        # Reference must have scope guard
+        if grep -q 'Not part of the prove/autoprove default loop' "$_ar_file" 2>/dev/null; then
+            [[ -n "$VERBOSE" ]] && ok "$_ar_base contains scope guard"
+        else
+            warn "$_ar_base missing scope guard ('Not part of the prove/autoprove default loop')"
+        fi
+    done
+
+    ok "Integrated advanced references checked"
+}
+
+# Check 18: No command-style frontmatter in reference files
+check_no_command_frontmatter() {
+    log ""
+    log "Checking for command frontmatter in references..."
+
+    local ref_dir="$PLUGIN_ROOT/skills/lean4/references"
+    local _cf_file _cf_base _cf_line
+
+    while IFS= read -r _cf_file; do
+        _cf_base=$(basename "$_cf_file")
+        for pattern in '^name:' '^description:' '^user_invocable:'; do
+            _cf_line=$(grep -n "$pattern" "$_cf_file" 2>/dev/null | head -1 | cut -d: -f1 || true)
+            if [[ -n "$_cf_line" ]]; then
+                warn "$_cf_base:$_cf_line: Command-style frontmatter in reference file ($(echo "$pattern" | tr -d '^'))"
+            fi
+        done
+    done < <(find "$ref_dir" -name "*.md" -type f)
+
+    ok "Command frontmatter check done"
+}
+
+# Check 19: No stale plugin paths in docs
+check_stale_plugin_paths() {
+    log ""
+    log "Checking for stale plugin paths..."
+
+    local _sp_base _sp_line _sp_match _sp_changelog_line
+
+    while IFS= read -r file; do
+        _sp_base=$(basename "$file")
+
+        # Skip MIGRATION.md (historical mentions OK) and doctor.md (detects old plugins)
+        if [[ "$_sp_base" == "MIGRATION.md" ]] || [[ "$_sp_base" == "doctor.md" ]]; then
+            continue
+        fi
+
+        while IFS=: read -r _sp_line _sp_match; do
+            [[ -z "$_sp_line" ]] && continue
+            # In README.md, skip changelog lines (lines after "## Changelog")
+            if [[ "$_sp_base" == "README.md" ]]; then
+                _sp_changelog_line=$(grep -n '^## Changelog' "$file" 2>/dev/null | head -1 | cut -d: -f1 || true)
+                if [[ -n "$_sp_changelog_line" ]] && [[ "$_sp_line" -gt "$_sp_changelog_line" ]]; then
+                    continue
+                fi
+            fi
+            warn "$_sp_base:$_sp_line: Stale plugin path (old separate-plugin reference)"
+        done < <(grep -nE 'plugins/lean4-(grind|simprocs|metaprogramming|linters|ffi|verso-docs|profiling|theorem-proving)' "$file" 2>/dev/null || true)
+    done < <(find "$PLUGIN_ROOT" -name "*.md" -type f; echo "$PLUGIN_ROOT/../../README.md")
+
+    ok "Stale plugin path check done"
+}
+
+# Check 20: Advanced references include version metadata and fresh validation date
+check_advanced_reference_metadata() {
+    log ""
+    log "Checking advanced reference metadata..."
+
+    local ref_dir="$PLUGIN_ROOT/skills/lean4/references"
+    local _am_base _am_file _am_date _am_date_epoch _am_now_epoch _am_age_days
+    local _am_refs=(
+        "grind-tactic.md"
+        "simproc-patterns.md"
+        "metaprogramming-patterns.md"
+        "linter-authoring.md"
+        "ffi-patterns.md"
+        "verso-docs.md"
+        "profiling-workflows.md"
+    )
+
+    _am_now_epoch=$(date +%s)
+
+    for _am_base in "${_am_refs[@]}"; do
+        _am_file="$ref_dir/$_am_base"
+        if [[ ! -f "$_am_file" ]]; then
+            warn "$_am_base: File not found"
+            continue
+        fi
+
+        if ! grep -q '^> \*\*Version metadata:\*\*' "$_am_file" 2>/dev/null; then
+            warn "$_am_base: Missing 'Version metadata' block"
+        fi
+        if ! grep -qE '^> - \*\*Verified on:\*\* .+' "$_am_file" 2>/dev/null; then
+            warn "$_am_base: Missing 'Verified on' metadata field"
+        fi
+        if ! grep -qE '^> - \*\*Last validated:\*\* [0-9]{4}-[0-9]{2}-[0-9]{2}$' "$_am_file" 2>/dev/null; then
+            warn "$_am_base: Missing or malformed 'Last validated' field (YYYY-MM-DD)"
+        fi
+        if ! grep -qE '^> - \*\*Confidence:\*\* (low|medium|high)\b' "$_am_file" 2>/dev/null; then
+            warn "$_am_base: Missing confidence field (start with low|medium|high)"
+        fi
+        if grep -q 'Legacy-tested' "$_am_file" 2>/dev/null; then
+            warn "$_am_base: Contains stale wording 'Legacy-tested' (use version metadata block)"
+        fi
+
+        _am_date=$(grep -E '^> - \*\*Last validated:\*\* [0-9]{4}-[0-9]{2}-[0-9]{2}$' "$_am_file" 2>/dev/null | head -1 | sed -E 's/^> - \*\*Last validated:\*\* ([0-9-]+)$/\1/' || true)
+        if [[ -n "$_am_date" ]]; then
+            _am_date_epoch=$(date -d "$_am_date" +%s 2>/dev/null || true)
+            if [[ -z "$_am_date_epoch" ]]; then
+                warn "$_am_base: Could not parse Last validated date '$_am_date'"
+            else
+                _am_age_days=$(( (_am_now_epoch - _am_date_epoch) / 86400 ))
+                if [[ $_am_age_days -gt 180 ]]; then
+                    warn "$_am_base: Last validated is $_am_age_days days old (refresh recommended)"
+                fi
+            fi
+        fi
+    done
+
+    ok "Advanced reference metadata check done"
+}
+
+# Check 21: Certainty wording in advanced references should avoid absolute claims
+check_advanced_reference_language() {
+    log ""
+    log "Checking advanced reference certainty wording..."
+
+    local ref_dir="$PLUGIN_ROOT/skills/lean4/references"
+    local _aw_base _aw_line _aw_match
+    local _aw_refs=(
+        "grind-tactic.md"
+        "simproc-patterns.md"
+        "metaprogramming-patterns.md"
+        "linter-authoring.md"
+        "ffi-patterns.md"
+        "verso-docs.md"
+        "profiling-workflows.md"
+    )
+
+    for _aw_base in "${_aw_refs[@]}"; do
+        while IFS=: read -r _aw_line _aw_match; do
+            [[ -z "$_aw_line" ]] && continue
+            warn "$_aw_base:$_aw_line: Absolute certainty marker ('Works!'/'FAILS!') in advanced reference"
+        done < <(grep -nE 'Works!|FAILS!' "$ref_dir/$_aw_base" 2>/dev/null || true)
+    done
+
+    ok "Advanced reference wording check done"
+}
+
+# Check 22: Lightweight snippet smoke tests for advanced references
+check_advanced_reference_snippets() {
+    log ""
+    log "Running advanced reference snippet smoke checks..."
+
+    local smoke_script="$PLUGIN_ROOT/tools/smoke_snippets.sh"
+
+    if [[ ! -x "$smoke_script" ]]; then
+        warn "smoke_snippets.sh missing or not executable"
+        return
+    fi
+
+    if "$smoke_script"; then
+        ok "Advanced snippet smoke checks passed"
+    else
+        warn "Advanced snippet smoke checks failed (see warnings above)"
+    fi
+}
+
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
@@ -846,6 +1082,12 @@ check_compat_alias
 check_path_patterns
 check_custom_syntax_refs
 check_build_patterns
+check_integrated_advanced_refs
+check_no_command_frontmatter
+check_stale_plugin_paths
+check_advanced_reference_metadata
+check_advanced_reference_language
+check_advanced_reference_snippets
 
 log ""
 log "================================"

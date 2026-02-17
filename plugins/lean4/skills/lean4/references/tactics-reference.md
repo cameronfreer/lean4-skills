@@ -40,6 +40,7 @@ What's my goal?
 | Prove function equality | `ext` / `funext` |
 | Explore options | `exact?`, `apply?`, `simp?` |
 | Automate domain-specific | `ring`, `linarith`, `continuity`, `measurability` |
+| Cross-domain automation | `grind` (SMT-style) |
 
 The most important tactic is the one you understand!
 
@@ -490,6 +491,52 @@ have h : Measurable (fun ω => f (ω (-1))) := by
 have h : Measurable (fun ω => f (ω (-1))) := by
   fun_prop (disch := measurability)
 ```
+
+#### `grind` - SMT-Style Automation
+
+**What it does:** Combines congruence closure, E-matching, case splitting, and arithmetic/algebraic solvers to close mixed-constraint goals.
+
+**When to reach for it:**
+- `simp` normalizes but does not close
+- Goal mixes equalities + inequalities + algebraic facts
+- Finite-domain reasoning (`Fin`, `Bool`, small enums)
+
+**Baseline usage:**
+```lean
+example (h1 : a = b) (h2 : b = c) : a = c := by grind
+example [CommRing R] [NoZeroDivisors R] (h : x * y = 0) (hx : x ≠ 0) : y = 0 := by grind
+example : (5 : Fin 3) = 2 := by grind
+
+-- Typical sequence:
+simp only [normalize_defs]
+grind
+```
+
+**High-value controls (official docs):**
+```lean
+grind?                       -- suggest a grind call (lemmas/options)
+grind [key_lemma1, key_lemma2]      -- add lemmas
+grind only [key_lemma1, key_lemma2] -- restrict lemma set
+grind [-some_lemma]                  -- exclude one lemma
+grind (splits := 0)                  -- disable case splitting
+grind (splits := 8)                  -- bound case splitting
+grind -splitIte -splitMatch +splitImp
+grind -ring                           -- disable ring solver
+grind -funCC +revert -reducible       -- newer search/reduction controls
+```
+
+**When NOT to use `grind`:**
+- Pure rewrites -> `simp`
+- Integer-only arithmetic -> `omega`
+- Nonlinear arithmetic -> `nlinarith`
+- Combinatorial/bit-blasting search -> `bv_decide`
+
+**Notes:**
+- Local hypotheses are already in scope for `grind`; avoid passing them redundantly.
+- If search explodes, reduce splitting (`splits := 0`) before adding more lemmas.
+- For custom automation, register lemmas with `@[grind]` / `@[grind =]` / `@[grind ->]` and use `@[grind_pattern]` only when matching needs manual shaping.
+
+**For full details:** [grind-tactic.md](grind-tactic.md)
 
 ## Tactic Combinations
 

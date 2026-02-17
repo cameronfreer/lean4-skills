@@ -85,7 +85,7 @@ See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) for detailed
    - Time-boxed: 30–60s max
    - If counterexample found → create `T_counterexample`, skip to salvage
    - If no witness quickly → continue to proof attempts
-6. **Try tactics** (if no candidate passed) — `rfl`, `simp`, `ring`, `linarith`, `exact?`, `aesop`
+6. **Try tactics** (if no candidate passed) — `rfl`, `simp`, `ring`, `linarith`, `nlinarith`, `omega`, `exact?`, `apply?`, `grind`, `aesop`
 7. **Validate** — Use LSP diagnostics (`lean_diagnostic_messages`) to check sorry count decreased. Reserve `lake build` for review checkpoints or explicit `/lean4:checkpoint`.
 8. **Stage & Commit** — If `--commit=never`, skip staging and committing entirely. Otherwise, stage only files touched during this sorry (`git add <edited files>`), then:
 

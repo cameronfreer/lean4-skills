@@ -39,6 +39,9 @@ Ctrl+T (Cmd+T on Mac) - Search by symbol name
 **Note:** This is for human users working in VS Code, not available to AI assistants.
 
 **Tactic-based search:**
+
+Note: `goal` below is schematic placeholder text for search workflow demonstration.
+
 ```lean
 example : goal := by
   exact?  -- Suggests mathlib lemmas that directly prove the goal
@@ -434,6 +437,8 @@ example (h : P x) : Q x := by
 ```
 
 ### Testing in isolation
+
+Note: the `goal` name is schematic here; replace it with the actual proposition you are testing.
 
 ```lean
 -- Create a test example
