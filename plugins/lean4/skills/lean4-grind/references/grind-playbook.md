@@ -14,15 +14,19 @@ Use `grind` when normalization leaves goals that are mostly:
 ## Minimize Calls First
 
 Prefer this order:
-1. Try `grind?` to get a suggested tactic.
-2. Replace broad calls with `grind only [...]` when possible.
-3. Keep only declarations/patterns that are needed for the current file.
+1. Develop in interactive mode (`grind => ...`) so you can inspect progress and inject `have` facts.
+2. Try `grind?` to get a suggested minimized tactic.
+3. Replace broad calls with `grind only [...]` when possible.
+4. Keep only declarations/patterns that are needed for the current file.
 
 Example:
 
 ```lean
-grind?
--- then adopt the suggested `grind only [...]` shape
+grind =>
+  show_state
+  instantiate
+  finish
+-- then use `grind?` and adopt the suggested `grind only [...]` shape
 ```
 
 ## Prototype -> Harden Pipeline
@@ -42,6 +46,16 @@ grind +suggestions +locals
    - escalate to global annotations only after repeated success across files.
 
 This keeps early exploration fast while converging to deterministic proofs.
+
+## Library Design Template (`grind_indexmap`)
+
+Use `~/lean4/tests/lean/run/grind_indexmap_pre.lean` and `~/lean4/tests/lean/run/grind_indexmap.lean` as the canonical before/after example:
+
+1. Start with direct definitions and unresolved obligations.
+2. Use `grind => ...` and temporary `have` bridges to discover missing facts.
+3. Convert repeated bridges into local grind annotations (`@[local grind ...]`, `@[local grind =]`) and `grind_pattern` where needed.
+4. Target short API proofs of the form `by grind +locals`.
+5. Promote only mature, widely useful theorems to global `@[grind]`/`@[grind =]`.
 
 ## Prep Patterns Before `grind`
 
@@ -167,6 +181,19 @@ For search-space diagnosis, compare:
 2. reduced branching `grind (splits := 4) -splitIte -splitMatch`
 3. reduced instantiation `grind (ematch := 3) (gen := 5) (instances := 300)`
 4. solver-isolated runs (`-lia -linarith -ring -ac`) and re-enable one by one
+
+## `try?` Fallback Policy
+
+When manual loops stall, run `try?`:
+- it probes multiple grind configurations and other tactics,
+- it can already leverage suggestion/local-library paths,
+- it often returns a useful first script quickly.
+- see `~/lean4/tests/lean/run/try_first_par.lean` for a representative test.
+
+Then harden:
+1. extract the successful grind-relevant core,
+2. minimize with `grind?`,
+3. replace repeated explicit premises with local/global annotations.
 
 ## Anti-Patterns
 

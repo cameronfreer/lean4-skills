@@ -124,9 +124,10 @@ For grind-first workflows and simproc escalation guidance, see `../lean4-grind/S
 ### Grind Policy (Source-Backed)
 
 Use this default sequence:
-1. `grind?` to obtain a minimized call.
-2. adopt `grind only [...]` when the suggested call is stable.
-3. if slow, reduce branching/instantiation before adding more lemmas.
+1. develop in interactive mode first (`grind => ...`) so you can inspect state and add targeted `have` bridges.
+2. use `grind?` to obtain a minimized call.
+3. adopt `grind only [...]` when the suggested call is stable.
+4. if slow, reduce branching/instantiation before adding more lemmas.
 
 Key `grind` knobs (from `Init/Grind/Config.lean`):
 - `(splits := 9)` split depth budget
@@ -153,6 +154,7 @@ Automation-growth policy:
 - prototype hard goals with `grind +suggestions +locals`,
 - then minimize via `grind?`,
 - promote repeatedly selected theorems to `@[local grind ...]` / `@[grind ...]` (and sometimes `@[simp]`) so future proofs are by automation, not large argument lists.
+- when stuck on configuration search, run `try?` and use its output as a draft before hardening back to stable `grind` + annotations.
 
 ## Troubleshooting
 

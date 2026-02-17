@@ -19,10 +19,13 @@ Grounding for this skill:
 
 ## Entry Points
 
-- Use `grind` for direct closure.
-- Use `grind?` first when possible. It suggests a tighter `grind only [...]` call.
+- Preferred mode: `grind => ...` (interactive). It lets you inspect progress (`show_state`) and steer the search (`instantiate`, `cases`, `have`, `finish`).
+- Use `grind` for quick direct closure when you do not need step-by-step control.
+- Use `grind?` to minimize theorem arguments and derive a tighter call.
+- Use `try?` when stuck; it explores multiple `grind` variants plus other tactics and suggests proof scripts.
 - Use `grind only [...]` to lock behavior to explicit local/global theorem parameters.
-- Use interactive `grind => ...` only when you need explicit internal steps (`instantiate`, `cases`, `finish`, etc.).
+
+In practice, treat `grind` as syntactic sugar for an internal `grind => ... finish` flow.
 
 ## Mental Model
 
@@ -37,14 +40,14 @@ When debugging, ask "which component is failing to contribute useful facts?" rat
 
 1. Inspect goal shape (`lean_goal`) and identify the real blocker.
 2. If the goal contains heavy definitions or `let` scaffolding, normalize first (`simp?`, `simp (config := {zeta := true})`).
-3. If the residual goal is propositional/equality/order/arithmetic closure, run `grind` or `grind?`.
-4. If `grind` succeeds, prefer the smaller suggested form (`grind only [...]`) for stability.
+3. If the residual goal is propositional/equality/order/arithmetic closure, run an interactive loop via `grind => ...`.
+4. If a plain `grind` closes quickly, follow with `grind?` and prefer the smaller suggested form (`grind only [...]`) for stability.
 5. If the same rewrite pain appears repeatedly, add automation:
    - First choice: helper lemmas + `simp`.
    - Escalation: simproc for deterministic, recurring rewrites.
 6. Validate with diagnostics and build gates.
 
-## Single-Goal Loop
+## Preferred Interactive Loop
 
 1. Inspect:
 ```lean
@@ -57,17 +60,23 @@ simp?
 simp (config := {zeta := true})
 ```
 
-3. Try closure:
+3. Run controlled search:
 ```lean
-grind
+grind =>
+  show_state
+  instantiate
+  first
+    (cases_next)
+    (skip)
+  finish
 ```
 
 4. If unresolved, triage by residue:
    - Arithmetic-heavy: `linarith`, `nlinarith`, or `omega`.
-   - Rewrite-heavy: add a tiny helper lemma, then `simp` and retry `grind`.
+   - Rewrite-heavy: add a tiny helper lemma or `have` fact, then retry `finish`.
    - Branch explosion: lower `splits`, `ematch`, `instances`, or `gen`.
 
-5. Keep the smallest successful tactic sequence; avoid layered "try everything" scripts in committed proofs.
+5. After success, minimize to a compact non-interactive call when possible (`grind?` -> `grind only [...]`).
 
 ## High-Value `grind` Knobs
 
@@ -102,6 +111,8 @@ grind +suggestions +locals
 
 This matches the intended "virtuous cycle": suggestions discover useful premises, then annotations make future proofs cheaper and more predictable.
 
+In large API files, prefer aggressive local annotations first (`@[local grind ...]`, often with `+locals`) so repetitive theorem arguments disappear. Promote to global annotations only after the local pattern proves stable in multiple proofs.
+
 ## Annotation and Pattern Strategy
 
 Use theorem annotations before writing custom automation:
@@ -130,7 +141,7 @@ Supported constraints include `guard`, `check`, `size`, `depth`, `gen`, `max_ins
 Prefer improving automation over shipping one-off scripts:
 - if theorem `T` is repeatedly passed to `grind`, consider a stable `@[grind ...]` annotation on `T`,
 - keep exploratory annotations local first (`@[local grind ...]`),
-- promote to global annotations only after repeated wins across files.
+- promote to global annotations only after repeated wins across files (often using `@[grind]` or `@[grind =]` for public API facts).
 
 For API-heavy libraries, aim for proofs that are mostly:
 
@@ -141,9 +152,26 @@ by
 
 after local annotation tuning, then selectively globalize proven-good attributes.
 
+## Library Design Pattern (`grind_indexmap*`)
+
+Use the Lean test pair
+- `~/lean4/tests/lean/run/grind_indexmap_pre.lean`
+- `~/lean4/tests/lean/run/grind_indexmap.lean`
+
+as the model for library-scale grind adoption.
+
+Practical loop:
+1. Start with direct definitions/theorems (`_pre`) and let difficult proof obligations surface.
+2. Unstick locally in interactive mode (`grind => ...`) using targeted `have` statements.
+3. Convert recurring bridges into local attributes (`@[local grind ...]`, `@[local grind =]`) and occasional `grind_pattern`.
+4. Rework API theorems toward short proofs (`by grind +locals`).
+5. Only then promote broadly useful rules to global `@[grind]` / `@[grind =]`.
+
+This keeps exploration cheap while preventing premature global annotation noise.
+
 ## Interactive Mode Control
 
-Use `grind => ...` when default `finish` behavior is close but not enough.
+Use `grind => ...` as the default development mode; it is the most observable and steerable path.
 
 Useful tools in interactive mode:
 - `finish` / `finish?`
@@ -163,7 +191,7 @@ grind =>
   finish
 ```
 
-`have` is valuable for injecting missing intermediate facts; once stable, replace ad-hoc `have` steps with annotations or `grind_pattern` so the proof collapses back toward plain `grind`.
+`have` is valuable for injecting missing intermediate facts; once stable, replace ad-hoc `have` steps with annotations or `grind_pattern` so the proof can collapse toward `grind`/`grind only [...]`.
 
 ## Simproc Escalation Rules
 
@@ -207,7 +235,15 @@ set_option trace.grind.split true in
 
 ## Complements: `try?`
 
-When stuck, run `try?` as a broad fallback. It can explore different tactic mixes (including `grind` configurations) and often proposes a workable path quickly. Use the result as a draft, then simplify toward stable `grind`/annotation-based automation.
+When stuck, run `try?` as a broad fallback. It explores multiple tactic families, including different `grind` configurations, and often proposes a workable path quickly.
+
+Operational notes:
+- `try?` already uses `grind` variants with suggestion/local-library support in its search path.
+- This means `try?` can succeed before you have curated annotations, but you should still add `@[local grind ...]` / `@[simp]` when a premise is repeatedly selected.
+- See `~/lean4/tests/lean/run/try_first_par.lean` for representative `try?`/`grind` variant behavior.
+- Treat `try?` output as a draft: minimize with `grind?`, then converge to stable annotation-based automation.
+
+Treat incomplete-proof diagnostics that invoke `try?` as input to your annotation pipeline, not as final end-state scripts.
 
 ## Validation Gate
 
@@ -221,4 +257,8 @@ Run in order:
 - `references/grind-playbook.md`
 - `plugins/lean4/skills/lean4/SKILL.md`
 - `https://lean-lang.org/doc/reference/latest/The--grind--tactic/`
+- `~/lean4/tests/lean/run/grind_interactive.lean`
+- `~/lean4/tests/lean/run/grind_interactive_2.lean`
+- `~/lean4/tests/lean/run/grind_indexmap_pre.lean`
+- `~/lean4/tests/lean/run/grind_indexmap.lean`
 - Lean Together 2026 grind notes (Kim Morrison / Lean FRO)
