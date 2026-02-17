@@ -23,6 +23,11 @@ Only fall back to scripts (`$LEAN4_SCRIPTS/sorry_analyzer.py`, `$LEAN4_SCRIPTS/s
 - LSP server unavailable
 - LSP results inconclusive after 2-3 searches
 
+When using `sorry_analyzer.py`:
+- Default (`text`) already returns count + context in one call.
+- Use `--format=json` for structured downstream parsing.
+- Use `--format=summary` only when you need counts only.
+
 Log which approach worked for each sorry.
 
 ## Todo-Based Workflow (For Multiple Sorries)

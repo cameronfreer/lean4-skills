@@ -24,6 +24,7 @@ Examples:
     ./sorry_analyzer.py . --format=summary
     ./sorry_analyzer.py . --interactive
     ./sorry_analyzer.py . --format json              # space-separated format flag
+    ./sorry_analyzer.py . --format=detail            # alias for text
 """
 
 import re
@@ -367,13 +368,15 @@ def main():
 
     # Parse arguments
     valid_formats = ('text', 'json', 'markdown', 'summary')
+    format_aliases = {'detail': 'text'}
     i = 2
     while i < len(sys.argv):
         arg = sys.argv[i]
         if arg.startswith('--format='):
             format_type = arg.split('=', 1)[1]
+            format_type = format_aliases.get(format_type, format_type)
             if format_type not in valid_formats:
-                print(f"Error: Unknown format '{format_type}'. Valid: {', '.join(valid_formats)}", file=sys.stderr)
+                print(f"Error: Unknown format '{format_type}'. Valid: {', '.join(valid_formats)} (alias: detail -> text)", file=sys.stderr)
                 sys.exit(1)
         elif arg == '--format':
             i += 1
@@ -381,8 +384,9 @@ def main():
                 print("Error: --format requires a value", file=sys.stderr)
                 sys.exit(1)
             format_type = sys.argv[i]
+            format_type = format_aliases.get(format_type, format_type)
             if format_type not in valid_formats:
-                print(f"Error: Unknown format '{format_type}'. Valid: {', '.join(valid_formats)}", file=sys.stderr)
+                print(f"Error: Unknown format '{format_type}'. Valid: {', '.join(valid_formats)} (alias: detail -> text)", file=sys.stderr)
                 sys.exit(1)
         elif arg == '--interactive':
             interactive = True

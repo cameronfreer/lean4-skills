@@ -64,7 +64,7 @@ lean_multi_attempt(file, line, snippets=[...])  # Test multiple tactics
 
 | Script | Purpose | Output |
 |--------|---------|--------|
-| `sorry_analyzer.py` | Find sorries with context | JSON/text |
+| `sorry_analyzer.py` | Find sorries with context | text (default), json, markdown, summary |
 | `check_axioms_inline.sh` | Check for non-standard axioms | text |
 | `smart_search.sh` | Multi-source mathlib search | text |
 | `find_golfable.py` | Detect optimization patterns | JSON |
@@ -128,7 +128,9 @@ If LSP tools aren't responding, scripts provide fallback for all operations. If 
 ```bash
 echo "$LEAN4_SCRIPTS"
 ls -l "$LEAN4_SCRIPTS/sorry_analyzer.py"
-${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary --report-only
+# One-pass discovery (structured): count + locations + context
+${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=json --report-only
+# Counts only (optional): --format=summary
 ```
 
 ## Quality Gate
