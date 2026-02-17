@@ -520,9 +520,9 @@ grind only [key_lemma1, key_lemma2] -- restrict lemma set
 grind [-some_lemma]                  -- exclude one lemma
 grind (splits := 0)                  -- disable case splitting
 grind (splits := 8)                  -- bound case splitting
-grind -splitIte -splitMatch +splitImp +splitPre +splitPost
+grind -splitIte -splitMatch +splitImp
 grind -ring                           -- disable ring solver
-grind (ringSteps := 2000)             -- bound ring normalization work
+grind -funCC +revert -reducible       -- newer search/reduction controls
 ```
 
 **When NOT to use `grind`:**
@@ -534,7 +534,7 @@ grind (ringSteps := 2000)             -- bound ring normalization work
 **Notes:**
 - Local hypotheses are already in scope for `grind`; avoid passing them redundantly.
 - If search explodes, reduce splitting (`splits := 0`) before adding more lemmas.
-- For custom automation, register lemmas with `@[grind]` / `@[grind =]` / `@[grind ->]`.
+- For custom automation, register lemmas with `@[grind]` / `@[grind =]` / `@[grind ->]` and use `@[grind_pattern]` only when matching needs manual shaping.
 
 **For full details:** [grind-tactic.md](grind-tactic.md)
 

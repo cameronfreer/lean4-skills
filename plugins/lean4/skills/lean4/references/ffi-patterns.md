@@ -2,7 +2,10 @@
 
 > **Scope:** Not part of the prove/autoprove default loop. Consulted when binding Lean 4 to C/ObjC libraries.
 
-> **Version:** Legacy-tested (4.25/4.27 nightly), unverified on 4.28.0-rc1
+> **Version metadata:**
+> - **Verified on:** Lean reference + release notes through `v4.27.0`
+> - **Last validated:** 2026-02-17
+> - **Confidence:** medium (FFI APIs are stable in concept but have version-specific details)
 
 ## When to Use
 
@@ -79,4 +82,4 @@ For ObjC on macOS, compile `.m` with system clang and `-framework` flags.
 
 ## See Also
 
-- [Lean 4 Reference: FFI](https://lean-lang.org/doc/reference/latest/) — official documentation
+- [Lean 4 Reference: FFI](https://lean-lang.org/doc/reference/latest/Run-Time-Code/Foreign-Function-Interface/) — official documentation

@@ -2,7 +2,10 @@
 
 > **Scope:** Not part of the prove/autoprove default loop. Consulted when `simp` needs a deterministic, reusable rewrite that simp lemmas alone cannot provide.
 
-> **Version:** Legacy-tested (4.25/4.27 nightly), unverified on 4.28.0-rc1
+> **Version metadata:**
+> - **Verified on:** Lean reference + release notes through `v4.27.0`
+> - **Last validated:** 2026-02-17
+> - **Confidence:** medium (docs reviewed; snippets not batch-compiled)
 
 ## When to Use
 
@@ -21,17 +24,17 @@ Think of simprocs as a block inside `simp`:
 
 ## Minimal Simproc Shape
 
+Start with a plain `@[simp]` lemma when possible:
+
 ```lean
 import Lean
 open Lean Meta Simp
 
-/-- Example simproc that rewrites `foo x` to `bar x`. -/
+-- Prefer this first: simple deterministic rewrites belong in simp lemmas.
 @[simp] theorem foo_eq_bar (x) : foo x = bar x := by rfl
-
--- Use simprocs only when simp lemmas are insufficient.
 ```
 
-If you need custom logic, use a real simproc:
+Escalate to a real simproc only when the rewrite needs custom computation:
 
 ```lean
 open Lean Meta Simp

@@ -956,6 +956,111 @@ check_stale_plugin_paths() {
     ok "Stale plugin path check done"
 }
 
+# Check 20: Advanced references include version metadata and fresh validation date
+check_advanced_reference_metadata() {
+    log ""
+    log "Checking advanced reference metadata..."
+
+    local ref_dir="$PLUGIN_ROOT/skills/lean4/references"
+    local _am_base _am_file _am_date _am_date_epoch _am_now_epoch _am_age_days
+    local _am_refs=(
+        "grind-tactic.md"
+        "simproc-patterns.md"
+        "metaprogramming-patterns.md"
+        "linter-authoring.md"
+        "ffi-patterns.md"
+        "verso-docs.md"
+        "profiling-workflows.md"
+    )
+
+    _am_now_epoch=$(date +%s)
+
+    for _am_base in "${_am_refs[@]}"; do
+        _am_file="$ref_dir/$_am_base"
+        if [[ ! -f "$_am_file" ]]; then
+            warn "$_am_base: File not found"
+            continue
+        fi
+
+        if ! grep -q '^> \*\*Version metadata:\*\*' "$_am_file" 2>/dev/null; then
+            warn "$_am_base: Missing 'Version metadata' block"
+        fi
+        if ! grep -qE '^> - \*\*Verified on:\*\* .+' "$_am_file" 2>/dev/null; then
+            warn "$_am_base: Missing 'Verified on' metadata field"
+        fi
+        if ! grep -qE '^> - \*\*Last validated:\*\* [0-9]{4}-[0-9]{2}-[0-9]{2}$' "$_am_file" 2>/dev/null; then
+            warn "$_am_base: Missing or malformed 'Last validated' field (YYYY-MM-DD)"
+        fi
+        if ! grep -qE '^> - \*\*Confidence:\*\* (low|medium|high)\b' "$_am_file" 2>/dev/null; then
+            warn "$_am_base: Missing confidence field (start with low|medium|high)"
+        fi
+        if grep -q 'Legacy-tested' "$_am_file" 2>/dev/null; then
+            warn "$_am_base: Contains stale wording 'Legacy-tested' (use version metadata block)"
+        fi
+
+        _am_date=$(grep -E '^> - \*\*Last validated:\*\* [0-9]{4}-[0-9]{2}-[0-9]{2}$' "$_am_file" 2>/dev/null | head -1 | sed -E 's/^> - \*\*Last validated:\*\* ([0-9-]+)$/\1/' || true)
+        if [[ -n "$_am_date" ]]; then
+            _am_date_epoch=$(date -d "$_am_date" +%s 2>/dev/null || true)
+            if [[ -z "$_am_date_epoch" ]]; then
+                warn "$_am_base: Could not parse Last validated date '$_am_date'"
+            else
+                _am_age_days=$(( (_am_now_epoch - _am_date_epoch) / 86400 ))
+                if [[ $_am_age_days -gt 180 ]]; then
+                    warn "$_am_base: Last validated is $_am_age_days days old (refresh recommended)"
+                fi
+            fi
+        fi
+    done
+
+    ok "Advanced reference metadata check done"
+}
+
+# Check 21: Certainty wording in advanced references should avoid absolute claims
+check_advanced_reference_language() {
+    log ""
+    log "Checking advanced reference certainty wording..."
+
+    local ref_dir="$PLUGIN_ROOT/skills/lean4/references"
+    local _aw_base _aw_line _aw_match
+    local _aw_refs=(
+        "grind-tactic.md"
+        "simproc-patterns.md"
+        "metaprogramming-patterns.md"
+        "linter-authoring.md"
+        "ffi-patterns.md"
+        "verso-docs.md"
+        "profiling-workflows.md"
+    )
+
+    for _aw_base in "${_aw_refs[@]}"; do
+        while IFS=: read -r _aw_line _aw_match; do
+            [[ -z "$_aw_line" ]] && continue
+            warn "$_aw_base:$_aw_line: Absolute certainty marker ('Works!'/'FAILS!') in advanced reference"
+        done < <(grep -nE 'Works!|FAILS!' "$ref_dir/$_aw_base" 2>/dev/null || true)
+    done
+
+    ok "Advanced reference wording check done"
+}
+
+# Check 22: Lightweight snippet smoke tests for advanced references
+check_advanced_reference_snippets() {
+    log ""
+    log "Running advanced reference snippet smoke checks..."
+
+    local smoke_script="$PLUGIN_ROOT/tools/smoke_snippets.sh"
+
+    if [[ ! -x "$smoke_script" ]]; then
+        warn "smoke_snippets.sh missing or not executable"
+        return
+    fi
+
+    if "$smoke_script"; then
+        ok "Advanced snippet smoke checks passed"
+    else
+        warn "Advanced snippet smoke checks failed (see warnings above)"
+    fi
+}
+
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
@@ -980,6 +1085,9 @@ check_build_patterns
 check_integrated_advanced_refs
 check_no_command_frontmatter
 check_stale_plugin_paths
+check_advanced_reference_metadata
+check_advanced_reference_language
+check_advanced_reference_snippets
 
 log ""
 log "================================"

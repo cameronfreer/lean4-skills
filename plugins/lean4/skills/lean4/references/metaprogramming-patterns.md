@@ -2,7 +2,10 @@
 
 > **Scope:** Not part of the prove/autoprove default loop. Consulted when building Lean 4 DSLs, macros, elaborators, or custom pretty-printing.
 
-> **Version:** Legacy-tested (4.25/4.27 nightly), unverified on 4.28.0-rc1. MetaM/TacticM API is drift-prone across toolchains.
+> **Version metadata:**
+> - **Verified on:** Lean reference + release notes through `v4.27.0`
+> - **Last validated:** 2026-02-17
+> - **Confidence:** low (MetaM/TacticM APIs are drift-prone across toolchains)
 
 ## When to Use
 
@@ -96,8 +99,8 @@ syntax (name := view) "view[" term "]" : term
 
 elab_rules : term
   | `(view[$t]) => do
-      let e <- elabTerm t none
-      let ty <- inferType e
+      let e ← elabTerm t none
+      let ty ← inferType e
       -- Use type info here
       return e
 ```
