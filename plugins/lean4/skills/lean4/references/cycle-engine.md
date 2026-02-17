@@ -38,6 +38,10 @@ LSP tools are the normative first-pass for all discovery, search, and validation
 - LSP search budget is exhausted (at least 2 searches returning empty/inconclusive), OR
 - LSP server is confirmed unavailable, timing out, or rate-limited
 
+For sorry discovery fallback, prefer one-pass structured output:
+`${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" <target> --format=json --report-only`.
+Use default `text` for quick human review and `summary` only for counts.
+
 **Validation:** Use `lean_diagnostic_messages(file)` for per-edit checks. Reserve `lake build` for checkpoint verification or explicit `/lean4:checkpoint`. See [Build Target Policy](#build-target-policy) for the full ladder.
 
 ## Build Target Policy
