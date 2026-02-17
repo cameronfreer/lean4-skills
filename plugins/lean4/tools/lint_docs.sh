@@ -201,6 +201,49 @@ check_references() {
         warn "Missing scaffold-dsl.md"
     fi
 
+    # Advanced references (v4.0.9, from PR #10)
+    if [[ -f "$ref_dir/grind-tactic.md" ]]; then
+        ok "grind-tactic.md exists"
+    else
+        warn "Missing grind-tactic.md"
+    fi
+
+    if [[ -f "$ref_dir/simproc-patterns.md" ]]; then
+        ok "simproc-patterns.md exists"
+    else
+        warn "Missing simproc-patterns.md"
+    fi
+
+    if [[ -f "$ref_dir/metaprogramming-patterns.md" ]]; then
+        ok "metaprogramming-patterns.md exists"
+    else
+        warn "Missing metaprogramming-patterns.md"
+    fi
+
+    if [[ -f "$ref_dir/linter-authoring.md" ]]; then
+        ok "linter-authoring.md exists"
+    else
+        warn "Missing linter-authoring.md"
+    fi
+
+    if [[ -f "$ref_dir/ffi-patterns.md" ]]; then
+        ok "ffi-patterns.md exists"
+    else
+        warn "Missing ffi-patterns.md"
+    fi
+
+    if [[ -f "$ref_dir/verso-docs.md" ]]; then
+        ok "verso-docs.md exists"
+    else
+        warn "Missing verso-docs.md"
+    fi
+
+    if [[ -f "$ref_dir/profiling-workflows.md" ]]; then
+        ok "profiling-workflows.md exists"
+    else
+        warn "Missing profiling-workflows.md"
+    fi
+
     log "Total reference files: $ref_count"
 }
 
@@ -825,6 +868,94 @@ check_build_patterns() {
     ok "Build pattern check done"
 }
 
+# Check 17: Integrated advanced references (v4.0.9)
+check_integrated_advanced_refs() {
+    log ""
+    log "Checking integrated advanced references..."
+
+    local skill_md="$PLUGIN_ROOT/skills/lean4/SKILL.md"
+    local ref_dir="$PLUGIN_ROOT/skills/lean4/references"
+    local _ar_file _ar_base
+
+    # Each advanced reference must be linked from SKILL.md and have the scope guard
+    for _ar_base in grind-tactic.md simproc-patterns.md metaprogramming-patterns.md linter-authoring.md ffi-patterns.md verso-docs.md profiling-workflows.md; do
+        _ar_file="$ref_dir/$_ar_base"
+
+        if [[ ! -f "$_ar_file" ]]; then
+            warn "$_ar_base: File not found"
+            continue
+        fi
+
+        # SKILL.md must link this reference
+        if grep -qE "\(references/$_ar_base\)" "$skill_md" 2>/dev/null; then
+            [[ -n "$VERBOSE" ]] && ok "SKILL.md links $_ar_base"
+        else
+            warn "SKILL.md missing link to references/$_ar_base"
+        fi
+
+        # Reference must have scope guard
+        if grep -q 'Not part of the prove/autoprove default loop' "$_ar_file" 2>/dev/null; then
+            [[ -n "$VERBOSE" ]] && ok "$_ar_base contains scope guard"
+        else
+            warn "$_ar_base missing scope guard ('Not part of the prove/autoprove default loop')"
+        fi
+    done
+
+    ok "Integrated advanced references checked"
+}
+
+# Check 18: No command-style frontmatter in reference files
+check_no_command_frontmatter() {
+    log ""
+    log "Checking for command frontmatter in references..."
+
+    local ref_dir="$PLUGIN_ROOT/skills/lean4/references"
+    local _cf_file _cf_base _cf_line
+
+    while IFS= read -r _cf_file; do
+        _cf_base=$(basename "$_cf_file")
+        for pattern in '^name:' '^description:' '^user_invocable:'; do
+            _cf_line=$(grep -n "$pattern" "$_cf_file" 2>/dev/null | head -1 | cut -d: -f1 || true)
+            if [[ -n "$_cf_line" ]]; then
+                warn "$_cf_base:$_cf_line: Command-style frontmatter in reference file ($(echo "$pattern" | tr -d '^'))"
+            fi
+        done
+    done < <(find "$ref_dir" -name "*.md" -type f)
+
+    ok "Command frontmatter check done"
+}
+
+# Check 19: No stale plugin paths in docs
+check_stale_plugin_paths() {
+    log ""
+    log "Checking for stale plugin paths..."
+
+    local _sp_base _sp_line _sp_match _sp_changelog_line
+
+    while IFS= read -r file; do
+        _sp_base=$(basename "$file")
+
+        # Skip MIGRATION.md (historical mentions OK) and doctor.md (detects old plugins)
+        if [[ "$_sp_base" == "MIGRATION.md" ]] || [[ "$_sp_base" == "doctor.md" ]]; then
+            continue
+        fi
+
+        while IFS=: read -r _sp_line _sp_match; do
+            [[ -z "$_sp_line" ]] && continue
+            # In README.md, skip changelog lines (lines after "## Changelog")
+            if [[ "$_sp_base" == "README.md" ]]; then
+                _sp_changelog_line=$(grep -n '^## Changelog' "$file" 2>/dev/null | head -1 | cut -d: -f1 || true)
+                if [[ -n "$_sp_changelog_line" ]] && [[ "$_sp_line" -gt "$_sp_changelog_line" ]]; then
+                    continue
+                fi
+            fi
+            warn "$_sp_base:$_sp_line: Stale plugin path (old separate-plugin reference)"
+        done < <(grep -nE 'plugins/lean4-(grind|simprocs|metaprogramming|linters|ffi|verso-docs|profiling|theorem-proving)' "$file" 2>/dev/null || true)
+    done < <(find "$PLUGIN_ROOT" -name "*.md" -type f; echo "$PLUGIN_ROOT/../../README.md")
+
+    ok "Stale plugin path check done"
+}
+
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
@@ -846,6 +977,9 @@ check_compat_alias
 check_path_patterns
 check_custom_syntax_refs
 check_build_patterns
+check_integrated_advanced_refs
+check_no_command_frontmatter
+check_stale_plugin_paths
 
 log ""
 log "================================"
