@@ -529,6 +529,41 @@ grind [helpful_lemma]  -- Add specific lemmas
 
 **For detailed guide:** See [grind-tactic.md](grind-tactic.md)
 
+### SMT-Style Automation
+
+#### `grind` - Multi-Engine Constraint Solver
+
+**What it does:** Coordinates congruence closure, constraint propagation, E-matching, case analysis, and theory solvers (lia, linarith, ring, AC) to close goals by contradiction.
+
+**When to use:**
+- Goals mixing equalities, inequalities, and algebraic constraints
+- `simp` normalizes but doesn't close
+- Cross-domain reasoning needed
+- Finite-domain reasoning (`Fin`, `Bool`, small enums)
+
+**Basic usage:**
+```lean
+-- After simp normalizes:
+simp only [normalize_defs]; grind
+
+-- Cross-domain:
+example (h : n < m ∨ n = m) (h2 : n ≠ m) : n < m := by grind
+
+-- With hints:
+grind [key_lemma1, key_lemma2]
+
+-- With case split:
+by_cases h : condition <;> grind
+```
+
+**When NOT to use:**
+- Pure rewrites → `simp`
+- Integer-only arithmetic → `omega`
+- Combinatorial search → `bv_decide`
+- Nonlinear arithmetic → `nlinarith`
+
+**For the full guide** (engines, interactive mode, debugging, gotchas): see [grind-tactic.md](grind-tactic.md)
+
 ## Tactic Combinations
 
 ### Common Patterns

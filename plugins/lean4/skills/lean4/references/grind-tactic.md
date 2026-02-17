@@ -1,5 +1,59 @@
 # The `grind` Tactic
 
+> **Scope:** Not part of the prove/autoprove default loop. Consulted when the agent encounters goals that `simp` cannot close, or when cross-domain reasoning is needed.
+
+## Table of Contents
+
+- [Quick Path](#quick-path) — decision tree + basic patterns (start here)
+- [TLDR](#tldr) — what grind is and when to use it
+- [How grind Works](#how-grind-works) — core mechanism, engines, theory solvers
+- [grind vs simp: Decision Guide](#grind-vs-simp-decision-guide)
+- [Usage Patterns](#usage-patterns) — common patterns by category
+- [When NOT to Use grind](#when-not-to-use-grind) — combinatorial explosion, specialized alternatives
+- [The @\[grind\] Attribute](#the-grind-attribute) — discovery, registration, variants
+- [Integration with Other Tactics](#integration-with-other-tactics) — sequences, after structure work, calc
+- [Performance Considerations](#performance-considerations)
+- [Common Gotchas](#common-gotchas) — precedence, hypotheses, NoZeroDivisors, BitVec
+- [Debugging grind](#debugging-grind) — trace options, diagnostic approach
+- [Examples](#examples) — concrete worked examples
+- [Real-World Usage: Cryptographic Verification](#real-world-usage-cryptographic-verification)
+- [Interactive Mode (Advanced)](#interactive-mode-advanced) — step-by-step exploration DSL
+- [Known Limitations](#known-limitations-of-grind) — E-matching depth, nonlinear, bit-shifts
+- [Quick Reference](#quick-reference) — situation → recommendation table
+
+## Quick Path
+
+**When to reach for `grind`:**
+- `simp` normalizes but does not close the goal
+- Goal mixes equalities, inequalities, and algebraic constraints
+- Finite-domain reasoning (`Fin`, `Bool`, small enums)
+- Cross-domain: arithmetic + propositional + congruence in one goal
+
+**Decision tree:**
+```
+Can simp close it?
+├─ Yes → use simp
+└─ No
+   ├─ Pure integer arithmetic? → omega
+   ├─ Real/rational linear? → linarith
+   ├─ Ring/field equation? → ring / field_simp
+   ├─ Multiple constraint types? → grind
+   ├─ Finite domain? → grind
+   └─ Unsure → try simp, then grind, then specialized
+```
+
+**Basic patterns:**
+```lean
+-- After simp normalizes but doesn't close:
+simp only [normalize_defs]; grind
+
+-- Cross-domain:
+example (h : n < m ∨ n = m) (h2 : n ≠ m) : n < m := by grind
+
+-- With case split:
+by_cases h : condition <;> grind
+```
+
 ## TLDR
 
 **What it is:** An SMT-inspired automated reasoning tactic that coordinates multiple reasoning engines to construct proofs by contradiction.
@@ -515,6 +569,8 @@ example : some_property := by
 
 ## Interactive Mode (Advanced)
 
+> **Version:** Legacy-tested (4.25/4.27 nightly), unverified on 4.28.0-rc1
+
 `grind` has an interactive DSL accessed via `grind =>` for step-by-step proof exploration.
 
 ### How to Use Interactive Mode
@@ -644,6 +700,8 @@ example (x y : Nat) (hx : x < 2^52) (hy : y < 2^52) : x + y < 2^53 := by grind
 ```
 
 ### Known Limitations of `grind`
+
+> **Version:** Legacy-tested (4.25/4.27 nightly), unverified on 4.28.0-rc1
 
 Based on testing (4.25.1 stable and 4.27.0-nightly-2025-11-25):
 
