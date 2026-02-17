@@ -45,6 +45,8 @@ class Sorry:
     documentation: List[str]
     in_declaration: Optional[str] = None
 
+SORRY_TOKEN_PATTERN = re.compile(r"(?<![A-Za-z0-9_!?'])sorry(?![A-Za-z0-9_!?'])")
+
 def extract_declaration_name(lines: List[str], sorry_idx: int) -> Optional[str]:
     """Extract the theorem/lemma/def name containing this sorry"""
     # Search backwards for declaration
@@ -95,25 +97,28 @@ def find_sorries_in_file(filepath: Path) -> List[Sorry]:
 
     sorries = []
     for i, line in enumerate(lines):
-        # Look for sorry (not in comments)
-        if 'sorry' in line:
-            # Simple check: not in a comment (line or single-line block)
-            code_part = line.split('--')[0]
-            # Strip single-line block comments (* ... *)
-            code_part = re.sub(r'\(\*.*?\*\)', '', code_part)
-            if 'sorry' in code_part:
-                context_before = [l.rstrip() for l in lines[max(0, i-3):i]]
-                context_after = [l.rstrip() for l in lines[i+1:min(len(lines), i+4)]]
+        # Quick filter before doing regex and cleanup work.
+        if 'sorry' not in line:
+            continue
 
-                sorry = Sorry(
-                    file=str(filepath),
-                    line=i + 1,  # 1-indexed
-                    context_before=context_before,
-                    context_after=context_after,
-                    documentation=extract_documentation(lines, i),
-                    in_declaration=extract_declaration_name(lines, i)
-                )
-                sorries.append(sorry)
+        # Simple check: not in a line comment, single-line block comment, or string literal.
+        code_part = line.split('--')[0]
+        code_part = re.sub(r'\(\*.*?\*\)', '', code_part)
+        code_part = re.sub(r'"(?:\\.|[^"\\])*"', '', code_part)
+
+        if SORRY_TOKEN_PATTERN.search(code_part):
+            context_before = [l.rstrip() for l in lines[max(0, i-3):i]]
+            context_after = [l.rstrip() for l in lines[i+1:min(len(lines), i+4)]]
+
+            sorry = Sorry(
+                file=str(filepath),
+                line=i + 1,  # 1-indexed
+                context_before=context_before,
+                context_after=context_after,
+                documentation=extract_documentation(lines, i),
+                in_declaration=extract_declaration_name(lines, i)
+            )
+            sorries.append(sorry)
 
     return sorries
 
