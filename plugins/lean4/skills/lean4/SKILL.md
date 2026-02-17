@@ -128,8 +128,9 @@ If LSP tools aren't responding, scripts provide fallback for all operations. If 
 ```bash
 echo "$LEAN4_SCRIPTS"
 ls -l "$LEAN4_SCRIPTS/sorry_analyzer.py"
-# One-pass discovery (structured): count + locations + context
-${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=json --report-only
+# One-pass discovery for troubleshooting (human-readable default text):
+${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --report-only
+# Structured output (optional): --format=json
 # Counts only (optional): --format=summary
 ```
 
