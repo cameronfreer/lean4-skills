@@ -119,6 +119,7 @@ Try in order (stop on first success):
 `rfl` → `simp` → `ring` → `linarith` → `nlinarith` → `omega` → `exact?` → `apply?` → `grind` → `aesop`
 
 Note: `exact?`/`apply?` query mathlib (slow). `grind` and `aesop` are powerful but may timeout.
+For grind-first workflows and simproc escalation guidance, see `../lean4-grind/SKILL.md`.
 
 ## Troubleshooting
 
@@ -154,6 +155,8 @@ Verification ladder: `lean_diagnostic_messages(file)` per-edit → `lake env lea
 **Tactics:** [tactics-reference](references/tactics-reference.md) (tactic lookup — grep `^### TacticName`), [tactic-patterns](references/tactic-patterns.md), [calc-patterns](references/calc-patterns.md), [simp-hygiene](references/simp-hygiene.md)
 
 **Proof Development:** [proof-templates](references/proof-templates.md), [proof-refactoring](references/proof-refactoring.md) (28K — grep by topic), [sorry-filling](references/sorry-filling.md)
+
+**Grind:** [lean4-grind skill](../lean4-grind/SKILL.md), [grind-playbook](../lean4-grind/references/grind-playbook.md)
 
 **Optimization:** [proof-golfing](references/proof-golfing.md) (includes bounded LSP lemma replacement; bulk rewrites are context-filtered and regression-reverting; escalates to axiom-eliminator), [proof-golfing-patterns](references/proof-golfing-patterns.md), [proof-golfing-safety](references/proof-golfing-safety.md), [performance-optimization](references/performance-optimization.md) (grep by symptom)
 
