@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lean4 Grind"
+  short_description: "Use grind and simprocs for Lean 4 proofs"
+  default_prompt: "Apply grind-first Lean 4 proof workflows."

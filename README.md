@@ -78,10 +78,14 @@ See `/lean4:doctor migrate` for detailed migration help.
 ## Documentation
 
 - [SKILL.md](plugins/lean4/skills/lean4/SKILL.md) - Core skill reference
+- [Lean4 Grind](plugins/lean4/skills/lean4-grind/SKILL.md) - Grind + simproc workflow
 - [INSTALLATION.md](INSTALLATION.md) - Setup guide
 - [Commands](plugins/lean4/commands/) - Command documentation
 
 ## Changelog
+
+**Unreleased**
+- Added `lean4-grind` skill with grind workflow + simproc escalation playbook
 
 **v4.0.8** (February 2026)
 - Three-tier build verification policy (diagnostics → `lake env lean` → `lake build`)
