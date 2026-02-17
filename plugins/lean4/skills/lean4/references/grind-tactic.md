@@ -617,18 +617,18 @@ grind -linarith   -- Disable linarith solver
 grind +qlia       -- Accept rational models (incomplete for ℤ)
 ```
 
-### Key Limitation: `instantiate` Only Works with Constants
+### `instantiate` Notes (Version-Sensitive)
 
-**Critical:** `instantiate [thm]` expects `@[grind]`-registered theorems, NOT local hypotheses:
+In newer Lean versions (v4.25+), `instantiate` can select local theorems/hypotheses, not just global constants.
 
 ```lean
--- FAILS: h is a local hypothesis, not a constant
+-- Works on newer toolchains (v4.25+):
 example (f : Nat → Nat) (h : ∀ n, f n = n + 1) : f 0 = 1 := by
   grind =>
-    instantiate [h]  -- Error: Unknown constant `h`
+    instantiate [h]
     done
 
--- WORKS: my_thm is a registered @[grind] theorem
+-- Also works with global @[grind] theorems:
 @[grind] theorem my_add : ∀ n : Nat, n + 0 = n := Nat.add_zero
 
 example (x : Nat) : x + 0 = x := by
@@ -636,6 +636,10 @@ example (x : Nat) : x + 0 = x := by
     instantiate [my_add]
     done
 ```
+
+If your toolchain reports `Unknown constant` for local hypotheses, treat it as a version gap and fall back to:
+- global `@[grind]` lemmas, or
+- plain `grind` / `simp` workflows.
 
 ### When Interactive Mode Is (and Isn't) Useful
 

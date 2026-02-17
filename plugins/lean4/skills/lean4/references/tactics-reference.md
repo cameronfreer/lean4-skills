@@ -494,75 +494,49 @@ have h : Measurable (fun ω => f (ω (-1))) := by
 
 #### `grind` - SMT-Style Automation
 
-**What it does:** Coordinates multiple reasoning engines (congruence closure, constraint propagation, E-matching, case analysis, theory solvers) to construct proofs by contradiction.
+**What it does:** Combines congruence closure, E-matching, case splitting, and arithmetic/algebraic solvers to close mixed-constraint goals.
 
-**Basic usage:**
+**When to reach for it:**
+- `simp` normalizes but does not close
+- Goal mixes equalities + inequalities + algebraic facts
+- Finite-domain reasoning (`Fin`, `Bool`, small enums)
+
+**Baseline usage:**
 ```lean
 example (h1 : a = b) (h2 : b = c) : a = c := by grind
 example [CommRing R] [NoZeroDivisors R] (h : x * y = 0) (hx : x ≠ 0) : y = 0 := by grind
-example : (5 : Fin 3) = 2 := by grind  -- Handles modular arithmetic
+example : (5 : Fin 3) = 2 := by grind
+
+-- Typical sequence:
+simp only [normalize_defs]
+grind
 ```
 
-**When to use `grind` vs `simp`:**
+**High-value controls (official docs):**
+```lean
+grind?                       -- suggest a grind call (lemmas/options)
+grind [key_lemma1, key_lemma2]      -- add lemmas
+grind only [key_lemma1, key_lemma2] -- restrict lemma set
+grind [-some_lemma]                  -- exclude one lemma
+grind (splits := 0)                  -- disable case splitting
+grind (splits := 8)                  -- bound case splitting
+grind -splitIte -splitMatch +splitImp +splitPre +splitPost
+grind -ring                           -- disable ring solver
+grind (ringSteps := 2000)             -- bound ring normalization work
 ```
-simp: Sequential rewriting, pure normalization, known lemmas
-grind: Multiple constraint types, cross-domain reasoning, finite domains
-```
-
-| Goal Type | Use `simp` | Use `grind` |
-|-----------|------------|-------------|
-| Pure rewrites | ✅ | |
-| Transitive equalities | both work | ✅ (automatic) |
-| Algebra + constraints | | ✅ |
-| Fin/bounded domains | | ✅ |
-| Cross-domain reasoning | | ✅ |
 
 **When NOT to use `grind`:**
-- Combinatorial search (use `bv_decide`)
-- Pure integer arithmetic (use `omega`)
-- Simple rewrites (use `simp`)
+- Pure rewrites -> `simp`
+- Integer-only arithmetic -> `omega`
+- Nonlinear arithmetic -> `nlinarith`
+- Combinatorial/bit-blasting search -> `bv_decide`
 
-**With hints:**
-```lean
-grind [helpful_lemma]  -- Add specific lemmas
-```
+**Notes:**
+- Local hypotheses are already in scope for `grind`; avoid passing them redundantly.
+- If search explodes, reduce splitting (`splits := 0`) before adding more lemmas.
+- For custom automation, register lemmas with `@[grind]` / `@[grind =]` / `@[grind ->]`.
 
-**For detailed guide:** See [grind-tactic.md](grind-tactic.md)
-
-### SMT-Style Automation
-
-#### `grind` - Multi-Engine Constraint Solver
-
-**What it does:** Coordinates congruence closure, constraint propagation, E-matching, case analysis, and theory solvers (lia, linarith, ring, AC) to close goals by contradiction.
-
-**When to use:**
-- Goals mixing equalities, inequalities, and algebraic constraints
-- `simp` normalizes but doesn't close
-- Cross-domain reasoning needed
-- Finite-domain reasoning (`Fin`, `Bool`, small enums)
-
-**Basic usage:**
-```lean
--- After simp normalizes:
-simp only [normalize_defs]; grind
-
--- Cross-domain:
-example (h : n < m ∨ n = m) (h2 : n ≠ m) : n < m := by grind
-
--- With hints:
-grind [key_lemma1, key_lemma2]
-
--- With case split:
-by_cases h : condition <;> grind
-```
-
-**When NOT to use:**
-- Pure rewrites → `simp`
-- Integer-only arithmetic → `omega`
-- Combinatorial search → `bv_decide`
-- Nonlinear arithmetic → `nlinarith`
-
-**For the full guide** (engines, interactive mode, debugging, gotchas): see [grind-tactic.md](grind-tactic.md)
+**For full details:** [grind-tactic.md](grind-tactic.md)
 
 ## Tactic Combinations
 
