@@ -165,5 +165,6 @@ example : goal := by simp
 ## See Also
 
 - [tactics-reference.md](tactics-reference.md) - Full tactic docs including simp variants
+- [simproc-patterns.md](simproc-patterns.md) - Custom simprocs for deterministic rewrites
 - [performance-optimization.md](performance-optimization.md) - `simp only` for speed
 - [mathlib-style.md](mathlib-style.md) - Style conventions
