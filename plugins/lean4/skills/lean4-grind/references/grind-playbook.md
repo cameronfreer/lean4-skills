@@ -25,6 +25,24 @@ grind?
 -- then adopt the suggested `grind only [...]` shape
 ```
 
+## Prototype -> Harden Pipeline
+
+When building out new API automation:
+1. Prototype aggressively:
+
+```lean
+grind +suggestions +locals
+```
+
+2. Minimize:
+   - run `grind?`,
+   - keep only needed theorem arguments (`grind only [...]` when practical).
+3. Stabilize:
+   - convert repeatedly selected lemmas into `@[local grind ...]` / `@[local simp]`,
+   - escalate to global annotations only after repeated success across files.
+
+This keeps early exploration fast while converging to deterministic proofs.
+
 ## Prep Patterns Before `grind`
 
 - Run `simp?` to see obvious simplifications.
@@ -46,6 +64,8 @@ grind
    - rewrite mismatch: add local helper lemma and run `simp` then `grind`;
    - huge context: reduce hypotheses and retry.
 3. Retry with a smaller, clearer context rather than stacking many expensive tactics.
+
+If the failure is "missing bridge fact", add a temporary `have` in `grind => ...` mode, then back-port it into annotations or a `grind_pattern` so the final proof does not depend on ad-hoc interactive scaffolding.
 
 ## If `grind` Is Slow
 
@@ -100,6 +120,18 @@ Use `trace.grind.ematch.instance` to inspect theorem-instance generation.
 - `+splitImp` enables implication-based splitting.
 - In interactive mode (`grind => ...`), use `cases?`/`cases #...` to select a specific split.
 
+Interactive skeleton:
+
+```lean
+grind =>
+  show_state
+  instantiate
+  first
+    (cases_next)
+    (skip)
+  finish
+```
+
 ## Simproc Checklist
 
 Create a simproc only when all are true:
@@ -130,9 +162,16 @@ set_option diagnostics true in
 grind
 ```
 
+For search-space diagnosis, compare:
+1. baseline `grind`
+2. reduced branching `grind (splits := 4) -splitIte -splitMatch`
+3. reduced instantiation `grind (ematch := 3) (gen := 5) (instances := 300)`
+4. solver-isolated runs (`-lia -linarith -ring -ac`) and re-enable one by one
+
 ## Anti-Patterns
 
 - Running `grind` first on unsimplified goals with large contexts.
 - Adding broad global simp lemmas to "help" one stubborn goal.
 - Introducing simprocs for one-off rewrites.
 - Keeping fallback tactic chains in final proof scripts.
+- Keeping long-term dependence on `+suggestions` when stable annotations would make proofs deterministic.

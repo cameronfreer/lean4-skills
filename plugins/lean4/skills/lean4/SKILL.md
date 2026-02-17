@@ -149,6 +149,11 @@ Pattern control:
 - Use `grind_pattern` when inferred patterns are too weak or too broad.
 - Keep broad pattern experiments local; commit narrowed `grind only [...]` calls when possible.
 
+Automation-growth policy:
+- prototype hard goals with `grind +suggestions +locals`,
+- then minimize via `grind?`,
+- promote repeatedly selected theorems to `@[local grind ...]` / `@[grind ...]` (and sometimes `@[simp]`) so future proofs are by automation, not large argument lists.
+
 ## Troubleshooting
 
 If LSP tools aren't responding, scripts provide fallback for all operations. If environment variables (`LEAN4_SCRIPTS`, `LEAN4_REFS`) are missing, run `/lean4:doctor` to diagnose.

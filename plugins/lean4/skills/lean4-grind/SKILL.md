@@ -24,6 +24,15 @@ Grounding for this skill:
 - Use `grind only [...]` to lock behavior to explicit local/global theorem parameters.
 - Use interactive `grind => ...` only when you need explicit internal steps (`instantiate`, `cases`, `finish`, etc.).
 
+## Mental Model
+
+Treat `grind` as a shared-state solver rather than a single tactic call:
+- it maintains a shared "whiteboard" of facts and equivalence classes,
+- theorem instantiation, case-splitting, and domain solvers cooperate on that state,
+- useful modules include LIA/cutsat, ring/grobner-style algebraic reasoning, linarith-style linear reasoning, and AC reasoning.
+
+When debugging, ask "which component is failing to contribute useful facts?" rather than only "which tactic failed?".
+
 ## Workflow Decision Tree
 
 1. Inspect goal shape (`lean_goal`) and identify the real blocker.
@@ -78,6 +87,21 @@ Good first slowdown pass:
 grind (splits := 4) (ematch := 3) (instances := 300) (gen := 5) -splitIte -splitMatch
 ```
 
+## Suggestions and Locals Workflow
+
+`grind` supports a premise-selection path via `+suggestions` and local-library harvesting via `+locals`.
+
+Use this staged flow:
+1. Prototype with:
+```lean
+grind +suggestions +locals
+```
+2. If it works, run `grind?` and prefer a minimized `grind only [...]` call.
+3. Promote repeatedly selected theorems to attributes (`@[grind ...]`, sometimes `@[simp]`) instead of repeating long argument lists.
+4. Re-test without heavy suggestion dependence when possible.
+
+This matches the intended "virtuous cycle": suggestions discover useful premises, then annotations make future proofs cheaper and more predictable.
+
 ## Annotation and Pattern Strategy
 
 Use theorem annotations before writing custom automation:
@@ -100,6 +124,46 @@ grind_pattern myThm => f x, g y where
 ```
 
 Supported constraints include `guard`, `check`, `size`, `depth`, `gen`, `max_insts`, value/ground predicates, and definitional equality/inequality guards.
+
+### Annotation-First Agent Behavior
+
+Prefer improving automation over shipping one-off scripts:
+- if theorem `T` is repeatedly passed to `grind`, consider a stable `@[grind ...]` annotation on `T`,
+- keep exploratory annotations local first (`@[local grind ...]`),
+- promote to global annotations only after repeated wins across files.
+
+For API-heavy libraries, aim for proofs that are mostly:
+
+```lean
+by
+  grind +locals
+```
+
+after local annotation tuning, then selectively globalize proven-good attributes.
+
+## Interactive Mode Control
+
+Use `grind => ...` when default `finish` behavior is close but not enough.
+
+Useful tools in interactive mode:
+- `finish` / `finish?`
+- `instantiate` / `use`
+- `cases_next` and `cases?`
+- `show_state`, `show_cases`, `show_asserted`, `have`
+
+Typical debugging loop:
+
+```lean
+grind =>
+  show_state
+  instantiate
+  first
+    (cases_next)
+    (skip)
+  finish
+```
+
+`have` is valuable for injecting missing intermediate facts; once stable, replace ad-hoc `have` steps with annotations or `grind_pattern` so the proof collapses back toward plain `grind`.
 
 ## Simproc Escalation Rules
 
@@ -141,6 +205,10 @@ set_option trace.grind.split true in
 - Keep traces out of final committed proofs unless explicitly needed.
 - Never change theorem statements or introduce axioms without explicit user approval.
 
+## Complements: `try?`
+
+When stuck, run `try?` as a broad fallback. It can explore different tactic mixes (including `grind` configurations) and often proposes a workable path quickly. Use the result as a draft, then simplify toward stable `grind`/annotation-based automation.
+
 ## Validation Gate
 
 Run in order:
@@ -153,3 +221,4 @@ Run in order:
 - `references/grind-playbook.md`
 - `plugins/lean4/skills/lean4/SKILL.md`
 - `https://lean-lang.org/doc/reference/latest/The--grind--tactic/`
+- Lean Together 2026 grind notes (Kim Morrison / Lean FRO)
