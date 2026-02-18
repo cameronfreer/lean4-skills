@@ -3,6 +3,7 @@
 This playbook is aligned with:
 - Lean reference manual section on `grind`
 - Lean 4 source under `src/Init/Grind/*` and `src/Lean/Meta/Tactic/Grind/*` at commit `c4d85b7`
+- interactive IndexMap experiment notes in `indexmap-interactive-experiment.md`
 
 ## Good Fits for `grind`
 
@@ -25,9 +26,21 @@ Example:
 grind =>
   show_state
   instantiate
-  finish
+  first
+    (show_asserted)
+    (skip)
+  first
+    (show_cases)
+    (skip)
+  first
+    (finish)
+    (skip)
 -- then use `grind?` and adopt the suggested `grind only [...]` shape
 ```
+
+Rationale from the IndexMap experiment:
+- `instantiate` may already close the goal, so unguarded `finish` can fail with "No goals to be solved".
+- `show_asserted` immediately reveals whether expected bridge theorems were materialized.
 
 ## Prototype -> Harden Pipeline
 
@@ -141,9 +154,17 @@ grind =>
   show_state
   instantiate
   first
+    (show_asserted)
+    (skip)
+  first
+    (show_cases)
+    (skip)
+  first
     (cases_next)
     (skip)
-  finish
+  first
+    (finish)
+    (skip)
 ```
 
 ## Simproc Checklist

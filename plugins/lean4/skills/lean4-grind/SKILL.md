@@ -66,9 +66,17 @@ grind =>
   show_state
   instantiate
   first
+    (show_asserted)
+    (skip)
+  first
+    (show_cases)
+    (skip)
+  first
     (cases_next)
     (skip)
-  finish
+  first
+    (finish)
+    (skip)
 ```
 
 4. If unresolved, triage by residue:
@@ -77,6 +85,8 @@ grind =>
    - Branch explosion: lower `splits`, `ematch`, `instances`, or `gen`.
 
 5. After success, minimize to a compact non-interactive call when possible (`grind?` -> `grind only [...]`).
+
+If you need a concrete reference run of this loop on the manual `IndexMap` example, see `references/indexmap-interactive-experiment.md`.
 
 ## High-Value `grind` Knobs
 
@@ -169,6 +179,32 @@ Practical loop:
 
 This keeps exploration cheap while preventing premature global annotation noise.
 
+## IndexMap Experiment Findings
+
+A direct experiment against the reference-manual module `IndexMapGrind` confirms:
+- Initial `show_state` is often sparse; the key bridge facts appear after `instantiate`.
+- `instantiate` can fully close some goals (notably `findIdx_insert_self`-style goals), so unguarded trailing commands may fail with "No goals to be solved".
+- `show_asserted` and `show_cases` right after `instantiate` give the highest-signal debugging view for this example family.
+
+Use this data-backed control shape when probing:
+
+```lean
+grind =>
+  show_state
+  instantiate
+  first
+    (show_asserted)
+    (skip)
+  first
+    (show_cases)
+    (skip)
+  first
+    (finish)
+    (skip)
+```
+
+Full notes and reproducer: `references/indexmap-interactive-experiment.md`.
+
 ## Interactive Mode Control
 
 Use `grind => ...` as the default development mode; it is the most observable and steerable path.
@@ -186,12 +222,22 @@ grind =>
   show_state
   instantiate
   first
+    (show_asserted)
+    (skip)
+  first
+    (show_cases)
+    (skip)
+  first
     (cases_next)
     (skip)
-  finish
+  first
+    (finish)
+    (skip)
 ```
 
 `have` is valuable for injecting missing intermediate facts; once stable, replace ad-hoc `have` steps with annotations or `grind_pattern` so the proof can collapse toward `grind`/`grind only [...]`.
+
+In practice, `instantiate` frequently does most of the work on well-annotated API lemmas; if your loop often closes there, shift effort from tactic choreography to annotation quality.
 
 ## Simproc Escalation Rules
 
@@ -249,12 +295,13 @@ Treat incomplete-proof diagnostics that invoke `try?` as input to your annotatio
 
 Run in order:
 1. `lean_diagnostic_messages` on edited files.
-2. `lake env lean <path/to/File.lean>` for file-level verification.
+2. `lake env lean <path/to/File.lean>` for file-level verification (run from the project root).
 3. `lake build` for project-wide verification.
 
 ## References
 
 - `references/grind-playbook.md`
+- `references/indexmap-interactive-experiment.md`
 - `plugins/lean4/skills/lean4/SKILL.md`
 - `https://lean-lang.org/doc/reference/latest/The--grind--tactic/`
 - `~/lean4/tests/lean/run/grind_interactive.lean`

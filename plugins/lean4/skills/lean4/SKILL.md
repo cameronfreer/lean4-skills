@@ -129,6 +129,8 @@ Use this default sequence:
 3. adopt `grind only [...]` when the suggested call is stable.
 4. if slow, reduce branching/instantiation before adding more lemmas.
 
+Interactive caution: on well-annotated goals, `instantiate` may close everything; guard trailing interactive steps (`finish`, extra `show_*`) or stop immediately after `instantiate`.
+
 Key `grind` knobs (from `Init/Grind/Config.lean`):
 - `(splits := 9)` split depth budget
 - `(ematch := 5)` E-matching rounds
