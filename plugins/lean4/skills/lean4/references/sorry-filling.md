@@ -17,8 +17,8 @@ Quick reference for filling Lean 4 sorries systematically.
 **Always use LSP tools before scripts:**
 1. `lean_goal(file, line)` — understand the goal
 2. `lean_local_search("keyword")` — search mathlib
-3. `lean_hammer_premise(file, line, col)` — get premise suggestions for simp/aesop/grind
-4. `lean_multi_attempt(file, line, snippets=[...])` — test candidates
+3. `lean_multi_attempt(file, line, snippets=[...])` — test candidates
+4. If initial searches/attempts are inconclusive: `lean_hammer_premise(file, line, col)` — premise suggestions for simp/aesop/grind (rate-limited 3/30s)
 
 Only fall back to scripts (`$LEAN4_SCRIPTS/sorry_analyzer.py`, `$LEAN4_SCRIPTS/smart_search.sh`) if:
 - LSP server unavailable

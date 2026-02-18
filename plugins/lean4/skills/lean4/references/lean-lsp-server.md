@@ -85,7 +85,7 @@ Without `tee`, piping to `head`/`grep` discards the rest. With `tee`, the full o
 3. **Search before guessing** - use `lean_local_search` FIRST (fast & unlimited!)
 4. **Check goals between tactics** - see intermediate progress
 5. **Use `lean_multi_attempt` liberally** - test multiple tactics at once
-6. **Respect rate limits** - `lean_local_search` and `lean_loogle` are unlimited; others vary per tool (see table)
+6. **Respect rate limits** - `lean_local_search` is unlimited; `lean_loogle` unlimited in local mode; others vary per tool (see table)
 7. **NEVER use `lean_file_contents` on large files** - wastes tokens, use `Read` tool instead (see warning below)
 
 ---
@@ -97,7 +97,8 @@ Without `tee`, piping to `head`/`grep` discards the rest. With `tee`, the full o
 - No rate limits, < 1 second response time
 
 **External tools (rate limits vary per tool):**
-- Remote API calls to leansearch.net, leanfinder; `lean_loogle` runs locally since v0.16
+- Remote API calls to leansearch.net, leanfinder, loogle.lean-lang.org
+- `lean_loogle` is remote by default; local mode available (`--loogle-local` / `LEAN_LOOGLE_LOCAL`)
 - Rate limits are per-tool (separate pools); managed by LSP server
 
 **Best practice:** Always use local tools first (especially `lean_local_search`), then external tools only when local search doesn't find what you need.
@@ -113,7 +114,7 @@ Without `tee`, piping to `head`/`grep` discards the rest. With `tee`, the full o
 | `lean_run_code` | **Local** | None | Fast | Run standalone snippets |
 | `lean_file_contents` | **Local** | None | Fast | **DEPRECATED** — use Read tool |
 | `lean_profile_proof` | **Local** | None | Slow | Profile proof performance |
-| `lean_loogle` | **External** | None | Fast | Type patterns (local since v0.16) |
+| `lean_loogle` | **External** | Remote default; unlimited if local | Fast | Type patterns |
 | `lean_leansearch` | **External** | 3/30s | Slower | Natural language |
 | `lean_leanfinder` | **External** | 10/30s | Fast | Semantic search (best for goals!) |
 | `lean_state_search` | **External** | 3/30s | Fast | Proof state |

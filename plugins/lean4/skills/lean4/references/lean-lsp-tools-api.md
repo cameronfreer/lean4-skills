@@ -25,7 +25,8 @@ For workflow patterns and quick reference, see [lean-lsp-server.md](lean-lsp-ser
 - Tools: `lean_goal`, `lean_local_search`, `lean_multi_attempt`, `lean_diagnostic_messages`, `lean_hover_info`, `lean_file_outline`, `lean_run_code`, `lean_profile_proof`, `lean_file_contents` (DEPRECATED — use Read tool)
 
 **External tools (rate limits vary per tool):**
-- Remote API calls to leansearch.net, leanfinder; `lean_loogle` runs locally since v0.16
+- Remote API calls to leansearch.net, leanfinder, loogle.lean-lang.org
+- `lean_loogle` is remote by default; can run locally with `--loogle-local` / `LEAN_LOOGLE_LOCAL` (then unlimited, no remote calls)
 - Managed by LSP server; limits are per-tool (separate pools), not shared
 - Tools: `lean_leanfinder`, `lean_leansearch`, `lean_loogle`, `lean_state_search`, `lean_hammer_premise`
 
@@ -390,17 +391,17 @@ lean_profile_proof(file_path="/path/to/file.lean", line=42)
 
 **Use these when `lean_local_search` doesn't find what you need.**
 
-These tools call external APIs (leansearch.net, leanfinder) or run locally (`lean_loogle` since v0.16). Rate limits are **per-tool** (separate pools), not a shared budget:
+These tools call external APIs. Rate limits are **per-tool** (separate pools), not a shared budget:
 
 | Tool | Rate Limit | Notes |
 |------|------------|-------|
-| `lean_loogle` | **Unlimited** | Local since v0.16 (first run builds index: 5-10 min) |
+| `lean_loogle` | Remote by default | **Unlimited in local mode** (`--loogle-local` / `LEAN_LOOGLE_LOCAL`) |
 | `lean_leanfinder` | 10/30s | Semantic, goal-aware |
 | `lean_leansearch` | 3/30s | Natural language |
 | `lean_state_search` | 3/30s | Goal-conditioned |
 | `lean_hammer_premise` | 3/30s | Premise suggestions for simp/aesop/grind |
 
-**Why rate-limited:** Remote tools make HTTP requests to external services. The LSP server manages per-tool rate limiting automatically.
+**Why rate-limited:** Remote tools make HTTP requests to external services. The LSP server manages per-tool rate limiting automatically. `lean_loogle` is remote by default; enable local mode to avoid rate limits (see below).
 
 ---
 
@@ -417,7 +418,7 @@ These tools call external APIs (leansearch.net, leanfinder) or run locally (`lea
 - `query` (required): Type pattern string
 - `num_results` (optional): Max results (default 6)
 
-**Local Loogle (v0.16+):** Runs locally — **no rate limit**. First run: 5-10 min (builds index). After: instant. Set `LOOGLE_PATH` env var. See lean-lsp-mcp docs for setup.
+**Local mode (v0.16+):** Enable with `--loogle-local` flag or `LEAN_LOOGLE_LOCAL=true` env var. First run builds a local index (5-10 min). After: instant, **no rate limit**. Optionally set `LEAN_LOOGLE_CACHE_DIR` to control index location. See lean-lsp-mcp docs for setup.
 
 **Example:**
 ```
@@ -741,7 +742,7 @@ Rate limits are **per-tool** (separate pools), not a shared budget:
 | Tool | Limit | Pool |
 |------|-------|------|
 | `lean_local_search` | **Unlimited** | Local |
-| `lean_loogle` | **Unlimited** | Local (since v0.16) |
+| `lean_loogle` | Remote by default; **unlimited in local mode** | `--loogle-local` / `LEAN_LOOGLE_LOCAL` |
 | `lean_leanfinder` | 10/30s | `leanfinder` |
 | `lean_hammer_premise` | 3/30s | `hammer_premise` |
 | `lean_leansearch` | 3/30s | `leansearch` |
@@ -759,14 +760,14 @@ Error: Rate limit exceeded. Try again in X seconds.
 
 **Best practices:**
 1. Always use `lean_local_search` first (unlimited!)
-2. Use `lean_loogle` freely — unlimited (local since v0.16)
+2. `lean_loogle` is unlimited in local mode — use freely if `--loogle-local` / `LEAN_LOOGLE_LOCAL` is enabled
 3. Batch external searches — think about what you need before calling
 4. If multiple searches needed, prioritize by likelihood
 5. Wait 30 seconds before retrying if rate-limited
 
 **Priority order:**
 1. `lean_local_search` — always first, unlimited
-2. `lean_loogle` — type patterns, unlimited (local)
+2. `lean_loogle` — type patterns (unlimited in local mode; remote by default)
 3. `lean_leanfinder` — semantic, goal-aware (10/30s)
 4. `lean_hammer_premise` — premise suggestions (3/30s)
 5. `lean_leansearch` — natural language (3/30s)
@@ -817,7 +818,7 @@ Searching Mathlib with informal query?
   → lean_leansearch("description")   # Alternative: Natural language
 
 Know exact type pattern?
-  → lean_loogle("?a -> ?b")          # Superpower: Type structure matching (unlimited)
+  → lean_loogle("?a -> ?b")          # Superpower: Type structure matching (unlimited if local mode)
 
 Know exact/partial name?
   → lean_local_search("name")        # Try local first (unlimited!)
@@ -829,7 +830,7 @@ Know exact/partial name?
 1. lean_local_search("exact_name")         # Local first (unlimited)
 2. lean_local_search("partial")            # Try partial match
 3. lean_leanfinder("goal or query")        # Semantic search (10/30s)
-4. lean_loogle("?a -> ?b")                 # Type pattern (unlimited, local)
+4. lean_loogle("?a -> ?b")                 # Type pattern (unlimited if local mode)
 5. lean_hammer_premise(file, line, col)    # Premise suggestions (3/30s)
 6. lean_leansearch("description")          # Natural language (3/30s)
 7. lean_state_search(file, line, col)      # Goal-conditioned (3/30s)
