@@ -452,6 +452,35 @@ check_bare_scripts() {
     ok "Bare script check done"
 }
 
+# Check 8b: Lean script invocations must not suppress stderr
+check_script_stderr_suppression() {
+    log ""
+    log "Checking Lean script stderr suppression patterns..."
+
+    local _ss_base _ss_line _ss_match
+
+    while IFS= read -r file; do
+        _ss_base=$(basename "$file")
+
+        # Skip historical docs and non-behavioral internals
+        [[ "$_ss_base" == "MIGRATION.md" ]] && continue
+        case "$file" in */lib/scripts/*|*/tools/*) continue ;; esac
+
+        while IFS=: read -r _ss_line _ss_match; do
+            [[ -z "$_ss_line" ]] && continue
+
+            # Allow explicit anti-pattern warnings.
+            if echo "$_ss_match" | grep -qiE '(Never|Do not|Wrong|Incorrect|anti.?pattern|forbidden|avoid)'; then
+                continue
+            fi
+
+            warn "$_ss_base:$_ss_line: Lean script invocation suppresses stderr (/dev/null). Keep stderr visible for real errors."
+        done < <(grep -nE '(\$LEAN4_SCRIPTS|plugins/lean4/(lib/scripts|scripts)/|(^|[[:space:]])(\./)?(lib/scripts|scripts)/[A-Za-z0-9._-]+\.(py|sh)).*(2>>?[[:space:]]*/dev/null|&>>?[[:space:]]*/dev/null|[0-9]*>>?[[:space:]]*/dev/null.*2>&1)' "$file" 2>/dev/null || true)
+    done < <(find "$PLUGIN_ROOT" -name "*.md" -type f)
+
+    ok "Lean script stderr suppression check done"
+}
+
 # Check 9: Deep-safety invariants in prove/autoprove/cycle-engine
 check_deep_safety() {
     log ""
@@ -616,6 +645,12 @@ check_guardrail_impl() {
     # Commands must be checked per-segment, not with raw whole-string matching
     if ! grep -q 'seg_match\|SEGMENTS' "$_gi_file" 2>/dev/null; then
         warn "guardrails.sh: Missing segment-based command parsing (raw-string matching is insufficient)"
+    fi
+    if ! grep -q '_has_stderr_null_redirect' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Missing stderr-null redirection detector for Lean script invocations"
+    fi
+    if ! grep -q 'suppressed stderr on Lean script invocation' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Missing Lean script stderr-suppression block message"
     fi
     # Lean marker detection
     for marker in lakefile.lean lean-toolchain lakefile.toml; do
@@ -1074,6 +1109,7 @@ check_cross_refs
 check_reference_links
 check_stale_commands
 check_bare_scripts
+check_script_stderr_suppression
 check_deep_safety
 check_guardrail_docs
 check_guardrail_impl

@@ -76,6 +76,7 @@ lean_multi_attempt(file, line, snippets=[...])  # Test multiple tactics
 - Python: `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/script.py" ...`
 - Shell: `bash "$LEAN4_SCRIPTS/script.sh" ...`
 - Report-only calls: add `--report-only` to `sorry_analyzer.py`, `check_axioms_inline.sh`, `unused_declarations.sh` — suppresses exit 1 on findings; real errors still exit 1. Do not use in gate commands like `/lean4:checkpoint`.
+- Keep stderr visible for Lean scripts (no `/dev/null` redirection), so real errors are not hidden.
 
 If `$LEAN4_SCRIPTS` is unset or missing, run `/lean4:doctor` and stay LSP-only until resolved.
 

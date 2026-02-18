@@ -27,6 +27,7 @@ When using `sorry_analyzer.py`:
 - Default (`text`) already returns count + context in one call.
 - Use `--format=json` for structured downstream parsing.
 - Use `--format=summary` only when you need counts only.
+- Keep stderr visible; do not redirect analyzer stderr to `/dev/null`.
 
 Log which approach worked for each sorry.
 

@@ -187,6 +187,8 @@ ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summa
 bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" src/*.lean --report-only
 ```
 
+Keep stderr visible when invoking scripts; suppressing stderr to `/dev/null` hides actionable errors.
+
 ## Reference Documentation
 
 For tactic suggestions, proof templates, and simp hygiene best practices, see:

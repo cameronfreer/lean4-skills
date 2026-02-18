@@ -302,9 +302,11 @@ _unquote_tokens() {
 # prefix zone is raw minus stripped suffix.  A whitespace-bounded match there
 # confirms a standalone assignment (not buried inside another var's quoted value).
 SEGMENTS=()
+RAW_SEGMENTS=()
 while IFS= read -r _seg; do
   _seg="${_seg#"${_seg%%[![:space:]]*}"}"
   [[ -z "$_seg" ]] && continue
+  RAW_SEGMENTS+=("$_seg")
   _stripped=$(_strip_wrappers "$_seg")
   if [[ $BYPASS -eq 0 ]]; then
     _prefix="${_seg%"$_stripped"}"
@@ -329,6 +331,42 @@ seg_match() {
   done
   return 1
 }
+
+# Lean script invocation + stderr suppression guard.
+# Rationale: hidden stderr from analysis scripts causes silent failures.
+# This guard is intentionally non-bypassable.
+_has_lean_script_token() {
+  local s="$1"
+  echo "$s" | grep -qE -- '(\$LEAN4_SCRIPTS/|\$\{LEAN4_SCRIPTS\}/|plugins/lean4/(lib/scripts|scripts)/|(^|[[:space:]])(\./)?(lib/scripts|scripts)/[^[:space:]]+\.(py|sh)\b)'
+}
+
+_strip_quoted_literals() {
+  local s="$1"
+  # Ignore redirection-like text inside quoted arguments.
+  s=$(echo "$s" | sed -E 's/"([^"\\]|\\.)*"//g')
+  s=$(echo "$s" | sed -E "s/'[^']*'//g")
+  echo "$s"
+}
+
+_has_stderr_null_redirect() {
+  local s="$1"
+  s=$(_strip_quoted_literals "$s")
+  if echo "$s" | grep -qE -- '(^|[[:space:]])(2>>?|&>>?)[[:space:]]*/dev/null([^[:alnum:]_./-]|$)'; then
+    return 0
+  fi
+  if echo "$s" | grep -qE -- '(^|[[:space:]])([0-9]*>>?)[[:space:]]*/dev/null([^[:alnum:]_./-]|$)' \
+    && echo "$s" | grep -qE -- '(^|[[:space:]])2>&1([^[:alnum:]_./-]|$)'; then
+    return 0
+  fi
+  return 1
+}
+
+for _seg in "${RAW_SEGMENTS[@]}"; do
+  if _has_lean_script_token "$_seg" && _has_stderr_null_redirect "$_seg"; then
+    echo "BLOCKED (Lean guardrail): suppressed stderr on Lean script invocation hides real errors. Remove '/dev/null' redirection and rerun." >&2
+    exit 2
+  fi
+done
 
 # Collaboration-op policy enforcement.
 # $1 = short label (e.g. "git push")
