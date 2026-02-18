@@ -340,8 +340,17 @@ _has_lean_script_token() {
   echo "$s" | grep -qE -- '(\$LEAN4_SCRIPTS/|\$\{LEAN4_SCRIPTS\}/|plugins/lean4/(lib/scripts|scripts)/|(^|[[:space:]])(\./)?(lib/scripts|scripts)/[^[:space:]]+\.(py|sh)\b)'
 }
 
+_strip_quoted_literals() {
+  local s="$1"
+  # Ignore redirection-like text inside quoted arguments.
+  s=$(echo "$s" | sed -E 's/"([^"\\]|\\.)*"//g')
+  s=$(echo "$s" | sed -E "s/'[^']*'//g")
+  echo "$s"
+}
+
 _has_stderr_null_redirect() {
   local s="$1"
+  s=$(_strip_quoted_literals "$s")
   if echo "$s" | grep -qE -- '(^|[[:space:]])(2>>?|&>>?)[[:space:]]*/dev/null([^[:alnum:]_./-]|$)'; then
     return 0
   fi
