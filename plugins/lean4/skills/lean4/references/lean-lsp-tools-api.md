@@ -8,7 +8,7 @@ For workflow patterns and quick reference, see [lean-lsp-server.md](lean-lsp-ser
 
 - [Tool Categories](#tool-categories)
 - [Local Tools (Unlimited)](#local-tools-unlimited)
-- [External Search Tools (Rate-Limited)](#external-search-tools-rate-limited)
+- [External / Hybrid Search Tools](#external--hybrid-search-tools)
 - [Rate Limit Management](#rate-limit-management)
 - [Advanced Tips](#advanced-tips)
 - [Common Patterns](#common-patterns)
@@ -387,7 +387,7 @@ lean_profile_proof(file_path="/path/to/file.lean", line=42)
 
 ---
 
-## External Search Tools (Rate-Limited)
+## External / Hybrid Search Tools
 
 **Use these when `lean_local_search` doesn't find what you need.**
 
@@ -811,7 +811,7 @@ Searching own project/workspace?
 Have goal state (⊢ ...)?
   → lean_leanfinder("⊢ ... + hint")  # Superpower: Goal-aware semantic search
   → lean_hammer_premise(file, l, c)  # Premise suggestions for simp/aesop/grind
-  → lean_state_search(file, line)    # Alternative: Goal-conditioned premises
+  → lean_state_search(file, line, col) # Alternative: Goal-conditioned premises
 
 Searching Mathlib with informal query?
   → lean_leanfinder("description")   # Superpower: >30% better semantic search

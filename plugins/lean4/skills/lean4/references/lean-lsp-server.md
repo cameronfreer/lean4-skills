@@ -155,7 +155,7 @@ limit parameters to reduce the response size.
 ```
 1. lean_goal(file, line)              # See exact state
 2. lean_leanfinder("⊢ ... + hint")    # Semantic search (paste goal!)
-3. lean_loogle("pattern")             # Type pattern search (unlimited)
+3. lean_loogle("pattern")             # Type pattern search (unlimited if local mode)
 4. lean_hammer_premise(file, l, col)  # Premise suggestions for simp/aesop/grind
 5. lean_leansearch("description")     # Natural language search
 6. lean_state_search(file, line, col) # Proof state search
