@@ -33,7 +33,7 @@ import json
 import subprocess
 from pathlib import Path
 from dataclasses import dataclass, asdict
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 @dataclass
 class Sorry:
@@ -46,6 +46,62 @@ class Sorry:
     in_declaration: Optional[str] = None
 
 SORRY_TOKEN_PATTERN = re.compile(r"(?<![A-Za-z0-9_!?'])sorry(?![A-Za-z0-9_!?'])")
+
+def strip_lean_comments_and_strings(line: str, block_comment_depth: int) -> Tuple[str, int]:
+    """Return code-only text for a line and updated Lean block-comment depth.
+
+    Handles:
+    - line comments: -- ...
+    - nested block comments: /- ... -/
+    - string literals: "..."
+    """
+    result: List[str] = []
+    i = 0
+    n = len(line)
+    in_string = False
+
+    while i < n:
+        ch = line[i]
+        nxt = line[i + 1] if i + 1 < n else ''
+
+        if block_comment_depth > 0:
+            if ch == '/' and nxt == '-':
+                block_comment_depth += 1
+                i += 2
+                continue
+            if ch == '-' and nxt == '/':
+                block_comment_depth -= 1
+                i += 2
+                continue
+            i += 1
+            continue
+
+        if in_string:
+            if ch == '\\' and i + 1 < n:
+                i += 2
+                continue
+            if ch == '"':
+                in_string = False
+            i += 1
+            continue
+
+        if ch == '"' and block_comment_depth == 0:
+            in_string = True
+            i += 1
+            continue
+
+        if ch == '-' and nxt == '-':
+            break
+
+        if ch == '/' and nxt == '-':
+            block_comment_depth += 1
+            i += 2
+            continue
+
+        result.append(ch)
+        i += 1
+
+    return ''.join(result), block_comment_depth
 
 def extract_declaration_name(lines: List[str], sorry_idx: int) -> Optional[str]:
     """Extract the theorem/lemma/def name containing this sorry"""
@@ -96,15 +152,16 @@ def find_sorries_in_file(filepath: Path) -> List[Sorry]:
         return []
 
     sorries = []
+    block_comment_depth = 0
     for i, line in enumerate(lines):
-        # Quick filter before doing regex and cleanup work.
-        if 'sorry' not in line:
+        # Fast path when we're not inside a block comment and the line has no
+        # token of interest for sorry/comment/string parsing.
+        if block_comment_depth == 0 and 'sorry' not in line and '/-' not in line and '"' not in line:
             continue
 
-        # Simple check: not in a line comment, single-line block comment, or string literal.
-        code_part = line.split('--')[0]
-        code_part = re.sub(r'\(\*.*?\*\)', '', code_part)
-        code_part = re.sub(r'"(?:\\.|[^"\\])*"', '', code_part)
+        code_part, block_comment_depth = strip_lean_comments_and_strings(line, block_comment_depth)
+        if 'sorry' not in code_part:
+            continue
 
         if SORRY_TOKEN_PATTERN.search(code_part):
             context_before = [l.rstrip() for l in lines[max(0, i-3):i]]
