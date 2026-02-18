@@ -28,7 +28,7 @@ Advanced patterns for preventing elaboration timeouts and type-checking performa
 Use `lean_profile_proof` to identify slow lines inside a theorem before optimizing.
 
 ```
-lean_profile_proof(file_path="/path/to/file.lean", declaration_name="mySlowTheorem")
+lean_profile_proof(file_path="/path/to/file.lean", line=10)
 ```
 
 **Example output:**
@@ -518,7 +518,7 @@ def complexFrozen := frozenF (frozenG (frozenH X))
 
 ### Preferred: LSP Profiling
 
-Use `lean_profile_proof(file_path, declaration_name)` for fast, per-line timing data. See "Fast Path" section above.
+Use `lean_profile_proof(file_path, line)` (line = theorem start, 1-indexed) for fast, per-line timing data. See "Fast Path" section above.
 
 ### Fallback: Trace-Based Debugging
 

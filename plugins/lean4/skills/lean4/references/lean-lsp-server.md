@@ -22,6 +22,19 @@
 
 **Without these:** You may experience server timeouts or missing search functionality.
 
+---
+
+## Version Notes
+
+Covers lean-lsp-mcp **v0.20+/v0.21+** (February 2026).
+
+- **v0.21.0**: Widget support, improved multiline in lean_goal/lean_multi_attempt.
+- **v0.20.0**: `lean_hammer_premise` added (premise suggestions for simp/aesop/grind). `lean_profile_proof` switched to line-based identification.
+
+Additional tools exist upstream (lean_term_goal, lean_completions, lean_declaration_file, lean_build, lean_get_widgets) — see [lean-lsp-mcp README](https://github.com/oOo0oOo/lean-lsp-mcp) for full list.
+
+---
+
 **Tip: Capture build output with `tee`** - Avoid building twice:
 ```bash
 # Build once, capture AND view first 50 lines (or tail -50, or grep error)
@@ -72,7 +85,7 @@ Without `tee`, piping to `head`/`grep` discards the rest. With `tee`, the full o
 3. **Search before guessing** - use `lean_local_search` FIRST (fast & unlimited!)
 4. **Check goals between tactics** - see intermediate progress
 5. **Use `lean_multi_attempt` liberally** - test multiple tactics at once
-6. **Respect rate limits** - `lean_local_search` is unlimited, others are 3 req/30s
+6. **Respect rate limits** - `lean_local_search` and `lean_loogle` are unlimited; others vary per tool (see table)
 7. **NEVER use `lean_file_contents` on large files** - wastes tokens, use `Read` tool instead (see warning below)
 
 ---
@@ -83,9 +96,9 @@ Without `tee`, piping to `head`/`grep` discards the rest. With `tee`, the full o
 - Direct LSP queries against your project files
 - No rate limits, < 1 second response time
 
-**External tools (rate-limited to 3 req/30s):**
-- Remote API calls to loogle.lean-lang.org, leansearch.net, Lean Finder service
-- Managed by LSP server to avoid overwhelming services
+**External tools (rate limits vary per tool):**
+- Remote API calls to leansearch.net, leanfinder; `lean_loogle` runs locally since v0.16
+- Rate limits are per-tool (separate pools); managed by LSP server
 
 **Best practice:** Always use local tools first (especially `lean_local_search`), then external tools only when local search doesn't find what you need.
 
@@ -98,20 +111,23 @@ Without `tee`, piping to `head`/`grep` discards the rest. With `tee`, the full o
 | `lean_hover_info` | **Local** | None | Instant | Check syntax/types |
 | `lean_file_outline` | **Local** | None | Fast | File structure overview |
 | `lean_run_code` | **Local** | None | Fast | Run standalone snippets |
-| `lean_file_contents` | **Local** | None | Fast | Read files ⚠️ See warning below |
+| `lean_file_contents` | **Local** | None | Fast | **DEPRECATED** — use Read tool |
 | `lean_profile_proof` | **Local** | None | Slow | Profile proof performance |
-| `lean_loogle` | **External** | 3/30s | Fast | Type patterns |
+| `lean_loogle` | **External** | None | Fast | Type patterns (local since v0.16) |
 | `lean_leansearch` | **External** | 3/30s | Slower | Natural language |
-| `lean_leanfinder` | **External** | 3/30s | Fast | Semantic search (best for goals!) |
+| `lean_leanfinder` | **External** | 10/30s | Fast | Semantic search (best for goals!) |
 | `lean_state_search` | **External** | 3/30s | Fast | Proof state |
+| `lean_hammer_premise` | **External** | 3/30s | Fast | Premise suggestions for simp/aesop/grind |
 
 **See [lean-lsp-tools-api.md](lean-lsp-tools-api.md) for detailed API documentation.**
 
 ---
 
-## ⚠️ Important: Avoid `lean_file_contents` on Large Files
+## ⚠️ `lean_file_contents` — DEPRECATED
 
-**DO NOT use `lean_file_contents` directly on large files** - it wastes tokens and will error if file exceeds 25000 tokens:
+**`lean_file_contents` is deprecated upstream.** Do not use it — use the `Read` tool instead.
+
+It wastes tokens and will error if file exceeds 25000 tokens:
 
 ```
 Error: MCP tool "lean_file_contents" response (36863 tokens) exceeds
@@ -138,9 +154,10 @@ limit parameters to reduce the response size.
 ```
 1. lean_goal(file, line)              # See exact state
 2. lean_leanfinder("⊢ ... + hint")    # Semantic search (paste goal!)
-3. lean_loogle("pattern")             # Type pattern search
-4. lean_leansearch("description")     # Natural language search
-5. lean_state_search(file, line, col) # Proof state search
+3. lean_loogle("pattern")             # Type pattern search (unlimited)
+4. lean_hammer_premise(file, l, col)  # Premise suggestions for simp/aesop/grind
+5. lean_leansearch("description")     # Natural language search
+6. lean_state_search(file, line, col) # Proof state search
 ```
 
 ### Emergency debugging

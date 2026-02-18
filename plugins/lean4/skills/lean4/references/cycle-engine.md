@@ -23,14 +23,14 @@ LSP tools are the normative first-pass for all discovery, search, and validation
 
 **Planning phase (per target sorry):**
 1. `lean_goal(file, line)` — understand goal before ordering
-2. Up to 3 LSP search tools (time-boxed ~30s total): `lean_local_search`, one of `lean_leanfinder`/`lean_leansearch`, and `lean_loogle`
+2. Up to 3 LSP search tools (time-boxed ~30s total): `lean_local_search`, one of `lean_leanfinder`/`lean_leansearch`/`lean_hammer_premise`, and `lean_loogle`
 3. Record top candidate lemmas and intended next attempts in the plan
 4. **Trivial-goal shortcut:** If the goal is obviously solvable (`rfl`, `simp`, `exact` with a known lemma), skip extended search — proceed directly to work phase
 
 **Work phase (per sorry):**
 1. Refresh `lean_goal(file, line)` at start
 2. Run up to 2 LSP search tools before any script fallback (skip if trivial goal or prior planning search was conclusive)
-3. Generate 2-3 candidate proof snippets from search results
+3. Generate 2-3 candidate proof snippets from search results. When `lean_hammer_premise` returns premises, generate `simp only [p1, p2]` and `grind [p1, p2]` candidates.
 4. Test with `lean_multi_attempt(file, line, snippets=[...])`
 5. Prefer shortest passing candidate; only then edit/commit
 

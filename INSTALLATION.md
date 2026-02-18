@@ -26,9 +26,10 @@ The LSP server provides **sub-second feedback** instead of 30+ second builds.
 **What you get:**
 - `lean_goal(file, line)` - See exact goal at cursor
 - `lean_local_search("keyword")` - Fast local + mathlib (unlimited)
-- `lean_leanfinder("goal or query")` - Semantic, goal-aware (rate-limited)
-- `lean_leansearch("natural language")` - Semantic search (rate-limited)
-- `lean_loogle("?a → ?b → _")` - Type-pattern (rate-limited)
+- `lean_leanfinder("goal or query")` - Semantic, goal-aware (10/30s)
+- `lean_leansearch("natural language")` - Semantic search (3/30s)
+- `lean_loogle("?a → ?b → _")` - Type-pattern (unlimited, local)
+- `lean_hammer_premise(file, line, col)` - Premise suggestions for simp/aesop/grind (3/30s)
 - `lean_multi_attempt(file, line, snippets=[...])` - Test tactics
 
 **One-time setup:** ~5 minutes. Highly recommended.
