@@ -54,9 +54,11 @@ Sub-second feedback and search tools (LeanSearch, Loogle, LeanFinder) via Lean L
 lean_goal(file, line)                           # See exact goal
 lean_hover_info(file, line, col)                # Understand types
 lean_local_search("keyword")                    # Fast local + mathlib (unlimited)
-lean_leanfinder("goal or query")                # Semantic, goal-aware (rate-limited)
-lean_leansearch("natural language")             # Semantic search (rate-limited)
-lean_loogle("?a → ?b → _")                      # Type-pattern (rate-limited)
+lean_leanfinder("goal or query")                # Semantic, goal-aware (10/30s)
+lean_leansearch("natural language")             # Semantic search (3/30s)
+lean_loogle("?a → ?b → _")                      # Type-pattern (unlimited if local mode)
+lean_hammer_premise(file, line, col)            # Premise suggestions for simp/aesop/grind (3/30s)
+lean_state_search(file, line, col)              # Goal-conditioned lemma search (3/30s)
 lean_multi_attempt(file, line, snippets=[...])  # Test multiple tactics
 ```
 
