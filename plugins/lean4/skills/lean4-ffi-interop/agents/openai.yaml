@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lean4 FFI"
+  short_description: "Wire Lean to C/C++ safely"
+  default_prompt: "Build or debug Lean 4 FFI boundaries using extern/export and Lake linking."
