@@ -1,0 +1,4 @@
+interface:
+  display_name: "Zulip Extract"
+  short_description: "Convert Zulip HTML dumps into readable text"
+  default_prompt: "Extract and summarize message content from a Zulip HTML thread dump."
