@@ -80,11 +80,23 @@ See `/lean4:doctor migrate` for detailed migration help.
 ## Documentation
 
 - [SKILL.md](plugins/lean4/skills/lean4/SKILL.md) - Core skill reference
+- [Lean4 Compiler Attrs](plugins/lean4/skills/lean4-compiler-attrs/SKILL.md) - `implemented_by`, `csimp`, inlining, extraction controls
+- [Lean4 Compiler Pipeline](plugins/lean4/skills/lean4-compiler-pipeline/SKILL.md) - LCNF/IR traces, compiler options, `cpass` installer workflow
+- [Lean4 FFI Interop](plugins/lean4/skills/lean4-ffi-interop/SKILL.md) - `extern`/`export` + Lake linking + reverse FFI init flow
+- [Lean4 Init Runtime](plugins/lean4/skills/lean4-init-runtime/SKILL.md) - `initialize`/`[init]`/`builtin_initialize` sequencing and runtime host setup
+- [Zulip Extract](plugins/lean4/skills/zulip-extract/SKILL.md) - Convert Zulip HTML exports to readable plain text
 - [INSTALLATION.md](INSTALLATION.md) - Setup guide
 - [Commands](plugins/lean4/commands/) - Command documentation
 - [Advanced References](plugins/lean4/skills/lean4/references/) - grind, simprocs, metaprogramming, linters, FFI, verso-docs, profiling
 
 ## Changelog
+
+**Unreleased**
+- Added `zulip-extract` skill by upstreaming Lean commit `ff2a2cd7a11c0c619bb4c120be83609e1f541c44` into plugin/global skill format
+- Added `lean4-ffi-interop` skill from Lean compiler + Lake FFI examples (`extern`/`export`, linking, reverse-FFI init)
+- Added `lean4-compiler-attrs` skill for safe use of compiler attributes (`implemented_by`, `csimp`, inlining, `never_extract`)
+- Added `lean4-init-runtime` skill for init sequencing across `initialize`/`[init]`/`builtin_initialize` and host runtime setup
+- Added `lean4-compiler-pipeline` skill for LCNF/IR phase tracing, compiler option debugging, and `cpass` installer workflow
 
 **v4.1.0** (February 2026)
 - New [`/lean4:learn`](plugins/lean4/commands/learn.md) command: interactive teaching, mathlib exploration, autoformalization
