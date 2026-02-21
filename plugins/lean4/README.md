@@ -22,6 +22,7 @@ Unified Lean 4 theorem proving with guided and autonomous proving commands.
 /lean4:review              # Check quality (read-only)
 /lean4:golf                # Optimize proofs
 /lean4:checkpoint          # Verified commit
+/lean4:learn               # Explore repo, mathlib, or formalize
 git push                   # Manual, after review
 ```
 
@@ -101,6 +102,10 @@ Does **not** push — that's always manual (`git push`).
 Finds and applies safe optimizations: `rw+exact → rwa`, inline single-use `let`, `ext+rfl → rfl`, etc. Verifies with `lean_diagnostic_messages` after each change (`lake build` at final gate only) and reverts failures. Stops when the success rate drops below 20% (saturation).
 
 Usually run after proving, either prompted at the end of a `prove` session or explicitly.
+
+### `/lean4:learn` — Interactive Teaching & Formalization
+
+Three modes: `--mode=repo` explores your project structure, `--mode=mathlib` navigates mathlib for a topic, `--mode=formalize` turns informal math into Lean statements (optionally under assumptions with `--rigor=axiomatic`). Adapts to `--level=beginner|intermediate|expert` and supports `--style=tour|socratic|exercise`. Conversational by default; use `--output=scratch` or `--output=file` to write artifacts.
 
 ### `/lean4:doctor` — Diagnostics
 

@@ -52,7 +52,7 @@ Interactive teaching, mathlib exploration, and autoformalization. Adapts to begi
 ### Output validation
 
 - `--output=file` without `--out` → hard error
-- `--output=scratch` → scratch dir resolved by fallback: `.claude/scratch/` → `.codex/scratch/` → `/tmp/lean4-learn/`. Use first that exists or can be created. Auto-create dir; warn if scratch dir is inside workspace and not in `.gitignore`. File name: `learn-<timestamp>.lean`.
+- `--output=scratch` → `.scratch/lean4/learn-<timestamp>.lean` (workspace-local). Auto-create `.scratch/lean4/` if missing; warn if `.scratch/` is not in `.gitignore`.
 - `--output=file` with existing target and no `--overwrite` → hard error
 
 ## Actions
@@ -139,16 +139,16 @@ In `chat` mode, output is inline markdown with Lean code blocks. In `scratch` or
 
 `propext`, `Classical.choice`, `Quot.sound` — not flagged. All others reported as non-standard.
 
-Always run `$LEAN4_SCRIPTS/check_axioms_inline.sh` before presenting final formalize results.
+Always run `bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target> --report-only` before presenting final formalize results.
 
 ## Safety
 
 - **Read-only by default.** `repo` and `mathlib` modes never write files unless `--output` requests it. `formalize` is read-only in `chat` mode.
 - **No silent mutations.** Prefer LSP tools (`lean_goal`) over file writes for compilation checks. If LSP unavailable and temp file needed for internal compilation, write only under `/tmp/lean4-learn/`, auto-cleanup after use, warn user before writing.
 - **No commits.** `/learn` never commits. `--output=file` writes but does not stage or commit.
-- **Path restriction.** User-requested outputs (`--output=file`, `--output=scratch`) restricted to workspace root. Reject path traversal (`../`) or absolute paths outside workspace. Internal temp files may use `/tmp`.
+- **Path restriction.** User-requested outputs (`--output=file`, `--output=scratch`) restricted to workspace root (scratch uses `.scratch/lean4/`). Reject path traversal (`../`) or absolute paths outside workspace. Internal temp files may use `/tmp/lean4-learn/`.
 - **Overwrite protection.** `--output=file` with existing target requires `--overwrite`; otherwise hard error.
-- **Never add global axioms silently.** Assumptions go as explicit theorem parameters or in `namespace Assumptions`. Always verified with `$LEAN4_SCRIPTS/check_axioms_inline.sh`.
+- **Never add global axioms silently.** Assumptions go as explicit theorem parameters or in `namespace Assumptions`. Always verified with `bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target> --report-only`.
 - **Scope guardrails.** `--scope=project` in repo mode with >50 `.lean` files → warn with count, ask to narrow. In non-interactive contexts (e.g., LLM-invoked), default to "no" (do not proceed with large scope).
 - **All `guardrails.sh` rules apply.**
 

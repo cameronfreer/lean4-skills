@@ -910,7 +910,7 @@ What next?
 - [show source] See the mathlib proof
 - [alternative] Different formalization (e.g., using Bornology)
 - [generalize] Weaken hypotheses
-- [save to scratch] Write to .claude/scratch/
+- [save to scratch] Write to scratch file
 ````
 
 ### Formalize Mode — Axiomatic Draft
@@ -936,7 +936,7 @@ theorem padic_complete (p : ℕ) [hp : Fact (Nat.Prime p)] :
   sorry -- ⚠ proof blocked: needs Mathlib.NumberTheory.Padics.PadicIntegers
 ```
 
-bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" → ✓ standard axioms only
+bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" Padic.lean --report-only → ✓ standard axioms only
 
 Note: Mathlib likely has this as an instance. Searching...
 lean_leanfinder("CompleteSpace Padic") → `Padic.instCompleteSpace`
