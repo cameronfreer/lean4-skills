@@ -848,7 +848,7 @@ What would you like to explore?
 
 ### Mathlib Mode — Navigating a Topic
 
-```
+````
 User: /lean4:learn --mode=mathlib topology compact
 
 Claude: Searching mathlib for compactness in topology...
@@ -878,11 +878,11 @@ What next?
 - [show proof] See proof of a specific lemma
 - [related] Explore related concepts (sequentially compact, totally bounded)
 - [alternative] See filter-free characterization
-```
+````
 
 ### Formalize Mode — Autoformalization
 
-```
+````
 User: /lean4:learn --mode=formalize "Every continuous function on a compact set is bounded"
 
 Claude: Parsing claim and drafting formalization...
@@ -911,11 +911,11 @@ What next?
 - [alternative] Different formalization (e.g., using Bornology)
 - [generalize] Weaken hypotheses
 - [save to scratch] Write to .claude/scratch/
-```
+````
 
 ### Formalize Mode — Axiomatic Draft
 
-```
+````
 User: /lean4:learn --mode=formalize --rigor=axiomatic "The p-adic numbers are complete"
 
 Claude: Drafting formalization with explicit assumptions...
@@ -936,7 +936,7 @@ theorem padic_complete (p : ℕ) [hp : Fact (Nat.Prime p)] :
   sorry -- ⚠ proof blocked: needs Mathlib.NumberTheory.Padics.PadicIntegers
 ```
 
-check_axioms_inline.sh → ✓ standard axioms only
+bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" → ✓ standard axioms only
 
 Note: Mathlib likely has this as an instance. Searching...
 lean_leanfinder("CompleteSpace Padic") → `Padic.instCompleteSpace`
@@ -946,4 +946,4 @@ This is already a registered instance in mathlib. No axioms or assumptions neede
 What next?
 - [show source] See how mathlib proves completeness
 - [deeper] Explore the p-adic metric construction
-```
+````

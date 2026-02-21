@@ -52,7 +52,7 @@ Interactive teaching, mathlib exploration, and autoformalization. Adapts to begi
 ### Output validation
 
 - `--output=file` without `--out` → hard error
-- `--output=scratch` → `.claude/scratch/learn-<timestamp>.lean` (auto-create dir; ensure `.claude/scratch/` is in `.gitignore`)
+- `--output=scratch` → `.claude/scratch/learn-<timestamp>.lean` (auto-create dir; warn if `.claude/scratch/` is not in `.gitignore`)
 - `--output=file` with existing target and no `--overwrite` → hard error
 
 ## Actions
@@ -149,7 +149,7 @@ Always run `$LEAN4_SCRIPTS/check_axioms_inline.sh` before presenting final forma
 - **Path restriction.** User-requested outputs (`--output=file`, `--output=scratch`) restricted to workspace root. Reject path traversal (`../`) or absolute paths outside workspace. Internal temp files may use `/tmp`.
 - **Overwrite protection.** `--output=file` with existing target requires `--overwrite`; otherwise hard error.
 - **Never add global axioms silently.** Assumptions go as explicit theorem parameters or in `namespace Assumptions`. Always verified with `$LEAN4_SCRIPTS/check_axioms_inline.sh`.
-- **Scope guardrails.** `--scope=project` in repo mode with >50 `.lean` files → warn with count, ask to narrow. In non-interactive contexts (e.g., LLM-invoked), default to "no" (do not proceed with large scope) unless explicitly overridden.
+- **Scope guardrails.** `--scope=project` in repo mode with >50 `.lean` files → warn with count, ask to narrow. In non-interactive contexts (e.g., LLM-invoked), default to "no" (do not proceed with large scope).
 - **All `guardrails.sh` rules apply.**
 
 ## See Also
