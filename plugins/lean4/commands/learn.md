@@ -52,7 +52,7 @@ Interactive teaching, mathlib exploration, and autoformalization. Adapts to begi
 ### Output validation
 
 - `--output=file` without `--out` → hard error
-- `--output=scratch` → `.claude/scratch/learn-<timestamp>.lean` (auto-create dir; warn if `.claude/scratch/` is not in `.gitignore`)
+- `--output=scratch` → scratch dir resolved by fallback: `.claude/scratch/` → `.codex/scratch/` → `/tmp/lean4-learn/`. Use first that exists or can be created. Auto-create dir; warn if scratch dir is inside workspace and not in `.gitignore`. File name: `learn-<timestamp>.lean`.
 - `--output=file` with existing target and no `--overwrite` → hard error
 
 ## Actions
@@ -144,7 +144,7 @@ Always run `$LEAN4_SCRIPTS/check_axioms_inline.sh` before presenting final forma
 ## Safety
 
 - **Read-only by default.** `repo` and `mathlib` modes never write files unless `--output` requests it. `formalize` is read-only in `chat` mode.
-- **No silent mutations.** Prefer LSP tools (`lean_goal`) over file writes for compilation checks. If LSP unavailable and temp file needed for internal compilation, write only under `/tmp` or `.claude/scratch/`, auto-cleanup after use, warn user before writing.
+- **No silent mutations.** Prefer LSP tools (`lean_goal`) over file writes for compilation checks. If LSP unavailable and temp file needed for internal compilation, write only under `/tmp/lean4-learn/`, auto-cleanup after use, warn user before writing.
 - **No commits.** `/learn` never commits. `--output=file` writes but does not stage or commit.
 - **Path restriction.** User-requested outputs (`--output=file`, `--output=scratch`) restricted to workspace root. Reject path traversal (`../`) or absolute paths outside workspace. Internal temp files may use `/tmp`.
 - **Overwrite protection.** `--output=file` with existing target requires `--overwrite`; otherwise hard error.
