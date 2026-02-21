@@ -12,6 +12,7 @@ Unified Lean 4 theorem proving with guided and autonomous proving commands.
 | `/lean4:review` | Read-only quality review with optional external hooks |
 | `/lean4:golf` | Optimize proofs for brevity |
 | `/lean4:doctor` | Diagnostics and migration help |
+| `/lean4:learn` | Interactive teaching, mathlib exploration, and autoformalization |
 
 ## Quick Start
 

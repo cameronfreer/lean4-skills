@@ -36,10 +36,10 @@ check_commands() {
     local count
     count=$(echo "$actual_commands" | wc -l | tr -d ' ')
 
-    if [[ $count -eq 6 ]]; then
-        ok "Found 6 command files"
+    if [[ $count -eq 7 ]]; then
+        ok "Found 7 command files"
     else
-        warn "Expected 6 commands, found $count"
+        warn "Expected 7 commands, found $count"
     fi
 
     # Check each command has required sections
@@ -55,6 +55,7 @@ check_commands() {
             doctor)          max_lines=220 ;;
             golf)            max_lines=150 ;;
             review)          max_lines=320 ;;
+            learn)           max_lines=200 ;;
         esac
 
         if [[ $lines -gt $max_lines ]]; then
@@ -276,7 +277,7 @@ check_cross_refs() {
     all_files=$(find "$PLUGIN_ROOT" -name "*.md" -type f)
 
     # Valid anchors for command-examples.md
-    local cmd_anchors="prove autoprove checkpoint doctor golf review"
+    local cmd_anchors="prove autoprove checkpoint doctor golf learn review"
 
     # Valid anchors for agent-workflows.md
     local agent_anchors="lean4-sorry-filler-deep lean4-proof-repair lean4-proof-golfer lean4-axiom-eliminator"
