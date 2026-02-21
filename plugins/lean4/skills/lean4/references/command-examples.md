@@ -811,3 +811,139 @@ lake env lean InfinitaryLogic/Scott/Sentence.lean
 5. Continue editing...
 6. lake build                        # project gate at checkpoint only
 ```
+
+## Learn
+
+### Repo Mode — Exploring Project Structure
+
+```
+User: /lean4:learn --mode=repo --scope=project
+
+Claude: Scanning project structure...
+
+Found 12 .lean files across 3 directories.
+
+## Project Map
+
+├── InfinitaryLogic/
+│   ├── Basic.lean          — Core definitions (Language, Term, Formula)
+│   ├── Semantics.lean      — Model theory (Structure, Interpretation)
+│   └── Scott/
+│       ├── Sentence.lean   — Scott sentences (4 sorries)
+│       └── Isomorphism.lean — Back-and-forth (2 sorries)
+├── Helpers/
+│   ├── Ordinal.lean        — Ordinal utilities (complete)
+│   └── Cardinal.lean       — Cardinal bounds (1 sorry)
+└── lakefile.lean
+
+Key dependency flow:
+  Basic → Semantics → Scott/Sentence → Scott/Isomorphism
+  Helpers/Ordinal → Scott/Sentence
+
+What would you like to explore?
+- [deeper] Drill into a specific file
+- [deps] Show full dependency graph
+- [sorries] Focus on the 7 remaining sorries
+```
+
+### Mathlib Mode — Navigating a Topic
+
+````
+User: /lean4:learn --mode=mathlib topology compact
+
+Claude: Searching mathlib for compactness in topology...
+
+lean_local_search("compact topology") → 12 results
+lean_leanfinder("IsCompact") → 8 results
+
+## Compactness in Mathlib
+
+**Core definition:** `IsCompact` in `Mathlib.Topology.Defs.Basic`
+```lean
+def IsCompact (s : Set α) : Prop :=
+  ∀ ⦃f : Filter α⦄, NeBot f → f ≤ 𝓟 s →
+    ∃ a ∈ s, ClusterPt a f
+```
+
+**Key lemmas:**
+| Lemma | Location |
+|-------|----------|
+| `IsCompact.isClosed` | Mathlib.Topology.Separation.Basic |
+| `IsCompact.isBounded` | Mathlib.Topology.MetricSpace.Bounded |
+| `isCompact_iff_finite_subcover` | Mathlib.Topology.Defs.Basic |
+
+**Hierarchy:** TopologicalSpace → CompactSpace → IsCompact (for subsets)
+
+What next?
+- [show proof] See proof of a specific lemma
+- [related] Explore related concepts (sequentially compact, totally bounded)
+- [alternative] See filter-free characterization
+````
+
+### Formalize Mode — Autoformalization
+
+````
+User: /lean4:learn --mode=formalize "Every continuous function on a compact set is bounded"
+
+Claude: Parsing claim and drafting formalization...
+
+## Theorem Skeleton
+
+```lean
+theorem continuous_on_compact_bounded
+    {X : Type*} [TopologicalSpace X] [MetricSpace X]
+    {Y : Type*} [MetricSpace Y]
+    {K : Set X} (hK : IsCompact K)
+    {f : X → Y} (hf : ContinuousOn f K) :
+    IsBounded (f '' K) := by
+  sorry
+```
+
+Attempting proof via lean_goal + lean_multi_attempt...
+lean_local_search("IsCompact ContinuousOn IsBounded image") → found it
+Trying: `exact hK.image_of_continuousOn hf |>.isBounded`
+Diagnostics... ✓
+
+Proof complete (--rigor=checked: no sorry, clean diagnostics, standard axioms).
+
+What next?
+- [show source] See the mathlib proof
+- [alternative] Different formalization (e.g., using Bornology)
+- [generalize] Weaken hypotheses
+- [save to scratch] Write to scratch file
+````
+
+### Formalize Mode — Axiomatic Draft
+
+````
+User: /lean4:learn --mode=formalize --rigor=axiomatic "The p-adic numbers are complete"
+
+Claude: Drafting formalization with explicit assumptions...
+
+```lean
+namespace Assumptions
+
+-- Assumption Ledger
+-- ┌──────────────────────────────┬────────────────────────┬───────────┬─────────────────────┐
+-- │ Assumption                   │ Justification          │ Scope     │ Introduced by       │
+-- ├──────────────────────────────┼────────────────────────┼───────────┼─────────────────────┤
+-- │ [MetricSpace (Padic p)]     │ standard p-adic metric │ instance  │ assistant-inferred  │
+-- │ hp : Fact (Nat.Prime p)     │ p must be prime        │ parameter │ user-stated         │
+-- └──────────────────────────────┴────────────────────────┴───────────┴─────────────────────┘
+
+theorem padic_complete (p : ℕ) [hp : Fact (Nat.Prime p)] :
+    CompleteSpace (Padic p) := by
+  sorry -- ⚠ proof blocked: needs Mathlib.NumberTheory.Padics.PadicIntegers
+```
+
+bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target>.lean --report-only → ✓ standard axioms only
+
+Note: Mathlib likely has this as an instance. Searching...
+lean_leanfinder("CompleteSpace Padic") → `Padic.instCompleteSpace`
+
+This is already a registered instance in mathlib. No axioms or assumptions needed.
+
+What next?
+- [show source] See how mathlib proves completeness
+- [deeper] Explore the p-adic metric construction
+````

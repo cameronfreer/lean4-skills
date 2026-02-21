@@ -460,6 +460,7 @@ The lean4 plugin provides these main commands:
 | `/lean4:review` | Read-only quality review |
 | `/lean4:golf` | Optimize proofs |
 | `/lean4:doctor` | Diagnostics and migration |
+| `/lean4:learn` | Interactive teaching, mathlib exploration, autoformalization |
 
 **Note:** Individual operations like "search mathlib" or "analyze sorries" are now internal workflows within `/lean4:prove` (or `/lean4:autoprove`) rather than separate commands. This simplifies the UX while preserving all functionality.
 

@@ -47,7 +47,7 @@ Verify structure and permissions:
 ```
 plugins/lean4/
 ├── .claude-plugin/plugin.json
-├── commands/     (5 files)
+├── commands/     (*.md command files)
 ├── hooks/        (executable .sh)
 ├── skills/lean4/ (SKILL.md + references/)
 ├── agents/       (4 files)

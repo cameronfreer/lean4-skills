@@ -27,6 +27,7 @@ Use this skill whenever you're editing Lean 4 proofs or debugging Lean builds. I
 | `/lean4:review` | Quality audit (`--mode=batch` or `--mode=stuck`) |
 | `/lean4:golf` | Optimize proofs for brevity |
 | `/lean4:doctor` | Plugin troubleshooting and migration help |
+| `/lean4:learn` | Interactive teaching, mathlib exploration, and autoformalization |
 
 ## Typical Workflow
 
@@ -38,6 +39,8 @@ Use this skill whenever you're editing Lean 4 proofs or debugging Lean builds. I
         ↓
 /lean4:checkpoint          Create verified save point
 ```
+
+Use `/lean4:learn` at any point to explore repo structure, navigate mathlib, or formalize informal math interactively.
 
 **Notes:**
 - `/lean4:prove` asks before each cycle; `/lean4:autoprove` loops autonomously with hard stop conditions
