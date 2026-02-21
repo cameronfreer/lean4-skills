@@ -1,6 +1,6 @@
 # Lean 4 Plugin
 
-Unified Lean 4 theorem proving with guided and autonomous proving commands.
+Unified Lean 4 plugin for theorem proving, interactive learning, and autoformalization.
 
 ## Commands
 
