@@ -938,6 +938,7 @@ User: induction n with
 | succ n ih => simp [Nat.add_succ, ih]
 
 Claude: Verifying via lean_goal + lean_multi_attempt...
+lean_diagnostic_messages → clean ✓
 ✓ Level 1 complete!
 
 ## Level 2: Succ (a + b) = a + Succ b

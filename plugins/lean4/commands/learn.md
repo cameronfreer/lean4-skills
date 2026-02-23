@@ -72,7 +72,7 @@ Interactive teaching, mathlib exploration, and autoformalization. Adapts to begi
 
 ### 0. Intent Intake
 
-Classify learning intent and establish a session Learning Profile: {intent, formalization-role, style, track, level}. `--source` is per-invocation only (not persisted) unless user explicitly says "continue same source." Explicit flags are used directly; inference is only for `auto` values. **Announce** resolved intent and formalization-role, marking each as inferred or explicit. Profile persists within the current conversation; explicit flags on later turns override and update it. Precedence: explicit flags > stored profile > inference. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-behavior-matrix) for inference rules and the full behavior matrix.
+Classify learning intent and establish a session Learning Profile: {intent, formalization-role, style, track, level}. `--source` is per-invocation only (not persisted) unless user explicitly says "continue same source." Explicit flags are used directly; inference is only for `auto` values. **Announce** resolved intent and formalization-role, marking each as inferred or explicit. Profile persists within the current conversation; explicit flags on later turns override and update it. Precedence (applied before validation/coercion rules): explicit flags > stored profile > inference. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-behavior-matrix) for inference rules and the full behavior matrix.
 
 ### 1. Mode Resolution
 
