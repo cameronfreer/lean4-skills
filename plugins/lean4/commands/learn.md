@@ -18,6 +18,8 @@ Interactive teaching, mathlib exploration, and autoformalization. Adapts to begi
 /lean4:learn --mode=formalize "Every continuous function on a compact set is bounded"
 /lean4:learn --mode=formalize --rigor=axiomatic "Zorn's lemma implies AC"
 /lean4:learn --style=socratic --interactive  # True Socratic method
+/lean4:learn --style=game --track=nng-like   # Game-style natural numbers track
+/lean4:learn --source ./paper.pdf            # Learn from a paper/PDF
 /lean4:learn --output=scratch                # Write results to scratch file
 ```
 
@@ -29,12 +31,16 @@ Interactive teaching, mathlib exploration, and autoformalization. Adapts to begi
 | --mode | no | `auto` | `auto` \| `repo` \| `mathlib` \| `formalize` |
 | --level | no | `intermediate` | `beginner` \| `intermediate` \| `expert` |
 | --scope | no | `auto` | `auto` \| `file` \| `changed` \| `project` \| `topic` |
-| --style | no | `tour` | `tour` \| `socratic` \| `exercise` |
+| --style | no | `tour` | `tour` \| `socratic` \| `exercise` \| `game` |
 | --rigor | no | `checked` | `checked` \| `sketch` \| `axiomatic` |
 | --output | no | `chat` | `chat` \| `scratch` \| `file` |
 | --out | no | — | Output path. Required when `--output=file`; hard error if missing. |
 | --overwrite | no | `false` | Allow overwriting existing files with `--output=file`. Without flag, existing target → hard error. |
 | --interactive | no | `false` | True Socratic method (withhold answers, ask questions). Valid only with `--style=socratic`; ignored with warning otherwise. |
+| --intent | no | `auto` | `auto` \| `usage` \| `internals` \| `authoring` \| `math`. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-taxonomy). |
+| --formalization-role | no | `auto` | `none` \| `assistive` \| `primary` \| `auto`. Inferred from intent; always announced. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#formalization-role-semantics). |
+| --track | no | — | Exercise ladder: `nng-like` \| `set-theory-like` \| `analysis-like` \| `proofs-reintro`. Valid only with `--style=game`. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#track-ladders). |
+| --source | no | — | File path, URL, or PDF to seed learning. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#source-handling). |
 
 ### Scope defaults by mode (when `--scope=auto`)
 
@@ -55,7 +61,18 @@ Interactive teaching, mathlib exploration, and autoformalization. Adapts to begi
 - `--output=scratch` → `.scratch/lean4/learn-<timestamp>.lean` (workspace-local). Auto-create `.scratch/lean4/` if missing; warn if `.scratch/` is not in `.gitignore`.
 - `--output=file` with existing target and no `--overwrite` → hard error
 
+### Flag validation
+
+- `--intent` or `--formalization-role` with invalid value → hard error.
+- `--track` without `--style=game` → warn + ignore. `--style=game` without `--track` → prompt track picker.
+- `--formalization-role=none` + `--mode=formalize` → coerce mode to `mathlib` with warning. `--formalization-role=none` + `--style=game` → prompt: switch role to `primary` or style to `exercise`.
+- `--source` + `--scope=file|changed|project` → warn "source overrides scope for initial discovery". Unsupported source type → warn + ask for text excerpt.
+
 ## Actions
+
+### 0. Intent Intake
+
+Classify learning intent and establish a session Learning Profile: {intent, formalization-role, style, track, level, source}. Explicit flags are used directly; inference is only for `auto` values. **Always announce** inferred intent and formalization-role. Profile persists within the current conversation; explicit flags on later turns override and update it. Precedence: explicit flags > stored profile > inference. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-behavior-matrix) for inference rules and the full behavior matrix.
 
 ### 1. Mode Resolution
 
@@ -69,6 +86,8 @@ When `--mode=auto`, resolve by tie-breaking order:
 
 When no topic is provided, enter conversational discovery and set `--mode` after the user's first reply.
 
+**Intent bias:** After tie-breaking, cross-check against intent. `--intent=math` biases toward `formalize` (with `--formalization-role=assistive`) unless `--formalization-role=none`, in which case bias toward `mathlib`. `--intent=internals` biases toward `repo`. If bias conflicts with tie-breaking and no explicit `--mode`, ask the user.
+
 ### 2. Discovery (per mode)
 
 **repo:** `Glob`/`Grep` (file survey) → `Read` (targeted content) → `$LEAN4_SCRIPTS/find_usages.sh` (dependency pass). Build a map: key files, declarations, dependency flow, where proofs live.
@@ -76,6 +95,8 @@ When no topic is provided, enter conversational discovery and set `--mode` after
 **mathlib:** `lean_local_search` → one semantic search (`lean_leanfinder` for goal/proof-state shaped queries, `lean_leansearch` for natural-language concept queries) → `lean_loogle` (type-pattern gaps). Present canonical lemmas, type signatures, minimal usage examples.
 
 **formalize:** Parse natural-language claim → draft theorem skeleton → `lean_goal` + `lean_multi_attempt` loop.
+
+**Source-aware:** When `--source` is provided, ingest first: `.lean` → `Read`; PDF → `Read` (for large PDFs, read abstract/intro/theorems first, ask which section); URL → web fetch (if unavailable, ask user for excerpt); unsupported type → warn + ask for text excerpt. Extract key definitions, theorem statements, notation. Use as seed for the resolved mode's discovery. On ingestion failure: ask user for relevant excerpt and proceed.
 
 **Fallback rule:** If a tool is unavailable or rate-limited, continue with the next tool in order and note the fallback in output.
 
@@ -86,6 +107,7 @@ Present findings at the user's `--level` in the user's `--style`:
 - **tour:** Narrated walkthrough, explains as it goes.
 - **socratic:** Guided discovery with prompts. If `--interactive`, withhold answers and ask user questions first — delay direct solutions until user has engaged.
 - **exercise:** Present a challenge, let user attempt, then explain. If `--rigor=checked`, always end with a verified reference solution.
+- **game:** Structured progression through `--track` levels. Present one exercise at a time, verify via `lean_goal` + `lean_multi_attempt`, advance on success. If no `--track`, present track picker. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#game-style).
 
 ### 4. Depth Check
 
@@ -158,3 +180,4 @@ Always run `bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target> --report-only`
 - [Cycle Engine](../skills/lean4/references/cycle-engine.md) — shared mechanics
 - [LSP Tools API](../skills/lean4/references/lean-lsp-tools-api.md) — search tools used in mathlib mode
 - [Mathlib Guide](../skills/lean4/references/mathlib-guide.md) — mathlib navigation
+- [Learning Pathways](../skills/lean4/references/learn-pathways.md) — intent taxonomy, game tracks, source handling

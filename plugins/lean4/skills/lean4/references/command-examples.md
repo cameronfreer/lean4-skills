@@ -913,6 +913,71 @@ What next?
 - [save to scratch] Write to scratch file
 ````
 
+### Game Style — Natural Numbers Track
+
+````
+User: /lean4:learn --style=game --track=nng-like
+
+Claude: [Intent: usage (inferred) | Role: primary | Mode: formalize]
+
+Starting Natural Numbers Game — Track: nng-like (8 levels)
+
+## Level 1: Zero + n = n
+
+Prove that `0 + n = n` for all natural numbers `n`.
+
+```lean
+theorem zero_add (n : Nat) : 0 + n = n := by
+  sorry
+```
+
+Hint available if you need it. Type your proof:
+
+User: induction n with
+| zero => rfl
+| succ n ih => simp [Nat.add_succ, ih]
+
+Claude: Verifying via lean_goal + lean_multi_attempt...
+✓ Level 1 complete!
+
+## Level 2: Succ (a + b) = a + Succ b
+
+```lean
+theorem succ_add (a b : Nat) : Nat.succ a + b = Nat.succ (a + b) := by
+  sorry
+```
+
+[continue / skip / quit]
+````
+
+### Paper as Source — Math Intent
+
+````
+User: /lean4:learn --source ./papers/stone-weierstrass.pdf
+
+Claude: Reading PDF... extracting key results.
+
+[Intent: math (inferred from PDF) | Role: assistive | Mode: formalize]
+
+## Stone–Weierstrass: Main Results
+
+1. **Theorem 1 (Real):** If A is a subalgebra of C(X, ℝ) that separates points and contains constants, then A is dense in C(X, ℝ).
+2. **Theorem 2 (Complex):** The analogous result for self-adjoint subalgebras of C(X, ℂ).
+3. **Corollary:** Every continuous function on [a,b] is a uniform limit of polynomials (Weierstrass).
+
+Which result would you like to explore?
+
+User: 1
+
+Claude: **Theorem 1** says that polynomial-like function algebras are "enough" to approximate any continuous function, provided two conditions...
+
+[explains conceptually at user's level]
+
+Want to see this formalized in Lean to make it concrete?
+
+[deeper / show source / formalize]
+````
+
 ### Formalize Mode — Axiomatic Draft
 
 ````
