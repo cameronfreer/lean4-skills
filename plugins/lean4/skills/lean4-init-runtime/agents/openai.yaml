@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lean4 Init"
+  short_description: "Debug init/runtime order"
+  default_prompt: "Diagnose Lean 4 initialization and runtime setup issues across interpreted and native execution."

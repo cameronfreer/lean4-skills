@@ -83,7 +83,7 @@ See `/lean4:doctor migrate` for detailed migration help.
 - [Lean4 Compiler Attrs](plugins/lean4/skills/lean4-compiler-attrs/SKILL.md) - `implemented_by`, `csimp`, inlining, extraction controls
 - [Lean4 Compiler Pipeline](plugins/lean4/skills/lean4-compiler-pipeline/SKILL.md) - LCNF/IR traces, compiler options, `cpass` installer workflow
 - [Lean4 FFI Interop](plugins/lean4/skills/lean4-ffi-interop/SKILL.md) - `extern`/`export` + Lake linking + reverse FFI init flow
-- [Lean4 Init Runtime](plugins/lean4/skills/lean4-init-runtime/SKILL.md) - `initialize`/`[init]`/`builtin_initialize` sequencing and runtime host setup
+- [Lean4 Init Runtime](plugins/lean4/skills/lean4-init-runtime/SKILL.md) - `initialize`/`[init]`/builtin init sequencing and runtime host setup
 - [Zulip Extract](plugins/lean4/skills/zulip-extract/SKILL.md) - Convert Zulip HTML exports to readable plain text
 - [INSTALLATION.md](INSTALLATION.md) - Setup guide
 - [Commands](plugins/lean4/commands/) - Command documentation
