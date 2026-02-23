@@ -44,7 +44,7 @@ Structured progression inspired by NNG, Set Theory Game, etc.
 - Requires `--style=game`; optionally `--track=<name>`.
 - If no `--track` given, present track picker with descriptions.
 - Level structure: each track is 5–10 exercises, progressive difficulty.
-- Exercise loop: present → user attempts → verify via `lean_goal` + `lean_multi_attempt` → on failure: offer hint (up to 3) → on success: advance.
+- Exercise loop: present → user attempts → verify via `lean_goal` + `lean_multi_attempt` → final acceptance requires clean `lean_diagnostic_messages` on the exercise snippet → on failure: offer hint (up to 3) → on success: advance.
 - Completion: congratulate, offer next track or free exploration.
 - `--formalization-role=none` + `--style=game` → prompt: "Game style requires Lean code. Switch to role=primary, or switch style to exercise?" (do not silently coerce).
 
@@ -100,8 +100,9 @@ Prerequisite: none
 
 - `.lean` file: `Read` directly. Infer `--intent=usage` or `internals`.
 - `.pdf` file: `Read` (PDF support). For large PDFs, read abstract/introduction/theorem-statement sections first, then ask user which section to focus on. Infer `--intent=math`.
+- `.md` / `.txt` file: `Read` directly. Infer intent from content.
 - URL: use available web fetch tool. If unavailable or content too large, ask user to paste relevant excerpt. Infer intent from content type.
-- Unsupported type: warn + ask user for text excerpt.
+- Other types: warn + ask user for text excerpt.
 
 ### Source ingestion flow
 
@@ -124,6 +125,7 @@ Prerequisite: none
 
 Persisted within the current conversation only (not across new sessions).
 
+- Fields: {intent, formalization-role, style, track, level}. `--source` is **per-invocation only** — not persisted unless user explicitly says "continue same source."
 - Established at Step 0 of first invocation.
 - Reused on subsequent turns within the same conversation.
 - Explicit flags on any turn override and update the profile.

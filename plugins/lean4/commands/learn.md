@@ -65,14 +65,14 @@ Interactive teaching, mathlib exploration, and autoformalization. Adapts to begi
 
 - `--intent` or `--formalization-role` with invalid value → hard error.
 - `--track` without `--style=game` → warn + ignore. `--style=game` without `--track` → prompt track picker.
-- `--formalization-role=none` + `--mode=formalize` → coerce mode to `mathlib` with warning. `--formalization-role=none` + `--style=game` → prompt: switch role to `primary` or style to `exercise`.
+- `--formalization-role=none` coercion order: (1) coerce mode first (`formalize` → `mathlib` with warning), then (2) check style (`game` → prompt: switch role to `primary` or style to `exercise`).
 - `--source` + `--scope=file|changed|project` → warn "source overrides scope for initial discovery". Unsupported source type → warn + ask for text excerpt.
 
 ## Actions
 
 ### 0. Intent Intake
 
-Classify learning intent and establish a session Learning Profile: {intent, formalization-role, style, track, level, source}. Explicit flags are used directly; inference is only for `auto` values. **Always announce** inferred intent and formalization-role. Profile persists within the current conversation; explicit flags on later turns override and update it. Precedence: explicit flags > stored profile > inference. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-behavior-matrix) for inference rules and the full behavior matrix.
+Classify learning intent and establish a session Learning Profile: {intent, formalization-role, style, track, level}. `--source` is per-invocation only (not persisted) unless user explicitly says "continue same source." Explicit flags are used directly; inference is only for `auto` values. **Announce** resolved intent and formalization-role, marking each as inferred or explicit. Profile persists within the current conversation; explicit flags on later turns override and update it. Precedence: explicit flags > stored profile > inference. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-behavior-matrix) for inference rules and the full behavior matrix.
 
 ### 1. Mode Resolution
 
@@ -96,7 +96,7 @@ When no topic is provided, enter conversational discovery and set `--mode` after
 
 **formalize:** Parse natural-language claim → draft theorem skeleton → `lean_goal` + `lean_multi_attempt` loop.
 
-**Source-aware:** When `--source` is provided, ingest first: `.lean` → `Read`; PDF → `Read` (for large PDFs, read abstract/intro/theorems first, ask which section); URL → web fetch (if unavailable, ask user for excerpt); unsupported type → warn + ask for text excerpt. Extract key definitions, theorem statements, notation. Use as seed for the resolved mode's discovery. On ingestion failure: ask user for relevant excerpt and proceed.
+**Source-aware:** When `--source` is provided, ingest first: `.lean` → `Read`; PDF → `Read` (for large PDFs, read abstract/intro/theorems first, ask which section); `.md`/`.txt` → `Read` directly; URL → web fetch (if unavailable, ask user for excerpt); other types → warn + ask for text excerpt. Extract key definitions, theorem statements, notation. Use as seed for the resolved mode's discovery. On ingestion failure: ask user for relevant excerpt and proceed.
 
 **Fallback rule:** If a tool is unavailable or rate-limited, continue with the next tool in order and note the fallback in output.
 
@@ -107,7 +107,7 @@ Present findings at the user's `--level` in the user's `--style`:
 - **tour:** Narrated walkthrough, explains as it goes.
 - **socratic:** Guided discovery with prompts. If `--interactive`, withhold answers and ask user questions first — delay direct solutions until user has engaged.
 - **exercise:** Present a challenge, let user attempt, then explain. If `--rigor=checked`, always end with a verified reference solution.
-- **game:** Structured progression through `--track` levels. Present one exercise at a time, verify via `lean_goal` + `lean_multi_attempt`, advance on success. If no `--track`, present track picker. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#game-style).
+- **game:** Structured progression through `--track` levels. Present one exercise at a time, verify via `lean_goal` + `lean_multi_attempt`; final acceptance requires clean `lean_diagnostic_messages` on the exercise snippet. Advance on success. If no `--track`, present track picker. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#game-style).
 
 ### 4. Depth Check
 
