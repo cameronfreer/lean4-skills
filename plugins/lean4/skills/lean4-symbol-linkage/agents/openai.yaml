@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lean4 Symbols"
+  short_description: "Debug mangled symbol linkage"
+  default_prompt: "Diagnose Lean compiler symbol naming, export overrides, and init symbol linkage issues."
