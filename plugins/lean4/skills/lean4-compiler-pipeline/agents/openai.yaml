@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lean4 Pipeline"
+  short_description: "Debug compiler phases and cpass"
+  default_prompt: "Diagnose Lean compiler pipeline behavior and install targeted cpass adjustments."

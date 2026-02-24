@@ -211,6 +211,7 @@ plugins/lean4/
 │   ├── SKILL.md        # Core skill reference
 │   └── references/     # Reference docs
 ├── skills/lean4-compiler-attrs/ # Compiler attributes playbook (`csimp`, `implemented_by`, inline)
+├── skills/lean4-compiler-pipeline/ # LCNF/IR tracing, options, and cpass installer workflow
 ├── skills/lean4-ffi-interop/    # `extern`/`export` and Lake FFI wiring patterns
 ├── skills/lean4-init-runtime/   # `initialize`/`[init]`/builtin init runtime ordering patterns
 ├── skills/zulip-extract/        # Parse Zulip HTML dumps into plain text
@@ -228,6 +229,7 @@ See [MIGRATION.md](MIGRATION.md) for upgrade guide.
 
 - [SKILL.md](skills/lean4/SKILL.md) - Core skill reference
 - [Lean4 Compiler Attrs](skills/lean4-compiler-attrs/SKILL.md) - `implemented_by`, `csimp`, inlining, extraction controls
+- [Lean4 Compiler Pipeline](skills/lean4-compiler-pipeline/SKILL.md) - LCNF/IR traces, compiler options, `cpass` installer workflow
 - [Lean4 FFI Interop](skills/lean4-ffi-interop/SKILL.md) - `extern`/`export` + Lake linking + reverse FFI init flow
 - [Lean4 Init Runtime](skills/lean4-init-runtime/SKILL.md) - `initialize`/`[init]`/builtin init sequencing and host runtime setup
 - [Zulip Extract](skills/zulip-extract/SKILL.md) - Convert Zulip HTML exports to readable plain text
