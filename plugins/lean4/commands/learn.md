@@ -20,6 +20,7 @@ Interactive teaching, mathlib exploration, and autoformalization. Adapts to begi
 /lean4:learn --style=socratic --interactive  # True Socratic method
 /lean4:learn --style=game --track=nng-like   # Game-style natural numbers track
 /lean4:learn --source ./paper.pdf            # Learn from a paper/PDF
+/lean4:learn --presentation=informal "Bolzano-Weierstrass"  # Prose, Lean-backed
 /lean4:learn --output=scratch                # Write results to scratch file
 ```
 
@@ -38,7 +39,8 @@ Interactive teaching, mathlib exploration, and autoformalization. Adapts to begi
 | --overwrite | no | `false` | Allow overwriting existing files with `--output=file`. Without flag, existing target → hard error. |
 | --interactive | no | `false` | True Socratic method (withhold answers, ask questions). Valid only with `--style=socratic`; ignored with warning otherwise. |
 | --intent | no | `auto` | `auto` \| `usage` \| `internals` \| `authoring` \| `math`. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-taxonomy). |
-| --formalization-role | no | `auto` | `none` \| `assistive` \| `primary` \| `auto`. Inferred from intent; always announced. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#formalization-role-semantics). |
+| --presentation | no | `auto` | `informal` \| `supporting` \| `formal` \| `auto`. Controls user-facing display, not Lean backing. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#two-layer-architecture). |
+| --verify | no | `best-effort` | `best-effort` \| `strict`. Verification strictness for key claims. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#verification-status). |
 | --track | no | — | Exercise ladder: `nng-like` \| `set-theory-like` \| `analysis-like` \| `proofs-reintro`. Valid only with `--style=game`. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#track-ladders). |
 | --source | no | — | File path, URL, or PDF to seed learning. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#source-handling). |
 
@@ -63,16 +65,17 @@ Interactive teaching, mathlib exploration, and autoformalization. Adapts to begi
 
 ### Flag validation
 
-- `--intent` or `--formalization-role` with invalid value → hard error.
+- `--intent`, `--presentation`, or `--verify` with invalid value → hard error.
 - `--track` without `--style=game` → warn + ignore. `--style=game` without `--track` → prompt track picker.
-- `--formalization-role=none` coercion order: (1) coerce mode first (`formalize` → `mathlib` with warning), then (2) check style (`game` → prompt: switch role to `primary` or style to `exercise`).
 - `--source` + `--scope=file|changed|project` → warn "source overrides scope for initial discovery". Unsupported source type → warn + ask for text excerpt.
 
 ## Actions
 
 ### 0. Intent Intake
 
-Classify learning intent and establish a session Learning Profile: {intent, formalization-role, style, track, level}. `--source` is per-invocation only (not persisted) unless user explicitly says "continue same source." Explicit flags are used directly; inference is only for `auto` values. **Announce** resolved intent and formalization-role, marking each as inferred or explicit. Profile persists within the current conversation; explicit flags on later turns override and update it. Precedence (applied before validation/coercion rules): explicit flags > stored profile > inference. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-behavior-matrix) for inference rules and the full behavior matrix.
+**Two-layer contract:** All modes are Lean-backed by default. Lean verification is attempted for all key claims — theorem statements, correctness judgments, game pass/fail, and "therefore X" assertions. `--presentation` controls what is shown, not whether Lean runs. Each step's output carries a verification label: `[verified]`, `[partially-verified]`, or `[unverified]`. Under `--verify=strict`, never present claims as settled unless verified; on failure after retry, mark blocked and offer: continue conceptually or relax to `best-effort`. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#two-layer-architecture).
+
+Classify learning intent and establish a session Learning Profile: {intent, presentation, verify, style, track, level}. `--source` is per-invocation only (not persisted) unless user explicitly says "continue same source." Explicit flags are used directly; inference is only for `auto` values. **Announce** resolved intent and presentation, marking each as inferred or explicit. When `--presentation=auto`: if confidence is high, auto-resolve and announce; if ambiguous, ask: "Informal (prose, Lean-backed) or formal (Lean shown)?" Profile persists within the current conversation; explicit flags on later turns override and update it. Precedence (applied before validation rules): explicit flags > stored profile > inference. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-behavior-matrix) for inference rules and the full behavior matrix.
 
 ### 1. Mode Resolution
 
@@ -86,7 +89,7 @@ When `--mode=auto`, resolve by tie-breaking order:
 
 When no topic is provided, enter conversational discovery and set `--mode` after the user's first reply.
 
-**Intent bias:** After tie-breaking, cross-check against intent. `--intent=math` biases toward `formalize` (with `--formalization-role=assistive`) unless `--formalization-role=none`, in which case bias toward `mathlib`. `--intent=internals` biases toward `repo`. If bias conflicts with tie-breaking and no explicit `--mode`, ask the user.
+**Intent bias:** After tie-breaking, cross-check against intent. `--intent=math` biases toward `formalize` (with `--presentation=informal`). `--intent=internals` biases toward `repo`. If bias conflicts with tie-breaking and no explicit `--mode`, ask the user.
 
 ### 2. Discovery (per mode)
 
@@ -98,7 +101,7 @@ When no topic is provided, enter conversational discovery and set `--mode` after
 
 **Source-aware:** When `--source` is provided, ingest first: `.lean` → `Read`; PDF → `Read` (for large PDFs, read abstract/intro/theorems first, ask which section); `.md`/`.txt` → `Read` directly; URL → web fetch (if unavailable, ask user for excerpt); other types → warn + ask for text excerpt. Extract key definitions, theorem statements, notation. Use as seed for the resolved mode's discovery. On ingestion failure: ask user for relevant excerpt and proceed.
 
-**Fallback rule:** If a tool is unavailable or rate-limited, continue with the next tool in order and note the fallback in output.
+**Fallback rule:** If a tool is unavailable or rate-limited, continue with the next tool in order, label affected output `[unverified]` or `[partially-verified]`, and note the fallback. If Lean verification fails after retry: attempt to revise; if revision also fails, state that verification is pending/failed and offer: continue conceptually or switch to formal mode.
 
 ### 3. Explanation
 
@@ -107,13 +110,14 @@ Present findings at the user's `--level` in the user's `--style`:
 - **tour:** Narrated walkthrough, explains as it goes.
 - **socratic:** Guided discovery with prompts. If `--interactive`, withhold answers and ask user questions first — delay direct solutions until user has engaged.
 - **exercise:** Present a challenge, let user attempt, then explain. If `--rigor=checked`, always end with a verified reference solution.
-- **game:** Structured progression through `--track` levels. Present one exercise at a time, verify via `lean_goal` + `lean_multi_attempt`; final acceptance requires clean `lean_diagnostic_messages` on the exercise snippet. Advance on success. If no `--track`, present track picker. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#game-style).
+- **game:** Structured progression through `--track` levels. Verification is always Lean-backed (`lean_goal` + `lean_multi_attempt` + clean `lean_diagnostic_messages`). In `informal`: user argues informally; agent restates its interpretation before checking, reports result without showing Lean unless asked. In `formal`: user writes Lean proofs directly. If no `--track`, present track picker. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#game-style).
 
 ### 4. Depth Check
 
 Offer the depth-check menu:
 
 - show source / show proof state / show alternative approach
+- **show Lean backing** (on-demand transparency into the verification layer)
 - go deeper / switch mode / broaden scope
 - **save to scratch** / **write to file** (mid-session output actions — `--output` is part of the loop, not just startup config)
 

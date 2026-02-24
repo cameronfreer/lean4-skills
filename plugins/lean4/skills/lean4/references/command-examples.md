@@ -918,7 +918,7 @@ What next?
 ````
 User: /lean4:learn --style=game --track=nng-like
 
-Claude: [Intent: usage (inferred) | Role: primary | Mode: formalize]
+Claude: [Intent: usage (inferred) | Presentation: formal | Mode: formalize]
 
 Starting Natural Numbers Game — Track: nng-like (8 levels)
 
@@ -938,8 +938,8 @@ User: induction n with
 | succ n ih => simp [Nat.add_succ, ih]
 
 Claude: Verifying via lean_goal + lean_multi_attempt...
-lean_diagnostic_messages → clean ✓
-✓ Level 1 complete!
+lean_diagnostic_messages → clean
+✓ Level 1 complete! [verified]
 
 ## Level 2: Succ (a + b) = a + Succ b
 
@@ -958,9 +958,9 @@ User: /lean4:learn --source ./papers/stone-weierstrass.pdf
 
 Claude: Reading PDF... extracting key results.
 
-[Intent: math (inferred from PDF) | Role: assistive | Mode: formalize]
+[Intent: math (inferred from PDF) | Presentation: informal | Mode: formalize]
 
-## Stone–Weierstrass: Main Results
+## Stone–Weierstrass: Main Results [verified]
 
 1. **Theorem 1 (Real):** If A is a subalgebra of C(X, ℝ) that separates points and contains constants, then A is dense in C(X, ℝ).
 2. **Theorem 2 (Complex):** The analogous result for self-adjoint subalgebras of C(X, ℂ).

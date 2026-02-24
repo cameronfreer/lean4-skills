@@ -2,27 +2,28 @@
 
 ## Intent Taxonomy
 
-| Intent | Description | Default formalization-role | Typical modes | Pedagogy focus |
-|--------|-------------|--------------------------|---------------|----------------|
-| `usage` | Learning Lean syntax, tactics, idioms | `primary` | `repo`, `formalize` | "How do I write this in Lean?" |
-| `internals` | Understanding elaboration, macros, metaprogramming | `primary` | `repo` | "How does Lean do this under the hood?" |
-| `authoring` | Mathlib authoring patterns, API conventions | `primary` | `mathlib`, `repo` | "How should I structure this for mathlib?" |
-| `math` | Understanding mathematical content | `assistive` | `mathlib`, `formalize` | "What does this theorem really say?" |
+| Intent | Description | Default presentation | Typical modes | Pedagogy focus |
+|--------|-------------|---------------------|---------------|----------------|
+| `usage` | Learning Lean syntax, tactics, idioms | `formal` | `repo`, `formalize` | "How do I write this in Lean?" |
+| `internals` | Understanding elaboration, macros, metaprogramming | `formal` | `repo` | "How does Lean do this under the hood?" |
+| `authoring` | Mathlib authoring patterns, API conventions | `formal` | `mathlib`, `repo` | "How should I structure this for mathlib?" |
+| `math` | Understanding mathematical content | `informal` | `mathlib`, `formalize` | "What does this theorem really say?" |
 
 ## Intent-Behavior Matrix
 
-Intent × mode → explanation focus, tool priorities, formalization-role effect.
+Intent × mode → explanation focus, tool priorities, presentation effect.
 
-| Intent | Mode | Focus | Formalization role |
-|--------|------|-------|--------------------|
-| `math` | `formalize` | Explain the math first, formalize to make it concrete | `assistive` (default) |
-| `math` | `formalize` + `role=none` | Coerce mode to `mathlib`; pure conceptual discussion, Lean code suppressed unless user asks | `none` |
-| `math` | `mathlib` | Explain theorems conceptually, show mathlib as reference landscape | `assistive` |
-| `usage` | `repo` | Walk through code patterns, explain tactic choices | `primary` |
-| `usage` | `formalize` | Build the statement, prove it, explain syntax choices | `primary` |
-| `authoring` | `mathlib` | Focus on naming, simp lemmas, instance design, API style | `primary` |
-| `authoring` | `repo` | Compare local code against mathlib conventions | `primary` |
-| `internals` | `repo` | Dive into elaborator, `Term.Elab`, macro expansion | `primary` |
+| Intent | Mode | Focus | Presentation |
+|--------|------|-------|--------------|
+| `math` | `formalize` | Explain the math first, formalize to make it concrete | `informal` (default): Lean runs silently, results shown as prose |
+| `math` | `mathlib` | Explain theorems conceptually, show mathlib as reference landscape | `informal` (default) |
+| `usage` | `repo` | Walk through code patterns, explain tactic choices | `formal` (default) |
+| `usage` | `formalize` | Build the statement, prove it, explain syntax choices | `formal` (default) |
+| `authoring` | `mathlib` | Focus on naming, simp lemmas, instance design, API style | `formal` (default) |
+| `authoring` | `repo` | Compare local code against mathlib conventions | `formal` (default) |
+| `internals` | `repo` | Dive into elaborator, `Term.Elab`, macro expansion | `formal` (default) |
+
+All combinations are valid. No mode/presentation pair requires coercion.
 
 ### Inference Rules (when `--intent=auto`)
 
@@ -30,12 +31,60 @@ Intent × mode → explanation focus, tool priorities, formalization-role effect
 2. From topic phrasing: Lean syntax/tactic keywords → `usage`; elaborator/macro/metaprogramming → `internals`; `Mathlib.` prefix or API-pattern language → `authoring`; natural-language math statement → `math`.
 3. If ambiguous → ask.
 
-### Deriving `--formalization-role` (when `auto`)
+### Deriving `--presentation` (when `auto`)
 
-- `math` → `assistive`
-- `usage` / `internals` / `authoring` → `primary`
+- `math` → `informal`
+- `usage` / `internals` / `authoring` → `formal`
 
-User can pass `--formalization-role=none` to skip formalization entirely.
+If confidence is high, auto-resolve and announce. If ambiguous, ask: "Informal (prose, Lean-backed) or formal (Lean shown)?"
+
+## Two-Layer Architecture
+
+### Backing layer (internal)
+
+Lean verification is attempted by default for all key claims. Lean tools (`lean_goal`, `lean_multi_attempt`, `lean_diagnostic_messages`) run regardless of `--presentation`. The backing layer is invisible to the user unless they request it via "show Lean backing" in the depth-check menu.
+
+### Presentation layer (user-facing)
+
+`--presentation` controls what the user sees, not whether Lean runs.
+
+| Presentation | User sees | Lean backing |
+|-------------|-----------|--------------|
+| `informal` | Prose and math notation only. No Lean syntax unless user asks via "show Lean backing." | Runs silently. |
+| `supporting` | Prose-first with selective Lean snippets where they clarify. | Runs; shown where illustrative. |
+| `formal` | Lean is the primary medium. User reads and writes Lean. | Runs; shown directly. |
+| `auto` | Inferred from intent. Announced with override option. | Always runs. |
+
+### Key claims (verification scope)
+
+Lean verification is attempted for: theorem statements, correctness judgments (e.g., "this proof is valid"), game pass/fail decisions, and any "therefore X is true" assertions. Contextual commentary ("this technique is common in analysis") is not a key claim and does not require verification.
+
+## Verification Status
+
+Every step's output carries one of:
+
+| Status | Meaning | Display |
+|--------|---------|---------|
+| `[verified]` | Lean-checked via `lean_goal`/`lean_diagnostic_messages`. | Step-level label. |
+| `[partially-verified]` | Some subclaims checked, others pending. | Step-level label. |
+| `[unverified]` | Explanation only — no Lean check completed. | Step-level label. |
+
+Labels are per step, not per sentence, to avoid noise.
+
+### `--verify=best-effort`
+
+Attempt verification for all key claims. If verification fails or is unavailable, label the output with its status, note the reason, and continue.
+
+### `--verify=strict`
+
+Never present claims as settled unless `[verified]`. If verification is unavailable or fails after retry:
+1. Mark the claim `[unverified]` / blocked.
+2. Do not present as settled.
+3. Require user choice: continue conceptually, or relax to `best-effort`.
+
+### Verification failure transparency
+
+If Lean verification fails: attempt to revise the claim/proof. If revision also fails, state that verification is pending/failed and offer: continue conceptually, or switch to formal mode for manual verification. Never silently swallow a verification failure.
 
 ## Game Style
 
@@ -44,9 +93,11 @@ Structured progression inspired by NNG, Set Theory Game, etc.
 - Requires `--style=game`; optionally `--track=<name>`.
 - If no `--track` given, present track picker with descriptions.
 - Level structure: each track is 5–10 exercises, progressive difficulty.
-- Exercise loop: present → user attempts → verify via `lean_goal` + `lean_multi_attempt` → final acceptance requires clean `lean_diagnostic_messages` on the exercise snippet → on failure: offer hint (up to 3) → on success: advance.
+- Verification is always Lean-backed (`lean_goal` + `lean_multi_attempt` + clean `lean_diagnostic_messages`), regardless of `--presentation`.
+- **Formal game** (`--presentation=formal`): user writes Lean tactic proofs directly (NNG-style).
+- **Informal game** (`--presentation=informal`): user argues informally; agent restates its interpretation of the argument ("I interpret your argument as: ...") before translating to Lean and checking. Result reported in prose unless user asks "show Lean backing."
+- Exercise loop: present → user attempts → (if informal: restate interpretation →) verify → on failure: offer hint (up to 3) → on success: advance.
 - Completion: congratulate, offer next track or free exploration.
-- `--formalization-role=none` + `--style=game` → prompt: "Game style requires Lean code. Switch to role=primary, or switch style to exercise?" (do not silently coerce).
 
 ## Track Ladders
 
@@ -112,20 +163,11 @@ Prerequisite: none
 4. Use extracted content as seed for the resolved mode's discovery step.
 5. On failure (unreadable, too large, fetch blocked): ask user for relevant excerpt and proceed with that.
 
-## Formalization-Role Semantics
-
-| Role | Behavior | When |
-|------|----------|------|
-| `none` | No formalization. Suppresses Lean code output by default unless user explicitly asks. If `--mode=formalize`, coerce to `mathlib` with warning. If `--style=game`, prompt user to switch role or style. | User wants concepts only. |
-| `assistive` | Formalization supports explanation. Show Lean to make abstract concrete, but prioritize narrative. | `--intent=math` default. |
-| `primary` | Formalization IS the objective. Build statement, prove it, explain the proof. | `--intent=usage/internals/authoring` default. |
-| `auto` | Infer from intent. Always announce inferred choice. | Default for all intents. |
-
 ## Learning Profile
 
 Persisted within the current conversation only (not across new sessions).
 
-- Fields: {intent, formalization-role, style, track, level}. `--source` is **per-invocation only** — not persisted unless user explicitly says "continue same source."
+- Fields: {intent, presentation, verify, style, track, level}. `--source` is **per-invocation only** — not persisted unless user explicitly says "continue same source."
 - Established at Step 0 of first invocation.
 - Reused on subsequent turns within the same conversation.
 - Explicit flags on any turn override and update the profile.
