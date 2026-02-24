@@ -3,7 +3,8 @@
 Try `exact?` at various points in Lean 4 proofs to find one-liner replacements.
 
 For each candidate proof block, replaces the tactic body with `exact?`,
-runs Lean on a temporary copy, and captures any suggestion from diagnostics.
+swaps the source file with the modified version (atomic backup/restore),
+runs Lean, and captures any suggestion from diagnostics.
 
 Usage:
     python3 try_exact_at_step.py File.lean:42          # test one proof
@@ -44,13 +45,13 @@ def find_proof_bounds(lines: List[str], target_line: int) -> Optional[Tuple[int,
     """Find the start (by line), end, and base indent of the proof containing target_line.
 
     Returns (by_line_idx, end_idx, base_indent) — all 0-indexed.
-    Returns None if no enclosing `by` block is found within 20 lines.
+    Returns None if no enclosing `by` block is found within 50 lines.
     """
     target_idx = target_line - 1  # convert to 0-indexed
 
     # Search backwards from target for the `by` keyword
     by_idx = None
-    for i in range(target_idx, max(target_idx - 20, -1), -1):
+    for i in range(target_idx, max(target_idx - 50, -1), -1):
         stripped = lines[i].strip()
         if re.search(r'\bby\s*$', stripped):
             by_idx = i
@@ -97,38 +98,44 @@ def replace_proof_with_exact_q(lines: List[str], by_line_idx: int, end_idx: int)
     return '\n'.join(new_lines) + '\n'
 
 
-def run_lean_and_capture(tmp_file: Path, target_line: int, project_root: Path,
+def run_lean_and_capture(lean_file: Path, target_line: int, project_root: Path,
                          timeout: int = 120) -> Optional[str]:
-    """Run Lean on a temporary file and capture exact? suggestions.
+    """Run Lean on a file and capture exact? suggestions.
 
+    Only accepts diagnostics whose file path matches lean_file (resolved),
+    preventing misattribution from other files in the build.
     Returns the suggestion string if found, None otherwise.
     """
+    file_stem = lean_file.resolve().name  # e.g. "Core.lean"
     try:
         result = subprocess.run(
-            ['lake', 'env', 'lean', str(tmp_file)],
+            ['lake', 'env', 'lean', str(lean_file)],
             capture_output=True, text=True, timeout=timeout,
             cwd=str(project_root)
         )
         output = result.stdout + result.stderr
 
-        # Look for exact? suggestions near our target line
-        # Format: "file:line:col: Try this: exact ..."
+        # Look for exact? suggestions scoped to our file and target line
+        # Format: "path/to/File.lean:line:col: Try this: exact ..."
         suggestions = []
         for line in output.splitlines():
-            m = re.match(r'.*?:(\d+):\d+:\s*Try this:\s*(.*)', line)
+            m = re.match(r'(.+?):(\d+):\d+:\s*Try this:\s*(.*)', line)
             if m:
-                suggestion_line = int(m.group(1))
-                suggestion = m.group(2).strip()
-                # Accept suggestions near our target
+                diag_file = m.group(1)
+                suggestion_line = int(m.group(2))
+                suggestion = m.group(3).strip()
+                # Only accept diagnostics from our file
+                if not diag_file.endswith(file_stem):
+                    continue
                 if abs(suggestion_line - target_line) <= 3:
                     suggestions.append(suggestion)
 
         if suggestions:
             return suggestions[0]
 
-        # Check for errors to report
+        # Check for errors scoped to our file
         for line in output.splitlines():
-            if 'error' in line.lower():
+            if 'error' in line.lower() and file_stem in line:
                 for delta in range(-2, 3):
                     check_line = target_line + delta
                     if f':{check_line}:' in line:
@@ -287,6 +294,9 @@ on large files. Consider using --priority high to limit scope.
             return 1
 
         if path.is_file():
+            if path.suffix != '.lean':
+                print(f"Error: {path} is not a .lean file", file=sys.stderr)
+                return 1
             files = [path]
         elif args.recursive:
             files = sorted(path.rglob('*.lean'))
