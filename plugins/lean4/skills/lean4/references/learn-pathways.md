@@ -36,7 +36,7 @@ All combinations are valid. No mode/presentation pair requires coercion.
 - `math` → `informal`
 - `usage` / `internals` / `authoring` → `formal`
 
-If confidence is high, auto-resolve and announce. If ambiguous, ask: "Informal (prose, Lean-backed) or formal (Lean shown)?"
+If confidence is high, auto-resolve and announce. If ambiguous, ask: "Informal (prose, Lean-backed), supporting (prose + Lean snippets), or formal (Lean shown)?"
 
 ## Two-Layer Architecture
 
@@ -97,7 +97,7 @@ Structured progression inspired by NNG, Set Theory Game, etc.
 - **Formal game** (`--presentation=formal`): user writes Lean tactic proofs directly (NNG-style).
 - **Supporting game** (`--presentation=supporting`): user argues informally; agent restates interpretation, translates to Lean, checks, then shows the Lean translation after verification as illustration.
 - **Informal game** (`--presentation=informal`): user argues informally; agent restates its interpretation of the argument ("I interpret your argument as: ...") before translating to Lean and checking. Result reported in prose unless user asks "show Lean backing."
-- Exercise loop: present → user attempts → (if informal: restate interpretation →) verify → on failure: offer hint (up to 3) → on success: advance.
+- Exercise loop: present → user attempts → (if informal or supporting: restate interpretation →) verify → on failure: offer hint (up to 3) → on success: advance.
 - Completion: congratulate, offer next track or free exploration.
 
 ## Track Ladders
