@@ -80,6 +80,7 @@ See `/lean4:doctor migrate` for detailed migration help.
 ## Documentation
 
 - [SKILL.md](plugins/lean4/skills/lean4/SKILL.md) - Core skill reference
+- [Lean4 Borrowed Params](plugins/lean4/skills/lean4-borrowed-params/SKILL.md) - `@&` borrowed parameter ABI/ownership guidance for extern/export boundaries
 - [Lean4 Compiler Attrs](plugins/lean4/skills/lean4-compiler-attrs/SKILL.md) - `implemented_by`, `csimp`, inlining, extraction controls
 - [Lean4 Compiler Pipeline](plugins/lean4/skills/lean4-compiler-pipeline/SKILL.md) - LCNF/IR traces, compiler options, `cpass` installer workflow
 - [Lean4 FFI Interop](plugins/lean4/skills/lean4-ffi-interop/SKILL.md) - `extern`/`export` + Lake linking + reverse FFI init flow
@@ -100,6 +101,7 @@ See `/lean4:doctor migrate` for detailed migration help.
 - Added `lean4-init-runtime` skill for init sequencing across `initialize`/`[init]`/`builtin_initialize` and host runtime setup
 - Added `lean4-compiler-pipeline` skill for LCNF/IR phase tracing, compiler option debugging, and `cpass` installer workflow
 - Added `lean4-specialization` skill for `@[specialize]`/`@[nospecialize]` tuning, trace-driven triage, and `compiler.maxRecSpecialize` control
+- Added `lean4-borrowed-params` skill for `@&` borrowed-parameter ABI/ownership debugging across extern/export boundaries
 - Added `lean4-symbol-linkage` skill for name-mangling/export/init-symbol diagnostics in compiler and FFI linking workflows
 
 **v4.1.0** (February 2026)
