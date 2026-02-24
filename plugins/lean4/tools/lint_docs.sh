@@ -12,6 +12,9 @@ VERBOSE="${1:-}"
 PLUGIN_ROOT="${LEAN4_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 ISSUES=0
 
+# Single source of truth for known commands (used by check_commands and check_cross_refs)
+KNOWN_COMMANDS="autoprove checkpoint doctor golf learn prove review"
+
 log() {
     echo "$1"
 }
@@ -36,10 +39,12 @@ check_commands() {
     local count
     count=$(echo "$actual_commands" | wc -l | tr -d ' ')
 
-    if [[ $count -eq 6 ]]; then
-        ok "Found 6 command files"
+    local expected_count
+    expected_count=$(echo "$KNOWN_COMMANDS" | wc -w | tr -d ' ')
+    if [[ $count -eq $expected_count ]]; then
+        ok "Found $count command files"
     else
-        warn "Expected 6 commands, found $count"
+        warn "Expected $expected_count commands (from KNOWN_COMMANDS), found $count"
     fi
 
     # Check each command has required sections
@@ -55,6 +60,7 @@ check_commands() {
             doctor)          max_lines=220 ;;
             golf)            max_lines=150 ;;
             review)          max_lines=320 ;;
+            learn)           max_lines=200 ;;
         esac
 
         if [[ $lines -gt $max_lines ]]; then
@@ -276,7 +282,7 @@ check_cross_refs() {
     all_files=$(find "$PLUGIN_ROOT" -name "*.md" -type f)
 
     # Valid anchors for command-examples.md
-    local cmd_anchors="prove autoprove checkpoint doctor golf review"
+    local cmd_anchors="$KNOWN_COMMANDS"
 
     # Valid anchors for agent-workflows.md
     local agent_anchors="lean4-sorry-filler-deep lean4-proof-repair lean4-proof-golfer lean4-axiom-eliminator"
