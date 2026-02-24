@@ -11,45 +11,53 @@ Usage:
     python3 try_exact_at_step.py --batch src/ -r        # recursive batch
     python3 try_exact_at_step.py --dry-run File.lean:42 # show what would be tested
 
-The script never modifies the original file — it works on a temporary copy.
+The script swaps the source file with a modified copy during Lean invocation
+(required for import resolution), using an atomic backup/restore via
+os.replace. A persistent .bak file is written first and cleaned up only
+after successful restore, so interruptions leave a recoverable backup.
 """
 
 import re
 import sys
+import os
 import subprocess
 import shutil
-import tempfile
 from pathlib import Path
 from typing import Optional, Tuple, List
 
 
 def find_project_root(start: Path) -> Path:
-    """Walk up from start to find the Lean project root (contains lakefile.lean or lean-toolchain)."""
+    """Walk up from start to find the Lean project root."""
     current = start.resolve()
     if current.is_file():
         current = current.parent
+    markers = ('lakefile.lean', 'lakefile.toml', 'lean-toolchain')
     while current != current.parent:
-        if (current / 'lakefile.lean').exists() or (current / 'lean-toolchain').exists():
+        if any((current / m).exists() for m in markers):
             return current
         current = current.parent
     # Fallback: return the file's parent
     return start.resolve().parent
 
 
-def find_proof_bounds(lines: List[str], target_line: int) -> Tuple[int, int, int]:
+def find_proof_bounds(lines: List[str], target_line: int) -> Optional[Tuple[int, int, int]]:
     """Find the start (by line), end, and base indent of the proof containing target_line.
 
     Returns (by_line_idx, end_idx, base_indent) — all 0-indexed.
+    Returns None if no enclosing `by` block is found within 20 lines.
     """
     target_idx = target_line - 1  # convert to 0-indexed
 
     # Search backwards from target for the `by` keyword
-    by_idx = target_idx
+    by_idx = None
     for i in range(target_idx, max(target_idx - 20, -1), -1):
         stripped = lines[i].strip()
         if re.search(r'\bby\s*$', stripped):
             by_idx = i
             break
+
+    if by_idx is None:
+        return None
 
     base_indent = len(lines[by_idx]) - len(lines[by_idx].lstrip())
 
@@ -138,11 +146,21 @@ def test_exact_at(file_path: Path, target_line: int, dry_run: bool = False,
                   timeout: int = 120) -> dict:
     """Test exact? replacement at a specific proof location.
 
-    Works on a temporary copy — never modifies the original file.
+    Uses atomic backup/restore when swapping the source file for Lean invocation.
     Returns a dict with: success, suggestion, original_tactics, saved_lines
     """
     lines = file_path.read_text().splitlines()
-    by_idx, end_idx, base_indent = find_proof_bounds(lines, target_line)
+    bounds = find_proof_bounds(lines, target_line)
+    if bounds is None:
+        return {
+            'file': str(file_path), 'line': target_line,
+            'by_line': None, 'end_line': None,
+            'original_tactics': [], 'original_line_count': 0,
+            'success': False,
+            'suggestion': f'ERROR: no enclosing `by` block found near line {target_line}',
+            'saved_lines': 0,
+        }
+    by_idx, end_idx, base_indent = bounds
 
     # Extract original tactics for reporting
     original_tactics = []
@@ -173,30 +191,22 @@ def test_exact_at(file_path: Path, target_line: int, dry_run: bool = False,
         return result
 
     project_root = find_project_root(file_path)
+    modified = replace_proof_with_exact_q(lines, by_idx, end_idx)
+    exact_line = by_idx + 2  # 1-indexed line where `exact?` is
 
-    # Work on a temporary copy to avoid mutating the original
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        tmp_path = Path(tmp_dir) / file_path.name
-        # Copy the modified content (not the original) to temp
-        modified = replace_proof_with_exact_q(lines, by_idx, end_idx)
-        tmp_path.write_text(modified)
+    # Lean needs the file at its real path for import resolution.
+    # Use a persistent .bak so interruptions leave a recoverable backup.
+    lean_target = file_path.resolve()
+    backup_path = lean_target.with_suffix(lean_target.suffix + '.exact_bak')
 
-        # Compute the repo-relative path so lake can resolve imports
-        try:
-            rel_path = file_path.resolve().relative_to(project_root)
-            lean_target = project_root / rel_path
-            # Temporarily swap file for the lean invocation
-            backup = lean_target.read_text()
-            lean_target.write_text(modified)
-            try:
-                exact_line = by_idx + 2  # 1-indexed line where `exact?` is
-                suggestion = run_lean_and_capture(lean_target, exact_line, project_root, timeout)
-            finally:
-                lean_target.write_text(backup)
-        except (ValueError, OSError):
-            # file_path not under project_root; fall back to temp copy
-            exact_line = by_idx + 2
-            suggestion = run_lean_and_capture(tmp_path, exact_line, project_root, timeout)
+    # Write backup atomically (copy first, then swap)
+    shutil.copy2(lean_target, backup_path)
+    try:
+        lean_target.write_text(modified)
+        suggestion = run_lean_and_capture(lean_target, exact_line, project_root, timeout)
+    finally:
+        # Restore: atomic rename from backup
+        os.replace(str(backup_path), str(lean_target))
 
     if suggestion and not suggestion.startswith(('ERROR', 'TIMEOUT', 'EXCEPTION')):
         result['success'] = True
@@ -237,10 +247,17 @@ on large files. Consider using --priority high to limit scope.
         # Single test mode
         file_str, line_str = args.target.rsplit(':', 1)
         file_path = Path(file_str)
+        if file_path.suffix != '.lean':
+            print(f"Error: {file_path} is not a .lean file", file=sys.stderr)
+            return 1
+        try:
+            target_line = int(line_str)
+        except ValueError:
+            print(f"Error: invalid line number '{line_str}' in {args.target}", file=sys.stderr)
+            return 1
         if not file_path.exists():
             print(f"Error: {file_path} does not exist", file=sys.stderr)
             return 1
-        target_line = int(line_str)
 
         print(f"Testing exact? at {file_path}:{target_line}...")
         result = test_exact_at(file_path, target_line, args.dry_run, args.timeout)
