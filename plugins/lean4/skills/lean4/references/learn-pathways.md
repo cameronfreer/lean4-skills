@@ -61,7 +61,7 @@ Lean verification is attempted for: theorem statements, correctness judgments (e
 
 ## Verification Status
 
-Every step's output carries one of:
+Every key-claim step carries one of:
 
 | Status | Meaning | Display |
 |--------|---------|---------|
@@ -95,6 +95,7 @@ Structured progression inspired by NNG, Set Theory Game, etc.
 - Level structure: each track is 5–10 exercises, progressive difficulty.
 - Verification is always Lean-backed (`lean_goal` + `lean_multi_attempt` + clean `lean_diagnostic_messages`), regardless of `--presentation`.
 - **Formal game** (`--presentation=formal`): user writes Lean tactic proofs directly (NNG-style).
+- **Supporting game** (`--presentation=supporting`): user argues informally; agent restates interpretation, translates to Lean, checks, then shows the Lean translation after verification as illustration.
 - **Informal game** (`--presentation=informal`): user argues informally; agent restates its interpretation of the argument ("I interpret your argument as: ...") before translating to Lean and checking. Result reported in prose unless user asks "show Lean backing."
 - Exercise loop: present → user attempts → (if informal: restate interpretation →) verify → on failure: offer hint (up to 3) → on success: advance.
 - Completion: congratulate, offer next track or free exploration.

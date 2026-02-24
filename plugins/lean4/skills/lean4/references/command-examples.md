@@ -960,7 +960,7 @@ Claude: Reading PDF... extracting key results.
 
 [Intent: math (inferred from PDF) | Presentation: informal | Mode: formalize]
 
-## Stone–Weierstrass: Main Results [verified]
+## Stone–Weierstrass: Main Results [unverified]
 
 1. **Theorem 1 (Real):** If A is a subalgebra of C(X, ℝ) that separates points and contains constants, then A is dense in C(X, ℝ).
 2. **Theorem 2 (Complex):** The analogous result for self-adjoint subalgebras of C(X, ℂ).

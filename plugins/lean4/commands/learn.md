@@ -73,9 +73,9 @@ Interactive teaching, mathlib exploration, and autoformalization. Adapts to begi
 
 ### 0. Intent Intake
 
-**Two-layer contract:** All modes are Lean-backed by default. Lean verification is attempted for all key claims — theorem statements, correctness judgments, game pass/fail, and "therefore X" assertions. `--presentation` controls what is shown, not whether Lean runs. Each step's output carries a verification label: `[verified]`, `[partially-verified]`, or `[unverified]`. Under `--verify=strict`, never present claims as settled unless verified; on failure after retry, mark blocked and offer: continue conceptually or relax to `best-effort`. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#two-layer-architecture).
+**Two-layer contract:** All modes are Lean-backed by default. Lean verification is attempted for all key claims — theorem statements, correctness judgments, game pass/fail, and "therefore X" assertions. `--presentation` controls what is shown, not whether Lean runs. Each key-claim step carries a verification label: `[verified]`, `[partially-verified]`, or `[unverified]`. Under `--verify=strict`, never present claims as settled unless verified; on failure after retry, mark blocked and offer: continue conceptually or relax to `best-effort`. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#two-layer-architecture).
 
-Classify learning intent and establish a session Learning Profile: {intent, presentation, verify, style, track, level}. `--source` is per-invocation only (not persisted) unless user explicitly says "continue same source." Explicit flags are used directly; inference is only for `auto` values. **Announce** resolved intent and presentation, marking each as inferred or explicit. When `--presentation=auto`: if confidence is high, auto-resolve and announce; if ambiguous, ask: "Informal (prose, Lean-backed) or formal (Lean shown)?" Profile persists within the current conversation; explicit flags on later turns override and update it. Precedence (applied before validation rules): explicit flags > stored profile > inference. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-behavior-matrix) for inference rules and the full behavior matrix.
+Classify learning intent and establish a session Learning Profile: {intent, presentation, verify, style, track, level}. `--source` is per-invocation only (not persisted) unless user explicitly says "continue same source." Explicit flags are used directly; inference is only for `auto` values. **Announce** resolved intent and presentation, marking each as inferred or explicit. When `--presentation=auto`: if confidence is high, auto-resolve and announce; if ambiguous, ask: "Informal (prose, Lean-backed), supporting (prose + Lean snippets), or formal (Lean shown)?" Profile persists within the current conversation; explicit flags on later turns override and update it. Precedence (applied before validation rules): explicit flags > stored profile > inference. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-behavior-matrix) for inference rules and the full behavior matrix.
 
 ### 1. Mode Resolution
 
@@ -110,7 +110,7 @@ Present findings at the user's `--level` in the user's `--style`:
 - **tour:** Narrated walkthrough, explains as it goes.
 - **socratic:** Guided discovery with prompts. If `--interactive`, withhold answers and ask user questions first — delay direct solutions until user has engaged.
 - **exercise:** Present a challenge, let user attempt, then explain. If `--rigor=checked`, always end with a verified reference solution.
-- **game:** Structured progression through `--track` levels. Verification is always Lean-backed (`lean_goal` + `lean_multi_attempt` + clean `lean_diagnostic_messages`). In `informal`: user argues informally; agent restates its interpretation before checking, reports result without showing Lean unless asked. In `formal`: user writes Lean proofs directly. If no `--track`, present track picker. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#game-style).
+- **game:** Structured progression through `--track` levels. Verification is always Lean-backed (`lean_goal` + `lean_multi_attempt` + clean `lean_diagnostic_messages`). In `informal`: user argues informally; agent restates its interpretation before checking, reports result without showing Lean unless asked. In `supporting`: user argues informally; agent shows the Lean translation after verification. In `formal`: user writes Lean proofs directly. If no `--track`, present track picker. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#game-style).
 
 ### 4. Depth Check
 
@@ -147,7 +147,7 @@ In formalize mode, before committing to a proof:
 
 ## Output
 
-In `chat` mode, output is inline markdown with Lean code blocks. In `scratch` or `file` mode, additionally write a `.lean` file.
+Output format follows `--presentation`: `informal` → prose with math notation (no Lean blocks unless user requests "show Lean backing"); `supporting` → prose with selective Lean snippets; `formal` → Lean code blocks as primary content. In `scratch` or `file` mode, additionally write a `.lean` file regardless of presentation.
 
 ### Assumption Ledger (formalize + axiomatic)
 
