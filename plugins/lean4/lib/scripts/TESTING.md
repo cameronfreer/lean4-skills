@@ -18,6 +18,8 @@ Test results and validation status for Lean 4 scripts.
 | `unused_declarations.sh` | ✅ Production Ready | Dead code detection |
 | `find_golfable.py` | ✅ Production Ready | False-positive filtering |
 | `analyze_let_usage.py` | ✅ Production Ready | Usage count analysis |
+| `find_exact_candidates.py` | ✅ Production Ready | Static exact? candidate finder (pure Python, no Lean) |
+| `try_exact_at_step.py` | ⚠️ Experimental | exact? probe via Lean invocation (slow, temp-copy safe) |
 
 ## Quick Validation
 
