@@ -331,6 +331,171 @@ def find_have_calc(file_path: Path, lines: List[str]) -> List[GolfablePattern]:
 
     return patterns
 
+def find_apply_exact_chains(file_path: Path, lines: List[str]) -> List[GolfablePattern]:
+    """Find apply/exact chains that can be collapsed into single exact terms.
+
+    Detects blocks starting with 'apply' that contain 'exact' on branches,
+    which can often be rewritten as a single 'exact' in term mode.
+    Skips unsafe contexts: calc, cases/induction/match, simp/omega/decide/norm_num,
+    semicolon-heavy blocks (>3), blocks with have/refine.
+    """
+    patterns = []
+    i = 0
+    NON_COLLAPSIBLE = re.compile(r'\b(simp|omega|decide|norm_num)\b')
+    MULTI_GOAL_KW = re.compile(r'\b(cases|induction|match)\b')
+    APPLY_RE = re.compile(r'^\s*(?:·\s*)?apply\b')
+    EXACT_RE = re.compile(r'\b(exact)\b')
+    # Patterns that indicate a multi-goal branch context
+    BRANCH_RE = re.compile(r'^\s*(?:·\s*(?:cases|induction|match)\b|\|\s*\w+)')
+
+    # Pre-scan for calc block ranges to skip
+    calc_ranges: List[Tuple[int, int]] = []
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith('calc ') or stripped == 'calc':
+            calc_start = idx
+            calc_end = idx + 1
+            for j in range(idx + 1, min(idx + 50, len(lines))):
+                s = lines[j].strip()
+                if not s or s.startswith('--'):
+                    calc_end = j + 1
+                    continue
+                indent = len(lines[j]) - len(lines[j].lstrip())
+                base_indent_calc = len(lines[idx]) - len(lines[idx].lstrip())
+                if indent <= base_indent_calc and j > idx + 1 and not re.match(r'\s*[_<>=≤≥]', lines[j]):
+                    break
+                calc_end = j + 1
+            calc_ranges.append((calc_start, calc_end))
+
+    def in_calc(line_idx: int) -> bool:
+        for start, end in calc_ranges:
+            if start <= line_idx < end:
+                return True
+        return False
+
+    def in_multi_goal_context(line_idx: int) -> bool:
+        """Check if line is inside a cases/induction/match block.
+
+        Walks upward from line_idx, tracking indentation to find enclosing
+        tactic blocks. Handles:
+        - Direct `cases`/`induction`/`match` at lower indent
+        - Bullet-prefixed `· cases ...` at same or lower indent
+        - Pattern-match arms `| constructor => ...`
+        """
+        target_indent = len(lines[line_idx]) - len(lines[line_idx].lstrip())
+        for j in range(line_idx - 1, max(-1, line_idx - 30), -1):
+            scan_line = lines[j]
+            scan_stripped = scan_line.strip()
+            if not scan_stripped or scan_stripped.startswith('--'):
+                continue
+            scan_indent = len(scan_line) - len(scan_line.lstrip())
+            # Only consider lines at same or lesser indentation (enclosing context)
+            if scan_indent > target_indent:
+                continue
+            # Check for multi-goal keyword at enclosing indent
+            if MULTI_GOAL_KW.search(scan_stripped):
+                return True
+            # Check for bullet-prefixed multi-goal or pattern-match arm
+            if BRANCH_RE.match(scan_line):
+                return True
+            # Check for pattern-match arm with `=>`
+            if re.match(r'^\s*\|.*=>', scan_line):
+                return True
+            # If we hit a line at strictly less indent without finding multi-goal,
+            # that line is the enclosing context — stop scanning
+            if scan_indent < target_indent:
+                break
+        return False
+
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+
+        if not APPLY_RE.match(line):
+            i += 1
+            continue
+
+        if in_calc(i) or in_multi_goal_context(i):
+            i += 1
+            continue
+
+        # Found apply — look ahead 1–6 lines for exact on branches
+        block_start = i
+        block_end = i + 1
+        has_exact = False
+        semicolons = stripped.count(';')
+        has_unsafe_tactic = bool(NON_COLLAPSIBLE.search(stripped))
+        has_have_refine = bool(re.search(r'\b(have|refine)\b', stripped))
+
+        base_indent = len(line) - len(line.lstrip())
+
+        for j in range(i + 1, min(i + 7, len(lines))):
+            next_line = lines[j]
+            next_stripped = next_line.strip()
+
+            if not next_stripped or next_stripped.startswith('--'):
+                block_end = j + 1
+                continue
+
+            next_indent = len(next_line) - len(next_line.lstrip())
+            # If we've de-indented past the apply block, stop.
+            # Allow same-indent continuations (e.g. `apply h` / `exact hp`)
+            # and bullet lines at any indent.
+            if next_indent < base_indent and not next_stripped.startswith('·'):
+                break
+
+            block_end = j + 1
+            semicolons += next_stripped.count(';')
+            if NON_COLLAPSIBLE.search(next_stripped):
+                has_unsafe_tactic = True
+            if re.search(r'\b(have|refine)\b', next_stripped):
+                has_have_refine = True
+            if EXACT_RE.search(next_stripped):
+                has_exact = True
+
+        if not has_exact:
+            i += 1
+            continue
+
+        block_line_count = block_end - block_start
+        # Filter: 2–7 tactic lines
+        if block_line_count < 2 or block_line_count > 7:
+            i += 1
+            continue
+
+        # Filter: semicolon-heavy (>3)
+        if semicolons > 3:
+            i += 1
+            continue
+
+        # Filter: non-collapsible tactics
+        if has_unsafe_tactic:
+            i += 1
+            continue
+
+        # Filter: blocks containing have/refine (too complex to collapse mechanically)
+        if has_have_refine:
+            i += 1
+            continue
+
+        snippet = '\n'.join(l.rstrip() for l in lines[block_start:block_end])
+
+        patterns.append(GolfablePattern(
+            pattern_type="apply-exact-chain",
+            file_path=str(file_path),
+            line_number=block_start + 1,  # 1-indexed
+            line_count=block_line_count,
+            snippet=snippet[:200] + "..." if len(snippet) > 200 else snippet,
+            reduction_estimate="50-75%",
+            priority="HIGH"
+        ))
+
+        i = block_end
+        continue
+
+    return patterns
+
+
 def analyze_file(file_path: Path, pattern_types: Optional[List[str]] = None,
                 filter_false_positives: bool = False) -> List[GolfablePattern]:
     """Analyze a file for optimization patterns.
@@ -349,7 +514,7 @@ def analyze_file(file_path: Path, pattern_types: Optional[List[str]] = None,
 
     # If no specific patterns requested, find all
     if pattern_types is None or 'all' in pattern_types:
-        pattern_types = ['let-have-exact', 'have-calc', 'by-exact', 'calc', 'constructor', 'multiple-haves']
+        pattern_types = ['let-have-exact', 'have-calc', 'by-exact', 'calc', 'constructor', 'multiple-haves', 'apply-exact-chain']
 
     for pattern_type in pattern_types:
         if pattern_type == 'let-have-exact':
@@ -364,6 +529,8 @@ def analyze_file(file_path: Path, pattern_types: Optional[List[str]] = None,
             patterns = find_constructor_branches(file_path, lines)
         elif pattern_type == 'multiple-haves':
             patterns = find_multiple_haves(file_path, lines)
+        elif pattern_type == 'apply-exact-chain':
+            patterns = find_apply_exact_chains(file_path, lines)
         else:
             continue
 
@@ -434,6 +601,7 @@ Pattern types:
   calc            : Long calc chains (30-50%% reduction)
   constructor     : Constructor branches (25-50%% reduction)
   multiple-haves  : 5+ consecutive haves (10-30%% reduction)
+  apply-exact-chain : apply/exact chains collapsible to single exact (50-75%% reduction)
   all             : All patterns (default)
         """
     )

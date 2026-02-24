@@ -26,6 +26,7 @@
 | Dot notation `.rfl`/`.symm` | Tokens | Zero | ⭐⭐⭐⭐⭐ | Conciseness |
 | Inline `show` in `rw` | 50-70% | Zero | ⭐⭐⭐⭐⭐ | Conciseness |
 | Transport ▸ for rewrites | 1-2 lines | Zero | ⭐⭐⭐⭐⭐ | Conciseness |
+| apply/exact chain → `exact` | 50-75% | Low | ⭐⭐⭐⭐⭐ | Conciseness |
 | calc → .trans chains | 2-3 lines | Low | ⭐⭐⭐⭐ | Conciseness |
 | Single-use `have` inline | 30-50% | Low | ⭐⭐⭐⭐ | Clarity |
 | Redundant `ext` before `simp` | 50% | Medium | ⭐⭐⭐⭐ | Simplicity |

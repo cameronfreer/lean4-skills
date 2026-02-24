@@ -592,6 +592,57 @@ Found 5 `:= by exact` candidates
 Applied 3/5, skipped 2 (context rules)
 ```
 
+### Exact-Collapse Example
+
+````
+User: /lean4:golf Core.lean --search=quick
+
+Claude: Verifying build...
+✓ Core.lean compiles
+
+Finding golfing opportunities...
+Running: find_golfable.py Core.lean --patterns apply-exact-chain --filter
+Found 6 apply-exact-chain anchors
+
+[1/6] Line 34: Mechanical collapse
+  apply mul_lt_mul_of_pos_right; · exact h_bound; · exact h_pos
+  → exact mul_lt_mul_of_pos_right h_bound h_pos
+  lean_multi_attempt... ✓
+  Diagnostics baseline check... ✓ (no new diagnostics, sorry count unchanged)
+
+[2/6] Line 52: Mechanical collapse
+  apply HasDerivAt.div; · exact hf; · exact hg
+  → exact hf.div hg
+  lean_multi_attempt... ✓
+  Diagnostics baseline check... ✓
+
+[3/6] Line 71: Readability skip
+  apply f; · apply g; · apply h; · exact a; · exact b
+  Collapsed form: exact f (g (h a b)) — >2 nesting depth, marginal net win
+  Skipped (readability)
+
+[4/6] Line 89: Mechanical collapse
+  apply Continuous.comp; · exact continuous_neg; · exact hf
+  → exact continuous_neg.comp hf
+  lean_multi_attempt... ✓
+  Diagnostics baseline check... ✓
+
+[5/6] Line 103: Skipped (inside cases block)
+
+[6/6] Line 115: Exploratory probe (--search=quick)
+  apply bound_mono; · exact h_le; · exact h_pos
+  Candidate 1: exact bound_mono h_le h_pos — lean_multi_attempt ✗
+  Candidate 2: exact h_le.bound_mono h_pos — lean_multi_attempt ✓
+  Diagnostics baseline check... ✓
+
+## Golf Results
+
+Exact-collapse: Mechanical 3 applied, Exploratory 1 found.
+Skipped: 1 (readability), 1 (unsafe context)
+Total savings: 8 lines (~15%)
+Build status: ✓ passing
+````
+
 ---
 
 ## review

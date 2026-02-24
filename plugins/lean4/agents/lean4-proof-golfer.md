@@ -29,19 +29,23 @@ thinking: on
    - 3-4 uses: Check carefully (40% worth optimizing)
    - 5+ uses: NEVER inline
 
-3. **Lemma replacement search** (if search_mode ≠ off):
+3. **Exact-collapse pass** (for `apply-exact-chain` anchors from step 1):
+   - Mechanical (≤30 anchors/file): construct collapsed `exact` → `lean_multi_attempt` + `lean_diagnostic_messages` baseline check; accept if net decrease + readability not worse
+   - Exploratory (when search_mode ≠ off; shared budget): candidate `exact` from chain lemmas + local hyps + dot-notation rewrites → `lean_multi_attempt`; ≤2 probes/anchor, `quick` ≤5/file 30s, `full` ≤15/file 60s. Skip: `calc`, multi-goal, blocks >7 lines, semicolon-heavy, `have`/`refine`
+
+4. **Lemma replacement search** (if search_mode ≠ off):
    - `lean_local_search` first, then `lean_leanfinder` or `lean_loogle`
    - `quick`: 1 search, ≤2 candidates; `full`: 2 searches, ≤3 candidates
    - Test with `lean_multi_attempt`; accept only shortest passing replacement with net size decrease
-   - Budget: ≤3 search calls total, ≤60s, max 3 candidates (matches sorry-filling limit)
+   - Budget: ≤3 search calls, max 3 candidates; uses remaining shared time budget (`quick` 30s, `full` 60s total across steps 3–4)
    - If replacement needs statement changes or multi-file refactor → stop, hand off to axiom-eliminator
 
-4. **Apply optimizations** (max 3 hunks × 60 lines each):
-   - Priority: `rw;exact`→`rwa`, `ext+rfl`→`rfl`, verified inlines
+5. **Apply optimizations** (max 3 hunks × 60 lines each):
+   - Priority: `rw;exact`→`rwa`, `ext+rfl`→`rfl`, `apply+exact`→`exact`, verified inlines
    - `lean_diagnostic_messages(file)` after each change; `lake build` only for final verification
    - Revert immediately on failure
 
-5. **Report results** with savings and saturation status
+6. **Report results** with savings and saturation status
 
 ## Output
 

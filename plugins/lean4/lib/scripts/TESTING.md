@@ -31,6 +31,15 @@ $LEAN4_SCRIPTS/check_axioms_inline.sh src/File.lean
 $LEAN4_SCRIPTS/search_mathlib.sh "continuous" name
 ```
 
+## find_golfable.py Detector Fixtures
+
+Validates `find_apply_exact_chains()` against known positive/negative cases.
+Run from the repo root:
+
+```bash
+python3 plugins/lean4/lib/scripts/test_apply_exact_chains.py
+```
+
 ## Reference Documentation
 
 Scripts for tactic suggestions, proof templates, and simp hygiene have been converted to reference documentation:

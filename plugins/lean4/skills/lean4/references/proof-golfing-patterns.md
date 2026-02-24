@@ -209,6 +209,55 @@ theorem count : ValidData.card = 11 := h_eq ▸ all_card
 
 Pattern: `(eq : a = b) ▸ (proof_of_P_b) : P_a`. Zero risk.
 
+### Pattern 3G: Exact-Collapse — apply/exact Chains
+
+**Family 1: apply + exact → direct application**
+
+```lean
+-- Before (3 lines)
+apply mul_lt_mul_of_pos_right
+· exact h_bound
+· exact h_pos
+-- After (1 line)
+exact mul_lt_mul_of_pos_right h_bound h_pos
+```
+
+**Family 2: chained apply → nested term with dot notation**
+
+```lean
+-- Before (5 lines)
+apply HasDerivAt.div
+· apply HasDerivAt.mul
+  · exact hf.hasDerivAt
+  · exact hg.hasDerivAt
+· exact hden.hasDerivAt
+-- After (1 line)
+exact hf.hasDerivAt.mul hg.hasDerivAt |>.div hden.hasDerivAt
+```
+
+**Family 3: apply + intro + exact → lambda / eta**
+
+```lean
+-- Before (3 lines)
+apply Continuous.comp
+· exact continuous_neg
+· intro x; exact hf x
+-- After (1 line)
+exact continuous_neg.comp hf
+```
+
+50-75% reduction. Low risk (same proof terms, reorganized).
+
+**Detection & workflow:**
+
+- **Anchors:** 2–7 tactic lines, starts with `apply`, contains `exact` on branches. Skip `calc`, `cases`/`induction`/`match` (multi-goal), blocks with `simp`/`omega`/`decide`/`norm_num` (non-collapsible), semicolon-heavy (>3), blocks with `have`/`refine` (too complex to collapse mechanically). `constructor`+`exact`+`exact` is already an instant win, handled separately.
+- **Mechanical pass** (≤30 anchors/file): Construct collapsed `exact` from tactic structure → verify with `lean_multi_attempt` + `lean_diagnostic_messages` baseline check.
+- **Exploratory pass** (when `--search≠off`): Build candidate `exact` terms from three sources: (1) chain lemmas with different argument order or dot notation, (2) local hypotheses that unify with the goal, (3) known dot-notation rewrites (`.comp`, `.trans`, `.symm`, `.mul`, etc.). Test via `lean_multi_attempt`.
+- **Regression gate:** Every accepted collapse must pass `lean_diagnostic_messages` baseline check — no new diagnostics, no sorry increase. Not just "compiles in lean_multi_attempt."
+- **Readability:** Net decrease + readability not worse — avoid deeply nested terms or >2 dot-chain depth unless clear net win.
+- **Processing order:** Bottom-up to avoid line drift.
+- **Budget:** Mechanical ≤30 anchors/file. Exploratory per-anchor ≤2 probes, per-file: `quick` ≤5 probes/30s, `full` ≤15 probes/60s (shared with lemma replacement).
+
 ---
 
 ## Medium-Priority Patterns (⭐⭐⭐⭐)
