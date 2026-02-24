@@ -2,7 +2,7 @@
 
 [![Run in Smithery](https://smithery.ai/badge/skills/cameronfreer)](https://smithery.ai/skills?ns=cameronfreer&utm_source=github&utm_medium=badge)
 
-Claude Code plugin for automated Lean 4 theorem proving with guided and autonomous proving commands.
+Claude Code plugin for Lean 4 theorem proving, interactive learning, and autoformalization.
 
 ## Installation
 
@@ -23,6 +23,7 @@ Claude Code plugin for automated Lean 4 theorem proving with guided and autonomo
 | `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
 | `/lean4:review` | Read-only quality review with optional external hooks |
 | `/lean4:golf` | Optimize proofs for brevity |
+| `/lean4:learn` | Interactive teaching, mathlib exploration, and autoformalization |
 | `/lean4:doctor` | Diagnostics and migration help |
 
 ## Quick Start
@@ -32,6 +33,7 @@ Claude Code plugin for automated Lean 4 theorem proving with guided and autonomo
 /lean4:autoprove           # Or autonomous (unattended)
 /lean4:review              # Check quality (read-only)
 /lean4:golf                # Optimize proofs
+/lean4:learn               # Interactive teaching, mathlib, formalization
 /lean4:checkpoint          # Verified commit
 git push                   # Manual, after review
 ```
@@ -46,7 +48,7 @@ Both run the same cycle engine: **Plan → Work → Checkpoint → Review → Re
 
 **Without a command:** Editing `.lean` files activates the skill for one bounded pass — fix the immediate issue, then suggest `/lean4:prove` or `/lean4:autoprove` for more.
 
-The other commands: **`/lean4:review`** (read-only quality check), **`/lean4:checkpoint`** (build + axiom check + commit), **`/lean4:golf`** (proof optimization), **`/lean4:doctor`** (diagnostics).
+The other commands: **`/lean4:review`** (read-only quality check), **`/lean4:checkpoint`** (build + axiom check + commit), **`/lean4:golf`** (proof optimization), **`/lean4:learn`** (interactive teaching, mathlib exploration, autoformalization), **`/lean4:doctor`** (diagnostics).
 
 See [plugin README](plugins/lean4/README.md) for the full command guide.
 
@@ -83,6 +85,12 @@ See `/lean4:doctor migrate` for detailed migration help.
 - [Advanced References](plugins/lean4/skills/lean4/references/) - grind, simprocs, metaprogramming, linters, FFI, verso-docs, profiling
 
 ## Changelog
+
+**v4.1.0** (February 2026)
+- New [`/lean4:learn`](plugins/lean4/commands/learn.md) command: interactive teaching, mathlib exploration, autoformalization
+- Two-layer architecture: Lean-backed verification (always runs) + presentation layer (informal/supporting/formal)
+- Intent classification (`--intent`), game-style tracks (`--style=game`), source handling (`--source`)
+- Verification status model with `--verify=best-effort|strict`
 
 **v4.0.9** (February 2026)
 - Integrated advanced references from PR #10 (Alok Singh): grind tactic, simprocs, metaprogramming, linters, FFI, verso-docs, profiling
