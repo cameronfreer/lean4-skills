@@ -31,7 +31,7 @@ Read-only review of Lean proofs for quality, style, and optimization opportuniti
 | --llm | No | Use llm CLI with model |
 | --hook | No | Run custom analysis script |
 | --json | No | Output structured JSON for external tools |
-| --mode | No | `batch` (default) or `stuck` (triage) |
+| --mode | No | `batch` (default), `stuck` (triage), or `refactor` (proof simplification) |
 
 ## Scope Behavior
 
@@ -105,6 +105,44 @@ Example: `**Flag:** Statement may be false (decidable goal failed decide)`
 3. Custom axioms introduced in focus
 4. Long/fragile proofs (performance risk)
 5. Falsification signals (decidable goal that failed `decide`, repeated proof failures)
+
+**Refactor mode:**
+- Purpose: Simplify proofs by finding better strategies, leveraging mathlib, and extracting reusable helpers
+- Output: Identified opportunities with estimated impact, optionally applied
+- Use: After proofs compile but before final polish; complementary to golf (strategy-level vs tactic-level)
+
+Unlike batch and stuck modes, refactor mode is **not read-only** — when the user approves, it applies changes. Each change is verified with `lean_diagnostic_messages` before proceeding.
+
+**Refactor mode phases:**
+1. **Audit** — Read target proofs, identify repeated patterns, long proofs, hand-rolled arguments
+2. **Search** — For each opportunity, search mathlib for direct replacements or strategy lemmas
+3. **Extract** — For repeated patterns without mathlib equivalents, extract helpers in maximum generality
+4. **Simplify** — Apply found lemmas and helpers, verify compilation after each change
+5. **Report** — Summarize changes, helpers extracted, mathlib lemmas applied, line count delta
+
+**Refactor mode output format:**
+```markdown
+## Refactor Review — File.lean
+
+### Repeated Patterns (extract as helpers)
+1. [pattern description] — appears Nx (lines ...)
+   → Extract `helper_name`
+
+### Strategy Improvements (use better mathlib lemmas)
+1. [proof name] (line N): [current approach]
+   → Use [mathlib lemma] (saves ~N lines)
+
+### Potential Mathlib Contributions
+1. `lemma_name` — general enough for [Mathlib.Module.Path]
+
+### Estimated Impact
+- Lines before: N
+- Lines after: ~N
+- Helpers extracted: N
+- Mathlib lemmas newly applied: N
+```
+
+See [proof-simplification](../skills/lean4/references/proof-simplification.md) for the full strategy guide (mathlib search protocol, congr-lemma patterns, generalization checklist, file-level audit).
 
 ## Actions
 
