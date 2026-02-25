@@ -102,11 +102,17 @@ def run_lean_and_capture(lean_file: Path, target_line: int, project_root: Path,
                          timeout: int = 120) -> Optional[str]:
     """Run Lean on a file and capture exact? suggestions.
 
-    Only accepts diagnostics whose file path matches lean_file (resolved),
-    preventing misattribution from other files in the build.
+    Only accepts diagnostics whose file path matches lean_file exactly
+    (resolved or project-relative), preventing misattribution from other files.
     Returns the suggestion string if found, None otherwise.
     """
-    file_stem = lean_file.resolve().name  # e.g. "Core.lean"
+    resolved = lean_file.resolve()
+    resolved_str = str(resolved)
+    # Lean may emit project-relative or absolute paths in diagnostics
+    try:
+        rel_str = str(resolved.relative_to(project_root))
+    except ValueError:
+        rel_str = resolved_str
     try:
         result = subprocess.run(
             ['lake', 'env', 'lean', str(lean_file)],
@@ -124,8 +130,8 @@ def run_lean_and_capture(lean_file: Path, target_line: int, project_root: Path,
                 diag_file = m.group(1)
                 suggestion_line = int(m.group(2))
                 suggestion = m.group(3).strip()
-                # Only accept diagnostics from our file
-                if not diag_file.endswith(file_stem):
+                # Only accept diagnostics from our exact file
+                if diag_file != rel_str and diag_file != resolved_str and not resolved_str.endswith('/' + diag_file):
                     continue
                 if abs(suggestion_line - target_line) <= 3:
                     suggestions.append(suggestion)
@@ -135,7 +141,7 @@ def run_lean_and_capture(lean_file: Path, target_line: int, project_root: Path,
 
         # Check for errors scoped to our file
         for line in output.splitlines():
-            if 'error' in line.lower() and file_stem in line:
+            if 'error' in line.lower() and (rel_str in line or resolved_str in line):
                 for delta in range(-2, 3):
                     check_line = target_line + delta
                     if f':{check_line}:' in line:
@@ -206,6 +212,14 @@ def test_exact_at(file_path: Path, target_line: int, dry_run: bool = False,
     lean_target = file_path.resolve()
     backup_path = lean_target.with_suffix(lean_target.suffix + '.exact_bak')
 
+    # Guard: if a stale backup exists from a crashed run, refuse to overwrite
+    if backup_path.exists():
+        return {
+            **result,
+            'suggestion': f'ERROR: stale backup exists at {backup_path} — '
+                          f'restore it with: mv "{backup_path}" "{lean_target}"',
+        }
+
     # Write backup atomically (copy first, then swap)
     shutil.copy2(lean_target, backup_path)
     try:
@@ -245,7 +259,8 @@ on large files. Consider using --priority high to limit scope.
     parser.add_argument('--batch', action='store_true', help='Test all candidates in file/directory')
     parser.add_argument('--recursive', '-r', action='store_true',
                         help='Recursively scan directory in batch mode')
-    parser.add_argument('--priority', default='high', help='Priority filter for batch mode (default: high)')
+    parser.add_argument('--priority', choices=['high', 'medium', 'low', 'all'], default='high',
+                        help='Priority filter for batch mode (default: high)')
     parser.add_argument('--dry-run', action='store_true', help='Show what would be tested')
     parser.add_argument('--timeout', type=int, default=120, help='Lean timeout per test in seconds (default: 120)')
     args = parser.parse_args()

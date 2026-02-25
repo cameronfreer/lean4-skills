@@ -138,7 +138,7 @@ def find_candidates(file_path: Path, min_lines: int = 2, max_lines: int = 8) -> 
         # Find the lemma name (look backwards for lemma/theorem/def)
         lemma_name = '(anonymous)'
         for j in range(i, max(i - 10, -1), -1):
-            m = re.match(r'\s*(?:private\s+)?(?:noncomputable\s+)?(?:lemma|theorem|def|instance)\s+(\w+)', lines[j])
+            m = re.match(r'\s*(?:private\s+)?(?:noncomputable\s+)?(?:lemma|theorem|def|instance)\s+([\w.\u0370-\u03FF\u2070-\u209F\u2100-\u214F]+)', lines[j])
             if m:
                 lemma_name = m.group(1)
                 break
