@@ -24,7 +24,7 @@ Use this skill whenever you're editing Lean 4 proofs or debugging Lean builds. I
 | `/lean4:prove` | Guided cycle-by-cycle theorem proving |
 | `/lean4:autoprove` | Autonomous multi-cycle proving with stop rules |
 | `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
-| `/lean4:review` | Quality audit (`--mode=batch` or `--mode=stuck`) |
+| `/lean4:review` | Quality audit (`--mode=batch`, `--mode=stuck`, or `--mode=refactor`) |
 | `/lean4:golf` | Optimize proofs for brevity |
 | `/lean4:doctor` | Plugin troubleshooting and migration help |
 | `/lean4:learn` | Interactive teaching, mathlib exploration, and autoformalization |
@@ -35,7 +35,9 @@ Use this skill whenever you're editing Lean 4 proofs or debugging Lean builds. I
 /lean4:prove               Guided cycle-by-cycle proving (asks before each cycle)
 /lean4:autoprove           Autonomous multi-cycle proving (runs with stop rules)
         ↓
-/lean4:golf                Optimize proofs (optional, prompted at end)
+/lean4:review --mode=refactor  Simplify proofs: better strategies, mathlib leverage, helpers
+        ↓
+/lean4:golf                Optimize proofs for tactic-level brevity (optional)
         ↓
 /lean4:checkpoint          Create verified save point
 ```
@@ -162,7 +164,7 @@ Verification ladder: `lean_diagnostic_messages(file)` per-edit → `lake env lea
 
 **Tactics:** [tactics-reference](references/tactics-reference.md) (tactic lookup — grep `^### TacticName`), [grind-tactic](references/grind-tactic.md) (SMT-style automation — when simp can't close), [simproc-patterns](references/simproc-patterns.md) (custom deterministic rewrites for simp), [tactic-patterns](references/tactic-patterns.md), [calc-patterns](references/calc-patterns.md), [simp-hygiene](references/simp-hygiene.md)
 
-**Proof Development:** [proof-templates](references/proof-templates.md), [proof-refactoring](references/proof-refactoring.md) (28K — grep by topic), [sorry-filling](references/sorry-filling.md)
+**Proof Development:** [proof-templates](references/proof-templates.md), [proof-refactoring](references/proof-refactoring.md) (28K — grep by topic), [proof-simplification](references/proof-simplification.md) (strategy-level: mathlib search, congr lemmas, helper extraction), [sorry-filling](references/sorry-filling.md)
 
 **Optimization:** [proof-golfing](references/proof-golfing.md) (includes bounded LSP lemma replacement; bulk rewrites are context-filtered and regression-reverting; escalates to axiom-eliminator), [proof-golfing-patterns](references/proof-golfing-patterns.md), [proof-golfing-safety](references/proof-golfing-safety.md), [performance-optimization](references/performance-optimization.md) (grep by symptom), [profiling-workflows](references/profiling-workflows.md) (diagnose slow builds/proofs)
 
