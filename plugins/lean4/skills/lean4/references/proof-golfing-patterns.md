@@ -246,7 +246,7 @@ apply Continuous.comp
 exact continuous_neg.comp hf
 ```
 
-50-75% reduction. Low risk (same proof terms, reorganized).
+Typically 30–60% reduction. Low risk (same proof terms, reorganized).
 
 **Detection & workflow:**
 

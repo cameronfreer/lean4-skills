@@ -486,7 +486,7 @@ def find_apply_exact_chains(file_path: Path, lines: List[str]) -> List[GolfableP
             line_number=block_start + 1,  # 1-indexed
             line_count=block_line_count,
             snippet=snippet[:200] + "..." if len(snippet) > 200 else snippet,
-            reduction_estimate="50-75%",
+            reduction_estimate="30-60%",
             priority="HIGH"
         ))
 
@@ -601,7 +601,7 @@ Pattern types:
   calc            : Long calc chains (30-50%% reduction)
   constructor     : Constructor branches (25-50%% reduction)
   multiple-haves  : 5+ consecutive haves (10-30%% reduction)
-  apply-exact-chain : apply/exact chains collapsible to single exact (50-75%% reduction)
+  apply-exact-chain : apply/exact chains collapsible to single exact (30-60%% reduction)
   all             : All patterns (default)
         """
     )
