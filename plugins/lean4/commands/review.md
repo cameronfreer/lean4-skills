@@ -8,7 +8,7 @@ user_invocable: true
 
 Read-only review of Lean proofs for quality, style, and optimization opportunities.
 
-**Non-destructive:** Files are restored after analysis.
+**Non-destructive** (batch/stuck modes): Files are restored after analysis. Refactor mode applies changes with user approval.
 
 ## Usage
 
@@ -336,10 +336,10 @@ See [Codex SDK Cookbook](https://cookbook.openai.com/examples/codex/build_code_r
 
 ## Safety
 
-- Read-only (does not modify files permanently)
+- Batch and stuck modes are read-only (do not modify files permanently)
+- Refactor mode applies changes with user approval; each change is verified before proceeding
 - Axiom check temporarily appends `#print axioms`, then restores
 - Does not create commits
-- Does not apply fixes
 
 ## See Also
 
