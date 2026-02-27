@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lean4 Attrs"
+  short_description: "Choose compiler attrs safely"
+  default_prompt: "Select and validate Lean compiler attributes such as csimp and implemented_by."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lean4 Borrowed"
+  short_description: "Debug @& ownership ABI"
+  default_prompt: "Diagnose Lean @& borrowed-parameter behavior for extern/exported functions, including ABI ownership contracts and RC-related failures."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lean4 Specialize"
+  short_description: "Tune compiler specialization"
+  default_prompt: "Diagnose and tune Lean compiler specialization behavior using @[specialize], @[nospecialize], trace output, and maxRecSpecialize limits."

@@ -210,6 +210,14 @@ plugins/lean4/
 ├── skills/lean4/
 │   ├── SKILL.md        # Core skill reference
 │   └── references/     # Reference docs
+├── skills/lean4-borrowed-params/ # `@&` borrowed parameter ABI/ownership playbook
+├── skills/lean4-compiler-attrs/ # Compiler attributes playbook (`csimp`, `implemented_by`, inline)
+├── skills/lean4-compiler-pipeline/ # LCNF/IR tracing, options, and cpass installer workflow
+├── skills/lean4-ffi-interop/    # `extern`/`export` and Lake FFI wiring patterns
+├── skills/lean4-init-runtime/   # `initialize`/`[init]`/builtin init runtime ordering patterns
+├── skills/lean4-specialization/ # `@[specialize]`/`@[nospecialize]` tuning, traces, and recursion limits
+├── skills/lean4-symbol-linkage/ # Name mangling, symbol stems, export overrides, and init symbol diagnostics
+├── skills/zulip-extract/        # Parse Zulip HTML dumps into plain text
 ├── agents/             # 4 specialized agents
 ├── hooks/              # Bootstrap and guardrails
 ├── scripts/           # Compat alias → lib/scripts
@@ -223,6 +231,14 @@ See [MIGRATION.md](MIGRATION.md) for upgrade guide.
 ## See Also
 
 - [SKILL.md](skills/lean4/SKILL.md) - Core skill reference
+- [Lean4 Borrowed Params](skills/lean4-borrowed-params/SKILL.md) - `@&` borrowed parameter ABI/ownership guidance for extern/export boundaries
+- [Lean4 Compiler Attrs](skills/lean4-compiler-attrs/SKILL.md) - `implemented_by`, `csimp`, inlining, extraction controls
+- [Lean4 Compiler Pipeline](skills/lean4-compiler-pipeline/SKILL.md) - LCNF/IR traces, compiler options, `cpass` installer workflow
+- [Lean4 FFI Interop](skills/lean4-ffi-interop/SKILL.md) - `extern`/`export` + Lake linking + reverse FFI init flow
+- [Lean4 Init Runtime](skills/lean4-init-runtime/SKILL.md) - `initialize`/`[init]`/builtin init sequencing and host runtime setup
+- [Lean4 Specialization](skills/lean4-specialization/SKILL.md) - `@[specialize]`/`@[nospecialize]` tuning with trace-driven diagnostics and recursion-limit control
+- [Lean4 Symbol Linkage](skills/lean4-symbol-linkage/SKILL.md) - Name mangling, package prefixes, `_init_` symbols, and export override diagnostics
+- [Zulip Extract](skills/zulip-extract/SKILL.md) - Convert Zulip HTML exports to readable plain text
 - [Commands](commands/) - Command documentation
 - [Scripts](lib/scripts/README.md) - Script reference
 - [Custom Syntax](skills/lean4/references/lean4-custom-syntax.md) - Notations, macros, elaborators, DSLs
