@@ -71,12 +71,10 @@ chmod +x $LEAN4_SCRIPTS/*.sh $LEAN4_SCRIPTS/*.py
 
 ## OpenAI Codex CLI
 
-Add to your project's `AGENTS.md`:
-
-Set env vars in your shell profile (needed for verification and script usage):
+Set env vars in your shell profile (replace `/path/to` with your actual clone location):
 
 ```bash
-export LEAN4_PLUGIN_ROOT=./lean4-skills/plugins/lean4
+export LEAN4_PLUGIN_ROOT=/path/to/lean4-skills/plugins/lean4
 export LEAN4_SCRIPTS=$LEAN4_PLUGIN_ROOT/lib/scripts
 export LEAN4_REFS=$LEAN4_PLUGIN_ROOT/skills/lean4/references
 ```
@@ -86,10 +84,10 @@ Add to your project's `AGENTS.md` (model context — not shell env):
 ```markdown
 ## Lean 4 Workflows
 
-See ./lean4-skills/plugins/lean4/skills/lean4/SKILL.md for proving workflows.
+See /path/to/lean4-skills/plugins/lean4/skills/lean4/SKILL.md for proving workflows.
 
 Environment:
-- LEAN4_PLUGIN_ROOT=./lean4-skills/plugins/lean4
+- LEAN4_PLUGIN_ROOT=/path/to/lean4-skills/plugins/lean4
 - LEAN4_SCRIPTS=$LEAN4_PLUGIN_ROOT/lib/scripts
 - LEAN4_REFS=$LEAN4_PLUGIN_ROOT/skills/lean4/references
 ```
@@ -192,12 +190,12 @@ your OpenCode setup supports skill discovery, place the skill where it can be fo
 
 ```bash
 # Option A: project-level (copies SKILL.md + references/)
-mkdir -p .opencode/skills/lean4
-cp -r lean4-skills/plugins/lean4/skills/lean4/ .opencode/skills/lean4/
+mkdir -p .opencode/skills
+cp -r lean4-skills/plugins/lean4/skills/lean4 .opencode/skills/
 
 # Option B: global
-mkdir -p ~/.config/opencode/skills/lean4
-cp -r lean4-skills/plugins/lean4/skills/lean4/ ~/.config/opencode/skills/lean4/
+mkdir -p ~/.config/opencode/skills
+cp -r lean4-skills/plugins/lean4/skills/lean4 ~/.config/opencode/skills/
 ```
 
 **Without oh-my-opencode:** Point OpenCode at SKILL.md via its instructions
