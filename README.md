@@ -9,18 +9,19 @@ others all use the same core skill; only the invocation surface differs.
 
 ## Workflows
 
-```
-/lean4:prove               # Guided cycle-by-cycle theorem proving
-/lean4:autoprove           # Autonomous multi-cycle proving with stop rules
-/lean4:checkpoint          # Verified save point (build + axiom check + commit)
-/lean4:review              # Read-only quality review
-/lean4:golf                # Optimize proofs for brevity
-/lean4:learn               # Interactive teaching, mathlib, formalization
-/lean4:doctor              # Diagnostics and migration help
-git push                   # Manual, after review
-```
+| Workflow | Description |
+|---|---|
+| prove | Guided cycle-by-cycle theorem proving |
+| autoprove | Autonomous multi-cycle proving with stop rules |
+| checkpoint | Verified save point (build + axiom check + commit) |
+| review | Read-only quality review |
+| golf | Optimize proofs for brevity |
+| learn | Interactive teaching, mathlib exploration, and autoformalization |
+| doctor | Diagnostics and migration help |
 
 **Claude Code:** invoke as `/lean4:<name>`. **Other hosts:** follow the corresponding workflow in [SKILL.md](plugins/lean4/skills/lean4/SKILL.md).
+
+Typical session: `prove` (or `autoprove`) → `review` → `golf` → `checkpoint` → `git push`.
 
 ## How It Works
 
@@ -118,7 +119,7 @@ Issues and PRs welcome at https://github.com/cameronfreer/lean4-skills
 
 MIT licensed. See [LICENSE](LICENSE) for more information.
 
-Citing this repository is highly appreciated but not required by the license.
+Citing this repository is highly appreciated but not required by the license. See also [CITATION.cff](CITATION.cff).
 
 ```bibtex
 @software{lean4-skills,
