@@ -1,20 +1,79 @@
-# Lean 4 Skills for Claude
+# Lean 4 Skills
 
 [![Run in Smithery](https://smithery.ai/badge/skills/cameronfreer)](https://smithery.ai/skills?ns=cameronfreer&utm_source=github&utm_medium=badge)
 
-Claude Code plugin for Lean 4 theorem proving, interactive learning, and autoformalization.
+Lean 4 workflow pack for AI coding agents. Claude Code has a native plugin adapter; Codex, Gemini CLI, OpenCode, Cursor, and other hosts use the same workflows via markdown + scripts + optional MCP.
+
+## Compatibility
+
+| Host | Status | Workflow |
+|---|---|---|
+| Claude Code | Full native | `/lean4:*` slash commands, hooks, guardrails |
+| OpenAI Codex | Documented, not CI-verified | SKILL.md + scripts + optional MCP |
+| Gemini CLI | Documented, not CI-verified | GEMINI.md context + scripts + optional MCP |
+| Cursor | Documented, not CI-verified | Project rules + scripts |
+| Windsurf | Documented, not CI-verified | Project rules + scripts |
+| OpenCode | Documented, not CI-verified | SKILL.md + scripts + optional MCP |
+| Other agents | Best-effort | Markdown + shell scripts + optional MCP |
+
+## Lean LSP MCP Server (Highly Recommended — All Hosts)
+
+[lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) provides **sub-second
+feedback** instead of 30+ second `lake build` cycles. Works with any MCP-capable host.
+
+**What you get:**
+- `lean_goal` — exact goal state at any line
+- `lean_local_search` / `lean_leanfinder` / `lean_leansearch` / `lean_loogle` — mathlib search
+- `lean_multi_attempt` — test multiple tactics in parallel
+- `lean_hammer_premise` — premise suggestions for simp/aesop/grind
+
+**Setup:** a few minutes. See [INSTALLATION.md → MCP Server](INSTALLATION.md#lean-lsp-mcp-server-all-hosts)
 
 ## Installation
 
-```bash
-# Add marketplace
-/plugin marketplace add cameronfreer/lean4-skills
+### Claude Code (native plugin)
 
-# Install plugin
+```bash
+/plugin marketplace add cameronfreer/lean4-skills
 /plugin install lean4
 ```
 
-## Commands
+### OpenAI Codex CLI
+
+```bash
+git clone https://github.com/cameronfreer/lean4-skills.git
+```
+
+See [INSTALLATION.md → Codex](INSTALLATION.md#openai-codex-cli) for AGENTS.md setup and MCP config.
+
+### Gemini CLI
+
+```bash
+git clone https://github.com/cameronfreer/lean4-skills.git
+```
+
+See [INSTALLATION.md → Gemini](INSTALLATION.md#gemini-cli) for GEMINI.md setup.
+
+### OpenCode
+
+```bash
+git clone https://github.com/cameronfreer/lean4-skills.git
+```
+
+See [INSTALLATION.md → OpenCode](INSTALLATION.md#opencode) for skill setup.
+
+### Cursor / Windsurf / Other Agents
+
+```bash
+git clone https://github.com/cameronfreer/lean4-skills.git
+```
+
+See [INSTALLATION.md → Generic](INSTALLATION.md#any-agent-generic) for setup.
+
+## Commands (Claude Code Adapter)
+
+> `/lean4:*` commands are Claude Code adapter syntax. Other hosts invoke the same
+> workflows by referencing the skill content directly or running the underlying scripts.
 
 | Command | Description |
 |---------|-------------|
@@ -28,6 +87,10 @@ Claude Code plugin for Lean 4 theorem proving, interactive learning, and autofor
 
 ## Quick Start
 
+> Quick Start shows Claude Code adapter commands. For other hosts, see
+> [Installation](#installation) and use the workflows described in
+> [SKILL.md](plugins/lean4/skills/lean4/SKILL.md) directly.
+
 ```
 /lean4:prove               # Guided sorry filling (interactive)
 /lean4:autoprove           # Or autonomous (unattended)
@@ -38,7 +101,10 @@ Claude Code plugin for Lean 4 theorem proving, interactive learning, and autofor
 git push                   # Manual, after review
 ```
 
-## How It Works
+## How It Works (Claude Code Adapter)
+
+> These workflows are invoked via `/lean4:*` slash commands in Claude Code.
+> Other hosts can follow the same workflow definitions in SKILL.md.
 
 **`/lean4:prove`** — Guided, interactive. Asks preferences at startup, prompts before each commit, pauses between cycles. Start here.
 
@@ -52,11 +118,7 @@ The other commands: **`/lean4:review`** (read-only quality check), **`/lean4:che
 
 See [plugin README](plugins/lean4/README.md) for the full command guide.
 
-## Recommended: Lean LSP MCP Server
-
-[lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) provides sub-second feedback and search (LeanSearch, Loogle, LeanFinder). **Setup:** See [INSTALLATION.md](INSTALLATION.md#lean-lsp-server)
-
-## Migrating from V3
+## Migrating from V3 (Claude Code)
 
 If upgrading from the 3-plugin system:
 

@@ -1,5 +1,10 @@
 # Lean 4 Plugin
 
+> **Claude Code adapter.** This directory implements the native Claude Code plugin
+> (hooks, guardrails, slash commands). The underlying skill content — SKILL.md,
+> references, and scripts — is host-agnostic.
+> See the [root README](../../README.md) for setup on other hosts.
+
 Unified Lean 4 plugin for theorem proving, interactive learning, and autoformalization.
 
 ## Commands
