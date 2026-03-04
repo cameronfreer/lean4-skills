@@ -7,19 +7,6 @@ prove/review/golf loop, mathlib search, axiom checking, and safety guardrails.
 The workflows are host-agnostic — Claude Code, Codex, Gemini CLI, Cursor, and
 others all use the same core skill; only the invocation surface differs.
 
-## Lean LSP MCP Server (Highly Recommended)
-
-[lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) provides **sub-second
-feedback** instead of 30+ second `lake build` cycles. Works with any MCP-capable host.
-
-**What you get:**
-- `lean_goal` — exact goal state at any line
-- `lean_local_search` / `lean_leanfinder` / `lean_leansearch` / `lean_loogle` — mathlib search
-- `lean_multi_attempt` — test multiple tactics in parallel
-- `lean_hammer_premise` — premise suggestions for simp/aesop/grind
-
-**Setup:** a few minutes. See [INSTALLATION.md → MCP Server](INSTALLATION.md#lean-lsp-mcp-server-all-hosts)
-
 ## Workflows
 
 | Workflow | Description |
@@ -61,6 +48,19 @@ Both run the same cycle engine: **Plan → Work → Checkpoint → Review → Re
 The other commands: **`/lean4:review`** (read-only quality check), **`/lean4:checkpoint`** (build + axiom check + commit), **`/lean4:golf`** (proof optimization), **`/lean4:learn`** (interactive teaching, mathlib exploration, autoformalization), **`/lean4:doctor`** (diagnostics).
 
 See [plugin README](plugins/lean4/README.md) for the full command guide.
+
+## Lean LSP MCP Server (Highly Recommended)
+
+[lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) provides **sub-second
+feedback** instead of 30+ second `lake build` cycles. Works with any MCP-capable host.
+
+**What you get:**
+- `lean_goal` — exact goal state at any line
+- `lean_local_search` / `lean_leanfinder` / `lean_leansearch` / `lean_loogle` — mathlib search
+- `lean_multi_attempt` — test multiple tactics in parallel
+- `lean_hammer_premise` — premise suggestions for simp/aesop/grind
+
+**Setup:** a few minutes. See [INSTALLATION.md → MCP Server](INSTALLATION.md#lean-lsp-mcp-server-all-hosts)
 
 ## Installation
 
