@@ -235,6 +235,28 @@ Any LLM coding agent that can read markdown and run shell commands can use this 
    ```
 5. If your agent supports MCP, add lean-lsp-mcp for sub-second feedback
 
+**Optional — skill auto-discovery:** Some setups may support discovering
+skills at `.agents/skills/<name>/SKILL.md`. This is host-dependent — check
+your agent's docs for supported discovery paths. If supported:
+
+```bash
+# Unix/macOS — symlink
+mkdir -p .agents/skills
+ln -s /path/to/lean4-skills/plugins/lean4/skills/lean4 .agents/skills/lean4
+
+# Unix/macOS — copy
+mkdir -p .agents/skills
+cp -r "/path/to/lean4-skills/plugins/lean4/skills/lean4" .agents/skills/lean4
+
+# Windows (Git Bash)
+mkdir -p .agents/skills
+cp -r "/path/to/lean4-skills/plugins/lean4/skills/lean4" .agents/skills/lean4
+
+# Windows (PowerShell)
+New-Item -ItemType Directory -Force -Path .agents\skills
+Copy-Item -Recurse path\to\lean4-skills\plugins\lean4\skills\lean4 .agents\skills\lean4
+```
+
 ### Verify
 
 ```bash
