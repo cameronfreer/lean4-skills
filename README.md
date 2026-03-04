@@ -2,19 +2,19 @@
 
 [![Run in Smithery](https://smithery.ai/badge/skills/cameronfreer)](https://smithery.ai/skills?ns=cameronfreer&utm_source=github&utm_medium=badge)
 
-Lean 4 workflow pack for AI coding agents. Claude Code has a native plugin adapter; Codex, Gemini CLI, OpenCode, Cursor, and other hosts use the same workflows via markdown + scripts, optionally MCP.
+Lean 4 workflow pack for AI coding agents. Claude Code has a native plugin adapter; Codex, Gemini CLI, OpenCode, Cursor, and other hosts use the same workflows via markdown + scripts + optional MCP.
 
 ## Compatibility
 
 | Host | Status | Workflow |
 |---|---|---|
 | Claude Code | Full native | `/lean4:*` slash commands, hooks, guardrails |
-| OpenAI Codex | Documented, not CI-verified | SKILL.md + scripts + MCP |
-| Gemini CLI | Documented, not CI-verified | GEMINI.md context + scripts + MCP |
+| OpenAI Codex | Documented, not CI-verified | SKILL.md + scripts + optional MCP |
+| Gemini CLI | Documented, not CI-verified | GEMINI.md context + scripts + optional MCP |
 | Cursor | Documented, not CI-verified | Project rules + scripts |
 | Windsurf | Documented, not CI-verified | Project rules + scripts |
-| OpenCode | Documented, not CI-verified | SKILL.md + scripts + MCP |
-| Other agents | Best-effort | Markdown + shell scripts + MCP if available |
+| OpenCode | Documented, not CI-verified | SKILL.md + scripts + optional MCP |
+| Other agents | Best-effort | Markdown + shell scripts + optional MCP |
 
 ## Lean LSP MCP Server (Highly Recommended — All Hosts)
 
