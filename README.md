@@ -9,31 +9,18 @@ others all use the same core skill; only the invocation surface differs.
 
 ## Workflows
 
-| Workflow | Description |
-|---|---|
-| prove | Guided cycle-by-cycle theorem proving |
-| autoprove | Autonomous multi-cycle proving with stop rules |
-| checkpoint | Verified save point (build + axiom check + commit) |
-| review | Read-only quality review |
-| golf | Optimize proofs for brevity |
-| learn | Interactive teaching, mathlib exploration, and autoformalization |
-| doctor | Diagnostics and migration help |
-
-**Claude Code:** invoke as `/lean4:<name>`. **Other hosts:** follow the corresponding workflow in [SKILL.md](plugins/lean4/skills/lean4/SKILL.md).
-
-## Quick Start
-
 ```
-/lean4:prove               # Guided sorry filling (interactive)
-/lean4:autoprove           # Or autonomous (unattended)
-/lean4:review              # Check quality (read-only)
-/lean4:golf                # Optimize proofs
+/lean4:prove               # Guided cycle-by-cycle theorem proving
+/lean4:autoprove           # Autonomous multi-cycle proving with stop rules
+/lean4:checkpoint          # Verified save point (build + axiom check + commit)
+/lean4:review              # Read-only quality review
+/lean4:golf                # Optimize proofs for brevity
 /lean4:learn               # Interactive teaching, mathlib, formalization
-/lean4:checkpoint          # Verified commit
+/lean4:doctor              # Diagnostics and migration help
 git push                   # Manual, after review
 ```
 
-Other hosts: follow [SKILL.md](plugins/lean4/skills/lean4/SKILL.md) workflow definitions.
+**Claude Code:** invoke as `/lean4:<name>`. **Other hosts:** follow the corresponding workflow in [SKILL.md](plugins/lean4/skills/lean4/SKILL.md).
 
 ## How It Works
 
@@ -127,6 +114,18 @@ See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 Issues and PRs welcome at https://github.com/cameronfreer/lean4-skills
 
-## License
+## License & Citation
 
-MIT License - see [LICENSE](LICENSE)
+MIT licensed. See [LICENSE](LICENSE) for more information.
+
+Citing this repository is highly appreciated but not required by the license.
+
+```bibtex
+@software{lean4-skills,
+  author = {Cameron Freer},
+  title = {{Lean 4 Skills: Theorem proving skill and workflow pack for AI coding agents}},
+  url = {https://github.com/cameronfreer/lean4-skills},
+  month = oct,
+  year = {2025}
+}
+```
