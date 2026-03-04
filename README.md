@@ -124,7 +124,7 @@ Citing this repository is highly appreciated but not required by the license. Se
 ```bibtex
 @software{lean4-skills,
   author = {Cameron Freer},
-  title = {{Lean 4 Skills: Theorem proving skill and workflow pack for AI coding agents}},
+  title = {Lean 4 {Skills}: Theorem proving skill and workflow pack for {AI} coding agents},
   url = {https://github.com/cameronfreer/lean4-skills},
   month = oct,
   year = {2025}
