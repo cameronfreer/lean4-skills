@@ -66,6 +66,10 @@
 ## v3.0.0 (October 2025)
 - Multi-skill era: lean4-theorem-proving + lean4-memories (`f5e8841`)
 
+## v2.1.0 (October 2025)
+- Automation scripts: `sorry_analyzer.py`, `check_axioms.sh`, `search_mathlib.sh` (`784962e`, `94a494c`)
+- Scripts wired into SKILL.md workflow checklist
+
 ## v2.0.0 (October 2025)
 - Progressive disclosure model: SKILL.md + references/
 - Domain-specific pattern libraries (measure theory, geometry, etc.)
