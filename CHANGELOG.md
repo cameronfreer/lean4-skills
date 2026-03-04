@@ -50,6 +50,22 @@
 - Agent streamlining per Anthropic best practices
 - Proof golfing patterns from real-world sessions
 
+## v3.3.1 (October 2025)
+- Patch bump (`bab6f0f`)
+
+## v3.3.0 (October 2025)
+- Integration test suite and parser fixes (`f8a3898`)
+- Compiler-guided proof repair (`537b53f`, `e63a5b5`, `e8814f4`)
+
+## v3.2.0 (October 2025)
+- Theorem-proving plugin manifest update (`6fcf224`)
+
+## v3.1.0 (October 2025)
+- Slash-command release and 3-plugin marketplace restructuring (`836b796`, `a7e94d5`)
+
+## v3.0.0 (October 2025)
+- Multi-skill era: lean4-theorem-proving + lean4-memories + lean4-subagents (`f5e8841`)
+
 ## v2.0.0 (October 2025)
 - Progressive disclosure model: SKILL.md + references/
 - Domain-specific pattern libraries (measure theory, geometry, etc.)
