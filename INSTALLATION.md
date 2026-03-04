@@ -192,11 +192,11 @@ Replace `/path/to` with the actual location of your clone:
 ```bash
 # Option A: project-level (copies SKILL.md + references/)
 mkdir -p .opencode/skills
-cp -r /path/to/lean4-skills/plugins/lean4/skills/lean4 .opencode/skills/
+cp -r "/path/to/lean4-skills/plugins/lean4/skills/lean4" .opencode/skills/
 
 # Option B: global
 mkdir -p ~/.config/opencode/skills
-cp -r /path/to/lean4-skills/plugins/lean4/skills/lean4 ~/.config/opencode/skills/
+cp -r "/path/to/lean4-skills/plugins/lean4/skills/lean4" ~/.config/opencode/skills/
 ```
 
 **Without oh-my-opencode:** Point OpenCode at SKILL.md via its instructions
