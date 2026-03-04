@@ -64,7 +64,7 @@
 - Slash-command release and 3-plugin marketplace restructuring (`836b796`, `a7e94d5`)
 
 ## v3.0.0 (October 2025)
-- Multi-skill era: lean4-theorem-proving + lean4-memories + lean4-subagents (`f5e8841`)
+- Multi-skill era: lean4-theorem-proving + lean4-memories (`f5e8841`)
 
 ## v2.0.0 (October 2025)
 - Progressive disclosure model: SKILL.md + references/
