@@ -1,4 +1,6 @@
-# Migration Guide: V3 → V4
+# Claude Code Migration: V3 → V4
+
+> This guide is specific to Claude Code's plugin system. Non-Claude hosts don't have V3 artifacts to migrate.
 
 This guide helps you upgrade from the legacy 3-plugin system (v3.x) to the unified v4 plugin.
 
