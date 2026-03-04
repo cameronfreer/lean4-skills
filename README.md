@@ -33,25 +33,20 @@ others all use the same core skill; only the invocation surface differs.
 git push                   # Manual, after review
 ```
 
-Other hosts: point your agent at [SKILL.md](plugins/lean4/skills/lean4/SKILL.md).
+Other hosts: follow [SKILL.md](plugins/lean4/skills/lean4/SKILL.md) workflow definitions.
 
 ## How It Works
 
-**`/lean4:prove`** — Guided, interactive. Asks preferences at startup, prompts before each commit, pauses between cycles. Start here.
-
-**`/lean4:autoprove`** — Autonomous, unattended. No questionnaire, auto-commits, loops until done or a stop condition fires (max cycles/time/stuck).
-
-Both run the same cycle engine: **Plan → Work → Checkpoint → Review → Replan → Continue/Stop**. Each sorry gets a mathlib search, tactic attempts, and validation. By default, each successful fill is committed individually (`--commit` controls this). When stuck, both force a review + replan.
-
-**Without a command:** Editing `.lean` files activates the skill for one bounded pass — fix the immediate issue, then suggest `/lean4:prove` or `/lean4:autoprove` for more.
-
-The other commands: **`/lean4:review`** (read-only quality check), **`/lean4:checkpoint`** (build + axiom check + commit), **`/lean4:golf`** (proof optimization), **`/lean4:learn`** (interactive teaching, mathlib exploration, autoformalization), **`/lean4:doctor`** (diagnostics).
+- **`prove`** — Guided, interactive. Asks preferences at startup, prompts before each commit, pauses between cycles. Start here.
+- **`autoprove`** — Autonomous, unattended. Auto-commits, loops until a stop condition fires (max cycles, max time, or stuck).
+- Both share one cycle engine: **Plan → Work → Checkpoint → Review → Replan → Continue/Stop**. Each sorry gets a mathlib search, tactic attempts, and validation. `--commit` controls per-fill commit behavior. When stuck, both force a review + replan.
+- Editing `.lean` files without a command activates the skill for one bounded pass — fix the immediate issue, then suggest `prove` or `autoprove` for more.
 
 See [plugin README](plugins/lean4/README.md) for the full command guide.
 
 ## Lean LSP MCP Server (Highly Recommended)
 
-[lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) provides **sub-second
+Oliver Dressler's [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) provides **sub-second
 feedback** instead of 30+ second `lake build` cycles. Works with any MCP-capable host.
 
 **What you get:**
