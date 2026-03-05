@@ -3,9 +3,11 @@
 # check_axioms_inline.sh - Check axioms in Lean 4 files using inline #print axioms
 #
 # Usage:
-#   ./check_axioms_inline.sh <file-or-pattern> [--verbose] [--exit-zero-on-findings]
+#   ./check_axioms_inline.sh <file-or-dir-or-pattern> [--verbose] [--exit-zero-on-findings]
 #   ./check_axioms_inline.sh src/**/*.lean
 #   ./check_axioms_inline.sh MyFile.lean --verbose --report-only
+#   ./check_axioms_inline.sh .
+#   ./check_axioms_inline.sh src/
 #
 # This script temporarily appends #print axioms commands to Lean files,
 # runs Lean to check axioms, then removes the additions.
@@ -22,6 +24,8 @@
 #   ./check_axioms_inline.sh MyFile.lean
 #   ./check_axioms_inline.sh src/**/*.lean
 #   ./check_axioms_inline.sh "Exchangeability/**/*.lean" --verbose
+#   ./check_axioms_inline.sh .                          # scan entire project
+#   ./check_axioms_inline.sh src/ --report-only         # scan directory
 #
 # IMPORTANT: This script temporarily modifies files. Make sure:
 #   - Files are in version control (can revert if needed)
@@ -65,7 +69,8 @@ NC='\033[0m'
 # Standard acceptable axioms
 STANDARD_AXIOMS="propext|quot.sound|Classical.choice|Quot.sound"
 
-# Parse arguments
+# Parse arguments: flags first, then positional args (so --report-only works regardless of position)
+POSITIONAL=()
 for arg in "$@"; do
     case "$arg" in
         --verbose)
@@ -79,32 +84,71 @@ for arg in "$@"; do
             exit 1
             ;;
         *)
-            # Expand globs
-            if [[ "$arg" == *"*"* ]]; then
-                # shellcheck disable=SC2206
-                expanded=($arg)
-                for file in "${expanded[@]}"; do
-                    [[ -f "$file" ]] && FILES+=("$file")
-                done
-            elif [[ -f "$arg" ]]; then
-                FILES+=("$arg")
-            else
-                echo -e "${RED}Error: $arg is not a file${NC}" >&2
-                exit 1
-            fi
+            POSITIONAL+=("$arg")
             ;;
     esac
 done
 
+# Resolve positional args to files
+for arg in "${POSITIONAL[@]}"; do
+    # Expand globs
+    if [[ "$arg" == *"*"* ]]; then
+        # shellcheck disable=SC2206
+        expanded=($arg)
+        for file in "${expanded[@]}"; do
+            [[ -f "$file" ]] && FILES+=("$file")
+        done
+    elif [[ -d "$arg" ]]; then
+        dir_files_found=false
+        while IFS= read -r -d '' file; do
+            FILES+=("$file")
+            dir_files_found=true
+        done < <(find "$arg" -type d \( -name .lake -o -name .git \) -prune -o -type f -name '*.lean' -print0)
+        if [[ "$dir_files_found" == false ]]; then
+            if [[ -n "$EXIT_ZERO_ON_FINDINGS" ]]; then
+                echo -e "${YELLOW}Warning: no .lean files found under: $arg; skipping.${NC}" >&2
+            else
+                echo -e "${RED}Error: no .lean files found under: $arg${NC}" >&2
+                exit 1
+            fi
+        fi
+    elif [[ -f "$arg" ]]; then
+        FILES+=("$arg")
+    else
+        echo -e "${RED}Error: $arg is not a file or directory${NC}" >&2
+        exit 1
+    fi
+done
+
+# Dedup and sort for deterministic ordering (handles overlapping args like ". src/*.lean")
+if [[ ${#FILES[@]} -gt 0 ]]; then
+    DEDUPED=()
+    while IFS= read -r f; do
+        DEDUPED+=("$f")
+    done < <(printf '%s\n' "${FILES[@]}" | sort -u)
+    FILES=("${DEDUPED[@]}")
+fi
+
 # Validate input
 if [[ ${#FILES[@]} -eq 0 ]]; then
-    echo -e "${RED}Error: No files specified${NC}" >&2
-    echo "Usage: $0 <file-or-pattern> [--verbose] [--exit-zero-on-findings]" >&2
-    echo "Examples:" >&2
-    echo "  $0 MyFile.lean" >&2
-    echo "  $0 src/**/*.lean" >&2
-    echo "  $0 \"Exchangeability/**/*.lean\" --verbose" >&2
-    exit 1
+    if [[ ${#POSITIONAL[@]} -eq 0 ]]; then
+        # No arguments at all — always an error
+        echo -e "${RED}Error: No files specified${NC}" >&2
+        echo "Usage: $0 <file-or-dir-or-pattern> [--verbose] [--exit-zero-on-findings]" >&2
+        echo "Examples:" >&2
+        echo "  $0 MyFile.lean" >&2
+        echo "  $0 src/**/*.lean" >&2
+        echo "  $0 ." >&2
+        echo "  $0 src/ --report-only" >&2
+        echo "  $0 \"Exchangeability/**/*.lean\" --verbose" >&2
+        exit 1
+    elif [[ -n "$EXIT_ZERO_ON_FINDINGS" ]]; then
+        # Args given but resolved to zero files in report-only mode — soft exit
+        exit 0
+    else
+        echo -e "${RED}Error: No Lean files found in specified paths${NC}" >&2
+        exit 1
+    fi
 fi
 
 # Filter to .lean files only
