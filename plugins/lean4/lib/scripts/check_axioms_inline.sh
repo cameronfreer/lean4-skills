@@ -241,7 +241,7 @@ check_file() {
 
         # Find line number where our marker starts (original file length + 1)
         local MARKER_LINE
-        MARKER_LINE=$(grep -n "$MARKER" "$FILE" | head -1 | cut -d: -f1)
+        MARKER_LINE=$(grep -nF -- "$MARKER" "$FILE" | head -1 | cut -d: -f1)
 
         # Extract all error line numbers from output (format: file.lean:LINE:COL: error)
         local HAS_REAL_ERROR=false
