@@ -144,6 +144,7 @@ if [[ ${#FILES[@]} -eq 0 ]]; then
         exit 1
     elif [[ -n "$EXIT_ZERO_ON_FINDINGS" ]]; then
         # Args given but resolved to zero files in report-only mode — soft exit
+        echo -e "${YELLOW}Warning: no Lean files found; nothing to check.${NC}" >&2
         exit 0
     else
         echo -e "${RED}Error: No Lean files found in specified paths${NC}" >&2
@@ -217,7 +218,7 @@ check_file() {
 
     # Create backup and track it with marker file for SIGINT safety
     local BACKUP_FILE="${FILE}.axiom_check_backup"
-    local MARKER_FILE="$MARKER_DIR/$(basename "$FILE").marker"
+    local MARKER_FILE="$MARKER_DIR/$(echo "$FILE" | md5sum | cut -d' ' -f1).marker"
     cp "$FILE" "$BACKUP_FILE"
     echo "$FILE" > "$MARKER_FILE"
 
