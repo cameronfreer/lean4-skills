@@ -301,6 +301,9 @@ Claude: Running diagnostics...
 ✓ git 2.43.0
 ✓ rg 14.1.0
 
+### MCP Tools
+✓ Lean LSP MCP tools available in this session (lean_goal)
+
 ### Plugin
 ✓ LEAN4_PLUGIN_ROOT=/home/user/.claude/plugins/lean4
 ✓ LEAN4_SCRIPTS=/home/user/.claude/plugins/lean4/lib/scripts
