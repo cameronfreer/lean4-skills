@@ -79,11 +79,11 @@ git clone --depth 1 https://github.com/cameronfreer/lean4-skills.git
 | Host | Status | Workflow |
 |---|---|---|
 | Claude Code | Full native | `/lean4:*` slash commands, hooks, guardrails |
-| Codex CLI | Documented\* | SKILL.md + scripts + optional MCP |
-| Gemini CLI | Documented\* | GEMINI.md context + scripts + optional MCP |
+| Codex CLI | Documented\* | SKILL.md + scripts |
+| Gemini CLI | Documented\* | GEMINI.md context + scripts |
 | Cursor / Windsurf | Documented\* | Project rules → SKILL.md + scripts |
-| OpenCode | Documented\* | SKILL.md + scripts + optional MCP |
-| Other agents | Best-effort | SKILL.md + shell scripts + optional MCP |
+| OpenCode | Documented\* | SKILL.md + scripts |
+| Other agents | Best-effort | SKILL.md + shell scripts |
 
 \*Documented setup patterns, not CI-verified.
 
