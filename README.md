@@ -34,7 +34,7 @@ See [plugin README](plugins/lean4/README.md) for the full command guide.
 
 ## Lean LSP MCP Server (Highly Recommended)
 
-Oliver Dressler's [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) provides **sub-second
+[lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) provides **sub-second
 feedback** instead of 30+ second `lake build` cycles. Works with any MCP-capable host.
 
 **What you get:**
@@ -43,7 +43,12 @@ feedback** instead of 30+ second `lake build` cycles. Works with any MCP-capable
 - `lean_multi_attempt` — test multiple tactics in parallel
 - `lean_hammer_premise` — premise suggestions for simp/aesop/grind
 
-**Setup:** a few minutes. See [INSTALLATION.md → MCP Server](INSTALLATION.md#lean-lsp-mcp-server-all-hosts)
+**Claude Code:**
+```bash
+claude mcp add lean-lsp uvx lean-lsp-mcp
+```
+
+**Other hosts:** See [INSTALLATION.md → MCP Server](INSTALLATION.md#lean-lsp-mcp-server-all-hosts)
 
 ## Installation
 
@@ -54,49 +59,32 @@ feedback** instead of 30+ second `lake build` cycles. Works with any MCP-capable
 /plugin install lean4
 ```
 
-### OpenAI Codex CLI
+### Other Hosts
+
+Clone once, then follow the setup for your host:
 
 ```bash
-git clone https://github.com/cameronfreer/lean4-skills.git
+git clone --depth 1 https://github.com/cameronfreer/lean4-skills.git
 ```
 
-See [INSTALLATION.md → Codex](INSTALLATION.md#openai-codex-cli) for AGENTS.md setup and MCP config.
-
-### Gemini CLI
-
-```bash
-git clone https://github.com/cameronfreer/lean4-skills.git
-```
-
-See [INSTALLATION.md → Gemini](INSTALLATION.md#gemini-cli) for GEMINI.md setup.
-
-### OpenCode
-
-```bash
-git clone https://github.com/cameronfreer/lean4-skills.git
-```
-
-See [INSTALLATION.md → OpenCode](INSTALLATION.md#opencode) for skill setup.
-
-### Cursor / Windsurf / Other Agents
-
-```bash
-git clone https://github.com/cameronfreer/lean4-skills.git
-```
-
-See [INSTALLATION.md → Generic](INSTALLATION.md#any-agent-generic) for setup.
+- **Codex CLI** — add to `AGENTS.md` + env vars. See [INSTALLATION.md → Codex](INSTALLATION.md#openai-codex-cli)
+- **Gemini CLI** — add to `GEMINI.md` + env vars. See [INSTALLATION.md → Gemini](INSTALLATION.md#gemini-cli)
+- **Cursor / Windsurf** — project rules → SKILL.md + env vars. See [INSTALLATION.md → Cursor](INSTALLATION.md#cursor)
+- **OpenCode** — copy to `.opencode/skills/` + env vars. See [INSTALLATION.md → OpenCode](INSTALLATION.md#opencode)
+- **Other agents** — point agent at SKILL.md + env vars. See [INSTALLATION.md → Generic](INSTALLATION.md#any-agent-generic)
 
 ## Compatibility
 
 | Host | Status | Workflow |
 |---|---|---|
 | Claude Code | Full native | `/lean4:*` slash commands, hooks, guardrails |
-| OpenAI Codex | Documented, not CI-verified | SKILL.md + scripts + optional MCP |
-| Gemini CLI | Documented, not CI-verified | GEMINI.md context + scripts + optional MCP |
-| Cursor | Documented, not CI-verified | Project rules + scripts |
-| Windsurf | Documented, not CI-verified | Project rules + scripts |
-| OpenCode | Documented, not CI-verified | SKILL.md + scripts + optional MCP |
-| Other agents | Best-effort | Markdown + shell scripts + optional MCP |
+| Codex CLI | Documented\* | SKILL.md + scripts + optional MCP |
+| Gemini CLI | Documented\* | GEMINI.md context + scripts + optional MCP |
+| Cursor / Windsurf | Documented\* | Project rules → SKILL.md + scripts |
+| OpenCode | Documented\* | SKILL.md + scripts + optional MCP |
+| Other agents | Best-effort | SKILL.md + shell scripts + optional MCP |
+
+\*Documented setup patterns, not CI-verified.
 
 ## Documentation
 
