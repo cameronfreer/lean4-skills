@@ -43,7 +43,7 @@ feedback** instead of 30+ second `lake build` cycles. Works with any MCP-capable
 - `lean_multi_attempt` — test multiple tactics in parallel
 - `lean_hammer_premise` — premise suggestions for simp/aesop/grind
 
-**Claude Code:**
+**Claude Code** (run from your Lean project root):
 ```bash
 claude mcp add lean-lsp uvx lean-lsp-mcp
 ```
@@ -69,7 +69,8 @@ git clone --depth 1 https://github.com/cameronfreer/lean4-skills.git
 
 - **Codex CLI** — add to `AGENTS.md` + env vars. See [INSTALLATION.md → Codex](INSTALLATION.md#openai-codex-cli)
 - **Gemini CLI** — add to `GEMINI.md` + env vars. See [INSTALLATION.md → Gemini](INSTALLATION.md#gemini-cli)
-- **Cursor / Windsurf** — project rules → SKILL.md + env vars. See [INSTALLATION.md → Cursor](INSTALLATION.md#cursor)
+- **Cursor** — project rules → SKILL.md + env vars. See [INSTALLATION.md → Cursor](INSTALLATION.md#cursor)
+- **Windsurf** — project rules → SKILL.md + env vars. See [INSTALLATION.md → Windsurf](INSTALLATION.md#windsurf)
 - **OpenCode** — copy to `.opencode/skills/` + env vars. See [INSTALLATION.md → OpenCode](INSTALLATION.md#opencode)
 - **Other agents** — point agent at SKILL.md + env vars. See [INSTALLATION.md → Generic](INSTALLATION.md#any-agent-generic)
 
