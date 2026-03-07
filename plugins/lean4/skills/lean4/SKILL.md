@@ -181,7 +181,7 @@ ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --report-only
 
 **Proof Development:** [proof-templates](references/proof-templates.md), [proof-refactoring](references/proof-refactoring.md) (28K — grep by topic), [sorry-filling](references/sorry-filling.md)
 
-**Optimization:** [proof-golfing](references/proof-golfing.md) (includes bounded LSP lemma replacement; bulk rewrites are context-filtered and regression-reverting; escalates to axiom-eliminator), [proof-golfing-patterns](references/proof-golfing-patterns.md), [proof-golfing-safety](references/proof-golfing-safety.md), [performance-optimization](references/performance-optimization.md) (grep by symptom), [profiling-workflows](references/profiling-workflows.md) (diagnose slow builds/proofs)
+**Optimization:** [proof-golfing](references/proof-golfing.md) (includes safety rules, bounded LSP lemma replacement, bulk rewrites, anti-patterns; escalates to axiom-eliminator), [proof-golfing-patterns](references/proof-golfing-patterns.md), [performance-optimization](references/performance-optimization.md) (grep by symptom), [profiling-workflows](references/profiling-workflows.md) (diagnose slow builds/proofs)
 
 **Domain:** [domain-patterns](references/domain-patterns.md) (25K — grep `## Area`), [measure-theory](references/measure-theory.md) (28K), [axiom-elimination](references/axiom-elimination.md)
 
