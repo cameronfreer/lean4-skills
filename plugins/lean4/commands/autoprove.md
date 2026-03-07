@@ -98,7 +98,7 @@ Autoprove never blocks waiting for interactive input.
 
 ### Phase 3: Checkpoint
 
-See [cycle-engine: Checkpoint Logic](../skills/lean4/references/cycle-engine.md#checkpoint-logic). Stage only files from successful, non-rolled-back work.
+See [cycle-engine: Checkpoint Logic](../skills/lean4/references/cycle-engine.md#checkpoint-logic). Stage only files from successful work; exclude rolled-back deep invocations.
 
 ### Phase 4: Review
 

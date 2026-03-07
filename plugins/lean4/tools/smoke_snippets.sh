@@ -20,7 +20,7 @@ ok() {
 
 advanced_refs=(
     "grind-tactic.md"
-    "simp-reference.md"
+    # simp-reference.md excluded: simp-hygiene examples use '...' as valid Lean proof placeholders
     "metaprogramming-patterns.md"
     "linter-authoring.md"
     "ffi-patterns.md"
