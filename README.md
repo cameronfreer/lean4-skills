@@ -61,7 +61,7 @@ claude mcp add lean-lsp uvx lean-lsp-mcp
 
 ### Other Hosts
 
-Clone once, then follow the setup for your host:
+Clone (shallow) and follow the setup for your host:
 
 ```bash
 git clone --depth 1 https://github.com/cameronfreer/lean4-skills.git
