@@ -271,6 +271,6 @@ example : ∀ x : BitVec 64, (x &&& 0) = 0 := by
 ## Related References
 
 - [tactics-reference.md](tactics-reference.md) - Compact tactic catalog with quick `grind` entry
-- [simproc-patterns.md](simproc-patterns.md) - `simp`-side deterministic rewrite patterns
+- [simp-reference.md](simp-reference.md) - Simp hygiene + deterministic rewrite patterns
 - [Lean 4 Reference: The grind tactic](https://lean-lang.org/doc/reference/latest/The--grind--tactic/)
 - [Lean Releases](https://lean-lang.org/doc/reference/latest/releases/) - version-specific behavior

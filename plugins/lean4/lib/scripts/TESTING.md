@@ -48,4 +48,4 @@ Scripts for tactic suggestions, proof templates, and simp hygiene have been conv
 
 - [tactic-patterns.md](../../skills/lean4/references/tactic-patterns.md) - Goal-based tactic recommendations
 - [proof-templates.md](../../skills/lean4/references/proof-templates.md) - Proof skeleton patterns
-- [simp-hygiene.md](../../skills/lean4/references/simp-hygiene.md) - Best practices for `@[simp]` lemmas
+- [simp-reference.md](../../skills/lean4/references/simp-reference.md) - Best practices for `@[simp]` lemmas

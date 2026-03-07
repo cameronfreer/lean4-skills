@@ -214,10 +214,10 @@ check_references() {
         warn "Missing grind-tactic.md"
     fi
 
-    if [[ -f "$ref_dir/simproc-patterns.md" ]]; then
-        ok "simproc-patterns.md exists"
+    if [[ -f "$ref_dir/simp-reference.md" ]]; then
+        ok "simp-reference.md exists"
     else
-        warn "Missing simproc-patterns.md"
+        warn "Missing simp-reference.md"
     fi
 
     if [[ -f "$ref_dir/metaprogramming-patterns.md" ]]; then
@@ -919,7 +919,7 @@ check_integrated_advanced_refs() {
     local _ar_file _ar_base
 
     # Each advanced reference must be linked from SKILL.md and have the scope guard
-    for _ar_base in grind-tactic.md simproc-patterns.md metaprogramming-patterns.md linter-authoring.md ffi-patterns.md verso-docs.md profiling-workflows.md; do
+    for _ar_base in grind-tactic.md simp-reference.md metaprogramming-patterns.md linter-authoring.md ffi-patterns.md verso-docs.md profiling-workflows.md; do
         _ar_file="$ref_dir/$_ar_base"
 
         if [[ ! -f "$_ar_file" ]]; then
@@ -1006,7 +1006,7 @@ check_advanced_reference_metadata() {
     local _am_base _am_file _am_date _am_date_epoch _am_now_epoch _am_age_days
     local _am_refs=(
         "grind-tactic.md"
-        "simproc-patterns.md"
+        "simp-reference.md"
         "metaprogramming-patterns.md"
         "linter-authoring.md"
         "ffi-patterns.md"
@@ -1065,7 +1065,7 @@ check_advanced_reference_language() {
     local _aw_base _aw_line _aw_match
     local _aw_refs=(
         "grind-tactic.md"
-        "simproc-patterns.md"
+        "simp-reference.md"
         "metaprogramming-patterns.md"
         "linter-authoring.md"
         "ffi-patterns.md"
