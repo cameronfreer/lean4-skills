@@ -110,8 +110,11 @@ Both share the same cycle engine (plan → work → checkpoint → review → re
 ## Skill-Only Behavior
 
 When editing `.lean` files without invoking a command, the skill runs **one bounded pass**:
-- Attempt to fix the immediate issue (build error, single sorry)
-- No looping, no deep escalation, no multi-cycle behavior
+- Read the goal or error via `lean_goal`/`lean_diagnostic_messages`
+- Search mathlib with up to 2 LSP tools (e.g. `lean_local_search` + `lean_leanfinder`/`lean_leansearch`/`lean_loogle`)
+- Try the [Automation Tactics](#automation-tactics) cascade
+- Validate with `lean_diagnostic_messages` (no project-gate `lake build` in this mode)
+- No looping, no deep escalation, no multi-cycle behavior, no commits
 - End with suggestions:
   > Use `/lean4:prove` for guided cycle-by-cycle help.
   > Use `/lean4:autoprove` for autonomous cycles with stop safeguards.
