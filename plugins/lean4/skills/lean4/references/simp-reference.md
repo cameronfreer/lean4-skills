@@ -19,13 +19,13 @@ The left-hand side should be irreducible by other simp lemmas.
 
 **Bad:**
 ```lean
-@[simp] lemma bad_form : a + (b + c) = (a + b) + c := ...
+@[simp] lemma bad_form : a + (b + c) = (a + b) + c := sorry
 -- LHS contains (b + c) which might be simplified first
 ```
 
 **Good:**
 ```lean
-@[simp] lemma good_form : (a + b) + c = a + (b + c) := ...
+@[simp] lemma good_form : (a + b) + c = a + (b + c) := sorry
 -- LHS is already in normal form
 ```
 
@@ -35,7 +35,7 @@ The RHS should be simpler than the LHS.
 
 **Dangerous:**
 ```lean
-@[simp] lemma may_loop : f x = g (f x) := ...
+@[simp] lemma may_loop : f x = g (f x) := sorry
 -- LHS appears in RHS!
 ```
 
@@ -50,8 +50,8 @@ Avoid lemmas that simplify the same pattern differently.
 
 **Conflict:**
 ```lean
-@[simp] lemma simp1 : f (g x) = A := ...
-@[simp] lemma simp2 : f (g x) = B := ...  -- Same LHS, different RHS
+@[simp] lemma simp1 : f (g x) = A := sorry
+@[simp] lemma simp2 : f (g x) = B := sorry  -- Same LHS, different RHS
 ```
 
 **Resolution:** Remove one, or use `simp only [simp1]` explicitly.
@@ -69,8 +69,8 @@ Simplify toward canonical forms:
 
 More specific lemmas are tried first:
 ```lean
-@[simp] lemma general : f x = A := ...
-@[simp] lemma specific : f 0 = B := ...  -- Tried before general
+@[simp] lemma general : f x = A := sorry
+@[simp] lemma specific : f 0 = B := sorry  -- Tried before general
 ```
 
 #### Use `@[simp]` Sparingly
@@ -146,10 +146,10 @@ example : goal := by simp
 @[simp] lemma id_left : id x = x := rfl
 
 -- Neutral element
-@[simp] lemma add_zero : x + 0 = x := ...
+@[simp] lemma add_zero : x + 0 = x := sorry
 
 -- Cancellation
-@[simp] lemma sub_self : x - x = 0 := ...
+@[simp] lemma sub_self : x - x = 0 := sorry
 ```
 
 #### Lemmas to Avoid as Simp

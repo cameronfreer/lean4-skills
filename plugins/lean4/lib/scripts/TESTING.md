@@ -44,8 +44,8 @@ python3 plugins/lean4/lib/scripts/test_apply_exact_chains.py
 
 ## Reference Documentation
 
-Scripts for tactic suggestions, proof templates, and simp hygiene have been converted to reference documentation:
+Scripts for tactic suggestions, proof templates, simp hygiene, and simproc patterns have been converted to reference documentation:
 
 - [tactic-patterns.md](../../skills/lean4/references/tactic-patterns.md) - Goal-based tactic recommendations
 - [proof-templates.md](../../skills/lean4/references/proof-templates.md) - Proof skeleton patterns
-- [simp-reference.md](../../skills/lean4/references/simp-reference.md) - Best practices for `@[simp]` lemmas
+- [simp-reference.md](../../skills/lean4/references/simp-reference.md) - Simp hygiene + simproc patterns
