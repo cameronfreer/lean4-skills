@@ -29,6 +29,20 @@ Use this skill whenever you're editing Lean 4 proofs or debugging Lean builds. I
 | `/lean4:doctor` | Plugin troubleshooting and migration help |
 | `/lean4:learn` | Interactive teaching, mathlib exploration, and autoformalization |
 
+### Which Command?
+
+| Situation | Command |
+|-----------|---------|
+| New to this project / exploring | `/lean4:learn --mode=repo` |
+| Navigating mathlib for a topic | `/lean4:learn --mode=mathlib` |
+| Draft a Lean statement from an informal claim | `/lean4:learn --mode=formalize` |
+| Filling sorries (interactive) | `/lean4:prove` |
+| Filling sorries (unattended) | `/lean4:autoprove` |
+| Optimizing compiled proofs | `/lean4:golf` |
+| Quality check (read-only) | `/lean4:review` |
+| Verified save point | `/lean4:checkpoint` |
+| Something not working | `/lean4:doctor` |
+
 ## Typical Workflow
 
 ```
