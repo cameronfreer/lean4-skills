@@ -77,6 +77,8 @@ See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) and [cycle-e
 4. Validate via `lean_diagnostic_messages`
 5. Stage & commit (see below)
 
+**Staging rule:** If `--commit=never`, skip staging and committing entirely. Otherwise, stage only the files touched by this fill (`git add <edited files>`) — never `git add -A` or broad patterns.
+
 **Commit behavior** (unique to prove):
 Show diff and ask before each commit when `--commit=ask` (default):
 ```
@@ -84,8 +86,8 @@ Commit this? [yes / yes-all / no / never]
 ```
 - **yes** — commit, prompt again next time
 - **yes-all** — switch to `auto` for rest of session
-- **no** — unstage, skip this commit
-- **never** — unstage, skip all commits for session
+- **no** — unstage (`git reset HEAD <files>`), skip this commit
+- **never** — unstage, skip all remaining commits for session
 
 **Constraints:** Max 3 candidates per sorry, ≤80 lines diff, NO statement changes, NO cross-file refactoring (fast path).
 

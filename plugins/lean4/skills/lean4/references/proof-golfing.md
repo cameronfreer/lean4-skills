@@ -269,16 +269,11 @@ Nat.add_lt_add_left hij k
 
 ### Token Counting Quick Reference
 
-```lean
-// ~1 token each
-let, have, exact, intro, by, fun
-
-// ~2 tokens each
-:=, =>, (fun x => ...), StrictMono
-
-// ~5-10 tokens
-let x : Type := definition
-have h : Property := by proof
+```text
+~1 token each:   let, have, exact, intro, by, fun
+~2 tokens each:  :=, =>, (fun x => ...), StrictMono
+~5-10 tokens:    let x : Type := definition
+                 have h : Property := by proof
 ```
 
 **Rule of thumb:**
