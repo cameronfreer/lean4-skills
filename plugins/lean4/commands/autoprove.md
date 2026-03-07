@@ -72,64 +72,41 @@ No questionnaire. Discover state and start immediately.
 
 ## Actions
 
-Each cycle has 6 phases (same engine as `/lean4:prove`):
+Each cycle has 6 phases — see [cycle-engine.md](../skills/lean4/references/cycle-engine.md) for shared mechanics.
 
 ### Phase 1: Plan
 
-Discover current state via LSP-first protocol (see [cycle-engine.md](../skills/lean4/references/cycle-engine.md#lsp-first-protocol)): `lean_goal` at each sorry, up to 3 LSP search tools (~30s), record top candidates. Identify sorries, set order.
+See [cycle-engine: LSP-First Protocol](../skills/lean4/references/cycle-engine.md#lsp-first-protocol). Discover sorries via LSP, search with up to 3 tools (~30s), identify sorries, set order.
 
 ### Phase 2: Work (Per Sorry)
 
-See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) for detailed tactics. LSP-first is **normative** (see [cycle-engine.md](../skills/lean4/references/cycle-engine.md#lsp-first-protocol)).
+See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) and [cycle-engine: LSP-First Protocol](../skills/lean4/references/cycle-engine.md#lsp-first-protocol).
 
-1. **Understand** — refresh `lean_goal(file, line)` + read surrounding code
-2. **Search** — up to 2 LSP search tools (`lean_local_search` + one of `lean_leanfinder`/`lean_leansearch`/`lean_loogle`) before script fallback (skip if trivial or prior search was conclusive)
-3. **Generate candidates** — 2-3 candidate snippets from search results
-4. **Test** — `lean_multi_attempt(file, line, snippets=[...])`, prefer shortest passing candidate
-5. **Preflight falsification** (if goal is decidable/finite)
-   - Only for: `Fin n`, `Bool`, `Option`, small `Sum` types, bound-quantified `Nat`
-   - Try: `decide`, `simp with decide`, `native_decide`
-   - Time-boxed: 30–60s max
-   - If counterexample found → create `T_counterexample`, skip to salvage
-   - If no witness quickly → continue to proof attempts
-6. **Try tactics** (if no candidate passed) — `rfl`, `simp`, `ring`, `linarith`, `nlinarith`, `omega`, `exact?`, `apply?`, `grind`, `aesop`
-7. **Validate** — Use LSP diagnostics (`lean_diagnostic_messages`) to check sorry count decreased. Reserve `lake build` for review checkpoints or explicit `/lean4:checkpoint`.
-8. **Stage & Commit** — If `--commit=never`, skip staging and committing entirely. Otherwise, stage only files touched during this sorry (`git add <edited files>`), then commit:
-   `git commit -m "fill: [theorem] - [tactic]"`
+1. Refresh goal → search → generate 2-3 candidates → test via `lean_multi_attempt`
+2. Preflight falsification for decidable/finite goals (30-60s max)
+3. Tactic cascade if no candidate passed
+4. Validate via `lean_diagnostic_messages`
+5. Stage & commit: `git commit -m "fill: [theorem] - [tactic]"`
 
-   Default `--commit=auto` — commits without prompting. Use `--commit=never` to skip all commits.
+**Commit behavior** (unique to autoprove):
+Default `--commit=auto` — commits without prompting. `--commit=ask` is coerced to `auto` at startup:
+> ⚠ --commit=ask requires interactive confirmation. Using auto for unattended operation.
 
-   **Note:** `--commit=ask` is accepted for flag compatibility but **coerced to `auto`** at startup:
-   > ⚠ --commit=ask requires interactive confirmation. Using auto for unattended operation.
-
-   Autoprove never blocks waiting for interactive input.
+Autoprove never blocks waiting for interactive input.
 
 **Constraints:** Max 3 candidates per sorry, ≤80 lines diff, NO statement changes, NO cross-file refactoring (fast path).
 
 ### Phase 3: Checkpoint
 
-If `--commit=never`, skip the checkpoint commit entirely — changes remain in the working tree.
-
-Otherwise, if `--checkpoint` is enabled and there is a non-empty diff:
-- Stage only files from successful, non-rolled-back work: `git add <successful files>`
-- Do NOT stage files from rolled-back deep invocations — those are restored to pre-deep state
-- Commit: `git commit -m "checkpoint(lean4): [summary]"`
-
-If no files changed during this cycle, emit:
-> No changes this cycle — skipping checkpoint
-
-Do NOT create an empty commit. Checkpoint requires a non-empty diff.
+See [cycle-engine: Checkpoint Logic](../skills/lean4/references/cycle-engine.md#checkpoint-logic). Stage only files from successful, non-rolled-back work.
 
 ### Phase 4: Review
 
-At configured intervals (`--review-every`), run review matching current scope:
-- Working on single sorry → `--scope=sorry --line=N`
-- Working on file → `--scope=file`
-- Never trigger `--scope=project` automatically
+See [cycle-engine: Review Phase](../skills/lean4/references/cycle-engine.md#review-phase). Runs at configured `--review-every` intervals.
 
 ### Phase 5: Replan
 
-After review → enter planner mode → produce/update action plan. Work phase follows that plan next cycle.
+See [cycle-engine: Replan Phase](../skills/lean4/references/cycle-engine.md#replan-phase).
 
 ### Phase 6: Continue / Stop
 
