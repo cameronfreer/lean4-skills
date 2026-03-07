@@ -119,6 +119,16 @@ When editing `.lean` files without invoking a command, the skill runs **one boun
   > Use `/lean4:prove` for guided cycle-by-cycle help.
   > Use `/lean4:autoprove` for autonomous cycles with stop safeguards.
 
+## Quality Gate
+
+A proof is complete when:
+- `lake build` passes
+- Zero sorries in agreed scope
+- Only standard axioms (`propext`, `Classical.choice`, `Quot.sound`)
+- No statement changes without permission
+
+Verification ladder: `lean_diagnostic_messages(file)` per-edit → `lake env lean <path/to/File.lean>` file gate (run from project root) → `lake build` project gate only. See [cycle-engine: Build Target Policy](references/cycle-engine.md#build-target-policy).
+
 ## Common Fixes
 
 See [compilation-errors](references/compilation-errors.md) for error-by-error guidance (type mismatch, unknown identifier, failed to synthesize, timeout, etc.).
@@ -156,16 +166,6 @@ ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --report-only
 # Structured output (optional): --format=json
 # Counts only (optional): --format=summary
 ```
-
-## Quality Gate
-
-A proof is complete when:
-- `lake build` passes
-- Zero sorries in agreed scope
-- Only standard axioms (`propext`, `Classical.choice`, `Quot.sound`)
-- No statement changes without permission
-
-Verification ladder: `lean_diagnostic_messages(file)` per-edit → `lake env lean <path/to/File.lean>` file gate (run from project root) → `lake build` project gate only. See [cycle-engine: Build Target Policy](references/cycle-engine.md#build-target-policy).
 
 ## References
 
