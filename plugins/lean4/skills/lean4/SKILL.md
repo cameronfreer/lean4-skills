@@ -27,7 +27,8 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | `/lean4:review` | Quality audit (`--mode=batch` or `--mode=stuck`) |
 | `/lean4:golf` | Optimize proofs for brevity |
 | `/lean4:doctor` | Plugin troubleshooting and migration help |
-| `/lean4:learn` | Interactive teaching, mathlib exploration, and autoformalization |
+| `/lean4:learn` | Interactive teaching and mathlib exploration |
+| `/lean4:formalize` | Turn informal math into Lean statements |
 
 ### Which Command?
 
@@ -35,7 +36,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 |-----------|---------|
 | New to this project / exploring | `/lean4:learn --mode=repo` |
 | Navigating mathlib for a topic | `/lean4:learn --mode=mathlib` |
-| Draft a Lean statement from an informal claim | `/lean4:learn --mode=formalize` |
+| Draft a Lean statement from an informal claim | `/lean4:formalize` |
 | Filling sorries (interactive) | `/lean4:prove` |
 | Filling sorries (unattended) | `/lean4:autoprove` |
 | Optimizing compiled proofs | `/lean4:golf` |
@@ -54,7 +55,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 /lean4:checkpoint          Create verified save point
 ```
 
-Use `/lean4:learn` at any point to explore repo structure, navigate mathlib, or formalize informal math interactively.
+Use `/lean4:learn` at any point to explore repo structure or navigate mathlib. Use `/lean4:formalize` to turn informal math into Lean statements.
 
 **Notes:**
 - `/lean4:prove` asks before each cycle; `/lean4:autoprove` loops autonomously with hard stop conditions
