@@ -13,10 +13,10 @@ Shared reference for `/lean4:learn` and `/lean4:formalize`. "Formalize" below re
 
 ## Intent-Behavior Matrix
 
-Intent × mode → explanation focus, tool priorities, presentation effect.
+Intent × command/mode → explanation focus, tool priorities, presentation effect.
 
-| Intent | Mode | Focus | Presentation |
-|--------|------|-------|--------------|
+| Intent | Command / Mode | Focus | Presentation |
+|--------|----------------|-------|--------------|
 | `math` | `/lean4:formalize` | Explain the math first, formalize to make it concrete | `informal` (default): Lean runs silently, results shown as prose |
 | `math` | `mathlib` | Explain theorems conceptually, show mathlib as reference landscape | `informal` (default) |
 | `usage` | `repo` | Walk through code patterns, explain tactic choices | `formal` (default) |

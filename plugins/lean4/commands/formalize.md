@@ -29,7 +29,7 @@ Turn informal mathematical claims into Lean 4 theorem statements. Drafts skeleto
 | --out | no | — | Output path. Required when `--output=file`; hard error if missing. |
 | --overwrite | no | `false` | Allow overwriting existing files with `--output=file`. Without flag, existing target → hard error. |
 | --source | no | — | File path, URL, or PDF to seed formalization. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#source-handling). |
-| --intent | no | `math` | `auto` \| `usage` \| `internals` \| `authoring` \| `math`. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-taxonomy). |
+| --intent | no | `math` | `auto` \| `usage` \| `math`. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-taxonomy). |
 | --presentation | no | `auto` | `informal` \| `supporting` \| `formal` \| `auto`. Controls user-facing display, not Lean backing. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#two-layer-architecture). |
 | --verify | no | `best-effort` | `best-effort` \| `strict`. Verification strictness for key claims. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#verification-status). |
 
