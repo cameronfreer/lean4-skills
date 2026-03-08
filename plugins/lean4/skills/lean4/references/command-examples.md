@@ -934,45 +934,12 @@ What next?
 - [alternative] See filter-free characterization
 ````
 
-### Formalize Mode — Autoformalization
-
-````
-User: /lean4:learn --mode=formalize "Every continuous function on a compact set is bounded"
-
-Claude: Parsing claim and drafting formalization...
-
-## Theorem Skeleton
-
-```lean
-theorem continuous_on_compact_bounded
-    {X : Type*} [TopologicalSpace X] [MetricSpace X]
-    {Y : Type*} [MetricSpace Y]
-    {K : Set X} (hK : IsCompact K)
-    {f : X → Y} (hf : ContinuousOn f K) :
-    IsBounded (f '' K) := by
-  sorry
-```
-
-Attempting proof via lean_goal + lean_multi_attempt...
-lean_local_search("IsCompact ContinuousOn IsBounded image") → found it
-Trying: `exact hK.image_of_continuousOn hf |>.isBounded`
-Diagnostics... ✓
-
-Proof complete (--rigor=checked: no sorry, clean diagnostics, standard axioms).
-
-What next?
-- [show source] See the mathlib proof
-- [alternative] Different formalization (e.g., using Bornology)
-- [generalize] Weaken hypotheses
-- [save to scratch] Write to scratch file
-````
-
 ### Game Style — Natural Numbers Track
 
 ````
 User: /lean4:learn --style=game --track=nng-like
 
-Claude: [Intent: usage (inferred) | Presentation: formal | Mode: formalize]
+Claude: [Intent: usage (inferred) | Presentation: formal]
 
 Starting Natural Numbers Game — Track: nng-like (8 levels)
 
@@ -1012,7 +979,7 @@ User: /lean4:learn --source ./papers/stone-weierstrass.pdf
 
 Claude: Reading PDF... extracting key results.
 
-[Intent: math (inferred from PDF) | Presentation: informal | Mode: formalize]
+[Intent: math (inferred from PDF) | Presentation: informal]
 
 ## Stone–Weierstrass: Main Results [unverified]
 
@@ -1030,13 +997,48 @@ Claude: **Theorem 1** says that polynomial-like function algebras are "enough" t
 
 Want to see this formalized in Lean to make it concrete?
 
-[deeper / show source / formalize]
+[deeper / show source / formalize → /lean4:formalize]
 ````
 
-### Formalize Mode — Axiomatic Draft
+## formalize
+
+### Autoformalization
 
 ````
-User: /lean4:learn --mode=formalize --rigor=axiomatic "The p-adic numbers are complete"
+User: /lean4:formalize "Every continuous function on a compact set is bounded"
+
+Claude: Parsing claim and drafting formalization...
+
+## Theorem Skeleton
+
+```lean
+theorem continuous_on_compact_bounded
+    {X : Type*} [TopologicalSpace X] [MetricSpace X]
+    {Y : Type*} [MetricSpace Y]
+    {K : Set X} (hK : IsCompact K)
+    {f : X → Y} (hf : ContinuousOn f K) :
+    IsBounded (f '' K) := by
+  sorry
+```
+
+Attempting proof via lean_goal + lean_multi_attempt...
+lean_local_search("IsCompact ContinuousOn IsBounded image") → found it
+Trying: `exact hK.image_of_continuousOn hf |>.isBounded`
+Diagnostics... ✓
+
+Proof complete (--rigor=checked: no sorry, clean diagnostics, standard axioms).
+
+What next?
+- [show source] See the mathlib proof
+- [alternative] Different formalization (e.g., using Bornology)
+- [generalize] Weaken hypotheses
+- [save to scratch] Write to scratch file
+````
+
+### Axiomatic Draft
+
+````
+User: /lean4:formalize --rigor=axiomatic "The p-adic numbers are complete"
 
 Claude: Drafting formalization with explicit assumptions...
 
