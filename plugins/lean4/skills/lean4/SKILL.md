@@ -5,7 +5,7 @@ description: "Use when editing .lean files, debugging Lean 4 builds (type mismat
 
 # Lean 4 Theorem Proving
 
-Use this skill whenever you're editing Lean 4 proofs or debugging Lean builds. It prioritizes LSP-based inspection and mathlib search, with scripted primitives for sorry analysis, axiom checking, and error parsing.
+Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, formalizing mathematics in Lean, or learning Lean 4 concepts. It prioritizes LSP-based inspection and mathlib search, with scripted primitives for sorry analysis, axiom checking, and error parsing.
 
 ## Core Principles
 
