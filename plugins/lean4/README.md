@@ -5,7 +5,7 @@
 > references, and scripts — is host-agnostic.
 > See the [root README](../../README.md) for setup on other hosts.
 
-Unified Lean 4 plugin for theorem proving, interactive learning, and autoformalization.
+Unified Lean 4 plugin for theorem proving, interactive learning, and formalization.
 
 ## Commands
 
@@ -17,7 +17,8 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and autoformali
 | `/lean4:review` | Read-only quality review with optional external hooks |
 | `/lean4:golf` | Optimize proofs for brevity |
 | `/lean4:doctor` | Diagnostics and migration help |
-| `/lean4:learn` | Interactive teaching, mathlib exploration, and autoformalization |
+| `/lean4:learn` | Interactive teaching and mathlib exploration |
+| `/lean4:formalize` | Turn informal math into Lean statements |
 
 ## Quick Start
 
@@ -27,7 +28,8 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and autoformali
 /lean4:review              # Check quality (read-only)
 /lean4:golf                # Optimize proofs
 /lean4:checkpoint          # Verified commit
-/lean4:learn               # Explore repo, mathlib, or formalize
+/lean4:learn               # Explore repo or mathlib
+/lean4:formalize           # Turn informal math into Lean statements
 git push                   # Manual, after review
 ```
 
@@ -108,9 +110,13 @@ Finds and applies safe optimizations: `rw+exact → rwa`, inline single-use `let
 
 Usually run after proving, either prompted at the end of a `prove` session or explicitly.
 
-### `/lean4:learn` — Interactive Teaching & Formalization
+### `/lean4:learn` — Interactive Teaching
 
-Three modes: `--mode=repo` explores your project structure, `--mode=mathlib` navigates mathlib for a topic, `--mode=formalize` turns informal math into Lean statements (optionally under assumptions with `--rigor=axiomatic`). Adapts to `--level=beginner|intermediate|expert` and supports `--style=tour|socratic|exercise`. Conversational by default; use `--output=scratch` or `--output=file` to write artifacts.
+Two modes: `--mode=repo` explores your project structure, `--mode=mathlib` navigates mathlib for a topic. Adapts to `--level=beginner|intermediate|expert` and supports `--style=tour|socratic|exercise|game`. Conversational by default; use `--output=scratch` or `--output=file` to write artifacts. For formalization, learn suggests `/lean4:formalize`.
+
+### `/lean4:formalize` — Autoformalization
+
+Turns informal mathematical claims into Lean 4 theorem statements. Drafts skeletons, attempts proofs, verifies axiom hygiene, and produces an assumption ledger for axiomatic drafts (`--rigor=axiomatic`). Accepts `--source` to ingest papers or files.
 
 ### `/lean4:doctor` — Diagnostics
 
