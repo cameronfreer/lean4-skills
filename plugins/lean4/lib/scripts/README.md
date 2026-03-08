@@ -191,7 +191,7 @@ Keep stderr visible when invoking scripts; suppressing stderr to `/dev/null` hid
 
 ## Reference Documentation
 
-For tactic suggestions, proof templates, and simp hygiene best practices, see:
+For tactic suggestions, proof templates, simp hygiene, and simproc guidance, see:
 - [tactic-patterns.md](../../skills/lean4/references/tactic-patterns.md)
 - [proof-templates.md](../../skills/lean4/references/proof-templates.md)
-- [simp-hygiene.md](../../skills/lean4/references/simp-hygiene.md)
+- [simp-reference.md](../../skills/lean4/references/simp-reference.md)

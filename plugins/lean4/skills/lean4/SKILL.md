@@ -1,11 +1,11 @@
 ---
 name: lean4
-description: "Use when editing .lean files, seeing type mismatch/sorry/failed to synthesize instance/axiom warnings, lake build errors, or searching mathlib for theorem proofs."
+description: "Use when editing .lean files, debugging Lean 4 builds (type mismatch, sorry, failed to synthesize instance, axiom warnings, lake build errors), searching mathlib for lemmas, formalizing mathematics in Lean, or learning Lean 4 concepts. Also trigger when the user asks for help with Lean 4, mathlib, or lakefile. Do NOT trigger for Coq, Agda, Isabelle, or other non-Lean proof assistants."
 ---
 
 # Lean 4 Theorem Proving
 
-Use this skill whenever you're editing Lean 4 proofs or debugging Lean builds. It prioritizes LSP-based inspection and mathlib search, with scripted primitives for sorry analysis, axiom checking, and error parsing.
+Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, formalizing mathematics in Lean, or learning Lean 4 concepts. It prioritizes LSP-based inspection and mathlib search, with scripted primitives for sorry analysis, axiom checking, and error parsing.
 
 ## Core Principles
 
@@ -28,6 +28,20 @@ Use this skill whenever you're editing Lean 4 proofs or debugging Lean builds. I
 | `/lean4:golf` | Optimize proofs for brevity |
 | `/lean4:doctor` | Plugin troubleshooting and migration help |
 | `/lean4:learn` | Interactive teaching, mathlib exploration, and autoformalization |
+
+### Which Command?
+
+| Situation | Command |
+|-----------|---------|
+| New to this project / exploring | `/lean4:learn --mode=repo` |
+| Navigating mathlib for a topic | `/lean4:learn --mode=mathlib` |
+| Draft a Lean statement from an informal claim | `/lean4:learn --mode=formalize` |
+| Filling sorries (interactive) | `/lean4:prove` |
+| Filling sorries (unattended) | `/lean4:autoprove` |
+| Optimizing compiled proofs | `/lean4:golf` |
+| Quality check (read-only) | `/lean4:review` |
+| Verified save point | `/lean4:checkpoint` |
+| Something not working | `/lean4:doctor` |
 
 ## Typical Workflow
 
@@ -96,11 +110,24 @@ Both share the same cycle engine (plan → work → checkpoint → review → re
 ## Skill-Only Behavior
 
 When editing `.lean` files without invoking a command, the skill runs **one bounded pass**:
-- Attempt to fix the immediate issue (build error, single sorry)
-- No looping, no deep escalation, no multi-cycle behavior
+- Read the goal or error via `lean_goal`/`lean_diagnostic_messages`
+- Search mathlib with up to 2 LSP tools (e.g. `lean_local_search` + `lean_leanfinder`/`lean_leansearch`/`lean_loogle`)
+- Try the [Automation Tactics](#automation-tactics) cascade
+- Validate with `lean_diagnostic_messages` (no project-gate `lake build` in this mode)
+- No looping, no deep escalation, no multi-cycle behavior, no commits
 - End with suggestions:
   > Use `/lean4:prove` for guided cycle-by-cycle help.
   > Use `/lean4:autoprove` for autonomous cycles with stop safeguards.
+
+## Quality Gate
+
+A proof is complete when:
+- `lake build` passes
+- Zero sorries in agreed scope
+- Only standard axioms (`propext`, `Classical.choice`, `Quot.sound`)
+- No statement changes without permission
+
+Verification ladder: `lean_diagnostic_messages(file)` per-edit → `lake env lean <path/to/File.lean>` file gate (run from project root) → `lake build` project gate only. See [cycle-engine: Build Target Policy](references/cycle-engine.md#build-target-policy).
 
 ## Common Fixes
 
@@ -140,16 +167,6 @@ ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --report-only
 # Counts only (optional): --format=summary
 ```
 
-## Quality Gate
-
-A proof is complete when:
-- `lake build` passes
-- Zero sorries in agreed scope
-- Only standard axioms (`propext`, `Classical.choice`, `Quot.sound`)
-- No statement changes without permission
-
-Verification ladder: `lean_diagnostic_messages(file)` per-edit → `lake env lean <path/to/File.lean>` file gate (run from project root) → `lake build` project gate only. See [cycle-engine: Build Target Policy](references/cycle-engine.md#build-target-policy).
-
 ## References
 
 **Cycle Engine:** [cycle-engine](references/cycle-engine.md) — shared prove/autoprove logic (stuck, deep mode, falsification, safety)
@@ -160,11 +177,11 @@ Verification ladder: `lean_diagnostic_messages(file)` per-edit → `lake env lea
 
 **Errors:** [compilation-errors](references/compilation-errors.md) (read first for any build error), [instance-pollution](references/instance-pollution.md) (typeclass conflicts — grep `## Sub-` for patterns), [compiler-guided-repair](references/compiler-guided-repair.md) (escalation-only repair — not first-pass)
 
-**Tactics:** [tactics-reference](references/tactics-reference.md) (tactic lookup — grep `^### TacticName`), [grind-tactic](references/grind-tactic.md) (SMT-style automation — when simp can't close), [simproc-patterns](references/simproc-patterns.md) (custom deterministic rewrites for simp), [tactic-patterns](references/tactic-patterns.md), [calc-patterns](references/calc-patterns.md), [simp-hygiene](references/simp-hygiene.md)
+**Tactics:** [tactics-reference](references/tactics-reference.md) (tactic lookup — grep `^### TacticName`), [grind-tactic](references/grind-tactic.md) (SMT-style automation — when simp can't close), [simp-reference](references/simp-reference.md) (simp hygiene + custom simprocs), [tactic-patterns](references/tactic-patterns.md), [calc-patterns](references/calc-patterns.md)
 
 **Proof Development:** [proof-templates](references/proof-templates.md), [proof-refactoring](references/proof-refactoring.md) (28K — grep by topic), [sorry-filling](references/sorry-filling.md)
 
-**Optimization:** [proof-golfing](references/proof-golfing.md) (includes bounded LSP lemma replacement; bulk rewrites are context-filtered and regression-reverting; escalates to axiom-eliminator), [proof-golfing-patterns](references/proof-golfing-patterns.md), [proof-golfing-safety](references/proof-golfing-safety.md), [performance-optimization](references/performance-optimization.md) (grep by symptom), [profiling-workflows](references/profiling-workflows.md) (diagnose slow builds/proofs)
+**Optimization:** [proof-golfing](references/proof-golfing.md) (includes safety rules, bounded LSP lemma replacement, bulk rewrites, anti-patterns; escalates to axiom-eliminator), [proof-golfing-patterns](references/proof-golfing-patterns.md), [performance-optimization](references/performance-optimization.md) (grep by symptom), [profiling-workflows](references/profiling-workflows.md) (diagnose slow builds/proofs)
 
 **Domain:** [domain-patterns](references/domain-patterns.md) (25K — grep `## Area`), [measure-theory](references/measure-theory.md) (28K), [axiom-elimination](references/axiom-elimination.md)
 

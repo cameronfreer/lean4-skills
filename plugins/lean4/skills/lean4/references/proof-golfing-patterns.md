@@ -515,4 +515,4 @@ calc Measure.map ...
 
 ---
 
-**Related:** [proof-golfing.md](proof-golfing.md) (quick reference), [proof-golfing-safety.md](proof-golfing-safety.md) (safety & workflow)
+**Related:** [proof-golfing.md](proof-golfing.md) (quick reference, safety & workflow)
