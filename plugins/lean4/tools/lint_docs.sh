@@ -13,7 +13,7 @@ PLUGIN_ROOT="${LEAN4_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 ISSUES=0
 
 # Single source of truth for known commands (used by check_commands and check_cross_refs)
-KNOWN_COMMANDS="autoprove checkpoint doctor golf learn prove review"
+KNOWN_COMMANDS="autoprove checkpoint doctor formalize golf learn prove review"
 
 log() {
     echo "$1"
@@ -58,9 +58,10 @@ check_commands() {
         case "$cmd" in
             prove|autoprove) max_lines=230 ;;
             doctor)          max_lines=220 ;;
+            formalize)       max_lines=160 ;;
             golf)            max_lines=150 ;;
             review)          max_lines=320 ;;
-            learn)           max_lines=200 ;;
+            learn)           max_lines=160 ;;
         esac
 
         if [[ $lines -gt $max_lines ]]; then
