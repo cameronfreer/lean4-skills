@@ -42,6 +42,7 @@ Turn informal mathematical claims into Lean 4 theorem statements. Drafts skeleto
 ### Flag validation
 
 - `--intent`, `--presentation`, or `--verify` with invalid value → hard error.
+- `--intent=auto` inference: apply the shared [inference rules](../skills/lean4/references/learn-pathways.md#inference-rules-when---intentauto), then coerce `internals` → `usage` and `authoring` → `usage` (formalize does not define behavior for those intents).
 - `--source` + unreadable format → warn + ask for text excerpt.
 
 ## Actions
@@ -133,6 +134,5 @@ Always run `bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target> --report-only`
 ## See Also
 
 - [Examples](../skills/lean4/references/command-examples.md#formalize)
-- [Cycle Engine](../skills/lean4/references/cycle-engine.md) — shared mechanics
-- [LSP Tools API](../skills/lean4/references/lean-lsp-tools-api.md) — search tools
+- [LSP Tools API](../skills/lean4/references/lean-lsp-tools-api.md) — search tools used in proof attempts
 - [Learning Pathways](../skills/lean4/references/learn-pathways.md) — intent taxonomy, source handling
