@@ -18,7 +18,7 @@ thinking: on
 
 1. **Audit current state**:
    ```bash
-   bash $LEAN4_SCRIPTS/check_axioms_inline.sh FILE.lean
+   bash $LEAN4_SCRIPTS/check_axioms_inline.sh FILE.lean  # or . for entire project
    bash $LEAN4_SCRIPTS/find_usages.sh axiom_name
    ```
 

@@ -3,9 +3,11 @@
 # check_axioms_inline.sh - Check axioms in Lean 4 files using inline #print axioms
 #
 # Usage:
-#   ./check_axioms_inline.sh <file-or-pattern> [--verbose] [--exit-zero-on-findings]
+#   ./check_axioms_inline.sh <file-or-dir-or-pattern> [--verbose] [--exit-zero-on-findings]
 #   ./check_axioms_inline.sh src/**/*.lean
 #   ./check_axioms_inline.sh MyFile.lean --verbose --report-only
+#   ./check_axioms_inline.sh .
+#   ./check_axioms_inline.sh src/
 #
 # This script temporarily appends #print axioms commands to Lean files,
 # runs Lean to check axioms, then removes the additions.
@@ -22,6 +24,8 @@
 #   ./check_axioms_inline.sh MyFile.lean
 #   ./check_axioms_inline.sh src/**/*.lean
 #   ./check_axioms_inline.sh "Exchangeability/**/*.lean" --verbose
+#   ./check_axioms_inline.sh .                          # scan entire project
+#   ./check_axioms_inline.sh src/ --report-only         # scan directory
 #
 # IMPORTANT: This script temporarily modifies files. Make sure:
 #   - Files are in version control (can revert if needed)
@@ -65,7 +69,12 @@ NC='\033[0m'
 # Standard acceptable axioms
 STANDARD_AXIOMS="propext|quot.sound|Classical.choice|Quot.sound"
 
-# Parse arguments
+# Global counter for unique marker filenames (avoids basename collisions)
+MARKER_COUNT=0
+
+# Parse arguments: collect flags first, then positional args
+# This ensures --report-only works regardless of position
+POSITIONAL=()
 for arg in "$@"; do
     case "$arg" in
         --verbose)
@@ -79,32 +88,78 @@ for arg in "$@"; do
             exit 1
             ;;
         *)
-            # Expand globs
-            if [[ "$arg" == *"*"* ]]; then
-                # shellcheck disable=SC2206
-                expanded=($arg)
-                for file in "${expanded[@]}"; do
-                    [[ -f "$file" ]] && FILES+=("$file")
-                done
-            elif [[ -f "$arg" ]]; then
-                FILES+=("$arg")
-            else
-                echo -e "${RED}Error: $arg is not a file${NC}" >&2
-                exit 1
-            fi
+            POSITIONAL+=("$arg")
             ;;
     esac
 done
 
+# Resolve positional args to files
+for arg in "${POSITIONAL[@]}"; do
+    if [[ "$arg" == *"*"* ]]; then
+        # Expand globs
+        # shellcheck disable=SC2206
+        expanded=($arg)
+        for file in "${expanded[@]}"; do
+            [[ -f "$file" ]] && FILES+=("$file")
+        done
+    elif [[ -d "$arg" ]]; then
+        dir_files_found=false
+        while IFS= read -r -d '' file; do
+            FILES+=("$file")
+            dir_files_found=true
+        done < <(find "$arg" -type d \( -name .lake -o -name .git \) -prune -o -type f -name '*.lean' -print0)
+        if [[ "$dir_files_found" == false ]]; then
+            if [[ -n "$EXIT_ZERO_ON_FINDINGS" ]]; then
+                echo -e "${YELLOW}Warning: no .lean files found under: $arg; skipping.${NC}" >&2
+            else
+                echo -e "${RED}Error: no .lean files found under: $arg${NC}" >&2
+                exit 1
+            fi
+        fi
+    elif [[ -f "$arg" ]]; then
+        FILES+=("$arg")
+    else
+        echo -e "${RED}Error: $arg is not a file or directory${NC}" >&2
+        exit 1
+    fi
+done
+
+# Normalize paths and dedup for deterministic ordering (handles overlapping args like ". src/A.lean")
+if [[ ${#FILES[@]} -gt 0 ]]; then
+    DEDUPED=()
+    while IFS= read -r f; do
+        DEDUPED+=("$f")
+    done < <(
+        for f in "${FILES[@]}"; do
+            realpath "$f" 2>/dev/null \
+                || (cd "$(dirname "$f")" && echo "$(pwd -P)/$(basename "$f")") \
+                || echo "$f"
+        done | sort -u
+    )
+    FILES=("${DEDUPED[@]}")
+fi
+
 # Validate input
 if [[ ${#FILES[@]} -eq 0 ]]; then
-    echo -e "${RED}Error: No files specified${NC}" >&2
-    echo "Usage: $0 <file-or-pattern> [--verbose] [--exit-zero-on-findings]" >&2
-    echo "Examples:" >&2
-    echo "  $0 MyFile.lean" >&2
-    echo "  $0 src/**/*.lean" >&2
-    echo "  $0 \"Exchangeability/**/*.lean\" --verbose" >&2
-    exit 1
+    if [[ ${#POSITIONAL[@]} -eq 0 ]]; then
+        # No arguments at all — always an error
+        echo -e "${RED}Error: No files specified${NC}" >&2
+        echo "Usage: $0 <file-or-dir-or-pattern> [--verbose] [--exit-zero-on-findings]" >&2
+        echo "Examples:" >&2
+        echo "  $0 MyFile.lean" >&2
+        echo "  $0 src/**/*.lean" >&2
+        echo "  $0 ." >&2
+        echo "  $0 src/ --report-only" >&2
+        echo "  $0 \"Exchangeability/**/*.lean\" --verbose" >&2
+        exit 1
+    elif [[ -n "$EXIT_ZERO_ON_FINDINGS" ]]; then
+        # Args given but resolved to zero files in report-only mode — soft exit
+        echo -e "${YELLOW}Warning: no Lean files found; nothing to check.${NC}" >&2
+        exit 0
+    else
+        echo -e "${RED}Error: No Lean files found in specified paths${NC}" >&2
+        exit 1
+    fi
 fi
 
 # Filter to .lean files only
@@ -173,7 +228,8 @@ check_file() {
 
     # Create backup and track it with marker file for SIGINT safety
     local BACKUP_FILE="${FILE}.axiom_check_backup"
-    local MARKER_FILE="$MARKER_DIR/$(basename "$FILE").marker"
+    ((++MARKER_COUNT))
+    local MARKER_FILE="$MARKER_DIR/${MARKER_COUNT}.marker"
     cp "$FILE" "$BACKUP_FILE"
     echo "$FILE" > "$MARKER_FILE"
 
@@ -215,7 +271,7 @@ check_file() {
                     if [[ ! "$axiom" =~ $STANDARD_AXIOMS ]]; then
                         echo -e "  ${RED}⚠ $CURRENT_DECL uses non-standard axiom: $axiom${NC}"
                         HAS_CUSTOM=true
-                        ((CUSTOM_AXIOM_COUNT++))
+                        ((++CUSTOM_AXIOM_COUNT))
                     elif [[ "$VERBOSE" == "--verbose" ]]; then
                         echo -e "    ${GREEN}✓${NC} $axiom (standard)"
                     fi
@@ -226,11 +282,11 @@ check_file() {
         if [[ "$HAS_CUSTOM" == false ]]; then
             echo -e "  ${GREEN}✓ All declarations use only standard axioms${NC}"
         else
-            ((FILES_WITH_CUSTOM++))
+            ((++FILES_WITH_CUSTOM))
         fi
 
         ((TOTAL_DECLARATIONS+=${#DECLARATIONS[@]}))
-        ((TOTAL_FILES++))
+        ((++TOTAL_FILES))
 
         cleanup_file
         echo
@@ -285,7 +341,7 @@ check_file() {
                         if [[ ! "$axiom" =~ $STANDARD_AXIOMS ]]; then
                             echo -e "  ${RED}⚠ $CURRENT_DECL uses non-standard axiom: $axiom${NC}"
                             HAS_CUSTOM=true
-                            ((CUSTOM_AXIOM_COUNT++))
+                            ((++CUSTOM_AXIOM_COUNT))
                         elif [[ "$VERBOSE" == "--verbose" ]]; then
                             echo -e "    ${GREEN}✓${NC} $axiom (standard)"
                         fi
@@ -297,10 +353,10 @@ check_file() {
                 if [[ "$HAS_CUSTOM" == false ]]; then
                     echo -e "  ${GREEN}✓ Accessible declarations use only standard axioms${NC}"
                 else
-                    ((FILES_WITH_CUSTOM++))
+                    ((++FILES_WITH_CUSTOM))
                 fi
                 ((TOTAL_DECLARATIONS+=${#DECLARATIONS[@]}))
-                ((TOTAL_FILES++))
+                ((++TOTAL_FILES))
             fi
 
             cleanup_file
@@ -331,7 +387,9 @@ echo -e "${BLUE}Summary:${NC}"
 echo -e "  Files checked: $TOTAL_FILES"
 echo -e "  Declarations checked: $TOTAL_DECLARATIONS"
 
-if [[ $FILES_WITH_CUSTOM -eq 0 ]]; then
+if [[ $TOTAL_FILES -eq 0 && ${#FAILED_FILES[@]} -gt 0 ]]; then
+    echo -e "  ${YELLOW}⚠ No files were successfully checked${NC}"
+elif [[ $FILES_WITH_CUSTOM -eq 0 ]]; then
     echo -e "  ${GREEN}✓ All files use only standard axioms${NC}"
 else
     echo -e "  ${RED}⚠ Files with non-standard axioms: $FILES_WITH_CUSTOM${NC}"
@@ -354,7 +412,7 @@ echo "  • Classical.choice (axiom of choice)"
 if [[ $FILES_WITH_CUSTOM -gt 0 ]]; then
     echo
     echo -e "${YELLOW}Tip: Non-standard axioms should have elimination plans${NC}"
-    [[ -z "$EXIT_ZERO_ON_FINDINGS" ]] && exit 1
+    if [[ -z "$EXIT_ZERO_ON_FINDINGS" ]]; then exit 1; fi
 fi
 
 if [[ ${#FAILED_FILES[@]} -gt 0 ]]; then
