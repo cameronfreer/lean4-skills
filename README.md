@@ -1,7 +1,5 @@
 # Lean 4 Skills
 
-[![Run in Smithery](https://smithery.ai/badge/skills/cameronfreer)](https://smithery.ai/skills?ns=cameronfreer&utm_source=github&utm_medium=badge)
-
 Lean 4 workflow pack for AI coding agents. Gives your agent a structured
 prove/review/golf loop, mathlib search, axiom checking, and safety guardrails.
 The workflows are host-agnostic — Claude Code, Codex, Gemini CLI, Cursor, and
