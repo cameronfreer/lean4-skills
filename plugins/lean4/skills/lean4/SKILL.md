@@ -21,27 +21,27 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 
 | Command | Purpose |
 |---------|---------|
+| `/lean4:formalize` | Turn informal math into Lean statements |
 | `/lean4:prove` | Guided cycle-by-cycle theorem proving |
 | `/lean4:autoprove` | Autonomous multi-cycle proving with stop rules |
 | `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
 | `/lean4:review` | Quality audit (`--mode=batch` or `--mode=stuck`) |
 | `/lean4:golf` | Optimize proofs for brevity |
-| `/lean4:doctor` | Plugin troubleshooting and migration help |
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
-| `/lean4:formalize` | Turn informal math into Lean statements |
+| `/lean4:doctor` | Plugin troubleshooting and migration help |
 
 ### Which Command?
 
 | Situation | Command |
 |-----------|---------|
-| New to this project / exploring | `/lean4:learn --mode=repo` |
-| Navigating mathlib for a topic | `/lean4:learn --mode=mathlib` |
 | Draft a Lean statement from an informal claim | `/lean4:formalize` |
 | Filling sorries (interactive) | `/lean4:prove` |
 | Filling sorries (unattended) | `/lean4:autoprove` |
-| Optimizing compiled proofs | `/lean4:golf` |
-| Quality check (read-only) | `/lean4:review` |
 | Verified save point | `/lean4:checkpoint` |
+| Quality check (read-only) | `/lean4:review` |
+| Optimizing compiled proofs | `/lean4:golf` |
+| New to this project / exploring | `/lean4:learn --mode=repo` |
+| Navigating mathlib for a topic | `/lean4:learn --mode=mathlib` |
 | Something not working | `/lean4:doctor` |
 
 ## Typical Workflow

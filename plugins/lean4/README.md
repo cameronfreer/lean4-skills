@@ -11,25 +11,26 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 
 | Command | Description |
 |---------|-------------|
+| `/lean4:formalize` | Turn informal math into Lean statements |
 | `/lean4:prove` | Guided cycle-by-cycle theorem proving |
 | `/lean4:autoprove` | Autonomous multi-cycle proving with stop rules |
 | `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
 | `/lean4:review` | Read-only quality review with optional external hooks |
 | `/lean4:golf` | Optimize proofs for brevity |
-| `/lean4:doctor` | Diagnostics and migration help |
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
-| `/lean4:formalize` | Turn informal math into Lean statements |
+| `/lean4:doctor` | Diagnostics and migration help |
 
 ## Quick Start
 
 ```bash
+/lean4:formalize           # Turn informal math into Lean statements
 /lean4:prove               # Guided sorry filling (interactive)
 /lean4:autoprove           # Autonomous sorry filling (unattended)
+/lean4:checkpoint          # Verified commit
 /lean4:review              # Check quality (read-only)
 /lean4:golf                # Optimize proofs
-/lean4:checkpoint          # Verified commit
 /lean4:learn               # Explore repo or mathlib
-/lean4:formalize           # Turn informal math into Lean statements
+/lean4:doctor              # Diagnostics and migration help
 git push                   # Manual, after review
 ```
 
@@ -41,6 +42,10 @@ When you edit `.lean` files in a normal conversation, the plugin activates autom
 
 > Use `/lean4:prove` for guided cycle-by-cycle help.
 > Use `/lean4:autoprove` for autonomous cycles with stop safeguards.
+
+### `/lean4:formalize` — Autoformalization
+
+Turns informal mathematical claims into Lean 4 theorem statements. Drafts skeletons, attempts proofs, verifies axiom hygiene, and produces an assumption ledger for axiomatic drafts (`--rigor=axiomatic`). Accepts `--source` to ingest papers or files.
 
 ### `/lean4:prove` — Guided Proving
 
@@ -87,6 +92,12 @@ Plan → Work → Checkpoint → Review → Replan → Continue/Stop
 
 When stuck (same blocker seen twice), both force a review + replan regardless of settings.
 
+### `/lean4:checkpoint` — Verified Save Point
+
+Runs `lake build`, checks for non-standard axioms, reports sorry count, then stages and commits. One command for "I want a known-good save point."
+
+Does **not** push — that's always manual (`git push`).
+
 ### `/lean4:review` — Quality Check
 
 Read-only. Does not modify files or create commits.
@@ -98,12 +109,6 @@ Runs build verification, sorry audit, axiom check, style review, and golfing opp
 
 `prove` and `autoprove` trigger reviews automatically at configured intervals. You can also run `/lean4:review` manually at any time.
 
-### `/lean4:checkpoint` — Verified Save Point
-
-Runs `lake build`, checks for non-standard axioms, reports sorry count, then stages and commits. One command for "I want a known-good save point."
-
-Does **not** push — that's always manual (`git push`).
-
 ### `/lean4:golf` — Proof Optimization
 
 Finds and applies safe optimizations: `rw+exact → rwa`, inline single-use `let`, `ext+rfl → rfl`, etc. Verifies with `lean_diagnostic_messages` after each change (`lake build` at final gate only) and reverts failures. Stops when the success rate drops below 20% (saturation).
@@ -113,10 +118,6 @@ Usually run after proving, either prompted at the end of a `prove` session or ex
 ### `/lean4:learn` — Interactive Teaching
 
 Two modes: `--mode=repo` explores your project structure, `--mode=mathlib` navigates mathlib for a topic. Adapts to `--level=beginner|intermediate|expert` and supports `--style=tour|socratic|exercise|game`. Conversational by default; use `--output=scratch` or `--output=file` to write artifacts. For formalization, learn suggests `/lean4:formalize`.
-
-### `/lean4:formalize` — Autoformalization
-
-Turns informal mathematical claims into Lean 4 theorem statements. Drafts skeletons, attempts proofs, verifies axiom hygiene, and produces an assumption ledger for axiomatic drafts (`--rigor=axiomatic`). Accepts `--source` to ingest papers or files.
 
 ### `/lean4:doctor` — Diagnostics
 
