@@ -1,7 +1,5 @@
 # Lean 4 Skills
 
-[![Run in Smithery](https://smithery.ai/badge/skills/cameronfreer)](https://smithery.ai/skills?ns=cameronfreer&utm_source=github&utm_medium=badge)
-
 Lean 4 workflow pack for AI coding agents. Gives your agent a structured
 prove/review/golf loop, mathlib search, axiom checking, and safety guardrails.
 The workflows are host-agnostic — Claude Code, Codex, Gemini CLI, Cursor, and
@@ -11,12 +9,13 @@ others all use the same core skill; only the invocation surface differs.
 
 | Workflow | Description |
 |---|---|
+| formalize | Turn informal math into Lean statements |
 | prove | Guided cycle-by-cycle theorem proving |
 | autoprove | Autonomous multi-cycle proving with stop rules |
 | checkpoint | Verified save point (build + axiom check + commit) |
 | review | Read-only quality review |
 | golf | Optimize proofs for brevity |
-| learn | Interactive teaching, mathlib exploration, and autoformalization |
+| learn | Interactive teaching and mathlib exploration |
 | doctor | Diagnostics and migration help |
 
 **Claude Code:** invoke as `/lean4:<name>`. **Other hosts:** follow the corresponding workflow in [SKILL.md](plugins/lean4/skills/lean4/SKILL.md).

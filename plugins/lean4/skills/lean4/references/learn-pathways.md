@@ -1,29 +1,31 @@
 # Learning Pathways Reference
 
+Shared reference for `/lean4:learn` and `/lean4:formalize`. "Formalize" below refers to the `/lean4:formalize` command (formerly `--mode=formalize` in learn).
+
 ## Intent Taxonomy
 
-| Intent | Description | Default presentation | Typical modes | Pedagogy focus |
-|--------|-------------|---------------------|---------------|----------------|
-| `usage` | Learning Lean syntax, tactics, idioms | `formal` | `repo`, `formalize` | "How do I write this in Lean?" |
-| `internals` | Understanding elaboration, macros, metaprogramming | `formal` | `repo` | "How does Lean do this under the hood?" |
-| `authoring` | Mathlib authoring patterns, API conventions | `formal` | `mathlib`, `repo` | "How should I structure this for mathlib?" |
-| `math` | Understanding mathematical content | `informal` | `mathlib`, `formalize` | "What does this theorem really say?" |
+| Intent | Description | Default presentation | Typical command/mode | Pedagogy focus |
+|--------|-------------|---------------------|----------------------|----------------|
+| `usage` | Learning Lean syntax, tactics, idioms | `formal` | `learn --mode=repo`, `/lean4:formalize` | "How do I write this in Lean?" |
+| `internals` | Understanding elaboration, macros, metaprogramming | `formal` | `learn --mode=repo` | "How does Lean do this under the hood?" |
+| `authoring` | Mathlib authoring patterns, API conventions | `formal` | `learn --mode=mathlib`, `learn --mode=repo` | "How should I structure this for mathlib?" |
+| `math` | Understanding mathematical content | `informal` | `learn --mode=mathlib`, `/lean4:formalize` | "What does this theorem really say?" |
 
 ## Intent-Behavior Matrix
 
-Intent × mode → explanation focus, tool priorities, presentation effect.
+Intent × command/mode → explanation focus, tool priorities, presentation effect.
 
-| Intent | Mode | Focus | Presentation |
-|--------|------|-------|--------------|
-| `math` | `formalize` | Explain the math first, formalize to make it concrete | `informal` (default): Lean runs silently, results shown as prose |
+| Intent | Command / Mode | Focus | Presentation |
+|--------|----------------|-------|--------------|
+| `math` | `/lean4:formalize` | Explain the math first, formalize to make it concrete | `informal` (default): Lean runs silently, results shown as prose |
 | `math` | `mathlib` | Explain theorems conceptually, show mathlib as reference landscape | `informal` (default) |
 | `usage` | `repo` | Walk through code patterns, explain tactic choices | `formal` (default) |
-| `usage` | `formalize` | Build the statement, prove it, explain syntax choices | `formal` (default) |
+| `usage` | `/lean4:formalize` | Build the statement, prove it, explain syntax choices | `formal` (default) |
 | `authoring` | `mathlib` | Focus on naming, simp lemmas, instance design, API style | `formal` (default) |
 | `authoring` | `repo` | Compare local code against mathlib conventions | `formal` (default) |
 | `internals` | `repo` | Dive into elaborator, `Term.Elab`, macro expansion | `formal` (default) |
 
-All combinations are valid. No mode/presentation pair requires coercion.
+All combinations are valid. No mode/presentation pair requires coercion. Learn routes natural-language math claims to `/lean4:formalize`; it does not enter formalize mode itself.
 
 ### Inference Rules (when `--intent=auto`)
 

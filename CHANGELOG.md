@@ -1,5 +1,11 @@
 # Changelog
 
+## v4.2.0 (March 2026)
+- New [`/lean4:formalize`](plugins/lean4/commands/formalize.md) command: turn informal math into Lean statements
+- Split from `/lean4:learn --mode=formalize` — formalize is now a standalone command
+- `/lean4:learn` refocused on interactive teaching and mathlib exploration
+- `learn-pathways.md` updated to be command-agnostic (shared by learn and formalize)
+
 ## v4.1.0 (February 2026)
 - New [`/lean4:learn`](plugins/lean4/commands/learn.md) command: interactive teaching, mathlib exploration, autoformalization
 - Two-layer architecture: Lean-backed verification (always runs) + presentation layer (informal/supporting/formal)

@@ -4,6 +4,78 @@ Extended examples and session transcripts for Lean4 plugin commands.
 
 ---
 
+## formalize
+
+### Autoformalization
+
+````
+User: /lean4:formalize "Every continuous function on a compact set is bounded"
+
+Claude: Parsing claim and drafting formalization...
+
+## Theorem Skeleton
+
+```lean
+theorem continuous_on_compact_bounded
+    {X : Type*} [TopologicalSpace X] [MetricSpace X]
+    {Y : Type*} [MetricSpace Y]
+    {K : Set X} (hK : IsCompact K)
+    {f : X → Y} (hf : ContinuousOn f K) :
+    IsBounded (f '' K) := by
+  sorry
+```
+
+Attempting proof via lean_goal + lean_multi_attempt...
+lean_local_search("IsCompact ContinuousOn IsBounded image") → found it
+Trying: `exact hK.image_of_continuousOn hf |>.isBounded`
+Diagnostics... ✓
+
+Proof complete (--rigor=checked: no sorry, clean diagnostics, standard axioms).
+
+What next?
+- [show source] See the mathlib proof
+- [alternative] Different formalization (e.g., using Bornology)
+- [generalize] Weaken hypotheses
+- [save to scratch] Write to scratch file
+````
+
+### Axiomatic Draft
+
+````
+User: /lean4:formalize --rigor=axiomatic "The p-adic numbers are complete"
+
+Claude: Drafting formalization with explicit assumptions...
+
+```lean
+namespace Assumptions
+
+-- Assumption Ledger
+-- ┌──────────────────────────────┬────────────────────────┬───────────┬─────────────────────┐
+-- │ Assumption                   │ Justification          │ Scope     │ Introduced by       │
+-- ├──────────────────────────────┼────────────────────────┼───────────┼─────────────────────┤
+-- │ [MetricSpace (Padic p)]     │ standard p-adic metric │ instance  │ assistant-inferred  │
+-- │ hp : Fact (Nat.Prime p)     │ p must be prime        │ parameter │ user-stated         │
+-- └──────────────────────────────┴────────────────────────┴───────────┴─────────────────────┘
+
+theorem padic_complete (p : ℕ) [hp : Fact (Nat.Prime p)] :
+    CompleteSpace (Padic p) := by
+  sorry -- ⚠ proof blocked: needs Mathlib.NumberTheory.Padics.PadicIntegers
+```
+
+bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target>.lean --report-only → ✓ standard axioms only
+
+Note: Mathlib likely has this as an instance. Searching...
+lean_leanfinder("CompleteSpace Padic") → `Padic.instCompleteSpace`
+
+This is already a registered instance in mathlib. No axioms or assumptions needed.
+
+What next?
+- [show source] See how mathlib proves completeness
+- [deeper] Explore the p-adic metric construction
+````
+
+---
+
 ## prove
 
 ### Basic Usage
@@ -274,106 +346,224 @@ git reset HEAD~N
 
 ---
 
-## doctor
+## review
 
 ### Basic Usage
 
 ```
-/lean4:doctor              # Full diagnostic
-/lean4:doctor env          # Environment only
-/lean4:doctor migrate      # Migration assistance
-/lean4:doctor cleanup      # Remove obsolete files
+/lean4:review                        # Review changed files (default)
+/lean4:review File.lean              # Review specific file
+/lean4:review File.lean --line=89    # Review single sorry
+/lean4:review --scope=project        # Review entire project (prompts)
 ```
 
-### Full Diagnostic Example
+### Full Review Example
 
 ```
-User: /lean4:doctor
+User: /lean4:review Core.lean
 
-Claude: Running diagnostics...
+Claude: Running review on Core.lean...
 
-## Lean4 Doctor Report
+## Lean4 Review Report
+**Scope:** Core.lean (file — target default)
 
-### Environment
-✓ lean 4.15.0
-✓ lake 4.15.0
-✓ python3 3.11.2
-✓ git 2.43.0
-✓ rg 14.1.0
+### Build Status
+✓ Core.lean compiles successfully
 
-### MCP Tools
-✓ Lean LSP MCP tools available in this session (lean_goal)
+### Sorry Audit (1 remaining)
+- Core.lean:89 - `convergence_bound`
+  Goal: `∀ ε > 0, ∃ N, ∀ n ≥ N, |f n - L| < ε`
+  Suggestion: Search mathlib for `Metric.tendsto_atTop`
 
-### Plugin
-✓ LEAN4_PLUGIN_ROOT=/home/user/.claude/plugins/lean4
-✓ LEAN4_SCRIPTS=/home/user/.claude/plugins/lean4/lib/scripts
-✓ Hooks executable
-✓ Scripts executable (12 files)
+### Axiom Status
+✓ Standard axioms only
 
-### Project
-✓ lakefile.lean found
-✓ lean-toolchain: leanprover/lean4:v4.27.0
-✓ Build passes
-→ 3 sorries in Core.lean
+### Style Notes
+- Line 45: Consider `simp only [add_comm, mul_comm]` instead of `simp [*]`
+- Line 78: Proof is 38 lines - consider extracting helper lemma
 
-### Migration
-✓ Clean installation (no v3 artifacts)
+### Golfing Opportunities
+- Line 23: `rw [h]; exact trivial` → `rwa [h]`
+- Line 56: `ext x; simp` - verify if `simp` alone suffices
 
-### Status: Ready
+### Complexity Summary
+- Theorems in file: 8
+- Average proof: 15 lines
+- Longest: `convergence_bound` (38 lines)
 
-Your environment is configured correctly.
-Run /lean4:prove to fill the 3 remaining sorries.
+### Recommendations
+1. Fill `convergence_bound` sorry - likely in mathlib
+2. Extract helper from long proof at line 78
+3. Tighten `simp` calls for faster compilation
 ```
 
-### Migration Example
+### External Tool Integration Example
 
 ```
-User: /lean4:doctor migrate
+User: /lean4:review Core.lean --codex
 
-Claude: Checking for v3 artifacts...
+Claude: Running review with Codex integration...
 
-Found v3 installation:
-- .claude/tools/lean4/ (12 files)
-- .claude/docs/lean4/ (8 files)
+## Lean4 Review Report
 
-## Migration Steps
+### Build Status
+✓ Core.lean compiles
 
-1. Uninstall old plugins:
-   /plugin uninstall lean4-theorem-proving
-   /plugin uninstall lean4-memories
-   /plugin uninstall lean4-subagents
+### Sorry Audit
+- Line 89: `convergence_bound` - needs proof
 
-2. Install unified plugin:
-   /plugin marketplace add cameronfreer/lean4-skills
-   /plugin install lean4
+### Codex Suggestions
+- Line 89: "Search Mathlib for `tendsto_atTop` variants — goal shape matches convergence lemmas"
+- Line 45: "Broad `simp` may slow compilation — consider narrowing to specific lemmas"
 
-3. Optional cleanup:
-   rm -rf .claude/tools/lean4 .claude/docs/lean4
-
-Proceed with migration? (yes/no)
+### Claude Analysis
+[standard review sections...]
 ```
 
-### Cleanup Example
+### Custom Hook Interface
+
+See [review-hook-schema.md](review-hook-schema.md) for full input/output schemas and example scripts.
+
+### Stuck Review Example
+
+See [cycle-engine.md](cycle-engine.md#stuck-definition) for stuck detection criteria.
 
 ```
-User: /lean4:doctor cleanup
+[Autoprove detects no progress on Core.lean:89]
 
-Claude: Scanning for obsolete files...
+Claude: No progress on Core.lean:89 after 3 attempts. Running stuck review...
 
-Found:
-- .claude/tools/lean4/ (12 files, 45KB)
-- .claude/docs/lean4/ (8 files, 32KB)
+## Stuck Review — Core.lean:89
 
-These are v3 artifacts that are no longer needed.
-Remove them? (yes/no)
+**Top 3 blockers:**
+1. Missing lemma for tendsto_atTop → search Mathlib.Topology.Order
+2. Need MeasurableSpace instance → add `haveI` before apply
+3. Goal has implicit coercion issue → try `convert` instead of `exact`
+
+**Recommended:** Search tendsto variants first.
+
+Review complete. Proposed plan:
+1. Search Mathlib.Topology.Order for tendsto_atTop variants
+2. Add `haveI : MeasurableSpace β := inferInstance` before apply
+3. If exact fails, try `convert` with explicit type annotation
+
+Proceed with this plan? [yes / no / skip]
 
 User: yes
 
-Claude: Removing .claude/tools/lean4/... ✓
-Removing .claude/docs/lean4/... ✓
-
-Cleanup complete. 77KB freed.
+Claude: Continuing with plan...
 ```
+
+### End-of-Session Golf Example
+
+```
+## Session Complete
+
+Filled: 5/8 sorries
+Commits: 5 new
+
+Create verified checkpoint? (build + axiom check + commit)
+- [yes] — run /lean4:checkpoint
+- [no] — keep commits as-is
+
+User: yes
+
+Claude: Running checkpoint... ✓
+
+Run /lean4:golf on touched files?
+Files modified: Core.lean, Helpers.lean
+- [yes] — golf each file
+- [no] — skip
+
+User: yes
+
+Claude: Golfing Core.lean...
+[golf output]
+```
+
+### Counterexample Discovery Example
+
+See [cycle-engine.md](cycle-engine.md#falsification-artifacts) for artifact templates.
+
+```
+Claude: Working on Core.lean:42 - `naive_bound`...
+
+Goal: ⊢ ∀ n : Fin 5, n.val < 3
+
+Preflight falsification (Fin 5 is decidable)...
+Trying decide... Found counterexample: n = 3
+
+## Counterexample Found
+
+Statement `naive_bound` is false.
+Witness: `⟨3, by decide⟩` with `¬ (3 < 3)`
+
+Creating counterexample lemma...
+```lean
+/-- Counterexample to naive_bound -/
+theorem naive_bound_counterexample : ∃ n : Fin 5, ¬ (n.val < 3) := by
+  exact ⟨3, by decide⟩
+```
+
+Create salvage lemma? [yes/no]
+
+User: yes
+
+Claude: What correction makes it true?
+- Option A: Restrict domain to `Fin 3` (all values < 3)
+- Option B: Weaken bound to `n.val < 5` (trivially true for `Fin 5`)
+
+User: A
+
+Creating salvage:
+```lean
+/-- Salvaged version of naive_bound: restrict to Fin 3 -/
+theorem naive_bound_salvaged : ∀ n : Fin 3, n.val < 3 := by
+  intro n; exact n.isLt
+```
+
+Committing: "disprove: naive_bound - counterexample at n=3"
+```
+
+---
+
+## File Verification
+
+### Three-Tier Verification Ladder
+
+Use the lightest tool that answers the question:
+
+| Tier | Tool | When | Speed |
+|------|------|------|-------|
+| Per-edit | `lean_diagnostic_messages(file)` | After every edit | Sub-second |
+| File compile | `lake env lean <path/to/File.lean>` | File-level gate, import checks | Seconds |
+| Project gate | `lake build` | Checkpoint, final gate, `/lean4:checkpoint` | Minutes |
+
+Run `lake env lean` from the Lean project root; pass repo-relative file paths.
+
+### Anti-Pattern: `lake build` with File Arguments
+
+```
+# ✗ Wrong — lake build does not accept file path arguments
+lake build InfinitaryLogic/Scott/Sentence.lean
+→ error: unknown target 'InfinitaryLogic/Scott/Sentence.lean'
+
+# ✓ Correct — use lake env lean for single-file compilation
+lake env lean InfinitaryLogic/Scott/Sentence.lean
+→ (compiles single file with lake environment)
+```
+
+### Typical Verification Flow
+
+```
+1. Edit proof
+2. lean_diagnostic_messages(file)    # immediate feedback
+3. Fix any issues
+4. lake env lean path/to/File.lean   # file-level gate (from project root)
+5. Continue editing...
+6. lake build                        # project gate at checkpoint only
+```
+
 
 ---
 
@@ -648,225 +838,7 @@ Build status: ✓ passing
 
 ---
 
-## review
-
-### Basic Usage
-
-```
-/lean4:review                        # Review changed files (default)
-/lean4:review File.lean              # Review specific file
-/lean4:review File.lean --line=89    # Review single sorry
-/lean4:review --scope=project        # Review entire project (prompts)
-```
-
-### Full Review Example
-
-```
-User: /lean4:review Core.lean
-
-Claude: Running review on Core.lean...
-
-## Lean4 Review Report
-**Scope:** Core.lean (file — target default)
-
-### Build Status
-✓ Core.lean compiles successfully
-
-### Sorry Audit (1 remaining)
-- Core.lean:89 - `convergence_bound`
-  Goal: `∀ ε > 0, ∃ N, ∀ n ≥ N, |f n - L| < ε`
-  Suggestion: Search mathlib for `Metric.tendsto_atTop`
-
-### Axiom Status
-✓ Standard axioms only
-
-### Style Notes
-- Line 45: Consider `simp only [add_comm, mul_comm]` instead of `simp [*]`
-- Line 78: Proof is 38 lines - consider extracting helper lemma
-
-### Golfing Opportunities
-- Line 23: `rw [h]; exact trivial` → `rwa [h]`
-- Line 56: `ext x; simp` - verify if `simp` alone suffices
-
-### Complexity Summary
-- Theorems in file: 8
-- Average proof: 15 lines
-- Longest: `convergence_bound` (38 lines)
-
-### Recommendations
-1. Fill `convergence_bound` sorry - likely in mathlib
-2. Extract helper from long proof at line 78
-3. Tighten `simp` calls for faster compilation
-```
-
-### External Tool Integration Example
-
-```
-User: /lean4:review Core.lean --codex
-
-Claude: Running review with Codex integration...
-
-## Lean4 Review Report
-
-### Build Status
-✓ Core.lean compiles
-
-### Sorry Audit
-- Line 89: `convergence_bound` - needs proof
-
-### Codex Suggestions
-- Line 89: "Search Mathlib for `tendsto_atTop` variants — goal shape matches convergence lemmas"
-- Line 45: "Broad `simp` may slow compilation — consider narrowing to specific lemmas"
-
-### Claude Analysis
-[standard review sections...]
-```
-
-### Custom Hook Interface
-
-See [review-hook-schema.md](review-hook-schema.md) for full input/output schemas and example scripts.
-
-### Stuck Review Example
-
-See [cycle-engine.md](cycle-engine.md#stuck-definition) for stuck detection criteria.
-
-```
-[Autoprove detects no progress on Core.lean:89]
-
-Claude: No progress on Core.lean:89 after 3 attempts. Running stuck review...
-
-## Stuck Review — Core.lean:89
-
-**Top 3 blockers:**
-1. Missing lemma for tendsto_atTop → search Mathlib.Topology.Order
-2. Need MeasurableSpace instance → add `haveI` before apply
-3. Goal has implicit coercion issue → try `convert` instead of `exact`
-
-**Recommended:** Search tendsto variants first.
-
-Review complete. Proposed plan:
-1. Search Mathlib.Topology.Order for tendsto_atTop variants
-2. Add `haveI : MeasurableSpace β := inferInstance` before apply
-3. If exact fails, try `convert` with explicit type annotation
-
-Proceed with this plan? [yes / no / skip]
-
-User: yes
-
-Claude: Continuing with plan...
-```
-
-### End-of-Session Golf Example
-
-```
-## Session Complete
-
-Filled: 5/8 sorries
-Commits: 5 new
-
-Create verified checkpoint? (build + axiom check + commit)
-- [yes] — run /lean4:checkpoint
-- [no] — keep commits as-is
-
-User: yes
-
-Claude: Running checkpoint... ✓
-
-Run /lean4:golf on touched files?
-Files modified: Core.lean, Helpers.lean
-- [yes] — golf each file
-- [no] — skip
-
-User: yes
-
-Claude: Golfing Core.lean...
-[golf output]
-```
-
-### Counterexample Discovery Example
-
-See [cycle-engine.md](cycle-engine.md#falsification-artifacts) for artifact templates.
-
-```
-Claude: Working on Core.lean:42 - `naive_bound`...
-
-Goal: ⊢ ∀ n : Fin 5, n.val < 3
-
-Preflight falsification (Fin 5 is decidable)...
-Trying decide... Found counterexample: n = 3
-
-## Counterexample Found
-
-Statement `naive_bound` is false.
-Witness: `⟨3, by decide⟩` with `¬ (3 < 3)`
-
-Creating counterexample lemma...
-```lean
-/-- Counterexample to naive_bound -/
-theorem naive_bound_counterexample : ∃ n : Fin 5, ¬ (n.val < 3) := by
-  exact ⟨3, by decide⟩
-```
-
-Create salvage lemma? [yes/no]
-
-User: yes
-
-Claude: What correction makes it true?
-- Option A: Restrict domain to `Fin 3` (all values < 3)
-- Option B: Weaken bound to `n.val < 5` (trivially true for `Fin 5`)
-
-User: A
-
-Creating salvage:
-```lean
-/-- Salvaged version of naive_bound: restrict to Fin 3 -/
-theorem naive_bound_salvaged : ∀ n : Fin 3, n.val < 3 := by
-  intro n; exact n.isLt
-```
-
-Committing: "disprove: naive_bound - counterexample at n=3"
-```
-
----
-
-## File Verification
-
-### Three-Tier Verification Ladder
-
-Use the lightest tool that answers the question:
-
-| Tier | Tool | When | Speed |
-|------|------|------|-------|
-| Per-edit | `lean_diagnostic_messages(file)` | After every edit | Sub-second |
-| File compile | `lake env lean <path/to/File.lean>` | File-level gate, import checks | Seconds |
-| Project gate | `lake build` | Checkpoint, final gate, `/lean4:checkpoint` | Minutes |
-
-Run `lake env lean` from the Lean project root; pass repo-relative file paths.
-
-### Anti-Pattern: `lake build` with File Arguments
-
-```
-# ✗ Wrong — lake build does not accept file path arguments
-lake build InfinitaryLogic/Scott/Sentence.lean
-→ error: unknown target 'InfinitaryLogic/Scott/Sentence.lean'
-
-# ✓ Correct — use lake env lean for single-file compilation
-lake env lean InfinitaryLogic/Scott/Sentence.lean
-→ (compiles single file with lake environment)
-```
-
-### Typical Verification Flow
-
-```
-1. Edit proof
-2. lean_diagnostic_messages(file)    # immediate feedback
-3. Fix any issues
-4. lake env lean path/to/File.lean   # file-level gate (from project root)
-5. Continue editing...
-6. lake build                        # project gate at checkpoint only
-```
-
-## Learn
+## learn
 
 ### Repo Mode — Exploring Project Structure
 
@@ -934,45 +906,12 @@ What next?
 - [alternative] See filter-free characterization
 ````
 
-### Formalize Mode — Autoformalization
-
-````
-User: /lean4:learn --mode=formalize "Every continuous function on a compact set is bounded"
-
-Claude: Parsing claim and drafting formalization...
-
-## Theorem Skeleton
-
-```lean
-theorem continuous_on_compact_bounded
-    {X : Type*} [TopologicalSpace X] [MetricSpace X]
-    {Y : Type*} [MetricSpace Y]
-    {K : Set X} (hK : IsCompact K)
-    {f : X → Y} (hf : ContinuousOn f K) :
-    IsBounded (f '' K) := by
-  sorry
-```
-
-Attempting proof via lean_goal + lean_multi_attempt...
-lean_local_search("IsCompact ContinuousOn IsBounded image") → found it
-Trying: `exact hK.image_of_continuousOn hf |>.isBounded`
-Diagnostics... ✓
-
-Proof complete (--rigor=checked: no sorry, clean diagnostics, standard axioms).
-
-What next?
-- [show source] See the mathlib proof
-- [alternative] Different formalization (e.g., using Bornology)
-- [generalize] Weaken hypotheses
-- [save to scratch] Write to scratch file
-````
-
 ### Game Style — Natural Numbers Track
 
 ````
 User: /lean4:learn --style=game --track=nng-like
 
-Claude: [Intent: usage (inferred) | Presentation: formal | Mode: formalize]
+Claude: [Intent: usage (inferred) | Presentation: formal]
 
 Starting Natural Numbers Game — Track: nng-like (8 levels)
 
@@ -1012,7 +951,7 @@ User: /lean4:learn --source ./papers/stone-weierstrass.pdf
 
 Claude: Reading PDF... extracting key results.
 
-[Intent: math (inferred from PDF) | Presentation: informal | Mode: formalize]
+[Intent: math (inferred from PDF) | Presentation: informal]
 
 ## Stone–Weierstrass: Main Results [unverified]
 
@@ -1030,40 +969,108 @@ Claude: **Theorem 1** says that polynomial-like function algebras are "enough" t
 
 Want to see this formalized in Lean to make it concrete?
 
-[deeper / show source / formalize]
+[deeper / show source / formalize → /lean4:formalize]
 ````
 
-### Formalize Mode — Axiomatic Draft
+---
 
-````
-User: /lean4:learn --mode=formalize --rigor=axiomatic "The p-adic numbers are complete"
+## doctor
 
-Claude: Drafting formalization with explicit assumptions...
+### Basic Usage
 
-```lean
-namespace Assumptions
-
--- Assumption Ledger
--- ┌──────────────────────────────┬────────────────────────┬───────────┬─────────────────────┐
--- │ Assumption                   │ Justification          │ Scope     │ Introduced by       │
--- ├──────────────────────────────┼────────────────────────┼───────────┼─────────────────────┤
--- │ [MetricSpace (Padic p)]     │ standard p-adic metric │ instance  │ assistant-inferred  │
--- │ hp : Fact (Nat.Prime p)     │ p must be prime        │ parameter │ user-stated         │
--- └──────────────────────────────┴────────────────────────┴───────────┴─────────────────────┘
-
-theorem padic_complete (p : ℕ) [hp : Fact (Nat.Prime p)] :
-    CompleteSpace (Padic p) := by
-  sorry -- ⚠ proof blocked: needs Mathlib.NumberTheory.Padics.PadicIntegers
+```
+/lean4:doctor              # Full diagnostic
+/lean4:doctor env          # Environment only
+/lean4:doctor migrate      # Migration assistance
+/lean4:doctor cleanup      # Remove obsolete files
 ```
 
-bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target>.lean --report-only → ✓ standard axioms only
+### Full Diagnostic Example
 
-Note: Mathlib likely has this as an instance. Searching...
-lean_leanfinder("CompleteSpace Padic") → `Padic.instCompleteSpace`
+```
+User: /lean4:doctor
 
-This is already a registered instance in mathlib. No axioms or assumptions needed.
+Claude: Running diagnostics...
 
-What next?
-- [show source] See how mathlib proves completeness
-- [deeper] Explore the p-adic metric construction
-````
+## Lean4 Doctor Report
+
+### Environment
+✓ lean 4.15.0
+✓ lake 4.15.0
+✓ python3 3.11.2
+✓ git 2.43.0
+✓ rg 14.1.0
+
+### MCP Tools
+✓ Lean LSP MCP tools available in this session (lean_goal)
+
+### Plugin
+✓ LEAN4_PLUGIN_ROOT=/home/user/.claude/plugins/lean4
+✓ LEAN4_SCRIPTS=/home/user/.claude/plugins/lean4/lib/scripts
+✓ Hooks executable
+✓ Scripts executable (12 files)
+
+### Project
+✓ lakefile.lean found
+✓ lean-toolchain: leanprover/lean4:v4.27.0
+✓ Build passes
+→ 3 sorries in Core.lean
+
+### Migration
+✓ Clean installation (no v3 artifacts)
+
+### Status: Ready
+
+Your environment is configured correctly.
+Run /lean4:prove to fill the 3 remaining sorries.
+```
+
+### Migration Example
+
+```
+User: /lean4:doctor migrate
+
+Claude: Checking for v3 artifacts...
+
+Found v3 installation:
+- .claude/tools/lean4/ (12 files)
+- .claude/docs/lean4/ (8 files)
+
+## Migration Steps
+
+1. Uninstall old plugins:
+   /plugin uninstall lean4-theorem-proving
+   /plugin uninstall lean4-memories
+   /plugin uninstall lean4-subagents
+
+2. Install unified plugin:
+   /plugin marketplace add cameronfreer/lean4-skills
+   /plugin install lean4
+
+3. Optional cleanup:
+   rm -rf .claude/tools/lean4 .claude/docs/lean4
+
+Proceed with migration? (yes/no)
+```
+
+### Cleanup Example
+
+```
+User: /lean4:doctor cleanup
+
+Claude: Scanning for obsolete files...
+
+Found:
+- .claude/tools/lean4/ (12 files, 45KB)
+- .claude/docs/lean4/ (8 files, 32KB)
+
+These are v3 artifacts that are no longer needed.
+Remove them? (yes/no)
+
+User: yes
+
+Claude: Removing .claude/tools/lean4/... ✓
+Removing .claude/docs/lean4/... ✓
+
+Cleanup complete. 77KB freed.
+```
