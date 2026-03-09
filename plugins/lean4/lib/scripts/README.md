@@ -50,6 +50,9 @@ Verify theorems use only standard mathlib axioms.
 # Check multiple files (batch mode)
 ./check_axioms_inline.sh "src/**/*.lean"
 
+# Scan a directory (recursively, skips .lake/.git)
+./check_axioms_inline.sh src/
+
 # Report-only (exit 0 even with custom axioms)
 ./check_axioms_inline.sh MyFile.lean --report-only
 ```
