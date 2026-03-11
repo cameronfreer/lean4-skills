@@ -113,7 +113,7 @@ Savings: 1 line
 
 ## Tools
 
-**LSP** (fall back to scripts if unavailable):
+**LSP** (use before scripts; fall back only when LSP is unavailable, rate-limited, or inconclusive after bounded attempts):
 ```
 lean_goal(file, line)                   # Proof goal context
 lean_local_search("keyword")           # Lemma search (try first)

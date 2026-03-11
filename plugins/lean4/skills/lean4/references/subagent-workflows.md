@@ -130,7 +130,7 @@ Task: "Optimize these 5 proofs"
 
 Task: "Find mathlib lemmas for this sorry"
 ✅ Dispatch Explore agent to run $LEAN4_SCRIPTS/smart_search.sh (simple delegation)
-✅ Use lean_local_search or lean_leansearch LSP tools directly
+✅ Use lean_local_search or lean_leanfinder LSP tools directly
 
 Task: "Fill all 15 sorries in this file"
 ✅ Use /lean4:prove or /lean4:autoprove (batch processing with testing)
@@ -400,12 +400,13 @@ to find the right mathlib lemma..."
 
 ## Integration with MCP Server
 
-**If Lean MCP server is available:** Prefer MCP tools over scripts.
+**If Lean MCP server is available:** Prefer MCP tools over scripts, including inside specialized proof-editing subagents.
 
 **Hierarchy:**
 1. **MCP server** (best) - Direct integration, no script overhead
-2. **Subagent + scripts** (good) - Efficient delegation, batch operations
-3. **Direct script execution** (fallback) - When not using Claude Code
+2. **Subagent + MCP** (good) - Delegate proof work, but still use live Lean tools inside the subagent
+3. **Subagent + scripts** (fallback) - Batch operations or MCP unavailable
+4. **Direct script execution** (fallback) - When not using Claude Code
 
 **MCP + Subagents workflow:**
 ```
@@ -413,13 +414,16 @@ to find the right mathlib lemma..."
 lean_goal(file, line, column)  # See proof state
 lean_diagnostic_messages(file)  # Check errors
 
+# Delegate proof work with file:line context; the agent prompt handles the MCP-first details
+"Dispatch lean4-sorry-filler-deep on Foo.lean:42; use MCP tools first"
+
 # Delegate batch operations to subagents
 "Dispatch Explore agent to run $LEAN4_SCRIPTS/check_axioms_inline.sh on all changed files"
 ```
 
 **Why this combination?**
 - MCP: Real-time feedback during proof development
-- Subagents: Batch verification and analysis tasks
+- Subagents: Parallel proof work or batch verification, while still using MCP for live Lean state when available
 - Best of both: Interactive + Automated
 
 ## Best Practices
@@ -470,7 +474,7 @@ The lean4 plugin provides these main commands:
 For quick operations, use Lean LSP MCP tools directly:
 
 ```
-lean_leansearch("continuous function compact")  # Natural language search
+lean_leanfinder("continuous function compact")  # Semantic, goal-aware search
 lean_loogle("Continuous _ → IsCompact _")       # Type pattern search
 lean_goal(file, line)                           # Get goal at position
 lean_multi_attempt(file, line, snippets=["simp", "ring"]) # Test tactics
@@ -482,7 +486,7 @@ lean_multi_attempt(file, line, snippets=["simp", "ring"]) # Test tactics
 
 **Direct approach (preferred):**
 ```
-lean_leansearch("continuous image of compact set is compact")
+lean_leanfinder("continuous image of compact set is compact")
 → Returns: Continuous.isCompact_image
 
 lean_loogle("Continuous _ → IsCompact _ → IsCompact _")
@@ -491,6 +495,7 @@ lean_loogle("Continuous _ → IsCompact _ → IsCompact _")
 Alternatives:
 - ContinuousOn.isCompact_image (if only continuous on subset)
 - IsCompact.image (more general form)
+- lean_leansearch("continuous image of compact set is compact")  # Natural-language fallback
 "
 ```
 

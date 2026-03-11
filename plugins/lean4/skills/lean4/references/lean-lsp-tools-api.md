@@ -445,9 +445,12 @@ lean_loogle("(?a -> ?b) -> List ?a -> List ?b", num_results=5)
 **Decision tree:**
 ```
 Know exact name? → lean_local_search
-Know concept/description? → lean_leansearch
+Know concept/description or have goal text? → lean_leanfinder ✅
+Need natural-language fallback? → lean_leansearch
 Know input/output types? → lean_loogle ✅
 ```
+
+`lean_leanfinder` is the preferred semantic search: it is goal-aware and has a larger rate budget than `lean_leansearch` (10/30s vs 3/30s).
 
 **Return structure:**
 ```json
@@ -767,10 +770,10 @@ Error: Rate limit exceeded. Try again in X seconds.
 
 **Priority order:**
 1. `lean_local_search` — always first, unlimited
-2. `lean_loogle` — type patterns (unlimited in local mode; remote by default)
-3. `lean_leanfinder` — semantic, goal-aware (10/30s)
+2. `lean_leanfinder` — preferred semantic/goal-aware search (10/30s)
+3. `lean_loogle` — type patterns (unlimited in local mode; remote by default)
 4. `lean_hammer_premise` — premise suggestions (3/30s)
-5. `lean_leansearch` — natural language (3/30s)
+5. `lean_leansearch` — natural-language fallback (3/30s)
 6. `lean_state_search` — goal-conditioned (3/30s)
 
 ---
