@@ -400,12 +400,13 @@ to find the right mathlib lemma..."
 
 ## Integration with MCP Server
 
-**If Lean MCP server is available:** Prefer MCP tools over scripts.
+**If Lean MCP server is available:** Prefer MCP tools over scripts, including inside specialized proof-editing subagents.
 
 **Hierarchy:**
 1. **MCP server** (best) - Direct integration, no script overhead
-2. **Subagent + scripts** (good) - Efficient delegation, batch operations
-3. **Direct script execution** (fallback) - When not using Claude Code
+2. **Subagent + MCP** (good) - Delegate proof work, but still use live Lean tools inside the subagent
+3. **Subagent + scripts** (fallback) - Batch operations or MCP unavailable
+4. **Direct script execution** (fallback) - When not using Claude Code
 
 **MCP + Subagents workflow:**
 ```
@@ -413,13 +414,16 @@ to find the right mathlib lemma..."
 lean_goal(file, line, column)  # See proof state
 lean_diagnostic_messages(file)  # Check errors
 
+# Delegate proof work with file:line context so the subagent can call MCP too
+"Dispatch lean4-sorry-filler-deep on Foo.lean:42; start with lean_goal + lean_diagnostic_messages, use LSP search before scripts, prefer lean_run_code for isolated scratch probes, and use /tmp scratch files only as fallback"
+
 # Delegate batch operations to subagents
 "Dispatch Explore agent to run $LEAN4_SCRIPTS/check_axioms_inline.sh on all changed files"
 ```
 
 **Why this combination?**
 - MCP: Real-time feedback during proof development
-- Subagents: Batch verification and analysis tasks
+- Subagents: Parallel proof work or batch verification, while still using MCP for live Lean state when available
 - Best of both: Interactive + Automated
 
 ## Best Practices

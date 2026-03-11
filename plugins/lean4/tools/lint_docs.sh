@@ -113,7 +113,9 @@ check_agents() {
 
         local max_lines=115
         case "$agent" in
+            lean4-axiom-eliminator) max_lines=120 ;;
             lean4-proof-golfer) max_lines=135 ;;
+            lean4-sorry-filler-deep) max_lines=125 ;;
         esac
 
         if [[ $lines -gt $max_lines ]]; then
@@ -136,7 +138,7 @@ check_agents() {
         fi
 
         # Validate tool names against allowed set
-        local allowed_tools="Read Grep Glob Edit Bash lean_goal lean_local_search lean_leanfinder lean_leansearch lean_loogle lean_multi_attempt lean_hover_info lean_diagnostic_messages"
+        local allowed_tools="Read Grep Glob Edit Bash lean_goal lean_local_search lean_leanfinder lean_leansearch lean_loogle lean_multi_attempt lean_hover_info lean_diagnostic_messages lean_run_code"
         local tools_line
         tools_line=$(grep "^tools:" "$file" | sed 's/^tools: *//')
         if [[ -n "$tools_line" ]]; then

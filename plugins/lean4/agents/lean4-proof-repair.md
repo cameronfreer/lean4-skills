@@ -1,7 +1,7 @@
 ---
 name: lean4-proof-repair
 description: Compiler-guided iterative proof repair with two-stage model escalation (Haiku → Opus). Use for error-driven proof fixing with small sampling budgets (K=1).
-tools: Read, Grep, Glob, Edit, Bash, lean_goal, lean_local_search, lean_leanfinder, lean_leansearch, lean_loogle, lean_multi_attempt
+tools: Read, Grep, Glob, Edit, Bash, lean_goal, lean_local_search, lean_leanfinder, lean_leansearch, lean_loogle, lean_multi_attempt, lean_diagnostic_messages, lean_run_code
 model: haiku
 thinking: off
 ---
@@ -24,13 +24,16 @@ Structured error context (JSON):
 
 ## Actions
 
-1. **Classify error** from errorType
-2. **Apply error-specific strategy** (see table below)
-3. **Search** if needed (LSP-first, fall back to scripts if unavailable):
+1. **Inspect live state first**:
+   - `lean_goal(file, line)` and `lean_diagnostic_messages(file)` before proposing any diff
+   - Prefer live-file MCP for target-context checks; if you need an isolated scratch probe, use `lean_run_code` before resorting to temporary `.lean` files
+2. **Classify error** from errorType
+3. **Apply error-specific strategy** (see table below)
+4. **Search** if needed (LSP-first, fall back to scripts if unavailable):
    - `lean_leanfinder("query")` or `lean_local_search("keyword")` first
    - Script fallback: `$LEAN4_SCRIPTS/search_mathlib.sh` only after LSP exhausted
-4. **Generate minimal diff** (1-5 lines)
-5. **Output unified diff ONLY** - no explanations
+5. **Generate minimal diff** (1-5 lines)
+6. **Output unified diff ONLY** - no explanations
 
 ## Two-Stage Approach
 
@@ -71,6 +74,8 @@ Structured error context (JSON):
 - May NOT rewrite entire functions
 - May NOT try random tactics
 - May NOT skip mathlib search
+- Use `lean_diagnostic_messages(file)` for per-edit validation before any Bash-based file gate
+- Prefer live-file MCP for repair work; use `lean_run_code` for isolated scratch probes, and temporary `.lean` files only if `lean_run_code` is unavailable or insufficient
 
 ## Example (Happy Path)
 
@@ -90,10 +95,12 @@ Output:
 **LSP-first order** (use before scripts):
 ```
 lean_goal(file, line)                # LSP live goal
+lean_diagnostic_messages(file)       # Current errors/warnings
 lean_leanfinder("query")            # Semantic search (try first)
 lean_local_search("keyword")        # Local + mathlib
 lean_loogle("type pattern")         # Type-based search
 lean_multi_attempt(file, line, snippets=[...])  # Test candidates
+lean_run_code("code")               # Isolated scratch experiments
 ```
 
 **Script fallback** (only after LSP budget exhausted):
