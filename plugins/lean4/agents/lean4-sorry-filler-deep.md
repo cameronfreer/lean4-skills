@@ -97,7 +97,7 @@ Final summary (~200-300 tokens):
 
 ## Tools
 
-**LSP-first** (fall back to scripts if unavailable/rate-limited):
+**LSP-first** (use before scripts; fall back only when LSP is unavailable, rate-limited, or inconclusive after bounded attempts):
 ```
 lean_goal(file, line)                # Understand goal
 lean_diagnostic_messages(file)       # Per-edit validation
@@ -113,7 +113,7 @@ lean_run_code("code")               # Isolated scratch experiments
 $LEAN4_SCRIPTS/sorry_analyzer.py       # Context analysis
 $LEAN4_SCRIPTS/check_axioms_inline.sh  # Verify no axioms
 $LEAN4_SCRIPTS/find_usages.sh          # Dependency analysis
-$LEAN4_SCRIPTS/smart_search.sh         # Search fallback (after LSP exhausted)
+$LEAN4_SCRIPTS/smart_search.sh         # Search fallback (after bounded LSP pass)
 lake env lean path/to/File.lean         # File gate (project root, after LSP checks)
 lake build                              # Project gate / final verification only
 ```

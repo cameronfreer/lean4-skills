@@ -29,7 +29,7 @@ Structured error context (JSON):
    - Prefer live-file MCP for target-context checks; if you need an isolated scratch probe, use `lean_run_code` before resorting to temporary `.lean` files
 2. **Classify error** from errorType
 3. **Apply error-specific strategy** (see table below)
-4. **Search** if needed (LSP-first, fall back to scripts if unavailable):
+4. **Search** if needed (LSP-first; fall back to scripts only when LSP is unavailable, rate-limited, or inconclusive after bounded attempts):
    - `lean_leanfinder("query")` or `lean_local_search("keyword")` first
    - Script fallback: `$LEAN4_SCRIPTS/search_mathlib.sh` only after LSP exhausted
 5. **Generate minimal diff** (1-5 lines)
@@ -103,7 +103,7 @@ lean_multi_attempt(file, line, snippets=[...])  # Test candidates
 lean_run_code("code")               # Isolated scratch experiments
 ```
 
-**Script fallback** (only after LSP budget exhausted):
+**Script fallback** (only when LSP is unavailable, rate-limited, or inconclusive after bounded attempts):
 ```bash
 $LEAN4_SCRIPTS/search_mathlib.sh    # Search by pattern
 $LEAN4_SCRIPTS/smart_search.sh      # Multi-source

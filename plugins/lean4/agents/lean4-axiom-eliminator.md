@@ -96,7 +96,7 @@ Found: Mathlib.Foo.helper_lemma
 ```
 
 ## Tools
-**LSP-first** (fall back to scripts if unavailable/rate-limited):
+**LSP-first** (use before scripts; fall back only when LSP is unavailable, rate-limited, or inconclusive after bounded attempts):
 ```
 lean_goal(file, line)
 lean_diagnostic_messages(file)
