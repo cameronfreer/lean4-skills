@@ -24,16 +24,13 @@ Structured error context (JSON):
 
 ## Actions
 
-1. **Inspect live state first**:
-   - `lean_goal(file, line)` and `lean_diagnostic_messages(file)` before proposing any diff
-   - Prefer live-file MCP for target-context checks; if you need an isolated scratch probe, use `lean_run_code` before resorting to temporary `.lean` files
-2. **Classify error** from errorType
-3. **Apply error-specific strategy** (see table below)
-4. **Search** if needed (LSP-first; fall back to scripts only when LSP is unavailable, rate-limited, or inconclusive after bounded attempts):
+1. **Classify error** — `lean_goal(file, line)` + `lean_diagnostic_messages(file)` first, then match errorType
+2. **Apply error-specific strategy** (see table below)
+3. **Search** if needed (LSP-first; fall back to scripts only when LSP is unavailable, rate-limited, or inconclusive after bounded attempts):
    - `lean_leanfinder("query")` or `lean_local_search("keyword")` first
    - Script fallback: `$LEAN4_SCRIPTS/search_mathlib.sh` only after LSP exhausted
-5. **Generate minimal diff** (1-5 lines)
-6. **Output unified diff ONLY** - no explanations
+4. **Generate minimal diff** (1-5 lines)
+5. **Output unified diff ONLY** - no explanations
 
 ## Two-Stage Approach
 
@@ -74,8 +71,7 @@ Structured error context (JSON):
 - May NOT rewrite entire functions
 - May NOT try random tactics
 - May NOT skip mathlib search
-- Use `lean_diagnostic_messages(file)` for per-edit validation before any Bash-based file gate
-- Prefer live-file MCP for repair work; use `lean_run_code` for isolated scratch probes, and temporary `.lean` files only if `lean_run_code` is unavailable or insufficient
+- Use `lean_diagnostic_messages(file)` for per-edit validation before any Bash-based file gate; prefer `lean_run_code` over temporary `.lean` files for isolated scratch probes
 
 ## Example (Happy Path)
 

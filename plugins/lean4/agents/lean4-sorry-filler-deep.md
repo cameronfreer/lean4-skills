@@ -66,11 +66,8 @@ Final summary (~200-300 tokens):
 - May NOT introduce axioms without permission
 - May NOT make large architectural changes without approval
 - May NOT delete existing working proofs
-- Must validate after every phase
-- Prefer live-file MCP (`lean_goal`, `lean_multi_attempt`, `lean_diagnostic_messages`) for target-context work
-- If you need a scratch experiment isolated from the live file, prefer `lean_run_code` over creating temporary `.lean` files
-- Use `/tmp` scratch files only when `lean_run_code` is unavailable or insufficient and the experiment should not touch the live file
-- Use `lean_goal` before the first edit and again after material proof changes
+- Must validate after every phase: `lean_goal` before first edit and after material changes; `lean_diagnostic_messages` per edit batch
+- Prefer live-file MCP for target-context work; for isolated scratch experiments use `lean_run_code` (temporary `.lean` files only as last resort)
 - Engine creates path-scoped snapshot before deep and rolls back on regression or scope exceeded
 - Engine enforces `--deep-scope`, `--deep-max-files`, `--deep-max-lines` — do not bypass
 - Agent must not run git snapshot/rollback commands directly; on rollback, sorry is marked stuck and agent must stop
