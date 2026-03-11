@@ -130,7 +130,7 @@ Task: "Optimize these 5 proofs"
 
 Task: "Find mathlib lemmas for this sorry"
 ✅ Dispatch Explore agent to run $LEAN4_SCRIPTS/smart_search.sh (simple delegation)
-✅ Use lean_local_search or lean_leansearch LSP tools directly
+✅ Use lean_local_search or lean_leanfinder LSP tools directly
 
 Task: "Fill all 15 sorries in this file"
 ✅ Use /lean4:prove or /lean4:autoprove (batch processing with testing)
@@ -474,7 +474,7 @@ The lean4 plugin provides these main commands:
 For quick operations, use Lean LSP MCP tools directly:
 
 ```
-lean_leansearch("continuous function compact")  # Natural language search
+lean_leanfinder("continuous function compact")  # Semantic, goal-aware search
 lean_loogle("Continuous _ → IsCompact _")       # Type pattern search
 lean_goal(file, line)                           # Get goal at position
 lean_multi_attempt(file, line, snippets=["simp", "ring"]) # Test tactics
@@ -486,7 +486,7 @@ lean_multi_attempt(file, line, snippets=["simp", "ring"]) # Test tactics
 
 **Direct approach (preferred):**
 ```
-lean_leansearch("continuous image of compact set is compact")
+lean_leanfinder("continuous image of compact set is compact")
 → Returns: Continuous.isCompact_image
 
 lean_loogle("Continuous _ → IsCompact _ → IsCompact _")
@@ -495,6 +495,7 @@ lean_loogle("Continuous _ → IsCompact _ → IsCompact _")
 Alternatives:
 - ContinuousOn.isCompact_image (if only continuous on subset)
 - IsCompact.image (more general form)
+- lean_leansearch("continuous image of compact set is compact")  # Natural-language fallback
 "
 ```
 

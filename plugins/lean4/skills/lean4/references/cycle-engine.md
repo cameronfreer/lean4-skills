@@ -23,7 +23,7 @@ LSP tools are the normative first-pass for all discovery, search, and validation
 
 **Planning phase (per target sorry):**
 1. `lean_goal(file, line)` — understand goal before ordering
-2. Up to 3 LSP search tools (time-boxed ~30s total): `lean_local_search`, one of `lean_leanfinder`/`lean_leansearch`/`lean_hammer_premise`, and `lean_loogle`
+2. Up to 3 LSP search tools (time-boxed ~30s total): `lean_local_search`, preferably `lean_leanfinder` for semantic/goal-aware search (`lean_leansearch` for natural-language fallback, `lean_hammer_premise` for premise suggestions), and `lean_loogle` for type-pattern gaps
 3. Record top candidate lemmas and intended next attempts in the plan
 4. **Trivial-goal shortcut:** If the goal is obviously solvable (`rfl`, `simp`, `exact` with a known lemma), skip extended search — proceed directly to work phase
 

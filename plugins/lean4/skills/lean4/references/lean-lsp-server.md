@@ -114,9 +114,9 @@ Without `tee`, piping to `head`/`grep` discards the rest. With `tee`, the full o
 | `lean_run_code` | **Local** | None | Fast | Run standalone snippets |
 | `lean_file_contents` | **Local** | None | Fast | **DEPRECATED** — use Read tool |
 | `lean_profile_proof` | **Local** | None | Slow | Profile proof performance |
-| `lean_loogle` | **External** | Remote default; unlimited if local | Fast | Type patterns |
-| `lean_leansearch` | **External** | 3/30s | Slower | Natural language |
 | `lean_leanfinder` | **External** | 10/30s | Fast | Semantic search (best for goals!) |
+| `lean_loogle` | **External** | Remote default; unlimited if local | Fast | Type patterns |
+| `lean_leansearch` | **External** | 3/30s | Slower | Natural language fallback |
 | `lean_state_search` | **External** | 3/30s | Fast | Proof state |
 | `lean_hammer_premise` | **External** | 3/30s | Fast | Premise suggestions for simp/aesop/grind |
 
