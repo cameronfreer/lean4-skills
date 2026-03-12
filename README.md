@@ -55,10 +55,9 @@ git clone --depth 1 https://github.com/cameronfreer/lean4-skills.git
 - **OpenCode** — copy to `.opencode/skills/` + env vars. See [INSTALLATION.md → OpenCode](INSTALLATION.md#opencode)
 - **Other agents** — point agent at SKILL.md + env vars. See [INSTALLATION.md → Generic](INSTALLATION.md#any-agent-generic)
 
-## Lean LSP MCP Server (Highly Recommended)
+## Lean LSP MCP Server (Optional, Highly Recommended)
 
-[lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) provides **sub-second
-feedback** instead of 30+ second `lake build` cycles. Works with any MCP-capable host.
+The skill works standalone, but plays especially well with [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) — **sub-second feedback** instead of 30+ second `lake build` cycles. Works with any MCP-capable host.
 
 **What you get:**
 - `lean_goal` — exact goal state at any line
