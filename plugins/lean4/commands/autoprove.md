@@ -70,6 +70,7 @@ Autoprove accepts all `--review-source` values for flag compatibility with `/lea
 
 - `--formalize=bootstrap` requires `--source`; error if missing.
 - `--formalize=auto` requires `--source`; error if missing.
+- `--formalize=bootstrap|auto` with `--source` requires `--claim-select`; error if missing (no unattended guessing).
 - `--formalize=restage` does NOT require `--source` — operates on existing scope with restage enabled on stuck.
 - `--formalize=never` ignores `--source` (warn if provided).
 
@@ -130,7 +131,7 @@ See [cycle-engine: Replan Phase](../skills/lean4/references/cycle-engine.md#repl
 
 ## Formalize Outer Loop
 
-When `--formalize` is not `never`, autoprove wraps the inner 6-phase cycle with source-backed statement acquisition and review-driven routing.
+When `--formalize` is not `never`, autoprove wraps the inner 6-phase cycle with formalize-driven statement acquisition (source-backed for `bootstrap`/`auto`, scope-backed for `restage`) and review-driven routing.
 
 | Mode | Behavior |
 |------|----------|
