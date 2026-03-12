@@ -44,10 +44,9 @@ Autonomous multi-cycle theorem proving. Runs cycles automatically with hard stop
 | --max-cycles | No | 20 | Hard stop: max total cycles |
 | --max-total-runtime | No | 120m | Hard stop: max total runtime |
 | --max-stuck-cycles | No | 3 | Hard stop: max consecutive stuck cycles |
-| --formalize | No | never | `never` \| `bootstrap` \| `restage` \| `auto`. See Formalize Outer Loop. |
-| --source | No | — | File path, URL, or PDF for claim extraction. Required when `--formalize=bootstrap\|auto`. |
-| --claim-select | No | — | `first` \| `named:"..."` \| `regex:"..."`. Required for unattended `--source`. |
-| --claim-batch-size | No | 1 | Claims to formalize per outer loop iteration |
+| --formalize | No | never | `never` \| `restage` \| `auto`. See Formalize Outer Loop. |
+| --source | No | — | File path, URL, or PDF for claim extraction. Required when `--formalize=auto`. |
+| --claim-select | No | — | `first` \| `named:"..."` \| `regex:"..."`. Required when `--source` is provided. |
 | --formalize-rigor | No | sketch | `sketch` \| `checked`. Rigor for formalize skeleton. |
 | --statement-policy | No | preserve | `preserve` \| `rewrite-generated-only` \| `adjacent-drafts`. See cycle-engine. |
 | --formalize-out | No | — | Target file for formalized claims. Required if no existing target in scope. |
@@ -68,9 +67,8 @@ Autoprove accepts all `--review-source` values for flag compatibility with `/lea
 
 ### Formalize Flag Validation
 
-- `--formalize=bootstrap` requires `--source`; error if missing.
 - `--formalize=auto` requires `--source`; error if missing.
-- `--formalize=bootstrap|auto` with `--source` requires `--claim-select`; error if missing (no unattended guessing).
+- `--formalize=auto` with `--source` requires `--claim-select`; error if missing (no unattended guessing).
 - `--formalize=restage` does NOT require `--source` — operates on existing scope with restage enabled on stuck.
 - `--formalize=never` ignores `--source` (warn if provided).
 
@@ -131,14 +129,13 @@ See [cycle-engine: Replan Phase](../skills/lean4/references/cycle-engine.md#repl
 
 ## Formalize Outer Loop
 
-When `--formalize` is not `never`, autoprove wraps the inner 6-phase cycle with formalize-driven statement acquisition (source-backed for `bootstrap`/`auto`, scope-backed for `restage`) and review-driven routing.
+When `--formalize` is not `never`, autoprove wraps the inner 6-phase cycle with formalize-driven statement acquisition (source-backed for `auto`, scope-backed for `restage`) and review-driven routing.
 
 | Mode | Behavior |
 |------|----------|
 | `never` (default) | No outer loop. Identical to pre-change behavior. |
-| `bootstrap` | Extract claims from `--source`, formalize each, then prove. Restage on stuck if `next_action=formalize-restage`. |
 | `restage` | No claim queue. Run inner cycle on existing scope; on stuck, re-formalize if `next_action=formalize-restage`. |
-| `auto` | Full loop: extract + formalize + prove + restage on stuck. |
+| `auto` | Full loop: extract claims from `--source`, formalize each, prove, restage on stuck. |
 
 The inner 6-phase cycle is unchanged. The outer loop reads the stuck-mode `next_action` field from review as its routing gate. See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#formalize-outer-loop) for the full algorithm, provenance tracking, claim queue, and file assembly contract.
 
@@ -151,7 +148,7 @@ Autoprove stops when the **first** of these is satisfied:
 3. **Max cycles** — `--max-cycles` total cycles reached (default: 20)
 4. **Max runtime** — `--max-total-runtime` elapsed (default: 120m)
 5. **Manual user stop** — user interrupts
-6. **Queue empty** — all claims attempted (outer loop only, `--formalize=bootstrap|auto`)
+6. **Queue empty** — all claims attempted (outer loop only, `--formalize=auto`)
 
 ## Structured Summary on Stop
 

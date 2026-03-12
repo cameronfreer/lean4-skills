@@ -284,14 +284,14 @@ Blocked git commands (both prove and autoprove):
 
 ## Formalize Outer Loop
 
-Optional wrapper around the inner 6-phase cycle. Activated by `/lean4:autoprove --formalize=bootstrap|restage|auto`. Default `--formalize=never` leaves all behavior unchanged.
+Optional wrapper around the inner 6-phase cycle. Activated by `/lean4:autoprove --formalize=restage|auto`. Default `--formalize=never` leaves all behavior unchanged.
 
 ### Algorithm
 
 Two entry shapes depending on whether `--source` is provided:
 
 ```
-# Source-backed (--formalize=bootstrap|auto with --source):
+# Source-backed (--formalize=auto with --source):
 extract claim queue from --source at startup
 while queue non-empty AND no stop rule:
   1. Statement Acquisition:
@@ -346,7 +346,7 @@ Tracks which statements were introduced by formalize within the current autoprov
 - **Order**: document order (position in source). Deterministic across re-runs of the same source.
 - **Storage**: in-memory ordered list. Not persisted to disk.
 - **On restart**: re-extraction from `--source` produces same queue; cursor resets to beginning. Already-formalized claims detected via declaration-head matching in the target file.
-- **Iteration**: outer loop pops `--claim-batch-size` claims per iteration, invokes formalize with `--claim-select=first` (or `named`/`regex`) for each. Queue management is autoprove-internal — formalize never sees `queue` as a selection policy.
+- **Iteration**: outer loop processes one claim at a time — pop next claim, invoke formalize with `--claim-select=first` (or `named`/`regex`), run inner cycle to completion, then advance. Queue management is autoprove-internal — formalize never sees `queue` as a selection policy.
 
 ### File Assembly Contract
 
