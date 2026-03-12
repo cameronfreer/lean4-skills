@@ -231,7 +231,7 @@ When using `--json`, output follows this structure:
     "total_custom_axioms": 0,
     "style_issues": 2,
     "golf_opportunities": 5,
-    "next_action": "continue"
+    "next_action": "continue"  // stuck mode only; absent in batch mode
   }
 }
 ```

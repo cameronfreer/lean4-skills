@@ -159,7 +159,7 @@ When autoprove stops (for any reason), emit:
 ```
 ## Autoprove Summary
 
-**Reason stopped:** [completion | max-stuck | max-cycles | max-runtime | user-stop]
+**Reason stopped:** [completion | max-stuck | max-cycles | max-runtime | user-stop | queue-empty]
 
 | Metric | Value |
 |--------|-------|

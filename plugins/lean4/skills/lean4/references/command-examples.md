@@ -300,7 +300,8 @@ Found 4 claims in document order:
 
 [Outer loop — Claim 1/4: Theorem 2.1]
 Formalizing "Theorem 2.1"...
-  formalize → Paper.lean (declaration-only block, fully-qualified names)
+  formalize → temp file (declaration-only block, fully-qualified names)
+  Outer loop: append to Paper.lean with boundary marker
   lean_diagnostic_messages(Paper.lean) → ✓
   Committing: "formalize: Theorem 2.1 continuity bound"
 
@@ -315,7 +316,7 @@ Sorry-free. Advancing to next claim.
 
 [Outer loop — Claim 2/4: Lemma 2.3]
 Formalizing "Lemma 2.3"...
-  formalize → Paper.lean (appended with boundary marker)
+  formalize → temp file → outer loop appends to Paper.lean
   Committing: "formalize: Lemma 2.3 monotone helper"
 
 [Cycle 2] Working on Paper.lean:34 - `monotone_helper`

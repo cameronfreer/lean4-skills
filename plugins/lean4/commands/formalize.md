@@ -74,7 +74,7 @@ Resolve `--intent` and `--presentation`. Defaults: `--intent=math`, `--presentat
 Two entry points:
 
 - **Direct:** `topic` given → parse the informal claim directly.
-- **Source-led:** `--source` given, no `topic` → ingest source (`.lean` → `Read`; PDF → `Read`; `.md`/`.txt` → `Read`; URL → web fetch; other → warn + ask for excerpt). Extract candidate claims, present to user, user picks which to formalize.
+- **Source-led:** `--source` given, no `topic` → ingest source (`.lean` → `Read`; PDF → `Read`; `.md`/`.txt` → `Read`; URL → web fetch; other → warn + ask for excerpt). Extract candidate claims. If `--claim-select` is present, select noninteractively per policy; otherwise present to user, user picks which to formalize.
 - **Both:** `topic` and `--source` given → use topic as the claim and source as supporting context.
 
 ### 2. Draft Theorem Skeleton
