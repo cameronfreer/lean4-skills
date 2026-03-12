@@ -69,7 +69,8 @@ Autoprove accepts all `--review-source` values for flag compatibility with `/lea
 
 - `--formalize=auto` requires `--source`; error if missing.
 - `--formalize=auto` with `--source` requires `--claim-select`; error if missing (no unattended guessing).
-- `--formalize=restage` does NOT require `--source` — operates on existing scope with restage enabled on stuck.
+- `--formalize=auto` requires `--formalize-out` when no existing target file is in scope; error if missing.
+- `--formalize=restage` does NOT require `--source` — operates on existing scope with restage enabled on stuck. `--source` is ignored if provided (warn).
 - `--formalize=never` ignores `--source` (warn if provided).
 - `--claim-select` without `--source` is ignored (no effect).
 
