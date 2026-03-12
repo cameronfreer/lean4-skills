@@ -31,24 +31,6 @@ Typical session: `prove` (or `autoprove`) → `review` → `golf` → `checkpoin
 
 See [plugin README](plugins/lean4/README.md) for the full command guide.
 
-## Lean LSP MCP Server (Highly Recommended)
-
-[lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) provides **sub-second
-feedback** instead of 30+ second `lake build` cycles. Works with any MCP-capable host.
-
-**What you get:**
-- `lean_goal` — exact goal state at any line
-- `lean_local_search` / `lean_leanfinder` / `lean_leansearch` / `lean_loogle` — mathlib search
-- `lean_multi_attempt` — test multiple tactics in parallel
-- `lean_hammer_premise` — premise suggestions for simp/aesop/grind
-
-**Claude Code** (run from your Lean project root):
-```bash
-claude mcp add lean-lsp uvx lean-lsp-mcp
-```
-
-**Other hosts:** See [INSTALLATION.md → MCP Server](INSTALLATION.md#lean-lsp-mcp-server-all-hosts)
-
 ## Installation
 
 ### Claude Code (native plugin)
@@ -72,6 +54,24 @@ git clone --depth 1 https://github.com/cameronfreer/lean4-skills.git
 - **Windsurf** — project rules → SKILL.md + env vars. See [INSTALLATION.md → Windsurf](INSTALLATION.md#windsurf)
 - **OpenCode** — copy to `.opencode/skills/` + env vars. See [INSTALLATION.md → OpenCode](INSTALLATION.md#opencode)
 - **Other agents** — point agent at SKILL.md + env vars. See [INSTALLATION.md → Generic](INSTALLATION.md#any-agent-generic)
+
+## Lean LSP MCP Server (Highly Recommended)
+
+[lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) provides **sub-second
+feedback** instead of 30+ second `lake build` cycles. Works with any MCP-capable host.
+
+**What you get:**
+- `lean_goal` — exact goal state at any line
+- `lean_local_search` / `lean_leanfinder` / `lean_leansearch` / `lean_loogle` — mathlib search
+- `lean_multi_attempt` — test multiple tactics in parallel
+- `lean_hammer_premise` — premise suggestions for simp/aesop/grind
+
+**Claude Code** (run from your Lean project root):
+```bash
+claude mcp add lean-lsp uvx lean-lsp-mcp
+```
+
+**Other hosts:** See [INSTALLATION.md → MCP Server](INSTALLATION.md#lean-lsp-mcp-server-all-hosts)
 
 ## Compatibility
 

@@ -32,6 +32,7 @@ Turn informal mathematical claims into Lean 4 theorem statements. Drafts skeleto
 | --intent | no | `math` | `auto` \| `usage` \| `math`. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-taxonomy). |
 | --presentation | no | `auto` | `informal` \| `supporting` \| `formal` \| `auto`. Controls user-facing display, not Lean backing. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#two-layer-architecture). |
 | --verify | no | `best-effort` | `best-effort` \| `strict`. Verification strictness for key claims. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#verification-status). |
+| --claim-select | no | — | `first` \| `named:"..."` \| `regex:"..."`. Noninteractive claim selection from `--source`. See below. |
 
 ### Output validation
 
@@ -44,6 +45,21 @@ Turn informal mathematical claims into Lean 4 theorem statements. Drafts skeleto
 - `--intent`, `--presentation`, or `--verify` with invalid value → hard error.
 - `--intent=auto` inference: apply the shared [inference rules](../skills/lean4/references/learn-pathways.md#inference-rules-when---intentauto), then coerce `internals` → `usage` and `authoring` → `usage` (formalize does not define behavior for those intents).
 - `--source` + unreadable format → warn + ask for text excerpt.
+- `--claim-select` without `--source` → hard error (nothing to select from).
+
+### Noninteractive Claim Selection
+
+| Policy | Behavior |
+|--------|----------|
+| `first` | Select the first extractable claim from `--source` |
+| `named:"..."` | Match claims by title/label substring (e.g. `named:"Theorem 3.2"`) |
+| `regex:"..."` | Match claims by regex on extracted claim text |
+
+Standalone formalize processes one claim per invocation (batch-size is 1). When called by autoprove's outer loop, the loop iterates through claims and invokes formalize once per claim. Queue iteration is autoprove-internal — see [cycle-engine.md](../skills/lean4/references/cycle-engine.md#claim-queue).
+
+### File Write Contract
+
+Standalone formalize writes whole files via `--output=file` + `--out`. When called with `--caller=autoprove` (internal-only flag), formalize writes declaration-only blocks to `$TMPDIR/lean4-formalize/<session-id>/claim-<N>.lean` with `-- needs-import:` comments. The outer loop owns file assembly and commits. See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#file-assembly-contract).
 
 ## Actions
 
@@ -129,6 +145,7 @@ Always run `bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target> --report-only`
 - **Path restriction.** User-requested outputs (`--output=file`, `--output=scratch`) restricted to workspace root (scratch uses `.scratch/lean4/`). Reject path traversal (`../`) or absolute paths outside workspace. Internal temp files may use `/tmp/lean4-formalize/`.
 - **Overwrite protection.** `--output=file` with existing target requires `--overwrite`; otherwise hard error.
 - **Never add global axioms silently.** Assumptions go as explicit theorem parameters or in `namespace Assumptions`. Always verified with `bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target> --report-only`.
+- **Autoprove caller:** When `--caller=autoprove`, file assembly and `formalize:` commits are handled by the outer loop, not by formalize.
 - **All `guardrails.sh` rules apply.**
 
 ## See Also

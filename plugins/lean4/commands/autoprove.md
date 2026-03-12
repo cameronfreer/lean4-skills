@@ -44,6 +44,13 @@ Autonomous multi-cycle theorem proving. Runs cycles automatically with hard stop
 | --max-cycles | No | 20 | Hard stop: max total cycles |
 | --max-total-runtime | No | 120m | Hard stop: max total runtime |
 | --max-stuck-cycles | No | 3 | Hard stop: max consecutive stuck cycles |
+| --formalize | No | never | `never` \| `bootstrap` \| `restage` \| `auto`. See Formalize Outer Loop. |
+| --source | No | — | File path, URL, or PDF for claim extraction. Required when `--formalize=bootstrap\|auto`. |
+| --claim-select | No | — | `first` \| `named:"..."` \| `regex:"..."`. Required for unattended `--source`. |
+| --claim-batch-size | No | 1 | Claims to formalize per outer loop iteration |
+| --formalize-rigor | No | sketch | `sketch` \| `checked`. Rigor for formalize skeleton. |
+| --statement-policy | No | preserve | `preserve` \| `rewrite-generated-only` \| `adjacent-drafts`. See cycle-engine. |
+| --formalize-out | No | — | Target file for formalized claims. Required if no existing target in scope. |
 
 ### Review Source Coercion
 
@@ -58,6 +65,13 @@ Autoprove accepts all `--review-source` values for flag compatibility with `/lea
 > 2. Timeout + retry + cost budgets
 > 3. Safe fallback to internal review on external failure
 > 4. Explicit opt-in flag, not default behavior
+
+### Formalize Flag Validation
+
+- `--formalize=bootstrap` requires `--source`; error if missing.
+- `--formalize=auto` requires `--source`; error if missing.
+- `--formalize=restage` does NOT require `--source` — operates on existing scope with restage enabled on stuck.
+- `--formalize=never` ignores `--source` (warn if provided).
 
 ## Startup Behavior
 
@@ -96,7 +110,7 @@ Default `--commit=auto` — commits without prompting. `--commit=ask` is coerced
 
 Autoprove never blocks waiting for interactive input.
 
-**Constraints:** Max 3 candidates per sorry, ≤80 lines diff, NO statement changes, NO cross-file refactoring (fast path).
+**Constraints:** Max 3 candidates per sorry, ≤80 lines diff, NO statement changes (inner cycle; see Formalize Outer Loop for `--formalize` modes), NO cross-file refactoring (fast path).
 
 ### Phase 3: Checkpoint
 
@@ -114,6 +128,19 @@ See [cycle-engine: Replan Phase](../skills/lean4/references/cycle-engine.md#repl
 
 **Autonomous loop:** Auto-runs cycles without per-cycle user prompts. Checkpoint + review + replan at each cycle boundary ("come up for air").
 
+## Formalize Outer Loop
+
+When `--formalize` is not `never`, autoprove wraps the inner 6-phase cycle with source-backed statement acquisition and review-driven routing.
+
+| Mode | Behavior |
+|------|----------|
+| `never` (default) | No outer loop. Identical to pre-change behavior. |
+| `bootstrap` | Extract claims from `--source`, formalize each, then prove. No restage on stuck. |
+| `restage` | No claim queue. Run inner cycle on existing scope; on stuck, re-formalize if `next_action=formalize-restage`. |
+| `auto` | Full loop: extract + formalize + prove + restage on stuck. |
+
+The inner 6-phase cycle is unchanged. The outer loop reads the stuck-mode `next_action` field from review as its routing gate. See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#formalize-outer-loop) for the full algorithm, provenance tracking, claim queue, and file assembly contract.
+
 ## Stop Conditions
 
 Autoprove stops when the **first** of these is satisfied:
@@ -123,6 +150,7 @@ Autoprove stops when the **first** of these is satisfied:
 3. **Max cycles** — `--max-cycles` total cycles reached (default: 20)
 4. **Max runtime** — `--max-total-runtime` elapsed (default: 120m)
 5. **Manual user stop** — user interrupts
+6. **Queue empty** — all claims attempted (outer loop only, `--formalize=bootstrap|auto`)
 
 ## Structured Summary on Stop
 
@@ -141,11 +169,13 @@ When autoprove stops (for any reason), emit:
 | Stuck cycles | S |
 | Deep invocations | D |
 | Time elapsed | T |
+| Formalizations | F |
 
 **Handoff recommendations:**
 - [If incomplete: "Run /lean4:prove for guided work on remaining N sorries"]
 - [If stuck: "Review stuck blockers: file:line, file:line"]
 - [If clean: "All sorries filled. Run /lean4:checkpoint to save."]
+- [If claims remaining: "N claims remaining in queue. Re-run with same --source to continue."]
 ```
 
 ## Deep Mode
@@ -154,7 +184,7 @@ Bounded subroutine for stubborn sorries. Default: `stuck` (auto-escalate when st
 
 Modes: `never` | `stuck` (default, auto on stuck) | `always` (auto on any failure). Note: `ask` is coerced to `stuck` (no interactive prompting in autoprove).
 
-Statement changes are logged but auto-skipped. Use `/lean4:prove` for interactive approval.
+Statement changes are logged but auto-skipped. When `--formalize` is active, statement work is handled by the outer loop's formalize-restage path, not by deep mode. Use `/lean4:prove` for interactive approval.
 
 **Safety:** Deep creates a path-scoped pre-deep snapshot, enforces scope/diff budgets, and auto-rolls back on regression. Rollback marks the sorry as stuck with reason.
 
@@ -190,6 +220,7 @@ Guardrailed git commands are blocked. See [cycle-engine.md](../skills/lean4/refe
 
 ## See Also
 
+- `/lean4:formalize` - Turn informal math into Lean statements
 - `/lean4:prove` - Guided cycle-by-cycle proving
 - `/lean4:checkpoint` - Manual save point
 - `/lean4:review` - Quality check (read-only)

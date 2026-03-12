@@ -286,6 +286,77 @@ Regression detected (--deep-regression-gate=strict):
   Marking stuck: "deep: regression — new errors"
 ```
 
+### Formalize Outer Loop Example
+
+```
+User: /lean4:autoprove --formalize=auto --source ./paper.pdf --claim-select=first --formalize-out=Paper.lean
+
+Claude: Extracting claims from ./paper.pdf...
+Found 4 claims in document order:
+  1. Theorem 2.1 (Continuity bound)
+  2. Lemma 2.3 (Monotone helper)
+  3. Theorem 3.1 (Main convergence)
+  4. Corollary 3.2 (Uniform bound)
+
+[Outer loop — Claim 1/4: Theorem 2.1]
+Formalizing "Theorem 2.1"...
+  formalize → Paper.lean (declaration-only block, fully-qualified names)
+  lean_diagnostic_messages(Paper.lean) → ✓
+  Committing: "formalize: Theorem 2.1 continuity bound"
+
+Starting inner cycle on Paper.lean...
+[Cycle 1] Working on Paper.lean:18 - `continuity_bound`
+  Goal: ⊢ ∀ x ∈ K, ‖f x‖ ≤ C
+  lean_leanfinder("IsCompact ContinuousOn norm bound") → found candidate
+  Applying: `exact hK.isCompact.norm_le_of_continuousOn hf` ✓
+  Committing: "fill: continuity_bound - isCompact.norm_le"
+
+Sorry-free. Advancing to next claim.
+
+[Outer loop — Claim 2/4: Lemma 2.3]
+Formalizing "Lemma 2.3"...
+  formalize → Paper.lean (appended with boundary marker)
+  Committing: "formalize: Lemma 2.3 monotone helper"
+
+[Cycle 2] Working on Paper.lean:34 - `monotone_helper`
+  Stuck after 3 attempts.
+  Running stuck review...
+  **next_action:** formalize-restage
+
+  Restaging: declaration in provenance set → rewrite allowed
+  Re-formalizing with weaker hypotheses...
+  Committing: "formalize: restage monotone_helper"
+
+[Cycle 3] Retrying Paper.lean:34 - `monotone_helper` (restaged)
+  Applying: `exact Monotone.comp hg hf` ✓
+  Committing: "fill: monotone_helper - Monotone.comp"
+
+Sorry-free. Advancing to next claim.
+
+[...claims 3-4...]
+
+[Outer loop — Claim 4/4: Corollary 3.2]
+Sorry-free after 1 cycle. Running golf pass...
+  Golf: 3 optimizations applied ✓
+
+## Autoprove Summary
+
+**Reason stopped:** queue-empty (all claims attempted)
+
+| Metric | Value |
+|--------|-------|
+| Sorries before | 0 |
+| Sorries after | 0 |
+| Cycles run | 6 |
+| Stuck cycles | 1 |
+| Deep invocations | 0 |
+| Time elapsed | 12m |
+| Formalizations | 4 (1 restaged) |
+
+**Handoff recommendations:**
+- All sorries filled. Run /lean4:checkpoint to save.
+```
+
 ---
 
 ## checkpoint

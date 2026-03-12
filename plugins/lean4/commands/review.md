@@ -90,7 +90,10 @@ Proceed? (yes / no)
 **Flag:** Statement may be false (optional — see below)
 
 **Recommended next action:** Search for tendsto variants in Topology/Order
+**next_action:** continue
 ```
+
+**next_action classification (stuck mode):** `continue` (retryable), `deep` (needs escalation), `repair` (compiler blocker), `formalize-restage` (statement-shape blocker), `golf` (sorry-free), `stop` (no path). Informational unless autoprove outer loop is active.
 
 **Falsification flag:** Include when analysis suggests statement may be false:
 - Decidable goal that failed `decide` or `native_decide`
@@ -227,7 +230,8 @@ When using `--json`, output follows this structure:
     "total_sorries": 3,
     "total_custom_axioms": 0,
     "style_issues": 2,
-    "golf_opportunities": 5
+    "golf_opportunities": 5,
+    "next_action": "continue"
   }
 }
 ```
