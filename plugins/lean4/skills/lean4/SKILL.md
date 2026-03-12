@@ -43,7 +43,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | New to this project / exploring | `/lean4:learn --mode=repo` |
 | Navigating mathlib for a topic | `/lean4:learn --mode=mathlib` |
 | Something not working | `/lean4:doctor` |
-| Formalize + prove end-to-end | `/lean4:autoprove --formalize=auto --source=...` |
+| Formalize + prove end-to-end | `/lean4:autoprove --formalize=auto --source=... --claim-select=first` |
 
 ## Typical Workflow
 

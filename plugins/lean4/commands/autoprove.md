@@ -46,7 +46,7 @@ Autonomous multi-cycle theorem proving. Runs cycles automatically with hard stop
 | --max-stuck-cycles | No | 3 | Hard stop: max consecutive stuck cycles |
 | --formalize | No | never | `never` \| `restage` \| `auto`. See Formalize Outer Loop. |
 | --source | No | — | File path, URL, or PDF for claim extraction. Required when `--formalize=auto`. |
-| --claim-select | No | — | `first` \| `named:"..."` \| `regex:"..."`. Required when `--source` is provided. |
+| --claim-select | No | — | `first` \| `named:"..."` \| `regex:"..."`. Required when `--formalize=auto`. Ignored without `--source`. |
 | --formalize-rigor | No | sketch | `sketch` \| `checked`. Rigor for formalize skeleton. |
 | --statement-policy | No | preserve | `preserve` \| `rewrite-generated-only` \| `adjacent-drafts`. See cycle-engine. |
 | --formalize-out | No | — | Target file for formalized claims. Required if no existing target in scope. |
@@ -71,6 +71,7 @@ Autoprove accepts all `--review-source` values for flag compatibility with `/lea
 - `--formalize=auto` with `--source` requires `--claim-select`; error if missing (no unattended guessing).
 - `--formalize=restage` does NOT require `--source` — operates on existing scope with restage enabled on stuck.
 - `--formalize=never` ignores `--source` (warn if provided).
+- `--claim-select` without `--source` is ignored (no effect).
 
 ## Startup Behavior
 
