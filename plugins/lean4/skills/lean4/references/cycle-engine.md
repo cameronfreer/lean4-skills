@@ -317,7 +317,7 @@ while queue non-empty AND no stop rule:
 
 ### Formalize Commit Boundary
 
-Formalize writes skeleton via `--output=file`; outer loop validates with `lean_diagnostic_messages`, stages only target file, commits with `formalize:` prefix. Clean rollback boundary between statement-shaping and proof-filling.
+Formalize writes skeleton to a temp file (see [File Assembly Contract](#file-assembly-contract)); the outer loop appends to the target, validates with `lean_diagnostic_messages`, stages only target file, and commits with `formalize:` prefix. Clean rollback boundary between statement-shaping and proof-filling.
 
 If `--commit=never`, the outer loop skips staging and committing — the skeleton is still written to the target file (working tree only), but no `formalize:` commit is created. Provenance tracking still works because it is in-memory, not git-based.
 

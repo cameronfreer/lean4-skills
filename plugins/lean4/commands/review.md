@@ -230,11 +230,12 @@ When using `--json`, output follows this structure:
     "total_sorries": 3,
     "total_custom_axioms": 0,
     "style_issues": 2,
-    "golf_opportunities": 5,
-    "next_action": "continue"  // stuck mode only; absent in batch mode
+    "golf_opportunities": 5
   }
 }
 ```
+
+**Stuck mode only:** The `summary` object includes `"next_action": "continue"` (or other value) when `--mode=stuck`. Absent in batch mode.
 
 ## Codex Integration
 

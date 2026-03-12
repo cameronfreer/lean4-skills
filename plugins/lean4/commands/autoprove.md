@@ -135,7 +135,7 @@ When `--formalize` is not `never`, autoprove wraps the inner 6-phase cycle with 
 | Mode | Behavior |
 |------|----------|
 | `never` (default) | No outer loop. Identical to pre-change behavior. |
-| `bootstrap` | Extract claims from `--source`, formalize each, then prove. No restage on stuck. |
+| `bootstrap` | Extract claims from `--source`, formalize each, then prove. Restage on stuck if `next_action=formalize-restage`. |
 | `restage` | No claim queue. Run inner cycle on existing scope; on stuck, re-formalize if `next_action=formalize-restage`. |
 | `auto` | Full loop: extract + formalize + prove + restage on stuck. |
 
