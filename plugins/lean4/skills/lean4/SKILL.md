@@ -63,7 +63,7 @@ Use `/lean4:learn` at any point to explore repo structure or navigate mathlib. U
 **Notes:**
 - `/lean4:prove` asks before each cycle; `/lean4:autoprove` loops autonomously with hard stop conditions
 - Both trigger `/lean4:review` at configured intervals (`--review-every`)
-- When reviews run (via `--review-every`), they act as gates: review → replan → approval → continue
+- When reviews run (via `--review-every`), they act as gates: review → replan → continue. In prove, replan requires user approval; in autoprove, replan auto-continues
 - Review supports `--mode=batch` (default) or `--mode=stuck` (triage)
 - `--formalize=auto` on autoprove wraps formalize+prove in a single command (source → claims → skeletons → proofs)
 - If you hit environment issues, run `/lean4:doctor` to diagnose

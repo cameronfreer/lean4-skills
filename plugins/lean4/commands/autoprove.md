@@ -175,7 +175,7 @@ When autoprove stops (for any reason), emit:
 - [If incomplete: "Run /lean4:prove for guided work on remaining N sorries"]
 - [If stuck: "Review stuck blockers: file:line, file:line"]
 - [If clean: "All sorries filled. Run /lean4:checkpoint to save."]
-- [If claims remaining: "N claims remaining in queue. Re-run with same --source to continue."]
+- [If claims remaining: "N claims remaining in queue. Re-run with same --source and --formalize-out to continue (existing claims detected via target file)."]
 ```
 
 ## Deep Mode
