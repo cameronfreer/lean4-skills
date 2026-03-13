@@ -120,11 +120,25 @@ else
     fail "Check 6: claim-select without source → ignored"
 fi
 
-# Check 7: --formalize mode enum match between inputs table and outer loop table
+# Check 7: statement-policy coercion when formalize active
+if echo "$validation_section" | grep -i 'formalize.*restage\|auto' | grep -qi 'rewrite-generated-only'; then
+    ok "Check 7: formalize=restage|auto coerces statement-policy → rewrite-generated-only"
+else
+    fail "Check 7: missing statement-policy coercion rule for formalize modes"
+fi
+
+# Check 8: claim-select documented as queue-extraction filter
+if echo "$validation_section" | grep -i 'claim-select' | grep -qi 'queue-extraction\|applied once'; then
+    ok "Check 8: claim-select documented as one-time queue filter"
+else
+    fail "Check 8: claim-select missing queue-extraction semantics"
+fi
+
+# Check 9: --formalize mode enum match between inputs table and outer loop table
 inputs_modes=$(grep -E '^\| --formalize ' "$AUTOPROVE" | grep -oE '`[a-z]+`' | sed 's/`//g' | sort -u)
 loop_modes=$(extract_section "$AUTOPROVE" "## Formalize Outer Loop" | grep '^| `' | grep -oE '`[a-z]+`' | sed 's/`//g' | sort -u)
 if [[ "$inputs_modes" == "$loop_modes" ]]; then
-    ok "Check 7: --formalize modes match (inputs ↔ outer loop table)"
+    ok "Check 9: --formalize modes match (inputs ↔ outer loop table)"
 else
     fail "Check 7: --formalize modes mismatch: inputs=[$inputs_modes] loop=[$loop_modes]"
 fi
@@ -134,45 +148,45 @@ fi
 echo ""
 echo "-- Suite 2: Enum Consistency --"
 
-# Check 8: next_action enum — review.md classification ↔ cycle-engine Review Router
+# Check 10: next_action enum — review.md classification ↔ cycle-engine Review Router
 review_actions=$(grep 'next_action classification' "$REVIEW" | grep -oE '`[a-z-]+`' | sed 's/`//g' | sort -u)
 router_section=$(extract_section "$CYCLE_ENGINE" "### Review Router")
 router_actions=$(echo "$router_section" | grep '^| `' | grep -oE '`[a-z-]+`' | sed 's/`//g' | sort -u)
 if [[ "$review_actions" == "$router_actions" ]]; then
-    ok "Check 8: next_action enum match (review ↔ cycle-engine)"
+    ok "Check 10: next_action enum match (review ↔ cycle-engine)"
 else
-    fail "Check 8: next_action mismatch: review=[$review_actions] router=[$router_actions]"
+    fail "Check 10: next_action mismatch: review=[$review_actions] router=[$router_actions]"
 fi
 
 # Check 9: --formalize modes — autoprove ↔ cycle-engine
 ce_outer_section=$(extract_section "$CYCLE_ENGINE" "## Formalize Outer Loop")
 ce_modes=$(echo "$ce_outer_section" | grep -oE -- '--formalize=[a-z|]+' | tr '|' '\n' | sed 's/--formalize=//' | sort -u)
 if [[ "$inputs_modes" == "$ce_modes" ]]; then
-    ok "Check 9: --formalize modes match (autoprove ↔ cycle-engine)"
+    ok "Check 11: --formalize modes match (autoprove ↔ cycle-engine)"
 else
     fail "Check 9: --formalize modes mismatch: autoprove=[$inputs_modes] cycle-engine=[$ce_modes]"
 fi
 
-# Check 10: --claim-select policies — autoprove ↔ formalize
+# Check 12: --claim-select policies — autoprove ↔ formalize
 ap_claim=$(grep -E '^\| --claim-select ' "$AUTOPROVE" | grep -oE '`[a-z]+' | sed 's/`//' | sort -u)
 fm_claim=$(grep -E '^\| --claim-select ' "$FORMALIZE" | grep -oE '`[a-z]+' | sed 's/`//' | sort -u)
 if [[ "$ap_claim" == "$fm_claim" ]]; then
-    ok "Check 10: --claim-select policies match (autoprove ↔ formalize)"
+    ok "Check 12: --claim-select policies match (autoprove ↔ formalize)"
 else
-    fail "Check 10: --claim-select mismatch: autoprove=[$ap_claim] formalize=[$fm_claim]"
+    fail "Check 12: --claim-select mismatch: autoprove=[$ap_claim] formalize=[$fm_claim]"
 fi
 
-# Check 11: --statement-policy — autoprove ↔ cycle-engine Statement Safety
+# Check 13: --statement-policy — autoprove ↔ cycle-engine Statement Safety
 ap_stmt=$(grep -E '^\| --statement-policy ' "$AUTOPROVE" | grep -oE '`[a-z][a-z-]*`' | sed 's/`//g' | sort -u)
 stmt_section=$(extract_section "$CYCLE_ENGINE" "### Statement Safety")
 ce_stmt=$(echo "$stmt_section" | grep -oE '`[a-z][a-z-]*`' | sed 's/`//g' | sort -u)
 if [[ "$ap_stmt" == "$ce_stmt" ]]; then
-    ok "Check 11: --statement-policy match (autoprove ↔ cycle-engine)"
+    ok "Check 13: --statement-policy match (autoprove ↔ cycle-engine)"
 else
-    fail "Check 11: --statement-policy mismatch: autoprove=[$ap_stmt] cycle-engine=[$ce_stmt]"
+    fail "Check 13: --statement-policy mismatch: autoprove=[$ap_stmt] cycle-engine=[$ce_stmt]"
 fi
 
-# Check 12: Stop reasons — bold labels slugified ↔ pipe-delimited tokens
+# Check 14: Stop reasons — bold labels slugified ↔ pipe-delimited tokens
 declare -A SLUG_MAP=(
     [Completion]=completion
     ["Max stuck cycles"]=max-stuck
@@ -199,9 +213,9 @@ summary_section=$(extract_section "$AUTOPROVE" "## Structured Summary on Stop")
 reason_tokens=$(echo "$summary_section" | grep 'Reason stopped' | grep -oE '\[[^]]+\]' | tr -d '[]' | tr '|' '\n' | sed 's/^ *//;s/ *$//' | sort -u)
 
 if [[ "$stop_slugs" == "$reason_tokens" ]]; then
-    ok "Check 12: Stop reason slugs match summary tokens"
+    ok "Check 14: Stop reason slugs match summary tokens"
 else
-    fail "Check 12: Stop reason mismatch: slugs=[$stop_slugs] tokens=[$reason_tokens]"
+    fail "Check 14: Stop reason mismatch: slugs=[$stop_slugs] tokens=[$reason_tokens]"
 fi
 
 # ─── Suite 3: State-Machine Traces ───
@@ -218,58 +232,58 @@ bad_router_rows=$(echo "$router_section" | awk -F'|' '
     }
 ')
 if [[ -z "$bad_router_rows" ]]; then
-    ok "Check 13: All Review Router rows have non-empty response"
+    ok "Check 15: All Review Router rows have non-empty response"
 else
-    fail "Check 13: Empty response for: $bad_router_rows"
+    fail "Check 15: Empty response for: $bad_router_rows"
 fi
 
-# Check 14: Algorithm references only valid --formalize modes
+# Check 16: Algorithm references only valid --formalize modes
 algo_section=$(extract_section "$CYCLE_ENGINE" "### Algorithm")
 algo_modes=$(echo "$algo_section" | grep -oE -- '--formalize=[a-z-]+' | sed 's/--formalize=//' | sort -u)
 valid_modes=$(printf '%s\n' auto never restage)
 invalid_modes=$(comm -23 <(echo "$algo_modes") <(echo "$valid_modes"))
 if [[ -z "$invalid_modes" ]]; then
-    ok "Check 14: Algorithm references only valid --formalize modes"
+    ok "Check 16: Algorithm references only valid --formalize modes"
 else
-    fail "Check 14: Invalid modes in Algorithm: $invalid_modes"
+    fail "Check 16: Invalid modes in Algorithm: $invalid_modes"
 fi
 
-# Check 15: Statement Safety has 3 policies with non-empty restage column
+# Check 17: Statement Safety has 3 policies with non-empty restage column
 policy_rows=$(echo "$stmt_section" | awk -F'|' '/^\| `[a-z]/ { print }')
 policy_count=$(echo "$policy_rows" | grep -c . || true)
 empty_restage=$(echo "$policy_rows" | awk -F'|' '{ gsub(/[ \t]/, "", $5); if ($5 == "") print NR }')
 if [[ "$policy_count" -eq 3 ]] && [[ -z "$empty_restage" ]]; then
-    ok "Check 15: Statement Safety has 3 policies with non-empty restage"
+    ok "Check 17: Statement Safety has 3 policies with non-empty restage"
 else
-    fail "Check 15: Statement Safety: count=$policy_count, empty_restage=[$empty_restage]"
+    fail "Check 17: Statement Safety: count=$policy_count, empty_restage=[$empty_restage]"
 fi
 
 # Check 16: Scenario — auto happy path (token ordering in source-backed block)
 source_block=$(echo "$algo_section" | awk '/Source-backed/,/Scope-backed/ { print }')
 if assert_ordered "$source_block" "claim queue" "invoke formalize" "Inner Cycle" "Advance"; then
-    ok "Check 16: Auto happy path token order"
+    ok "Check 18: Auto happy path token order"
 else
-    fail "Check 16: Auto happy path tokens out of order or missing"
+    fail "Check 18: Auto happy path tokens out of order or missing"
 fi
 
 # Check 17: Scenario — stuck → restage (token ordering + re-formalize co-occurrence)
 if assert_ordered "$source_block" "stuck" "next_action" "formalize-restage"; then
     # formalize-restage and re-formalize share a line; verify co-occurrence
     if echo "$source_block" | grep 'formalize-restage' | grep -q 're-formalize'; then
-        ok "Check 17: Stuck → restage token order + re-formalize step"
+        ok "Check 19: Stuck → restage token order + re-formalize step"
     else
-        fail "Check 17: formalize-restage line missing re-formalize step"
+        fail "Check 19: formalize-restage line missing re-formalize step"
     fi
 else
-    fail "Check 17: Stuck → restage tokens out of order or missing"
+    fail "Check 19: Stuck → restage tokens out of order or missing"
 fi
 
-# Check 18: preserve row restage column contains Error/manual
+# Check 20: preserve row restage column contains Error/manual
 preserve_restage=$(echo "$stmt_section" | grep '`preserve`' | awk -F'|' '{ print $5 }')
 if echo "$preserve_restage" | grep -qiE 'error|manual'; then
-    ok "Check 18: preserve blocks restage (Error/manual)"
+    ok "Check 20: preserve blocks restage (Error/manual)"
 else
-    fail "Check 18: preserve restage column: [$preserve_restage]"
+    fail "Check 20: preserve restage column: [$preserve_restage]"
 fi
 
 # ─── Suite 4: Negative Guards ───
@@ -277,7 +291,7 @@ fi
 echo ""
 echo "-- Suite 4: Negative Guards --"
 
-# Check 19: No stale 'bootstrap' in autoprove.md, cycle-engine.md, command-examples.md
+# Check 21: No stale 'bootstrap' in autoprove.md, cycle-engine.md, command-examples.md
 stale_bootstrap=""
 for f in "$AUTOPROVE" "$CYCLE_ENGINE" "$EXAMPLES"; do
     hits=$(grep -in 'bootstrap' "$f" | grep -iv 'bootstrap\.sh' || true)
@@ -286,20 +300,20 @@ for f in "$AUTOPROVE" "$CYCLE_ENGINE" "$EXAMPLES"; do
     fi
 done
 if [[ -z "$stale_bootstrap" ]]; then
-    ok "Check 19: No stale bootstrap references"
+    ok "Check 21: No stale bootstrap references"
 else
-    fail "Check 19: Stale bootstrap: $stale_bootstrap"
+    fail "Check 21: Stale bootstrap: $stale_bootstrap"
 fi
 
-# Check 20: No stale claim-batch-size in plugin
+# Check 22: No stale claim-batch-size in plugin
 cbs_hits=$(grep -r 'claim-batch-size' "$PLUGIN_ROOT" --exclude='test_contracts.sh' || true)
 if [[ -z "$cbs_hits" ]]; then
-    ok "Check 20: No stale claim-batch-size references"
+    ok "Check 22: No stale claim-batch-size references"
 else
-    fail "Check 20: Stale claim-batch-size: $cbs_hits"
+    fail "Check 22: Stale claim-batch-size: $cbs_hits"
 fi
 
-# Check 21: next_action in stuck-mode output example, absent from batch-mode output
+# Check 23: next_action in stuck-mode output example, absent from batch-mode output
 # 21a: stuck-mode fenced block contains next_action
 stuck_block=$(awk '
     /\*\*Stuck mode output format:\*\*/ { found=1; next }
@@ -323,9 +337,9 @@ else
 fi
 
 if [[ "$pass_21a" -eq 1 ]] && [[ "$pass_21b" -eq 1 ]]; then
-    ok "Check 21: next_action in stuck output, absent from batch output"
+    ok "Check 23: next_action in stuck output, absent from batch output"
 else
-    fail "Check 21: stuck_has_next_action=$pass_21a, batch_lacks_next_action=$pass_21b"
+    fail "Check 23: stuck_has_next_action=$pass_21a, batch_lacks_next_action=$pass_21b"
 fi
 
 echo ""

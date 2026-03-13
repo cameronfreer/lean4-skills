@@ -55,7 +55,7 @@ Turn informal mathematical claims into Lean 4 theorem statements. Drafts skeleto
 | `named:"..."` | Match claims by title/label substring (e.g. `named:"Theorem 3.2"`) |
 | `regex:"..."` | Match claims by regex on extracted claim text |
 
-Standalone formalize processes one claim per invocation (batch-size is 1). When called by autoprove's outer loop, the loop iterates through claims and invokes formalize once per claim. Queue iteration is autoprove-internal — see [cycle-engine.md](../skills/lean4/references/cycle-engine.md#claim-queue).
+Standalone formalize processes one claim per invocation (batch-size is 1). When called by autoprove's outer loop, formalize receives a single pre-selected claim as its topic (not the full source). The outer loop owns queue extraction and iteration — see [cycle-engine.md](../skills/lean4/references/cycle-engine.md#claim-queue).
 
 ### File Write Contract
 

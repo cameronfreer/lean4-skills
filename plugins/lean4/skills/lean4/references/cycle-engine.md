@@ -292,7 +292,7 @@ Two entry shapes depending on whether `--source` is provided:
 
 ```
 # Source-backed (--formalize=auto with --source):
-extract claim queue from --source at startup
+extract claim queue from --source (filtered by --claim-select) at startup
 while queue non-empty AND no stop rule:
   1. Statement Acquisition:
        pop next claim → invoke formalize → validate (lean_diagnostic_messages)
@@ -301,7 +301,7 @@ while queue non-empty AND no stop rule:
   2. Inner Cycle — run standard 6-phase cycle (unchanged)
   3. If inner cycle exited via stuck:
        Review Router — read next_action from stuck review
-       3a. formalize-restage → re-formalize (check provenance); commit if allowed
+       3a. formalize-restage → re-formalize (check provenance + statement-policy); commit if allowed
        3b. Other next_action values → dispatch accordingly
      Else (sorry-free or stop rule):
        Advance to next claim
@@ -310,7 +310,7 @@ while queue non-empty AND no stop rule:
   1. Inner Cycle — run standard 6-phase cycle on existing scope (unchanged)
   2. If inner cycle exited via stuck:
        Review Router — read next_action
-       2a. formalize-restage → re-formalize stuck declaration (check provenance)
+       2a. formalize-restage → re-formalize stuck declaration (check provenance + statement-policy)
        2b. Other next_action values → dispatch accordingly
      Else: normal exit
 ```
@@ -336,17 +336,19 @@ Tracks which statements were introduced by formalize within the current autoprov
 
 | `--statement-policy` | User-authored | Session-generated | On restage |
 |---------------------|---------------|-------------------|------------|
-| `preserve` (default) | Never rewrite | Never rewrite | Error: manual intervention needed |
+| `preserve` | Never rewrite | Never rewrite | Error: manual intervention needed |
 | `rewrite-generated-only` | Never rewrite | May rewrite | Rewrite if in provenance set; else create `T_salvaged` sibling |
 | `adjacent-drafts` | Never rewrite | Never rewrite | Create `T_salvaged` sibling |
 
+When `--formalize=restage|auto`, the effective default changes from `preserve` to `rewrite-generated-only` (with startup warning). This allows autonomous restage of session-generated statements. Explicit `--statement-policy=preserve` is respected but causes stuck restage to halt with an error rather than rewrite automatically.
+
 ### Claim Queue
 
-- **Source**: single extraction pass from `--source` at autoprove startup, using formalize's ingestion logic (PDF → Read, URL → fetch, `.lean` → Read).
+- **Source**: single extraction pass from `--source` at autoprove startup, filtered by `--claim-select`. Uses formalize's ingestion logic (PDF → Read, URL → fetch, `.lean` → Read).
 - **Order**: document order (position in source). Deterministic across re-runs of the same source.
 - **Storage**: in-memory ordered list. Not persisted to disk.
 - **On restart**: re-extraction from `--source` produces same queue; cursor resets to beginning. Already-formalized claims detected via declaration-head matching in the target file.
-- **Iteration**: outer loop processes one claim at a time — pop next claim, invoke formalize with `--claim-select=first` (or `named`/`regex`), run inner cycle to completion, then advance. Queue management is autoprove-internal — formalize never sees `queue` as a selection policy.
+- **Iteration**: outer loop processes one claim at a time — pop next claim, pass it directly to formalize as the topic, run inner cycle to completion, then advance. The `--claim-select` flag filters claims at queue-extraction time only; individual formalize calls receive a single pre-selected claim. Queue management is autoprove-internal — formalize never sees `queue` as a selection policy.
 
 ### File Assembly Contract
 

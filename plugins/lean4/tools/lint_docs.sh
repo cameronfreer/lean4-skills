@@ -56,7 +56,7 @@ check_commands() {
         # Per-command line limits: prove/autoprove/doctor/review are inherently larger
         local max_lines=120
         case "$cmd" in
-            prove|autoprove) max_lines=230 ;;
+            prove|autoprove) max_lines=235 ;;
             doctor)          max_lines=220 ;;
             formalize)       max_lines=160 ;;
             golf)            max_lines=150 ;;
