@@ -7,7 +7,10 @@
 
 set -euo pipefail
 
-PLUGIN_ROOT="${LEAN4_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+# Always resolve from script location — not LEAN4_PLUGIN_ROOT, which may
+# point to a cached install with stale content.  These tests verify the
+# working-copy docs, so dirname is the correct root.
+PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Key files
 AUTOPROVE="$PLUGIN_ROOT/commands/autoprove.md"

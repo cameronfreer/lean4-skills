@@ -1105,6 +1105,38 @@ check_advanced_reference_snippets() {
     fi
 }
 
+# Check 23: plugin.json version has a matching CHANGELOG entry
+check_version_changelog() {
+    log ""
+    log "Checking version ↔ changelog..."
+
+    local plugin_json="$PLUGIN_ROOT/.claude-plugin/plugin.json"
+    local changelog
+    changelog="$(cd "$PLUGIN_ROOT" && cd ../.. && pwd)/CHANGELOG.md"
+
+    if [[ ! -f "$plugin_json" ]]; then
+        warn "plugin.json not found at $plugin_json"
+        return
+    fi
+    if [[ ! -f "$changelog" ]]; then
+        warn "CHANGELOG.md not found at $changelog"
+        return
+    fi
+
+    local version
+    version=$(grep -oE '"version": *"[^"]+"' "$plugin_json" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+    if [[ -z "$version" ]]; then
+        warn "Could not extract version from plugin.json"
+        return
+    fi
+
+    if grep -q "## v${version}" "$changelog"; then
+        ok "plugin.json v${version} has matching CHANGELOG entry"
+    else
+        warn "plugin.json version ${version} has no '## v${version}' entry in CHANGELOG.md"
+    fi
+}
+
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
@@ -1133,6 +1165,7 @@ check_stale_plugin_paths
 check_advanced_reference_metadata
 check_advanced_reference_language
 check_advanced_reference_snippets
+check_version_changelog
 
 log ""
 log "================================"

@@ -1,5 +1,12 @@
 # Changelog
 
+## v4.3.0 (March 2026)
+- Formalize-aware outer loop for [`/lean4:autoprove`](plugins/lean4/commands/autoprove.md): opt-in `--formalize=auto|restage` wraps the inner cycle with source-backed statement acquisition and review-driven routing
+- New flags: `--formalize`, `--source`, `--claim-select`, `--formalize-rigor`, `--statement-policy`, `--formalize-out`
+- `--statement-policy` defaults to `rewrite-generated-only` when formalize is active (autonomous restage)
+- `/lean4:review --mode=stuck` emits machine-readable `next_action` routing field
+- Default behavior (`--formalize=never`) unchanged
+
 ## v4.2.0 (March 2026)
 - New [`/lean4:formalize`](plugins/lean4/commands/formalize.md) command: turn informal math into Lean statements
 - Split from `/lean4:learn --mode=formalize` — formalize is now a standalone command
