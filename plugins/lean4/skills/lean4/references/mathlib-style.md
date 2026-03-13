@@ -350,7 +350,7 @@ theorem main_theorem : ... := by
 
 - **Official Style Guide:** https://leanprover-community.github.io/contribute/style.html
 - **Naming Conventions:** https://leanprover-community.github.io/contribute/naming.html
-- **How to Contribute:** https://leanprover-community.github.io/lean3/contribute/index.html
+- **How to Contribute:** https://leanprover-community.github.io/contribute/index.html
 - **Mathlib Zulip:** https://leanprover.zulipchat.com/ (#mathlib4 channel)
 
 ## Related References
