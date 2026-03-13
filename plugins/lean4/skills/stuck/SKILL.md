@@ -1,11 +1,11 @@
 ---
 name: stuck?
-description: "Use when a user is stuck on a Lean goal, tactic proof, or type error and wants the next concrete move. Triage the blocker, inspect goal/diagnostics, try low-cost tactics first (`try?`, `exact?`, `apply?`, `rw?`, `simp?`, `hint` when mathlib is available), then escalate to search, refactoring, or debugging advice."
+description: "Use when the agent is stuck on a Lean goal, tactic proof, or type error and needs the next concrete move. Triage the blocker, inspect goal/diagnostics, try low-cost tactics first (`try?`, `exact?`, `apply?`, `rw?`, `simp?`, `hint` when mathlib is available), then escalate to search, refactoring, or debugging advice."
 ---
 
 # Lean Stuck Triage
 
-Use this skill when the user says they are stuck, asks what tactic to try next, or wants Lean debugging advice rather than a long autonomous proof search.
+Use this skill when you, the agent, are stuck on the next Lean move and need a short unblock loop rather than a long autonomous proof search.
 
 ## Default Loop
 
@@ -80,7 +80,7 @@ If the proof still feels stuck, the issue is usually structure, not one more tac
 
 ## Communication Pattern
 
-When helping the user, always explain:
+When reporting back to the user, always explain:
 
 1. what kind of blocker this is,
 2. what the next 1-3 concrete things to try are,
