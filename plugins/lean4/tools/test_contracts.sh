@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PLUGIN_ROOT="${LEAN4_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 
 # Key files
 AUTOPROVE="$PLUGIN_ROOT/commands/autoprove.md"
