@@ -46,7 +46,7 @@ as best-effort rather than host-enforced timeouts. See the
 - **`disprove`** — Guided counterexample-search engine for existing declarations. Each cycle's Plan phase generates dynamic Step 0 (knowledge search) / Step 1 (method) / Step 2 (config) menus seeded by accumulated evidence. Reports `REFUTED` **only** when Lean typechecks a proof of the negation; otherwise `WITNESS_UNCERTIFIED` (candidate but uncertified) or `INCONCLUSIVE` (no candidate within budgets). Append-only: never rewrites an existing `theorem T : P := by sorry`.
 - The proof engines share one cycle engine: **Plan → Work → Checkpoint → Review → Replan → Continue/Stop**. Each sorry gets a mathlib search, tactic attempts, and validation. `--commit` controls per-fill commit behavior. When stuck, both force a review + replan.
 - `formalize` and `autoformalize` wrap drafting around that same engine. Statement and header changes belong there — `prove` and `autoprove` keep declaration headers immutable.
-- Editing `.lean` files without a command activates the skill for one bounded pass — fix the immediate issue, then suggest the right next command: `draft` / `formalize` for statement work, `prove` / `autoprove` for proof work.
+- Editing `.lean` files without a command activates the skill for one bounded pass — fix the immediate issue, then suggest the right next command: `draft` / `formalize` for statement work, `prove` / `autoprove` for proof work. For short "what should I try next?" triage on a blocked goal, use the bundled [`stuck?` skill](plugins/lean4/skills/stuck/SKILL.md).
 
 See [plugin README](plugins/lean4/README.md) for the full command guide.
 
@@ -157,6 +157,7 @@ claude mcp add --transport stdio --scope project lean-lsp -- uvx lean-lsp-mcp
 
 **lean4 plugin**
 - [SKILL.md](plugins/lean4/skills/lean4/SKILL.md) - Core skill reference
+- [stuck?](plugins/lean4/skills/stuck/SKILL.md) - Short unblock loop for Lean goals and tactic dead ends
 - [Commands](plugins/lean4/commands/) - Command documentation
 - [References](plugins/lean4/skills/lean4/references/) - cycle engine, mathlib style, proof golfing, tactic patterns, grind, metaprogramming, and more
 

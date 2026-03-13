@@ -68,6 +68,8 @@ When you edit `.lean` files in a normal conversation, the plugin activates autom
 > Use `/lean4:draft` or `/lean4:formalize` for statement work.
 > Use `/lean4:prove` or `/lean4:autoprove` for proof work.
 
+If you only need next-step triage for a blocked goal or tactic dead end, use the bundled [`stuck?` skill](skills/stuck/SKILL.md).
+
 ### `/lean4:draft` — Skeleton Drafting
 
 Drafts Lean 4 declaration skeletons from informal claims. Default `--mode=skeleton` produces sorry-stubbed statements; `--mode=attempt` adds a proof-attempt loop. No full proof engine (no cycles, no falsification) — use `/lean4:formalize` for the full pipeline.
@@ -352,9 +354,12 @@ If `$LEAN4_SCRIPTS` is unset, run `/lean4:doctor` to reinitialize.
 plugins/lean4/
 ├── .claude-plugin/plugin.json
 ├── commands/           # User-invocable commands
-├── skills/lean4/
-│   ├── SKILL.md        # Core skill reference
-│   └── references/     # Reference docs
+├── skills/
+│   ├── lean4/
+│   │   ├── SKILL.md    # Core theorem-proving skill
+│   │   └── references/ # Reference docs
+│   └── stuck/
+│       └── SKILL.md    # Short unblock / next-step skill
 ├── agents/             # 4 specialized agents
 ├── hooks/              # Bootstrap and guardrails
 ├── scripts/            # Compat alias → lib/scripts
@@ -368,6 +373,7 @@ See [MIGRATION.md](MIGRATION.md) for upgrade guide.
 ## See Also
 
 - [SKILL.md](skills/lean4/SKILL.md) - Core skill reference
+- [stuck?](skills/stuck/SKILL.md) - Short unblock loop for next-step Lean advice
 - [Commands](commands/) - Command documentation
 - [Scripts](lib/scripts/README.md) - Script reference
 - [Custom Syntax](skills/lean4/references/lean4-custom-syntax.md) - Notations, macros, elaborators, DSLs
