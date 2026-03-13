@@ -43,7 +43,7 @@ When you edit `.lean` files in a normal conversation, the plugin activates autom
 > Use `/lean4:prove` for guided cycle-by-cycle help.
 > Use `/lean4:autoprove` for autonomous cycles with stop safeguards.
 
-If you only need next-step triage for a blocked goal or tactic dead end, use the bundled [`stuck?` skill](skills/stuck/SKILL.md).
+If the agent only needs next-step triage for a blocked goal or tactic dead end, use the bundled [`stuck?` skill](skills/stuck/SKILL.md).
 
 ### `/lean4:formalize` — Autoformalization
 
@@ -240,7 +240,7 @@ See [MIGRATION.md](MIGRATION.md) for upgrade guide.
 ## See Also
 
 - [SKILL.md](skills/lean4/SKILL.md) - Core skill reference
-- [stuck?](skills/stuck/SKILL.md) - Short unblock loop for next-step Lean advice
+- [stuck?](skills/stuck/SKILL.md) - Short unblock loop when the agent needs the next Lean move
 - [Commands](commands/) - Command documentation
 - [Scripts](lib/scripts/README.md) - Script reference
 - [Custom Syntax](skills/lean4/references/lean4-custom-syntax.md) - Notations, macros, elaborators, DSLs
