@@ -166,6 +166,74 @@ Prerequisite: none
 4. Use extracted content as seed for the resolved mode's discovery step.
 5. On failure (unreadable, too large, fetch blocked): ask user for relevant excerpt and proceed with that.
 
+## Pedagogical Self-Debate
+
+After receiving a user response and before formulating a reply, `/lean4:learn` internally reasons from three advisor perspectives to select the best response strategy. This runs inside the iterate loop (step 4.5 in `learn.md`).
+
+### The Three Advisors
+
+| Advisor | Question it asks | Signals it looks for |
+|---------|-----------------|----------------------|
+| **Pace Advisor** | Is the learner ready to advance, or do they need consolidation? | Correct but tentative → consolidate. Confident and correct → advance. Repeated same error → slow down or switch. |
+| **Method Advisor** | Is the current style still right, or should we switch? | Disengaged in socratic → try tour. Bored in tour → try exercise. Struggling in formal → try informal/intuitive framing. |
+| **Depth Advisor** | Should I go deeper, surface a related concept, or redirect? | If they asked a tangential question → surface and redirect. If they're close to a subtlety → go deeper. If they're overwhelmed → redirect to main thread. |
+
+### Picking a Strategy
+
+After each advisor generates a candidate response approach, pick the one best aligned with:
+- The learner's current profile (`{intent, level, style, track}`)
+- What the current response concretely revealed
+
+**Tiebreak:** when advisors conflict, prioritize the learner's momentum — keeping them engaged beats completeness.
+
+### Summary Note Format
+
+Always announce the chosen strategy before the actual reply, in a single sentence:
+
+> *Pedagogy: [chosen strategy — e.g., "Hinting rather than revealing since you're close" or "Switching to a worked example since you've been stuck on the same concept twice."]*
+
+### When to Run
+
+| Style | Debate required? |
+|-------|-----------------|
+| `game` | Always (mandatory) |
+| `socratic` | Always (mandatory) |
+| `exercise` | On substantive user responses; skip for trivial menu picks |
+| `tour` | Skip for trivial navigation; run when user asks a question or expresses confusion |
+
+### Profile Updates Mid-Session
+
+The debate may update `style` or `level` in the Learning Profile if evidence is clear (e.g., user is consistently bored → raise `--level`; user is consistently lost → lower `--level` or switch `--style`). Announce any profile update inline:
+
+> *Pedagogy: Raising level to `expert` since your questions show strong prior familiarity; switching style to `exercise` to keep you engaged.*
+
+Profile updates from the debate follow the same precedence rules: they override inference but can be overridden by explicit user flags on a later turn.
+
+### Stuck Detection
+
+If the user's last 2 responses reveal the **same misunderstanding**, the debate MUST flag this and the chosen strategy MUST switch approach — not repeat the same explanation. Options:
+- Change framing (intuitive → formal, or vice versa)
+- Surface a prerequisite concept
+- Present a minimal counterexample to isolate the misconception
+- In `game` mode: escalate hint level (see below)
+
+### Hint Escalation Protocol (game mode)
+
+When the user fails the same exercise 2+ times, the Pace Advisor flags this. The chosen strategy must follow the escalation ladder:
+
+| Failure count | Response strategy |
+|--------------|------------------|
+| 1st failure | Affirm attempt, give directional hint (no answer) |
+| 2nd failure | More specific hint: name the relevant tactic/lemma/concept |
+| 3rd failure | Show the full answer with step-by-step explanation |
+| After 3rd | Offer: retry a variation, regress to an easier level, or continue to next exercise |
+
+Never skip levels in the escalation ladder within a single exercise session. Reset the counter when the exercise changes.
+
+### No Lean Verification
+
+The self-debate step reasons about teaching strategy only. It must not trigger new Lean tool calls (`lean_goal`, `lean_multi_attempt`, etc.) — those belong to the verification layer (step 3 / game verification). Use already-discovered information.
+
 ## Learning Profile
 
 Persisted within the current conversation only (not across new sessions).
