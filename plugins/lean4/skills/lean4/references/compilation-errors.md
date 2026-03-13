@@ -258,23 +258,20 @@ import Mathlib.Tactic.Positivity    -- positivity
 2. Add `import Mathlib.Tactic.TacticName`
 3. Rebuild
 
-**Cause 2: Bare identifier needs qualification**
+**Cause 2: Missing `open` declarations**
 
-Lean 4 requires fully qualified names where Lean 3 allowed bare names:
+Names like `Tendsto` and `atTop` live in the `Filter` namespace. Without opening it, Lean cannot resolve them:
 
 ```lean
--- ❌ WRONG: Bare identifiers
+-- ❌ ERROR: unknown identifier 'Tendsto'
 have h : Tendsto f atTop (𝓝 x) := ...
 
--- ✅ CORRECT: Qualified names
-have h : Filter.Tendsto f Filter.atTop (nhds x) := ...
+-- ✅ FIX: open the relevant namespaces
+open Filter Topology in
+have h : Tendsto f atTop (𝓝 x) := ...
 ```
 
-**Common qualifications:**
-- `Tendsto` → `Filter.Tendsto`
-- `atTop` → `Filter.atTop`
-- `𝓝 x` → `nhds x`
-- `eventually` → `Filter.Eventually`
+Alternatively, you can fully qualify the names (`Filter.Tendsto`, `Filter.atTop`), but `open Filter Topology` is the standard mathlib practice.
 
 ### 6. Equation Compiler Failed (Termination)
 
@@ -366,7 +363,7 @@ have hm_pos' : m > 0 := Nat.pos_of_ne_zero (by
 - `norm_num`: Concrete arithmetic (`2 + 2 = 4`, `7 < 10`)
 - `simp`: Simplify using hypotheses and definitions
 - `linarith`: Linear inequalities with variables (`a + b ≤ c`, `x > 0 → x + 1 > 0`)
-- `omega`: Integer linear arithmetic (Lean 4.13+, works on `ℕ` and `ℤ`)
+- `omega`: Integer linear arithmetic (works on `ℕ` and `ℤ`)
 
 ### 8. Unexpected Token/Identifier in Proof (Section Doc Comments)
 
