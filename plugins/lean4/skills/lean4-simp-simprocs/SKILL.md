@@ -11,7 +11,7 @@ Grounding for this skill:
 - Lean community blog: [Simp made simple](https://leanprover-community.github.io/blog/posts/simp-made-simple/)
 - Lean community blog: [Fantastic Simprocs and How to Write Them](https://leanprover-community.github.io/blog/posts/simprocs-tutorial/)
 - Lean community blog: [Simprocs for the Working Mathematician](https://leanprover-community.github.io/blog/posts/simprocs-for-the-working-mathematician/)
-- Shared plugin references: `../lean4/references/simp-hygiene.md`, `../lean4/references/simproc-patterns.md`, `../lean4/references/grind-tactic.md`
+- Shared plugin references: `../lean4/references/simp-normal-forms.md`, `../lean4/references/simp-hygiene.md`, `../lean4/references/simproc-patterns.md`, `../lean4/references/grind-tactic.md`
 
 ## Decision Rule
 
@@ -42,6 +42,8 @@ Grounding for this skill:
 - Avoid `[simp]` on commutativity and similarly non-canonical rewrites.
 - Prefer narrowing the simp set before adding new global lemmas.
 - Use `@[simp, nolint simpNF]` only when the non-normal-form orientation is intentional and justified.
+
+For precise definitions of simp normal form and canonical versus non-canonical rewrites, read `../lean4/references/simp-normal-forms.md`.
 
 ## Simproc Authoring Rules
 
@@ -75,6 +77,7 @@ Treat this as a shape, not a copy-paste recipe. Real simprocs usually need:
 
 ## Escalation Targets
 
+- unclear canonical form or `simpNF` dispute: read `../lean4/references/simp-normal-forms.md`
 - `simp` problem with noisy lemmas or wrong orientation: read `../lean4/references/simp-hygiene.md`
 - custom deterministic rewrite inside `simp`: read `../lean4/references/simproc-patterns.md`
 - goal should close after normalization: read `../lean4/references/grind-tactic.md`

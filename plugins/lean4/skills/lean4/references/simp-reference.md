@@ -6,6 +6,8 @@
 
 Best practices for `@[simp]` lemmas to avoid common issues.
 
+For precise definitions of `simp` normal form and canonical versus non-canonical rewrites, read [simp-normal-forms.md](simp-normal-forms.md) first.
+
 ## First Question: Should This Be a Simp Lemma?
 
 Use a global `@[simp]` lemma only if all of the following are true:
@@ -185,6 +187,7 @@ Before adding `@[simp]`, verify:
 
 ## See Also
 
+- [simp-normal-forms.md](simp-normal-forms.md) - Definitions for simp normal form, canonical rewrites, and non-canonical rewrites
 - [simproc-patterns.md](simproc-patterns.md) - Custom deterministic rewrites inside the simp pipeline
 - [tactics-reference.md](tactics-reference.md) - Full tactic docs including simp variants
 - [performance-optimization.md](performance-optimization.md) - `simp only` for speed
