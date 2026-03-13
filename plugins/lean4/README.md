@@ -43,6 +43,8 @@ When you edit `.lean` files in a normal conversation, the plugin activates autom
 > Use `/lean4:prove` for guided cycle-by-cycle help.
 > Use `/lean4:autoprove` for autonomous cycles with stop safeguards.
 
+If you only need next-step triage for a blocked goal or tactic dead end, use the bundled [`stuck?` skill](skills/stuck/SKILL.md).
+
 ### `/lean4:formalize` — Autoformalization
 
 Turns informal mathematical claims into Lean 4 theorem statements. Drafts skeletons, attempts proofs, verifies axiom hygiene, and produces an assumption ledger for axiomatic drafts (`--rigor=axiomatic`). Accepts `--source` to ingest papers or files.
@@ -219,9 +221,12 @@ If `$LEAN4_SCRIPTS` is unset, run `/lean4:doctor` to reinitialize.
 plugins/lean4/
 ├── .claude-plugin/plugin.json
 ├── commands/           # User-invocable commands
-├── skills/lean4/
-│   ├── SKILL.md        # Core skill reference
-│   └── references/     # Reference docs
+├── skills/
+│   ├── lean4/
+│   │   ├── SKILL.md    # Core theorem-proving skill
+│   │   └── references/ # Reference docs
+│   └── stuck/
+│       └── SKILL.md    # Short unblock / next-step skill
 ├── agents/             # 4 specialized agents
 ├── hooks/              # Bootstrap and guardrails
 ├── scripts/           # Compat alias → lib/scripts
@@ -235,6 +240,7 @@ See [MIGRATION.md](MIGRATION.md) for upgrade guide.
 ## See Also
 
 - [SKILL.md](skills/lean4/SKILL.md) - Core skill reference
+- [stuck?](skills/stuck/SKILL.md) - Short unblock loop for next-step Lean advice
 - [Commands](commands/) - Command documentation
 - [Scripts](lib/scripts/README.md) - Script reference
 - [Custom Syntax](skills/lean4/references/lean4-custom-syntax.md) - Notations, macros, elaborators, DSLs
