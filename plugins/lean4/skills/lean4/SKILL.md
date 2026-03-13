@@ -43,10 +43,13 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | New to this project / exploring | `/lean4:learn --mode=repo` |
 | Navigating mathlib for a topic | `/lean4:learn --mode=mathlib` |
 | Something not working | `/lean4:doctor` |
+| Formalize + prove end-to-end | `/lean4:autoprove --formalize=auto --source=... --claim-select=first --formalize-out=...` |
 
 ## Typical Workflow
 
 ```
+/lean4:formalize           Turn informal math into Lean statements (optional entry)
+        ↓
 /lean4:prove               Guided cycle-by-cycle proving (asks before each cycle)
 /lean4:autoprove           Autonomous multi-cycle proving (runs with stop rules)
         ↓
@@ -55,13 +58,14 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 /lean4:checkpoint          Create verified save point
 ```
 
-Use `/lean4:learn` at any point to explore repo structure or navigate mathlib. Use `/lean4:formalize` to turn informal math into Lean statements.
+Use `/lean4:learn` at any point to explore repo structure or navigate mathlib. Use `/lean4:formalize` standalone or via `--formalize=auto` on autoprove for end-to-end source-to-proof.
 
 **Notes:**
 - `/lean4:prove` asks before each cycle; `/lean4:autoprove` loops autonomously with hard stop conditions
 - Both trigger `/lean4:review` at configured intervals (`--review-every`)
-- When reviews run (via `--review-every`), they act as gates: review → replan → approval → continue
+- When reviews run (via `--review-every`), they act as gates: review → replan → continue. In prove, replan requires user approval; in autoprove, replan auto-continues
 - Review supports `--mode=batch` (default) or `--mode=stuck` (triage)
+- `--formalize=auto` on autoprove wraps formalize+prove in a single command (source → claims → skeletons → proofs)
 - If you hit environment issues, run `/lean4:doctor` to diagnose
 
 ## LSP Tools (Preferred)
