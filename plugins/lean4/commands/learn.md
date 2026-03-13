@@ -114,9 +114,36 @@ Offer the depth-check menu:
 - **formalize a specific result** → suggest `/lean4:formalize`
 - **save to scratch** / **write to file** (mid-session output actions — `--output` is part of the loop, not just startup config)
 
+### 4.5. Pedagogical Self-Debate
+
+After receiving the user's response (answer attempt, question, menu choice, or freeform message) and before formulating a reply, reason from three advisor perspectives to choose the best response strategy:
+
+- **Pace Advisor**: "Is the learner ready to advance, or do they need consolidation? What does their response reveal about their current understanding level?"
+- **Method Advisor**: "Is the current style still right, or should we switch? Would a different framing (intuitive vs. formal vs. example-driven) serve them better here?"
+- **Depth Advisor**: "Should I go deeper on this subtlety, surface a related concept, or redirect? Am I risking overloading them?"
+
+Pick the best strategy based on the learner's current profile (`{intent, level, style, track}`) and what their response revealed. **Tiebreak:** prioritize the learner's momentum (keep them engaged) over completeness.
+
+Then announce the chosen strategy in a brief note before the actual reply:
+
+> *Pedagogy: [one sentence — e.g., "Hinting rather than revealing since you're close" or "Switching to a worked example since you've been stuck on the same concept twice."]*
+
+**When to run:**
+- **Mandatory** in `--style=game` and `--style=socratic` modes.
+- **Optional** (skip for trivial menu navigation) in `--style=tour` and `--style=exercise` modes.
+
+**Key constraints:**
+- Do NOT trigger new Lean verification here — reason about teaching strategy only, using already-discovered information.
+- In `--style=game`: if the user has failed the same exercise 2+ times, the Pace Advisor must flag this and the strategy must include hint escalation (hint 1 → hint 2 → hint 3 → show answer with explanation) or offer to regress to an easier level.
+- If the user's last 2 responses reveal the same misunderstanding, the debate MUST flag this and the chosen strategy MUST switch approach.
+- The debate may update `style` or `level` in the Learning Profile mid-session if there is clear evidence it should change. Announce any profile update.
+- The summary note is always shown; never hidden. Keep it to 1 sentence.
+
+See [Pedagogical Self-Debate](../skills/lean4/references/learn-pathways.md#pedagogical-self-debate) for the full reference.
+
 ### 5. Iterate
 
-Return to step 2 with refined scope based on user's choice. Continue until the user is satisfied or switches mode.
+After step 4.5, respond using the chosen strategy. Return to step 4 (Depth Check) for the next turn. On mode switch or topic change, return to step 2 (Discovery). Continue until the user is satisfied or switches mode.
 
 ## Output
 
