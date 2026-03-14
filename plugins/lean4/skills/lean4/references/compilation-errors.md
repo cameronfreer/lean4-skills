@@ -126,11 +126,11 @@ theorem my_theorem : Goal := ...
 
 **Solution 3: Check for instance loops**
 ```lean
--- ❌ BAD: Creates loop
+-- ❌ WRONG: Creates loop
 instance [Foo A] : Bar A := ...
 instance [Bar A] : Foo A := ...
 
--- ✅ GOOD: One-directional
+-- ✅ CORRECT: One-directional
 instance [Foo A] : Bar A := ...
 ```
 
@@ -493,7 +493,7 @@ type mismatch
 
 **Example:**
 ```lean
--- ❌ Wrong: Interpreted as EventuallyEq constructor call
+-- ❌ WRONG: Interpreted as EventuallyEq constructor call
 have := h.EventuallyEq.comp_measurePreserving
 --        ^ EventuallyEq constructor called with μ as first argument
 --          Expected Filter but got Measure
@@ -502,7 +502,7 @@ have := h.EventuallyEq.comp_measurePreserving
 **Solution:** Use snake_case standalone names instead of dot notation:
 
 ```lean
--- ✅ Correct: Call the lemma function
+-- ✅ CORRECT: Call the lemma function
 have := EventuallyEq.comp_measurePreserving h ...
 ```
 
@@ -526,7 +526,7 @@ numerals are data but expected type is Prop
 
 **Example:**
 ```lean
--- ❌ Wrong: 1 is a numeral (data), not a proof
+-- ❌ WRONG: 1 is a numeral (data), not a proof
 have := h1.atTop_add 1
 --                    ^ Expected: Tendsto proof
 --                      Got: numeral 1
@@ -535,7 +535,7 @@ have := h1.atTop_add 1
 **Solution:** For constant function limits, use `tendsto_const_nhds`:
 
 ```lean
--- ✅ Correct: Pass a proof term
+-- ✅ CORRECT: Pass a proof term
 have := h1.atTop_add (tendsto_const_nhds : Tendsto (fun _ => (1 : ℝ)) atTop (nhds 1))
 ```
 
