@@ -132,6 +132,7 @@ When delegating to `lean4-proof-golfer` subagents:
 ## See Also
 
 - `/lean4:review` - See opportunities (read-only)
+- `/lean4:refactor` - Strategy-level simplification (before golf)
 - `/lean4:checkpoint` - Save after golfing
 - [proof-golfing.md](../skills/lean4/references/proof-golfing.md)
 - [Examples](../skills/lean4/references/command-examples.md#golf)

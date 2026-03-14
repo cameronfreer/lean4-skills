@@ -203,7 +203,10 @@ If "yes":
 1. Enter plan mode
 2. Create plan with one task per high-priority suggestion
 3. Get user approval before execution
-4. Use `/lean4:prove` to apply fixes (review itself remains read-only)
+4. Route to the appropriate command (review itself remains read-only):
+   - Missing proofs / build blockers → `/lean4:prove`
+   - Strategy simplification opportunities → `/lean4:refactor`
+   - Tactic-level brevity cleanup → `/lean4:golf`
 
 **Note:** When `--mode=stuck` is triggered by prove/autoprove, skip this prompt—the proving command handles the follow-up with its own "Apply this plan? [yes/no]" prompt.
 

@@ -463,6 +463,7 @@ The lean4 plugin provides these main commands:
 | `/lean4:autoprove` | Autonomous multi-cycle proving |
 | `/lean4:checkpoint` | Verified commit with axiom check |
 | `/lean4:review` | Read-only quality review |
+| `/lean4:refactor` | Strategy-level proof simplification |
 | `/lean4:golf` | Optimize proofs |
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
 | `/lean4:doctor` | Diagnostics and migration |

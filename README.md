@@ -14,13 +14,14 @@ others all use the same core skill; only the invocation surface differs.
 | autoprove | Autonomous multi-cycle proving with stop rules |
 | checkpoint | Verified save point (build + axiom check + commit) |
 | review | Read-only quality review |
+| refactor | Strategy-level proof simplification |
 | golf | Optimize proofs for brevity |
 | learn | Interactive teaching and mathlib exploration |
 | doctor | Diagnostics and migration help |
 
 **Claude Code:** invoke as `/lean4:<name>`. **Other hosts:** follow the corresponding workflow in [SKILL.md](plugins/lean4/skills/lean4/SKILL.md).
 
-Typical session: `prove` (or `autoprove`) → `review` → `golf` → `checkpoint` → `git push`.
+Typical session: `prove` (or `autoprove`) → `review` → `refactor` → `golf` → `checkpoint` → `git push`.
 
 ## How It Works
 

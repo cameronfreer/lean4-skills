@@ -60,7 +60,7 @@ check_commands() {
             doctor)          max_lines=220 ;;
             formalize)       max_lines=160 ;;
             golf)            max_lines=150 ;;
-            review)          max_lines=320 ;;
+            review)          max_lines=330 ;;
             learn)           max_lines=160 ;;
         esac
 

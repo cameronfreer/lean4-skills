@@ -29,10 +29,27 @@ Strategy-level proof simplification: find better proof approaches, leverage math
 | --search | No | `quick` (default) or `full` (exhaustive mathlib search) |
 | --extract-helpers | No | `on` (default) or `off` (skip helper extraction) |
 
+## Scope Behavior
+
+| Input | Scope |
+|-------|-------|
+| `File.lean` | All proofs in file |
+| `File.lean:149` | Single proof containing line 149 |
+| No target | `--scope=changed` (files modified since last commit) |
+| `--scope=changed` | Files modified since last commit |
+
+**Line target:** Identifies the enclosing `theorem`/`lemma`/`def` containing the given line and refactors that proof only.
+
 ## Preconditions
 
 - Target proofs must compile (no sorries, no build errors in scope)
 - Run `/lean4:prove` or `/lean4:autoprove` first if there are open sorries
+
+**Refusal:** If preconditions are not met:
+```
+⚠️  Cannot refactor: File.lean has 2 sorries and 1 build error.
+Run /lean4:prove first, then retry /lean4:refactor.
+```
 
 ## Actions
 
