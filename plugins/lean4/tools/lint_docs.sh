@@ -1105,17 +1105,23 @@ check_advanced_reference_snippets() {
     fi
 }
 
-# Check 23: plugin.json version has a matching CHANGELOG entry
-check_version_changelog() {
+# Check 23: release metadata consistency (plugin.json ↔ marketplace.json ↔ CHANGELOG)
+check_release_metadata() {
     log ""
-    log "Checking version ↔ changelog..."
+    log "Checking release metadata consistency..."
 
     local plugin_json="$PLUGIN_ROOT/.claude-plugin/plugin.json"
-    local changelog
-    changelog="$(cd "$PLUGIN_ROOT" && cd ../.. && pwd)/CHANGELOG.md"
+    local repo_root
+    repo_root="$(cd "$PLUGIN_ROOT" && cd ../.. && pwd)"
+    local marketplace_json="$repo_root/.claude-plugin/marketplace.json"
+    local changelog="$repo_root/CHANGELOG.md"
 
     if [[ ! -f "$plugin_json" ]]; then
         warn "plugin.json not found at $plugin_json"
+        return
+    fi
+    if [[ ! -f "$marketplace_json" ]]; then
+        warn "marketplace.json not found at $marketplace_json"
         return
     fi
     if [[ ! -f "$changelog" ]]; then
@@ -1123,17 +1129,57 @@ check_version_changelog() {
         return
     fi
 
-    local version
-    version=$(grep -oE '"version": *"[^"]+"' "$plugin_json" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-    if [[ -z "$version" ]]; then
+    # Extract plugin.json fields
+    local plugin_version plugin_desc
+    plugin_version=$(grep -oE '"version": *"[^"]+"' "$plugin_json" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+    plugin_desc=$(sed -n 's/.*"description": *"\([^"]*\)".*/\1/p' "$plugin_json" | head -1)
+
+    if [[ -z "$plugin_version" ]]; then
         warn "Could not extract version from plugin.json"
         return
     fi
 
-    if grep -q "## v${version}" "$changelog"; then
-        ok "plugin.json v${version} has matching CHANGELOG entry"
+    # Extract marketplace.json fields
+    local market_version market_plugin_desc market_source market_plugin_count
+    market_version=$(grep -oE '"version": *"[^"]+"' "$marketplace_json" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+    # marketplace has two description fields; the plugin one is inside the plugins array (last match)
+    market_plugin_desc=$(sed -n 's/.*"description": *"\([^"]*\)".*/\1/p' "$marketplace_json" | tail -1)
+    market_source=$(sed -n 's/.*"source": *"\([^"]*\)".*/\1/p' "$marketplace_json" | head -1)
+    market_plugin_count=$(grep -c '"name": *"lean4"' "$marketplace_json")
+
+    # 1. Version match
+    if [[ "$plugin_version" == "$market_version" ]]; then
+        ok "marketplace version matches plugin.json ($plugin_version)"
     else
-        warn "plugin.json version ${version} has no '## v${version}' entry in CHANGELOG.md"
+        warn "marketplace version ($market_version) != plugin.json ($plugin_version)"
+    fi
+
+    # 2. Plugin description match
+    if [[ "$plugin_desc" == "$market_plugin_desc" ]]; then
+        ok "marketplace plugin description matches plugin.json"
+    else
+        warn "marketplace plugin description differs from plugin.json"
+    fi
+
+    # 3. Source path
+    if [[ "$market_source" == "./plugins/lean4" ]]; then
+        ok "marketplace plugin source is ./plugins/lean4"
+    else
+        warn "unexpected marketplace plugin source: $market_source"
+    fi
+
+    # 4. Single lean4 entry
+    if [[ "$market_plugin_count" -eq 1 ]]; then
+        ok "marketplace has exactly one lean4 plugin entry"
+    else
+        warn "expected 1 lean4 plugin entry in marketplace, found $market_plugin_count"
+    fi
+
+    # 5. CHANGELOG entry
+    if grep -q "## v${plugin_version}" "$changelog"; then
+        ok "CHANGELOG v${plugin_version} entry present"
+    else
+        warn "CHANGELOG missing entry for v${plugin_version}"
     fi
 }
 
@@ -1165,7 +1211,7 @@ check_stale_plugin_paths
 check_advanced_reference_metadata
 check_advanced_reference_language
 check_advanced_reference_snippets
-check_version_changelog
+check_release_metadata
 
 log ""
 log "================================"
