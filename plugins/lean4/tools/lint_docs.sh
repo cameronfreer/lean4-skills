@@ -13,7 +13,7 @@ PLUGIN_ROOT="${LEAN4_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 ISSUES=0
 
 # Single source of truth for known commands (used by check_commands and check_cross_refs)
-KNOWN_COMMANDS="autoprove checkpoint doctor formalize golf learn prove review"
+KNOWN_COMMANDS="autoprove checkpoint doctor formalize golf learn prove refactor review"
 
 log() {
     echo "$1"

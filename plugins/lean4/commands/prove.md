@@ -183,6 +183,7 @@ Guardrailed git commands are blocked. See [cycle-engine.md](../skills/lean4/refe
 - `/lean4:autoprove` - Autonomous multi-cycle proving
 - `/lean4:checkpoint` - Manual save point
 - `/lean4:review` - Quality check (read-only)
+- `/lean4:refactor` - Strategy-level proof simplification
 - `/lean4:golf` - Optimize proofs
 - [Cycle Engine](../skills/lean4/references/cycle-engine.md) - Shared prove/autoprove mechanics
 - [Examples](../skills/lean4/references/command-examples.md#prove)

@@ -1,6 +1,6 @@
 {
   "name": "lean4",
-  "version": "4.3.0",
-  "description": "Unified Lean 4 plugin (formalize, prove, autoprove, checkpoint, review, golf, learn, doctor) — LSP-first, scripts fallback",
+  "version": "4.3.1",
+  "description": "Unified Lean 4 plugin (formalize, prove, autoprove, checkpoint, review, refactor, golf, learn, doctor) — LSP-first, scripts fallback",
   "author": {"name": "Cameron Freer", "email": "cameronfreer@gmail.com"}
 }

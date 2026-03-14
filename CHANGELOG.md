@@ -1,5 +1,10 @@
 # Changelog
 
+## v4.3.1 (March 2026)
+- New [`/lean4:refactor`](plugins/lean4/commands/refactor.md) command: strategy-level proof simplification (mathlib leverage, helper extraction, congr/EqOn patterns)
+- New [proof-simplification.md](plugins/lean4/skills/lean4/references/proof-simplification.md) reference guide (congr/EqOn patterns, generalization checklist, file-level audit)
+- Expanded [grind-tactic.md](plugins/lean4/skills/lean4/references/grind-tactic.md): `@[grind]` attribute variants, `grind_pattern` constraint syntax, `+suggestions`/`+locals` workflow, interactive debugging loop, simproc escalation, anti-patterns
+
 ## v4.3.0 (March 2026)
 - Formalize-aware outer loop for [`/lean4:autoprove`](plugins/lean4/commands/autoprove.md): opt-in `--formalize=auto|restage` wraps the inner cycle with source-backed statement acquisition and review-driven routing
 - New flags: `--formalize`, `--source`, `--claim-select`, `--formalize-rigor`, `--statement-policy`, `--formalize-out`

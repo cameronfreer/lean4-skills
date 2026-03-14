@@ -25,7 +25,8 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | `/lean4:prove` | Guided cycle-by-cycle theorem proving |
 | `/lean4:autoprove` | Autonomous multi-cycle proving with stop rules |
 | `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
-| `/lean4:review` | Quality audit (`--mode=batch`, `--mode=stuck`, or `--mode=refactor`) |
+| `/lean4:review` | Quality audit (`--mode=batch` or `--mode=stuck`) |
+| `/lean4:refactor` | Strategy-level proof simplification |
 | `/lean4:golf` | Optimize proofs for brevity |
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
 | `/lean4:doctor` | Plugin troubleshooting and migration help |
@@ -39,6 +40,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | Filling sorries (unattended) | `/lean4:autoprove` |
 | Verified save point | `/lean4:checkpoint` |
 | Quality check (read-only) | `/lean4:review` |
+| Simplify proof strategies (mathlib leverage, helpers) | `/lean4:refactor` |
 | Optimizing compiled proofs | `/lean4:golf` |
 | New to this project / exploring | `/lean4:learn --mode=repo` |
 | Navigating mathlib for a topic | `/lean4:learn --mode=mathlib` |
@@ -53,7 +55,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 /lean4:prove               Guided cycle-by-cycle proving (asks before each cycle)
 /lean4:autoprove           Autonomous multi-cycle proving (runs with stop rules)
         ↓
-/lean4:review --mode=refactor  Simplify proofs: better strategies, mathlib leverage, helpers
+/lean4:refactor            Simplify proof strategies (optional, or --dry-run to preview)
         ↓
 /lean4:golf                Optimize proofs for tactic-level brevity (optional)
         ↓
@@ -66,7 +68,7 @@ Use `/lean4:learn` at any point to explore repo structure or navigate mathlib. U
 - `/lean4:prove` asks before each cycle; `/lean4:autoprove` loops autonomously with hard stop conditions
 - Both trigger `/lean4:review` at configured intervals (`--review-every`)
 - When reviews run (via `--review-every`), they act as gates: review → replan → continue. In prove, replan requires user approval; in autoprove, replan auto-continues
-- Review supports `--mode=batch` (default) or `--mode=stuck` (triage)
+- Review supports `--mode=batch` (default) or `--mode=stuck` (triage); review is always read-only
 - `--formalize=auto` on autoprove wraps formalize+prove in a single command (source → claims → skeletons → proofs)
 - If you hit environment issues, run `/lean4:doctor` to diagnose
 
