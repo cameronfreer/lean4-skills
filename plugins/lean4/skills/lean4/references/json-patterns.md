@@ -52,8 +52,9 @@ Ground truth from `Lean/Data/Json/Elab.lean`:
   - String keys are preserved as written.
 - Antiquotation uses `Lean.toJson`:
   - `json%{x: $expr}` elaborates via `toJson expr`.
-  - Top-level antiquotation works too: `json% $expr` elaborates to `toJson expr`.
+  - Top-level antiquotation works too: `json% $expr` elaborates to `toJson expr`. If `expr : Json`, this embeds it unchanged (`ToJson Json = id`).
   - Missing `ToJson` instance causes elaboration failure.
+- `ToJson Float` serializes `NaN` and `±Infinity` as JSON strings, not numbers.
 
 ## Patterns
 
@@ -94,6 +95,18 @@ open Lean
 
 def annotated (base : Json) (tag : String) : Json :=
   base.mergeObj (Json.mkObj [("tag", toJson tag)])
+```
+
+### Optional fields with `Json.opt`
+
+`Json.opt` emits nothing for `none` and a key-value pair for `some`, avoiding explicit branching.
+
+```lean
+import Lean.Data.Json
+open Lean
+
+def withOptional (name : String) (tag? : Option String) : Json :=
+  Json.mkObj ([("name", toJson name)] ++ Json.opt "tag" tag?)
 ```
 
 ### Mix static and computed values
