@@ -236,9 +236,9 @@ rcases n with _ | m
 
 **"We perform induction on n."**
 ```lean
-induction' n with n ih
-<proof of base case>
-<proof of inductive step, with ih : P n available>
+induction n with
+| zero => <proof of base case>
+| succ n ih => <proof of inductive step, with ih : P n available>
 ```
 
 ### Pattern Matching
