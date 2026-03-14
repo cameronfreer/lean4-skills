@@ -1,4 +1,6 @@
-# Migration Guide: V3 → V4
+# Claude Code Migration: V3 → V4
+
+> This guide is specific to Claude Code's plugin system. Non-Claude hosts don't have V3 artifacts to migrate.
 
 This guide helps you upgrade from the legacy 3-plugin system (v3.x) to the unified v4 plugin.
 
@@ -177,6 +179,12 @@ Both share the same cycle engine and most flags. Key differences:
 - **prove-only:** `--deep=ask` (interactive prompt), `--planning=ask`, `--commit=ask` (per-commit confirmation)
 - **autoprove-only:** `--max-cycles`, `--max-total-runtime`, `--max-stuck-cycles`, `--max-consecutive-deep-cycles` (autoprove coerces `--commit=ask` and `--review-source=external` to non-interactive values)
 - **Different defaults:** autoprove uses `--batch-size=2`, `--deep=stuck`, `--golf=never`, `--commit=auto`; prove uses `--batch-size=1`, `--deep=never`, `--golf=prompt`, `--commit=ask`
+
+## V4.0.8 → V4.0.9
+
+**v4.0.9:** Grind, simprocs, metaprogramming, linters, FFI, verso-docs, and profiling content (from PR #10, Alok Singh) integrated as reference files in `plugins/lean4/skills/lean4/references/`. No separate plugins needed.
+
+New reference files: `grind-tactic.md`, `simproc-patterns.md`, `metaprogramming-patterns.md`, `linter-authoring.md`, `ffi-patterns.md`, `verso-docs.md`, `profiling-workflows.md`. All are outside the default prove/autoprove loop.
 
 ## See Also
 

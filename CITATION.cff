@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "Lean 4 Skills: Theorem proving skill and workflow pack for AI coding agents"
+authors:
+  - family-names: Freer
+    given-names: Cameron
+url: "https://github.com/cameronfreer/lean4-skills"
+repository-code: "https://github.com/cameronfreer/lean4-skills"
+license: MIT
+date-released: "2025-10-15"

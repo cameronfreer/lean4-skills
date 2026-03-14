@@ -41,13 +41,20 @@ Diagnostics, troubleshooting, and migration assistance for the Lean4 plugin.
 
 Environment variables: `LEAN4_PLUGIN_ROOT`, `LEAN4_SCRIPTS`, `LEAN4_REFS`, `LEAN4_PYTHON_BIN`
 
+### 1b. MCP Tools
+
+| Check | Detection | Status |
+|-------|-----------|--------|
+| Lean LSP MCP | `lean_goal` tool available in this session | Optional (sub-second feedback) |
+`✓ … available` or `⚠ … unavailable — see INSTALLATION.md`
+
 ### 2. Plugin Check
 
 Verify structure and permissions:
 ```
 plugins/lean4/
 ├── .claude-plugin/plugin.json
-├── commands/     (5 files)
+├── commands/     (*.md command files)
 ├── hooks/        (executable .sh)
 ├── skills/lean4/ (SKILL.md + references/)
 ├── agents/       (4 files)
@@ -138,6 +145,9 @@ Keys: y=remove this, n=keep this, a=remove all remaining, q=quit now
 ✓ lake 4.x.x
 ...
 
+### MCP Tools
+✓ Lean LSP MCP tools available in this session (lean_goal)
+
 ### Plugin
 ✓ LEAN4_PLUGIN_ROOT set
 ✓ Scripts executable
@@ -191,6 +201,8 @@ No changes made. Run `/lean4:doctor cleanup --apply` to remove.
 | Legacy plugin detected | Uninstall old plugin, remove directory |
 | Stale env vars | Restart session after removing old plugin |
 | Commands not found after migration | Check `/lean4:*` not `/lean4-theorem-proving:*` |
+| `rg` not found | Install via package manager — see [ripgrep](../../../INSTALLATION.md#optional-ripgrep) |
+| Lean LSP MCP tools unavailable | Check `claude mcp list` (Claude Code); if missing, `claude mcp add lean-lsp uvx lean-lsp-mcp` or see [INSTALLATION.md](../../../INSTALLATION.md#lean-lsp-mcp-server-all-hosts) |
 
 ## Safety
 
