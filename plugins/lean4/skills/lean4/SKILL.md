@@ -26,6 +26,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | `/lean4:autoprove` | Autonomous multi-cycle proving with stop rules |
 | `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
 | `/lean4:review` | Quality audit (`--mode=batch` or `--mode=stuck`) |
+| `/lean4:refactor` | Strategy-level proof simplification |
 | `/lean4:golf` | Optimize proofs for brevity |
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
 | `/lean4:doctor` | Plugin troubleshooting and migration help |
@@ -39,6 +40,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | Filling sorries (unattended) | `/lean4:autoprove` |
 | Verified save point | `/lean4:checkpoint` |
 | Quality check (read-only) | `/lean4:review` |
+| Simplify proof strategies (mathlib leverage, helpers) | `/lean4:refactor` |
 | Optimizing compiled proofs | `/lean4:golf` |
 | New to this project / exploring | `/lean4:learn --mode=repo` |
 | Navigating mathlib for a topic | `/lean4:learn --mode=mathlib` |
@@ -53,7 +55,9 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 /lean4:prove               Guided cycle-by-cycle proving (asks before each cycle)
 /lean4:autoprove           Autonomous multi-cycle proving (runs with stop rules)
         ↓
-/lean4:golf                Optimize proofs (optional, prompted at end)
+/lean4:refactor            Simplify proof strategies (optional, or --dry-run to preview)
+        ↓
+/lean4:golf                Optimize proofs for tactic-level brevity (optional)
         ↓
 /lean4:checkpoint          Create verified save point
 ```
@@ -64,7 +68,7 @@ Use `/lean4:learn` at any point to explore repo structure or navigate mathlib. U
 - `/lean4:prove` asks before each cycle; `/lean4:autoprove` loops autonomously with hard stop conditions
 - Both trigger `/lean4:review` at configured intervals (`--review-every`)
 - When reviews run (via `--review-every`), they act as gates: review → replan → continue. In prove, replan requires user approval; in autoprove, replan auto-continues
-- Review supports `--mode=batch` (default) or `--mode=stuck` (triage)
+- Review supports `--mode=batch` (default) or `--mode=stuck` (triage); review is always read-only
 - `--formalize=auto` on autoprove wraps formalize+prove in a single command (source → claims → skeletons → proofs)
 - If you hit environment issues, run `/lean4:doctor` to diagnose
 
@@ -184,7 +188,7 @@ ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --report-only
 
 **Tactics:** [tactics-reference](references/tactics-reference.md) (tactic lookup — grep `^### TacticName`), [grind-tactic](references/grind-tactic.md) (SMT-style automation — when simp can't close), [simp-reference](references/simp-reference.md) (simp hygiene + custom simprocs), [tactic-patterns](references/tactic-patterns.md), [calc-patterns](references/calc-patterns.md)
 
-**Proof Development:** [proof-templates](references/proof-templates.md), [proof-refactoring](references/proof-refactoring.md) (28K — grep by topic), [sorry-filling](references/sorry-filling.md)
+**Proof Development:** [proof-templates](references/proof-templates.md), [proof-refactoring](references/proof-refactoring.md) (28K — grep by topic), [proof-simplification](references/proof-simplification.md) (strategy-level: mathlib search, congr lemmas, helper extraction), [sorry-filling](references/sorry-filling.md)
 
 **Optimization:** [proof-golfing](references/proof-golfing.md) (includes safety rules, bounded LSP lemma replacement, bulk rewrites, anti-patterns; escalates to axiom-eliminator), [proof-golfing-patterns](references/proof-golfing-patterns.md), [performance-optimization](references/performance-optimization.md) (grep by symptom), [profiling-workflows](references/profiling-workflows.md) (diagnose slow builds/proofs)
 
