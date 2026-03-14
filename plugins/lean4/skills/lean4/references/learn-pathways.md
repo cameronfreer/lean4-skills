@@ -195,7 +195,7 @@ Each advisor picks from a fixed set of named strategies. This makes transitions 
 |----------|-------------|-----------------|
 | `stay_course` | Continue current approach | Learner is engaged and progressing |
 | `hint` | Give a directional hint without revealing the answer | 1st failure in game mode |
-| `worked_example` | Switch to a fully worked example | Learner stuck on abstract explanation |
+| `worked_example` | Present a fully worked example within the current style | Learner stuck on abstract explanation |
 | `prereq_reminder` | Surface a prerequisite concept | Misunderstanding rooted in a gap |
 | `counterexample` | Present a minimal counterexample to isolate a misconception | Learner holds a false belief |
 | `switch_style` | Change `style` (e.g., socratic → exercise) | Disengagement or repeated failure in current style |
@@ -221,7 +221,7 @@ After each advisor generates a candidate response approach, pick the one best al
 
 **Tiebreak:** when advisors conflict, prioritize the learner's momentum — keeping them engaged beats completeness. Secondary tiebreak: prefer the advisor whose concern is most time-sensitive (e.g., stuck detection outranks a style suggestion).
 
-**Example — advisors disagree:** The user gave an incorrect proof for exercise 3 (2nd attempt). Pace says "slow down, consolidate prerequisites." Method says "switch from socratic to a worked example." Depth says "go deeper on the specific subtlety they missed." Momentum tiebreak picks Method — switching to a worked example re-engages the learner while also addressing the gap. Pace's concern (consolidation) is served by the worked example itself.
+**Example — advisors disagree:** The user gave an incorrect proof for exercise 3 (2nd attempt). Pace says "slow down, consolidate prerequisites." Method says "present a worked example (still socratic, but show the solution path instead of asking more questions)." Depth says "go deeper on the specific subtlety they missed." Momentum tiebreak picks Method — a worked example re-engages the learner while also addressing the gap. Pace's concern (consolidation) is served by the worked example itself. Note: `worked_example` is a framing change within the current style, not a style switch — it does not modify the Learning Profile.
 
 ### Summary Note Visibility
 
@@ -269,7 +269,7 @@ For explicit values, suggest instead:
 | `on` (default) | All debate behaviors: profile updates (for inferred values), strategy switches, stuck remediation, hint escalation | Nothing |
 | `off` | Within-style remediation: hint escalation (game), framing switches (counterexample, worked example, prereq surface), stuck detection | Profile modifications: `switch_style`, `raise_level`, `lower_level`, any write to the Learning Profile's `style` or `level` fields |
 
-Key distinction: remediation changes *how* the debate teaches within the locked style (e.g., trying a counterexample instead of repeating an explanation). Profile changes alter *which* style or level is active. `--adaptive=off` permits the former and blocks the latter.
+Key distinction: remediation changes *how* the debate teaches within the locked style (e.g., trying a counterexample instead of repeating an explanation, or presenting a worked example while remaining in socratic mode). Profile changes alter *which* style or level is active. `--adaptive=off` permits the former and blocks the latter. `worked_example` is a framing change (remediation), not a style switch — it changes the delivery method within the current style, not the style itself.
 
 `--adaptive` persists in the Learning Profile across turns. Explicit `--adaptive=on` on a later turn re-enables full adaptivity.
 
@@ -303,7 +303,7 @@ After showing the full answer (3rd failure), do not immediately advance. The lea
 1. **Variation problem**: present a closely related exercise that tests the same concept with different values or a minor twist.
 2. **Reflection check**: ask the learner to explain in their own words why the answer works (informal) or to identify the key tactic/lemma (formal/supporting).
 
-Pick whichever fits the current `--presentation`. If the learner passes, advance normally. If they fail the variation, treat it as a new exercise with its own escalation ladder (reset `failure_count`). This prevents the hint ladder from ending in passive consumption.
+Pick whichever fits the current `--presentation`. If the learner passes, advance normally. On failure: if the recovery was a variation problem, treat it as a new exercise with its own escalation ladder (reset `failure_count`); if the recovery was a reflection check, provide the correct explanation, then fall through to a variation problem before advancing (reset `failure_count` for the variation). This prevents the hint ladder from ending in passive consumption.
 
 ### No Lean Verification
 
