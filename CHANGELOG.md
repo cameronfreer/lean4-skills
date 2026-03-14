@@ -1,5 +1,10 @@
 # Changelog
 
+## v4.3.1 (March 2026)
+- New [`json-patterns`](plugins/lean4/skills/lean4/references/json-patterns.md) reference: `json%` elaboration syntax, `ToJson` derivation, `Json.mkObj` for dynamic keys, `Json.mergeObj` for skeleton+dynamic, failure modes
+- Write-focused scope (no `FromJson`/parsing); linked from SKILL.md **Custom Syntax** section
+- Content adapted from PR #20 (Alok Singh) standalone skill, converted to reference file
+
 ## v4.3.0 (March 2026)
 - Formalize-aware outer loop for [`/lean4:autoprove`](plugins/lean4/commands/autoprove.md): opt-in `--formalize=auto|restage` wraps the inner cycle with source-backed statement acquisition and review-driven routing
 - New flags: `--formalize`, `--source`, `--claim-select`, `--formalize-rigor`, `--statement-policy`, `--formalize-out`
