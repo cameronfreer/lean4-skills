@@ -168,6 +168,8 @@ Prerequisite: none
 
 ## Pedagogical Self-Debate
 
+This mechanism turns `/lean4:learn` from a static Q&A into an adaptive tutor. Without it, each reply uses the same style regardless of how the learner is doing. With it, learn reads what a response reveals — confidence, confusion, repeated mistakes, disengagement — and adjusts before replying. The concrete effects: graduated hint escalation in game mode instead of "try again!" loops, automatic approach-switching when the same explanation fails twice, and mid-session difficulty adjustment that respects explicit user choices.
+
 After receiving a user response and before formulating a reply, `/lean4:learn` internally reasons from three advisor perspectives to select the best response strategy. This runs inside the iterate loop (step 5 in `learn.md`).
 
 ### The Three Advisors

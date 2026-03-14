@@ -116,6 +116,8 @@ Offer the depth-check menu:
 
 ### 5. Pedagogical Self-Debate
 
+Without this step, learn responds in whatever style was set at the start — if a learner is struggling, it keeps explaining the same way; if they're bored, it doesn't notice. This step makes learn adaptive: it reads what the user's response reveals about their understanding and adjusts pace, method, and depth before each reply.
+
 After receiving the user's response (answer attempt, question, menu choice, or freeform message) and before formulating a reply, reason from three advisor perspectives to choose the best response strategy:
 
 - **Pace Advisor**: "Is the learner ready to advance, or do they need consolidation? What does their response reveal about their current understanding level?"
