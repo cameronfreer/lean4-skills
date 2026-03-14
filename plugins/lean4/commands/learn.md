@@ -114,7 +114,7 @@ Offer the depth-check menu:
 - **formalize a specific result** → suggest `/lean4:formalize`
 - **save to scratch** / **write to file** (mid-session output actions — `--output` is part of the loop, not just startup config)
 
-### 4.5. Pedagogical Self-Debate
+### 5. Pedagogical Self-Debate
 
 After receiving the user's response (answer attempt, question, menu choice, or freeform message) and before formulating a reply, reason from three advisor perspectives to choose the best response strategy:
 
@@ -134,16 +134,17 @@ Then announce the chosen strategy in a brief note before the actual reply:
 
 **Key constraints:**
 - Do NOT trigger new Lean verification here — reason about teaching strategy only, using already-discovered information.
-- In `--style=game`: if the user has failed the same exercise 2+ times, the Pace Advisor must flag this and the strategy must include hint escalation (hint 1 → hint 2 → hint 3 → show answer with explanation) or offer to regress to an easier level.
+- In `--style=game`: if the user has failed the same exercise 2+ times, the Pace Advisor must flag this and the strategy must include hint escalation (directional hint → specific hint → full answer with explanation) or offer to regress to an easier level.
 - If the user's last 2 responses reveal the same misunderstanding, the debate MUST flag this and the chosen strategy MUST switch approach.
 - The debate may update `style` or `level` in the Learning Profile mid-session if there is clear evidence it should change. Announce any profile update.
-- The summary note is always shown; never hidden. Keep it to 1 sentence.
+- The summary note is always shown; never hidden. Keep it to 1 sentence. Format is presentation-independent (always italic markdown).
+- When `--level=expert` and `--style=tour`, the pedagogy note may be omitted for straightforward navigation responses.
 
 See [Pedagogical Self-Debate](../skills/lean4/references/learn-pathways.md#pedagogical-self-debate) for the full reference.
 
-### 5. Iterate
+### 6. Iterate
 
-After step 4.5, respond using the chosen strategy. Return to step 4 (Depth Check) for the next turn. On mode switch or topic change, return to step 2 (Discovery). Continue until the user is satisfied or switches mode.
+After step 5, respond using the chosen strategy. Return to step 4 (Depth Check) for the next turn. In `exercise` mode, the next exercise replaces the depth-check menu as the primary loop driver. On mode switch or topic change, return to step 2 (Discovery). Continue until the user is satisfied or switches mode.
 
 ## Output
 

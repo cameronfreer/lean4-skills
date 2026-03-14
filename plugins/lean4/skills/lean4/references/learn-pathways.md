@@ -168,7 +168,7 @@ Prerequisite: none
 
 ## Pedagogical Self-Debate
 
-After receiving a user response and before formulating a reply, `/lean4:learn` internally reasons from three advisor perspectives to select the best response strategy. This runs inside the iterate loop (step 4.5 in `learn.md`).
+After receiving a user response and before formulating a reply, `/lean4:learn` internally reasons from three advisor perspectives to select the best response strategy. This runs inside the iterate loop (step 5 in `learn.md`).
 
 ### The Three Advisors
 
@@ -184,7 +184,9 @@ After each advisor generates a candidate response approach, pick the one best al
 - The learner's current profile (`{intent, level, style, track}`)
 - What the current response concretely revealed
 
-**Tiebreak:** when advisors conflict, prioritize the learner's momentum — keeping them engaged beats completeness.
+**Tiebreak:** when advisors conflict, prioritize the learner's momentum — keeping them engaged beats completeness. Secondary tiebreak: prefer the advisor whose concern is most time-sensitive (e.g., stuck detection outranks a style suggestion).
+
+**Example — advisors disagree:** The user gave an incorrect proof for exercise 3 (2nd attempt). Pace says "slow down, consolidate prerequisites." Method says "switch from socratic to a worked example." Depth says "go deeper on the specific subtlety they missed." Momentum tiebreak picks Method — switching to a worked example re-engages the learner while also addressing the gap. Pace's concern (consolidation) is served by the worked example itself.
 
 ### Summary Note Format
 
@@ -201,6 +203,8 @@ Always announce the chosen strategy before the actual reply, in a single sentenc
 | `exercise` | On substantive user responses; skip for trivial menu picks |
 | `tour` | Skip for trivial navigation; run when user asks a question or expresses confusion |
 
+When `--level=expert` and `--style=tour`, the pedagogy note may be omitted for straightforward navigation responses to avoid being patronizing.
+
 ### Profile Updates Mid-Session
 
 The debate may update `style` or `level` in the Learning Profile if evidence is clear (e.g., user is consistently bored → raise `--level`; user is consistently lost → lower `--level` or switch `--style`). Announce any profile update inline:
@@ -216,6 +220,8 @@ If the user's last 2 responses reveal the **same misunderstanding**, the debate 
 - Surface a prerequisite concept
 - Present a minimal counterexample to isolate the misconception
 - In `game` mode: escalate hint level (see below)
+
+**Misconception journal:** Across the session, mentally track observed misconceptions and which approach resolved them. When a new stuck event occurs, consult prior resolutions to avoid re-trying approaches that already failed for this learner. E.g., if switching to formal framing resolved a misconception earlier, prefer that framing again for similar gaps.
 
 ### Hint Escalation Protocol (game mode)
 
