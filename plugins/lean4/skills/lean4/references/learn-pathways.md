@@ -90,7 +90,7 @@ If Lean verification fails: attempt to revise the claim/proof. If revision also 
 
 ## Game Style
 
-Structured progression inspired by NNG, Set Theory Game, etc.
+Structured progression inspired by the Natural Number Game and Set Theory Game.
 
 - Requires `--style=game`; optionally `--track=<name>`.
 - If no `--track` given, present track picker with descriptions.
@@ -106,6 +106,10 @@ Structured progression inspired by NNG, Set Theory Game, etc.
 
 ### nng-like (Natural Numbers)
 
+Inspired by the [Natural Number Game](https://adam.math.hhu.de/#/g/hhu-adam/NNG4) by Kevin Buzzard and Mohammad Pedramfar. Lean 4 game infrastructure builds on later work by Patrick Massot, Alexander Bentkamp, and Jon Eugster.
+
+On first entry per session, tell the learner: "Inspired by the Natural Number Game by Kevin Buzzard and Mohammad Pedramfar."
+
 Prerequisite: none
 
 1. Zero + n = n (induction intro)
@@ -118,6 +122,10 @@ Prerequisite: none
 8. Power: n^0 = 1
 
 ### set-theory-like (Sets)
+
+Inspired by Daniel J. Velleman's [Set Theory Game](https://adam.math.hhu.de/#/g/djvelleman/STG4), with Lean 4 game-development contributions credited in recent teaching literature to Alexander Bentkamp, Jon Eugster, and Patrick Massot.
+
+On first entry per session, tell the learner: "Inspired by Daniel J. Velleman's Set Theory Game."
 
 Prerequisite: nng-like or equivalent
 
