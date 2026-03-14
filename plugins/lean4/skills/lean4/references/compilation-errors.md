@@ -13,7 +13,7 @@ This reference provides detailed explanations and fixes for the most common comp
 | **"expected Filter got Measure"** | Dot notation namespace confusion | Use standalone: `EventuallyEq.lemma h` not `h.EventuallyEq.lemma` |
 | **"numerals are data but expected Prop"** | Value where proof expected | Use proof term: `tendsto_const_nhds` not `1` |
 | **"tactic 'exact' failed"** | Goal/term type mismatch | Use `apply` for unification or restructure: `⟨h.2, h.1⟩` |
-| **"unknown identifier"** | Missing import OR unqualified name | Import tactic OR qualify: `Filter.Tendsto` |
+| **"unknown identifier"** | Missing import OR namespace not opened | Import tactic OR `open Filter Topology` |
 | **"unexpected token/identifier"** | Section comment in proof | Replace `/-! -/` with `--` in tactic mode |
 | **"no goals to be solved"** | Tactic already finished | Remove redundant tactics after `simp` |
 | **"equation compiler failed"** | Can't prove termination | Add `termination_by my_rec n => n` clause |
@@ -231,7 +231,7 @@ have h2 := part2
 exact ⟨h1, h2⟩
 ```
 
-### 5. Unknown Identifier (Missing Tactic or Qualification)
+### 5. Unknown Identifier (Missing Tactic or Namespace Open)
 
 **Full error message:**
 ```
@@ -239,7 +239,7 @@ unknown identifier 'ring'
 unknown identifier 'Tendsto'
 ```
 
-**What it means:** Tactic not imported OR identifier needs qualification.
+**What it means:** Tactic not imported OR namespace not opened.
 
 **Cause 1: Missing tactic import**
 
@@ -470,7 +470,7 @@ When encountering any error:
 When facing "unexpected identifier/token" in long proofs:
 
 1. ☐ Search for `/-! ... -/` section comments → replace with `--`
-2. ☐ Check for bare identifiers (`Tendsto`, `atTop`) → add qualification (`Filter.Tendsto`)
+2. ☐ Check for bare identifiers (`Tendsto`, `atTop`) → `open Filter Topology`
 3. ☐ Look for lambda shadowing → rename variables or add type annotations
 4. ☐ Check for "no goals" after `simp` → remove redundant tactics
 5. ☐ For section variables + explicit params → rely on section, use `(by infer_instance)`
