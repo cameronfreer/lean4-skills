@@ -34,7 +34,7 @@ def payload (user : String) (scores : Array Nat) : Json :=
     user: $user,
     scores: $scores,
     active: true,
-    meta: {"source": "cli", "version": 1}
+    "meta": {"source": "cli", "version": 1}
   }
 ```
 
@@ -46,8 +46,8 @@ Ground truth from `Lean/Data/Json/Elab.lean`:
 - `json% true` / `json% false` elaborate to `Lean.Json.bool ...`.
 - String and numeric literals elaborate to `Lean.Json.str` / `Lean.Json.num`.
 - Arrays elaborate recursively to `Lean.Json.arr #[...]`.
-- Objects elaborate to `Lean.Json.mkObj [...]`.
-- Object keys accept either `ident` or string literal.
+- Objects elaborate to `Lean.Json.mkObj [...]`. Because `mkObj` builds a `Std.TreeMap`, duplicate keys collapse (last value wins) and output order is map order, not insertion order.
+- Object keys accept either `ident` or string literal. Keys that are Lean keywords must be quoted.
   - `ident` keys are converted with `Name.toString`.
   - String keys are preserved as written.
 - Antiquotation uses `Lean.toJson`:
@@ -79,8 +79,8 @@ def envelope (u : User) : Json :=
 import Lean.Data.Json
 open Lean
 
-def singletonObj (k : String) (v : Json) : Json :=
-  Json.mkObj [(k, v)]
+def singletonObj [ToJson α] (k : String) (v : α) : Json :=
+  Json.mkObj [(k, toJson v)]
 ```
 
 ### Mix static and computed values
@@ -108,6 +108,7 @@ def stats (count : Nat) (ok : Bool) : Json :=
   - Convert to a supported type before interpolation.
 - **Key-related parse issues:**
   - Use `ident: value` or `"string key": value`.
+  - Keys that are Lean keywords (e.g. `meta`, `where`, `import`) must be quoted as string literals.
   - For computed keys, stop using `json%` object syntax and use `Json.mkObj`.
 
 ## See Also
