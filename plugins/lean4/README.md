@@ -104,7 +104,7 @@ Does **not** push — that's always manual (`git push`).
 
 Read-only. Does not modify files or create commits.
 
-Runs build verification, sorry audit, axiom check, style review, and golfing opportunity scan. Scopes automatically to what you're working on (`--scope=sorry`, `file`, `changed`, or `project`). Two modes:
+Runs build verification, sorry audit, axiom check, style review, strategy simplification opportunities, and golfing opportunity scan. Scopes automatically to what you're working on (`--scope=sorry`, `file`, `changed`, or `project`). Two modes:
 
 - **batch** (default) — full report with all sections
 - **stuck** — lightweight triage: top 3 blockers with next steps

@@ -667,7 +667,7 @@ User: /lean4:refactor ForwardEuler/Main.lean
 - Helpers extracted: 1
 - Mathlib lemmas newly applied: 3
 
-Apply these changes? [yes / no / skip to next]
+Apply batch 1 (3 changes)? [yes / skip / stop]
 ```
 
 ### Dry Run
