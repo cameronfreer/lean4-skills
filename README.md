@@ -1,122 +1,116 @@
-# Lean 4 Skills for Claude
+# Lean 4 Skills
 
-[![Run in Smithery](https://smithery.ai/badge/skills/cameronfreer)](https://smithery.ai/skills?ns=cameronfreer&utm_source=github&utm_medium=badge)
+Lean 4 workflow pack for AI coding agents. Gives your agent a structured
+prove/review/golf loop, mathlib search, axiom checking, and safety guardrails.
+The workflows are host-agnostic — Claude Code, Codex, Gemini CLI, Cursor, and
+others all use the same core skill; only the invocation surface differs.
 
-Claude Code plugin for automated Lean 4 theorem proving with guided and autonomous proving commands.
+## Workflows
 
-## Installation
+| Workflow | Description |
+|---|---|
+| formalize | Turn informal math into Lean statements |
+| prove | Guided cycle-by-cycle theorem proving |
+| autoprove | Autonomous multi-cycle proving with stop rules |
+| checkpoint | Verified save point (build + axiom check + commit) |
+| review | Read-only quality review |
+| golf | Optimize proofs for brevity |
+| learn | Interactive teaching and mathlib exploration |
+| doctor | Diagnostics and migration help |
 
-```bash
-# Add marketplace
-/plugin marketplace add cameronfreer/lean4-skills
+**Claude Code:** invoke as `/lean4:<name>`. **Other hosts:** follow the corresponding workflow in [SKILL.md](plugins/lean4/skills/lean4/SKILL.md).
 
-# Install plugin
-/plugin install lean4
-```
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `/lean4:prove` | Guided cycle-by-cycle theorem proving |
-| `/lean4:autoprove` | Autonomous multi-cycle proving with stop rules |
-| `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
-| `/lean4:review` | Read-only quality review with optional external hooks |
-| `/lean4:golf` | Optimize proofs for brevity |
-| `/lean4:doctor` | Diagnostics and migration help |
-
-## Quick Start
-
-```
-/lean4:prove               # Guided sorry filling (interactive)
-/lean4:autoprove           # Or autonomous (unattended)
-/lean4:review              # Check quality (read-only)
-/lean4:golf                # Optimize proofs
-/lean4:checkpoint          # Verified commit
-git push                   # Manual, after review
-```
+Typical session: `prove` (or `autoprove`) → `review` → `golf` → `checkpoint` → `git push`.
 
 ## How It Works
 
-**`/lean4:prove`** — Guided, interactive. Asks preferences at startup, prompts before each commit, pauses between cycles. Start here.
-
-**`/lean4:autoprove`** — Autonomous, unattended. No questionnaire, auto-commits, loops until done or a stop condition fires (max cycles/time/stuck).
-
-Both run the same cycle engine: **Plan → Work → Checkpoint → Review → Replan → Continue/Stop**. Each sorry gets a mathlib search, tactic attempts, and validation. By default, each successful fill is committed individually (`--commit` controls this). When stuck, both force a review + replan.
-
-**Without a command:** Editing `.lean` files activates the skill for one bounded pass — fix the immediate issue, then suggest `/lean4:prove` or `/lean4:autoprove` for more.
-
-The other commands: **`/lean4:review`** (read-only quality check), **`/lean4:checkpoint`** (build + axiom check + commit), **`/lean4:golf`** (proof optimization), **`/lean4:doctor`** (diagnostics).
+- **`prove`** — Guided, interactive. Asks preferences at startup, prompts before each commit, pauses between cycles. Start here.
+- **`autoprove`** — Autonomous, unattended. Auto-commits, loops until a stop condition fires (max cycles, max time, or stuck).
+- Both share one cycle engine: **Plan → Work → Checkpoint → Review → Replan → Continue/Stop**. Each sorry gets a mathlib search, tactic attempts, and validation. `--commit` controls per-fill commit behavior. When stuck, both force a review + replan.
+- Editing `.lean` files without a command activates the skill for one bounded pass — fix the immediate issue, then suggest `prove` or `autoprove` for more.
 
 See [plugin README](plugins/lean4/README.md) for the full command guide.
 
-## Recommended: Lean LSP MCP Server
+## Installation
 
-[lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) provides sub-second feedback and search (LeanSearch, Loogle, LeanFinder). **Setup:** See [INSTALLATION.md](INSTALLATION.md#lean-lsp-server)
-
-## Migrating from V3
-
-If upgrading from the 3-plugin system:
+### Claude Code (native plugin)
 
 ```bash
-# Uninstall old plugins
-/plugin uninstall lean4-theorem-proving
-/plugin uninstall lean4-memories
-/plugin uninstall lean4-subagents
-
-# Install unified plugin
+/plugin marketplace add cameronfreer/lean4-skills
 /plugin install lean4
-
-# Verify
-/lean4:doctor
 ```
 
-**Legacy access:** Pin to `@v3.4.2-legacy` or use `#legacy-marketplace` branch.
+### Other Hosts
 
-See `/lean4:doctor migrate` for detailed migration help.
+Clone (shallow) and follow the setup for your host:
+
+```bash
+git clone --depth 1 https://github.com/cameronfreer/lean4-skills.git
+```
+
+- **Codex CLI** — add to `AGENTS.md` + env vars. See [INSTALLATION.md → Codex](INSTALLATION.md#openai-codex-cli)
+- **Gemini CLI** — add to `GEMINI.md` + env vars. See [INSTALLATION.md → Gemini](INSTALLATION.md#gemini-cli)
+- **Cursor** — project rules → SKILL.md + env vars. See [INSTALLATION.md → Cursor](INSTALLATION.md#cursor)
+- **Windsurf** — project rules → SKILL.md + env vars. See [INSTALLATION.md → Windsurf](INSTALLATION.md#windsurf)
+- **OpenCode** — copy to `.opencode/skills/` + env vars. See [INSTALLATION.md → OpenCode](INSTALLATION.md#opencode)
+- **Other agents** — point agent at SKILL.md + env vars. See [INSTALLATION.md → Generic](INSTALLATION.md#any-agent-generic)
+
+## Lean LSP MCP Server (Optional, Highly Recommended)
+
+The skill works standalone, but plays especially well with [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) — **sub-second feedback** instead of 30+ second `lake build` cycles. Works with any MCP-capable host.
+
+**What you get:**
+- `lean_goal` — exact goal state at any line
+- `lean_local_search` / `lean_leanfinder` / `lean_leansearch` / `lean_loogle` — mathlib search
+- `lean_multi_attempt` — test multiple tactics in parallel
+- `lean_hammer_premise` — premise suggestions for simp/aesop/grind
+
+**Claude Code** (run from your Lean project root):
+```bash
+claude mcp add lean-lsp uvx lean-lsp-mcp
+```
+
+**Other hosts:** See [INSTALLATION.md → MCP Server](INSTALLATION.md#lean-lsp-mcp-server-all-hosts)
+
+## Compatibility
+
+| Host | Status | Workflow |
+|---|---|---|
+| Claude Code | Full native | SKILL.md + scripts + `/lean4:*` commands, hooks, guardrails, subagents |
+| Codex / Gemini / OpenCode | Documented\* | SKILL.md + scripts |
+| Cursor / Windsurf | Documented\* | Project rules → SKILL.md + scripts |
+
+\*Documented setup patterns, not CI-verified.
 
 ## Documentation
 
 - [SKILL.md](plugins/lean4/skills/lean4/SKILL.md) - Core skill reference
 - [INSTALLATION.md](INSTALLATION.md) - Setup guide
 - [Commands](plugins/lean4/commands/) - Command documentation
+- [Advanced References](plugins/lean4/skills/lean4/references/) - grind, simprocs, metaprogramming, linters, FFI, verso-docs, profiling
+- [CHANGELOG.md](CHANGELOG.md) - Version history
+- Migrating from V3 (Claude Code): see [MIGRATION.md](plugins/lean4/MIGRATION.md)
 
 ## Changelog
 
-**v4.0.8** (February 2026)
-- Three-tier build verification policy (diagnostics → `lake env lean` → `lake build`)
-- Fixed incorrect `lake build FILE.lean` patterns across references
-- Lint check prevents `lake build` with file arguments from regressing
-
-**v4.0.7** (February 2026)
-- Custom syntax reference: notations, macros, elaborators, DSLs (from PR #5, Alok Singh)
-- DSL scaffold template with precedence-correct examples
-- Version-compat note for MetaM/TacticM API drift across toolchains
-
-**v4.0.5** (February 2026)
-- Split `/lean4:autoprover` into `/lean4:prove` (guided) and `/lean4:autoprove` (autonomous)
-- prove: asks before each cycle, startup questionnaire, interactive deep approval
-- autoprove: autonomous loop with hard stop rules, structured summary on stop
-- Shared cycle engine: plan → work → checkpoint → review → replan → continue/stop
-- Stuck definition uses exact signature hashing for precision
-- Checkpoint skips commit on empty diff
-
-**v4.0.0** (February 2026)
-- Unified into single `lean4` plugin
-- New `/lean4:autoprover` - planning-first workflow
-- New `/lean4:golf` - standalone proof optimization
-- LSP-first approach throughout
-- Safety guardrails in Lean projects (blocks push/amend/pr; one-shot bypass for collaboration ops). See [plugin README safety section](plugins/lean4/README.md#safety-guardrails).
-- Removed memory integration (didn't work reliably)
-
-**v3.4.2** (January 2026) - [Legacy branch](../../tree/legacy-marketplace)
-- Last version of 3-plugin system
-- Available via `@v3.4.2-legacy` tag
+See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ## Contributing
 
 Issues and PRs welcome at https://github.com/cameronfreer/lean4-skills
 
-## License
+## License & Citation
 
-MIT License - see [LICENSE](LICENSE)
+MIT licensed. See [LICENSE](LICENSE) for more information.
+
+Citing this repository is highly appreciated but not required by the license. See also [CITATION.cff](CITATION.cff).
+
+```bibtex
+@software{lean4-skills,
+  author = {Cameron Freer},
+  title = {Lean 4 {Skills}: Theorem proving skill and workflow pack for {AI} coding agents},
+  url = {https://github.com/cameronfreer/lean4-skills},
+  month = oct,
+  year = {2025}
+}
+```

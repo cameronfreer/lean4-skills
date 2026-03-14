@@ -1,0 +1,56 @@
+# Profiling Workflows
+
+> **Scope:** Not part of the prove/autoprove default loop. Consulted when diagnosing slow Lean builds or proofs.
+
+> **Version metadata:**
+> - **Verified on:** Lean reference + release notes through `v4.27.0`
+> - **Last validated:** 2026-02-17
+> - **Confidence:** medium (docs reviewed; snippets not batch-compiled)
+
+## When to Use
+
+- A file or lemma is slow to elaborate or compile
+- A tactic is timing out or producing long traces
+- You need hotspots before refactoring
+
+## Composable Profiling Blocks
+
+- `Scope`: set options near the slow section
+- `Target`: build a single module with `lake build +My.Module`
+- `Threshold`: raise/lower `trace.profiler.threshold`
+- `Clock`: use `useHeartbeats` when wall-clock noise is high
+- `Output`: write JSON to inspect in Firefox Profiler
+
+## Quick Setup
+
+```lean
+set_option trace.profiler true
+set_option trace.profiler.threshold 200
+-- optional:
+-- set_option trace.profiler.useHeartbeats true
+-- set_option trace.profiler.output "/tmp/lean-profile.json"
+-- set_option trace.profiler.output.pp true
+```
+
+Notes:
+- Threshold is in milliseconds unless `useHeartbeats` is true
+- If `trace.profiler.output` is set, Lean writes Firefox Profiler JSON and suppresses stdout traces
+
+## Workflow
+
+1. Narrow scope: add profiling options near the slow section
+2. Build a single target: `lake build +My.Module`
+3. If noisy, increase `trace.profiler.threshold`
+4. If wall-clock noise is high, enable `useHeartbeats`
+5. If using JSON output, open in Firefox Profiler and inspect hot traces
+6. Iterate by shrinking scope or adding local reductions to isolate the hotspot
+
+## What to Record
+
+- The slowest trace entries and surrounding lemmas
+- Whether the slowdown is elaboration, simp, or typeclass search
+- Any change in performance after narrowing scope
+
+## See Also
+
+- [performance-optimization.md](performance-optimization.md) — optimization patterns (irreducible wrappers, simp budgets)

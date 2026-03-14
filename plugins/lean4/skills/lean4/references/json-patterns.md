@@ -112,5 +112,5 @@ def stats (count : Nat) (ok : Bool) : Json :=
 
 ## See Also
 
-- [lean4-custom-syntax](lean4-custom-syntax.md) — if building new syntax or elaborators that emit JSON
-- [scaffold-dsl](scaffold-dsl.md) — copy-paste DSL template (includes elaboration boilerplate)
+- [lean4-custom-syntax](lean4-custom-syntax.md) — if building new syntax that emits JSON
+- [metaprogramming-patterns](metaprogramming-patterns.md) — if building elaborators that produce JSON

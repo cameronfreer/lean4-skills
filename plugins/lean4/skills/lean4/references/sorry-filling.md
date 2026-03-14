@@ -18,10 +18,22 @@ Quick reference for filling Lean 4 sorries systematically.
 1. `lean_goal(file, line)` — understand the goal
 2. `lean_local_search("keyword")` — search mathlib
 3. `lean_multi_attempt(file, line, snippets=[...])` — test candidates
+4. If initial searches/attempts are inconclusive: `lean_hammer_premise(file, line, col)` — premise suggestions for simp/aesop/grind (rate-limited 3/30s)
+
+**Scratch-work preference order:**
+- Use the live file + `lean_goal` / `lean_multi_attempt` / `lean_diagnostic_messages` when the question depends on the actual file context.
+- If you need an isolated experiment, prefer `lean_run_code` over creating temporary `.lean` files.
+- Use `/tmp` scratch files only when `lean_run_code` is unavailable or insufficient and the experiment should not touch the live file.
 
 Only fall back to scripts (`$LEAN4_SCRIPTS/sorry_analyzer.py`, `$LEAN4_SCRIPTS/smart_search.sh`) if:
 - LSP server unavailable
 - LSP results inconclusive after 2-3 searches
+
+When using `sorry_analyzer.py`:
+- Default (`text`) already returns count + context in one call.
+- Use `--format=json` for structured downstream parsing.
+- Use `--format=summary` only when you need counts only.
+- Keep stderr visible; do not redirect analyzer stderr to `/dev/null`.
 
 Log which approach worked for each sorry.
 
@@ -101,6 +113,13 @@ apply lemma_2
 **Candidate C - Automation:**
 ```lean
 simp [lemma_1, lemma_2, *]
+```
+
+**Candidate D - Premise-based (from `lean_hammer_premise`):**
+```lean
+simp only [premise_1, premise_2, premise_3]
+-- or: grind [premise_1, premise_2]
+-- or: aesop
 ```
 
 ## Tactic Suggestions by Goal Pattern
