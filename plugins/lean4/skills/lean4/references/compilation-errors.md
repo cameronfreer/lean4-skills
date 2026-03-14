@@ -263,10 +263,10 @@ import Mathlib.Tactic.Positivity    -- positivity
 Names like `Tendsto` and `atTop` live in the `Filter` namespace. Without opening it, Lean cannot resolve them:
 
 ```lean
--- ❌ ERROR: unknown identifier 'Tendsto'
+-- ❌ WRONG: bare identifiers without open
 have h : Tendsto f atTop (𝓝 x) := ...
 
--- ✅ FIX: open the relevant namespaces
+-- ✅ CORRECT: open the relevant namespaces
 open Filter Topology in
 have h : Tendsto f atTop (𝓝 x) := ...
 ```
