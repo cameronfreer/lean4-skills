@@ -1,14 +1,21 @@
----
-name: lean-json-writing
-description: Write and refactor JSON-producing Lean 4 code using stdlib `json%` elaboration and `Lean.Json` APIs. Use when the task involves JSON literals, interpolation with `$...`, deriving/using `ToJson` instances, or fixing `json%` syntax/elaboration errors.
----
+# JSON Patterns
 
-# Lean Json Writing
+> **Version note:** The `json%` elaboration syntax lives in `Lean.Data.Json.Elab`. Antiquotation and object-key rules may evolve across toolchain versions; verify against the current source if behavior differs from what is documented here.
 
-## Overview
+## Scope
 
-Use this skill to produce readable, correct JSON terms in Lean 4, centered on `json%` from stdlib.
-Model behavior on `Lean/Data/Json/Elab.lean`, especially antiquotation and object-key rules.
+Reference for constructing JSON values in Lean 4 using `json%` elaboration syntax, `Json.mkObj`, and `ToJson` instances. Useful for any Lean code that constructs JSON — scripts, plugins, metaprograms, tooling.
+
+**Read when:** building JSON payloads, interpolating Lean values into JSON, deriving or using `ToJson`, or debugging `json%` elaboration errors.
+
+**Not part of the prove/autoprove default loop.** This is supplemental reference material for projects that produce JSON output.
+
+## When to Use
+
+- Constructing JSON payloads in Lean code
+- Using `json%` elaboration syntax
+- Deriving or using `ToJson` instances
+- Debugging `json%` syntax or elaboration errors
 
 ## Quick Start
 
@@ -31,9 +38,9 @@ def payload (user : String) (scores : Array Nat) : Json :=
   }
 ```
 
-## Stdlib Semantics To Follow
+## Stdlib Semantics
 
-Treat these as ground truth from `Lean/Data/Json/Elab.lean`:
+Ground truth from `Lean/Data/Json/Elab.lean`:
 
 - `json% null` elaborates to `Lean.Json.null`.
 - `json% true` / `json% false` elaborate to `Lean.Json.bool ...`.
@@ -64,7 +71,7 @@ def envelope (u : User) : Json :=
   json%{"kind": "user", "payload": $u}
 ```
 
-### Use explicit builders for dynamic keys
+### Dynamic keys with `Json.mkObj`
 
 `json%` does not support antiquotation in key position. Build dynamic-key objects manually.
 
@@ -91,20 +98,19 @@ def stats (count : Nat) (ok : Bool) : Json :=
   }
 ```
 
-## Failure Modes And Fixes
+## Failure Modes and Fixes
 
-- `unsupported syntax` around `json%`:
+- **`unsupported syntax` around `json%`:**
   - Ensure JSON fragments are valid `json` syntax, not arbitrary Lean terms.
   - Wrap Lean expressions as `$expr`.
-- `failed to synthesize ToJson ...`:
+- **`failed to synthesize ToJson ...`:**
   - Add/derive `ToJson` for the interpolated type.
   - Convert to a supported type before interpolation.
-- Key-related parse issues:
+- **Key-related parse issues:**
   - Use `ident: value` or `"string key": value`.
   - For computed keys, stop using `json%` object syntax and use `Json.mkObj`.
 
-## Output Style
+## See Also
 
-- Prefer `json%` for readability whenever keys are static.
-- Keep payload code close to domain semantics (avoid deeply nested manual constructors).
-- Fall back to `Json.mkObj` and `Json.arr` only for dynamic shape/key requirements.
+- [lean4-custom-syntax](lean4-custom-syntax.md) — if building new syntax or elaborators that emit JSON
+- [scaffold-dsl](scaffold-dsl.md) — copy-paste DSL template (includes elaboration boilerplate)
