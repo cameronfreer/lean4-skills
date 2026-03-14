@@ -204,7 +204,6 @@ plugins/lean4/
 ├── skills/lean4/
 │   ├── SKILL.md        # Core skill reference
 │   └── references/     # Reference docs
-├── skills/lean4-grind/ # Grind + simproc workflow reference
 ├── agents/             # 4 specialized agents
 ├── hooks/              # Bootstrap and guardrails
 ├── scripts/           # Compat alias → lib/scripts
@@ -218,7 +217,6 @@ See [MIGRATION.md](MIGRATION.md) for upgrade guide.
 ## See Also
 
 - [SKILL.md](skills/lean4/SKILL.md) - Core skill reference
-- [Lean4 Grind](skills/lean4-grind/SKILL.md) - Targeted grind + simproc workflow
 - [Commands](commands/) - Command documentation
 - [Scripts](lib/scripts/README.md) - Script reference
 - [Custom Syntax](skills/lean4/references/lean4-custom-syntax.md) - Notations, macros, elaborators, DSLs
