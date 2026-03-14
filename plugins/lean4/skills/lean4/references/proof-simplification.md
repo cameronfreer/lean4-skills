@@ -36,6 +36,19 @@ The single highest-impact simplification. For search protocol details, see [math
 | Lipschitz/bound transfer | `LipschitzWith.dist_le_mul`, `LipschitzOnWith` |
 | Filter membership | `Ioo_mem_nhdsGT`, `Ico_mem_nhdsGE`, `filter_upwards` |
 | Set equality on interval | `Set.EqOn`, `Set.EqOn.eventuallyEq_nhdsWithin` |
+| Finset induction over image/sum/card | `Finset.card_image_of_injective`, `Finset.sum_image`, `Finset.prod_image` |
+| Two maps equal by funext + unfolding | `MonoidHom.ext`, `RingHom.ext`, `LinearMap.ext`, `AlgHom.ext` |
+| Monotonicity / sup-inf inequalities | `Monotone.comp`, `StrictMono.comp`, `sup_le_iff`, `le_inf_iff` |
+
+### Cross-Domain Pattern Triggers
+
+Quick cues for recognizing library-shaped proof idioms. Each points to the detailed section with Before/After examples.
+
+- **Case-split on set membership to prove continuity/differentiability** — likely a `ContinuousOn.congr` or `EventuallyEq` transfer (→ Congr Lemmas below)
+- **Piecewise function with endpoint/interior cases** — likely `Set.EqOn` + `ContinuousOn.congr` (→ Congr Lemmas below)
+- **Finset induction with insert/erase/simp** — likely a `Finset.card_image_*`, `Finset.sum_image`, or `Finset.prod_image` lemma (→ Finset Patterns below)
+- **funext + repeated map_add/map_mul rewrites** — likely an ext lemma: `RingHom.ext`, `LinearMap.ext`, etc. (→ Ext Lemmas below)
+- **Monotonicity by intro/apply chains, or sup/inf by splitting** — likely `Monotone.comp`, `sup_le_iff`, etc. (→ Order Patterns below)
 
 ---
 
@@ -82,6 +95,84 @@ exact (h_deriv_g.congr_of_eventuallyEq h_eq h_val).congr_deriv (one_smul _ _)
 - You need continuity/differentiability/measurability of a complex function
 - The complex function agrees with a simple one on the relevant set
 - Case splits are about matching definitions, not about mathematical content
+
+---
+
+## Replace Finset Induction with Combinatorial Lemmas
+
+Many Finset proofs do induction over `insert`/`erase` when a direct combinatorial lemma exists.
+
+**Signal:** Proof uses `Finset.induction_on` and the inductive step is mostly `simp` with `insert`/`erase`/`mem_image`.
+
+**Before:** Manual induction over a Finset:
+```lean
+apply Finset.induction_on s
+· simp
+· intro a s ha ih
+  rw [Finset.image_insert, Finset.card_insert_of_not_mem]
+  -- [12 lines] of insert/erase/mem_image reasoning with simp
+  exact ih
+```
+
+**After:** Typical after shape — one application of a `Finset.card_image_*` or `Finset.sum_image` lemma:
+```lean
+exact Finset.card_image_of_injective s hf.injective
+```
+
+**Key insight:** Mathlib has pre-packaged lemmas for `card`, `sum`, `prod`, `sup`, and `inf` over `Finset.image`. If the induction step is mechanical `insert`/`erase` bookkeeping, the lemma almost certainly exists.
+
+---
+
+## Replace Funext + Unfolding with Ext Lemmas
+
+Proofs that two morphisms are equal often unfold pointwise when an `ext` lemma would suffice.
+
+**Signal:** Goal is equality of `MonoidHom`, `RingHom`, `LinearMap`, or `AlgHom` values, and the proof starts with `funext` followed by repeated `map_add`/`map_mul` rewrites.
+
+**Before:** Pointwise unfolding to show two ring homomorphisms are equal:
+```lean
+funext x
+simp only [RingHom.comp_apply, f.map_add, f.map_mul]
+-- [15 lines] of map_add/map_mul/map_one rewrites
+```
+
+**After:** Typical after shape — use the appropriate `ext` lemma:
+```lean
+ext x <;> simp
+```
+or for cases where `simp` needs guidance:
+```lean
+exact RingHom.ext fun x => by simp [h_comm]
+```
+
+**Key insight:** `MonoidHom.ext`, `RingHom.ext`, `LinearMap.ext`, and `AlgHom.ext` reduce morphism equality to pointwise equality with the right type context already in place. Combined with `simp`, this eliminates manual `map_*` chains.
+
+---
+
+## Replace Order Plumbing with Compositional Lemmas
+
+Order/lattice proofs often manually thread monotonicity or split `sup`/`inf` when compositional lemmas exist.
+
+**Signal:** Proof uses `intro a b hab` followed by chains of `apply`/`exact` to establish monotonicity, or splits `sup_le`/`le_inf` goals by hand.
+
+**Before:** Manual monotonicity proof:
+```lean
+intro a b hab
+apply hg
+exact hf hab
+-- [8 lines] when the composition is deeper or involves lattice operations
+```
+
+**After:** Typical after shape — compositional monotonicity:
+```lean
+exact hg.comp hf
+```
+or for `sup`/`inf` goals:
+```lean
+exact sup_le_iff.mpr ⟨h₁, h₂⟩
+```
+
+**Key insight:** `Monotone.comp`, `StrictMono.comp`, `Antitone.comp` handle composition chains. `sup_le_iff`, `le_inf_iff`, `sup_le_sup`, and `le_inf` handle lattice plumbing. These compose — `(hg.comp hf).sup (hk.comp hf)` is valid.
 
 ---
 
