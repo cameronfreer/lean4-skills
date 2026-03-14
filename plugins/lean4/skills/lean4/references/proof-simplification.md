@@ -31,7 +31,7 @@ The single highest-impact simplification. For search protocol details, see [math
 | Proof Pattern | Mathlib Lemmas to Search |
 |---------------|-----------|
 | Continuity of piecewise function | `ContinuousOn.if`, `ContinuousOn.union_of_isClosed`, `LocallyFinite.continuousOn_iUnion` |
-| Property of a function that equals another on a set | `ContinuousOn.congr`, `HasDerivWithinAt.congr_of_eventuallyEq`, `MeasurableSet.congr` |
+| Property of a function that equals another on a set | `ContinuousOn.congr`, `HasDerivWithinAt.congr_of_eventuallyEq`, `Measurable.congr` |
 | Floor/ceil equals specific value | `Nat.floor_eq_on_Ico`, `Int.floor_eq_iff` |
 | Lipschitz/bound transfer | `LipschitzWith.dist_le_mul`, `LipschitzOnWith` |
 | Filter membership | `Ioo_mem_nhdsGT`, `Ico_mem_nhdsGE`, `filter_upwards` |
@@ -155,7 +155,7 @@ Sometimes the proof is hard because the definition is fighting you.
 
 When analyzing a whole file:
 
-1. **Repeated tactic sequences** — same `rw`/`simp` chain 3+ times → extract helper
+1. **Repeated tactic sequences** — same `rw`/`simp` chain 2+ times → extract helper
 2. **Proof lengths** — >30 lines for "basic" facts → search mathlib; >60 lines → strong candidate
 3. **Hand-rolled basics** — continuity proofs not using `fun_prop`, derivatives not using `HasDerivAt` chains, arithmetic not using `omega`/`positivity`/`norm_num`
 4. **Overly specific hypotheses** — can `=` become `≤`? Can `[NormedSpace ℝ E]` become `[Module ℝ E]`?

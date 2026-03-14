@@ -40,6 +40,8 @@ Strategy-level proof simplification: find better proof approaches, leverage math
 
 **Line target:** Identifies the enclosing `theorem`/`lemma`/`def` containing the given line and refactors that proof only.
 
+**Large-run confirmation:** When `--scope=changed` touches >5 files or >20 opportunities, confirm before proceeding.
+
 ## Preconditions
 
 - Target proofs must compile (no sorries, no build errors in scope)
@@ -65,9 +67,9 @@ Run /lean4:prove first, then retry /lean4:refactor.
    ### Estimated Impact
    - Lines before: N → after: ~N | Helpers: N | New mathlib lemmas: N
    ```
-4. **Approval** — Ask before each batch (`--dry-run` stops here)
-5. **Apply** — Edit files, verify with `lean_diagnostic_messages` after each batch; revert on failure
-6. **Verify** — `lake env lean <file>` file gate (run from project root); `lake build` project gate if multi-file
+4. **Approval** — Ask before each batch (`--dry-run` stops here). A batch groups opportunities within a single proof or closely related proofs. Prompt: `Apply batch N (M changes)? [yes / skip / stop]` — yes applies, skip moves to next batch, stop ends the session.
+5. **Apply** — Edit files, verify with `lean_diagnostic_messages` after each batch; revert batch on any new diagnostic or sorry increase
+6. **Verify** — `lake env lean <file>` file gate (run from project root); `lake build` project gate if multi-file. If final gate fails, revert all batches applied in this session.
 7. **Report** — Summarize changes applied, helpers extracted, line count delta
 
 See [proof-simplification](../skills/lean4/references/proof-simplification.md) for the strategy guide (congr/EqOn patterns, generalization checklist, file-level audit).
@@ -78,7 +80,7 @@ See [proof-simplification](../skills/lean4/references/proof-simplification.md) f
 - Does not introduce axioms
 - Does not create commits
 - Asks before each batch of edits
-- Reverts batch on verification failure
+- Reverts batch on per-batch verification failure; reverts all session batches on final gate failure
 - Compiled proofs only (refuses files with sorries or build errors)
 
 ## See Also
