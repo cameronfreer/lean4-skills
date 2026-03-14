@@ -9,9 +9,9 @@ Proof seems too long or complex
 ├─ Is it doing something "basic" in 20+ lines?
 │   ├─ Search mathlib — the lemma probably exists (→ Replace with Mathlib)
 │   │   └─ Not found → State in mathlib-ready generality (→ Missing Lemmas)
-│   └─ Still hard → Definition might be fighting you (→ Reconsider Definitions)
+│   └─ Still hard → Definition might be fighting you (→ Definition Problems)
 ├─ Same pattern appears 2+ times?
-│   └─ Extract helper in maximum generality (→ Extract Helpers)
+│   └─ Extract helper in maximum generality (→ Helper Extraction)
 ├─ Proof has a complex case split?
 │   └─ Search for a congr/EqOn/EventuallyEq approach (→ Congr Lemmas)
 ├─ Proof manually threads through a definition?
@@ -19,8 +19,6 @@ Proof seems too long or complex
 └─ Proof is inherently complex, just long?
     └─ Use [proof-refactoring.md](proof-refactoring.md) instead
 ```
-
----
 
 ## Replace with Mathlib Lemmas
 
@@ -36,25 +34,13 @@ The single highest-impact simplification. For search protocol details, see [math
 | Lipschitz/bound transfer | `LipschitzWith.dist_le_mul`, `LipschitzOnWith` |
 | Filter membership | `Ioo_mem_nhdsGT`, `Ico_mem_nhdsGE`, `filter_upwards` |
 | Set equality on interval | `Set.EqOn`, `Set.EqOn.eventuallyEq_nhdsWithin` |
-| Finset induction over image/sum/card | `Finset.card_image_of_injective`, `Finset.sum_image`, `Finset.prod_image` |
-| Two morphisms equal by manual pointwise unfolding | `MonoidHom.ext`, `RingHom.ext`, `LinearMap.ext`, `AlgHom.ext` |
-| Monotonicity / sup-inf inequalities | `Monotone.comp`, `StrictMono.comp`, `sup_le_iff`, `le_inf_iff` |
+| Finset induction over image/sum/card | `Finset.card_image_of_injective`, `Finset.sum_image`, `Finset.prod_image` (→ [Finset Patterns](#finset-patterns)) |
+| Two morphisms equal by manual pointwise unfolding | `MonoidHom.ext`, `RingHom.ext`, `LinearMap.ext`, `AlgHom.ext` (→ [Ext Lemmas](#ext-lemmas)) |
+| Monotonicity / sup-inf inequalities | `Monotone.comp`, `StrictMono.comp`, `sup_le_iff`, `le_inf_iff` (→ [Order/Lattice Patterns](#orderlattice-patterns)) |
 
-### Cross-Domain Pattern Triggers
+## Congr Lemmas
 
-Quick cues for recognizing library-shaped proof idioms. Each points to the detailed section with Before/After examples.
-
-- **Case-split on set membership to prove continuity/differentiability** — likely a `ContinuousOn.congr` or `EventuallyEq` transfer (→ Congr Lemmas below)
-- **Piecewise function with endpoint/interior cases** — likely `Set.EqOn` + `ContinuousOn.congr` (→ Congr Lemmas below)
-- **Finset induction with insert/erase/simp** — likely a `Finset.card_image_*`, `Finset.sum_image`, or `Finset.prod_image` lemma (→ Finset Patterns below)
-- **Manual pointwise unfolding with map_add/map_mul after coercing morphisms** — likely an ext lemma: `RingHom.ext`, `LinearMap.ext`, etc. (→ Ext Lemmas below)
-- **Monotonicity by intro/apply chains, or sup/inf by splitting** — likely `Monotone.comp`, `sup_le_iff`, etc. (→ Order Patterns below)
-
----
-
-## Replace Case Splits with Congr Lemmas
-
-Many proofs case-split where a `congr`-style lemma would be cleaner.
+Replace case splits where a `congr`-style lemma would be cleaner.
 
 ### Pattern: Transfer via `Set.EqOn`
 
@@ -75,7 +61,7 @@ intro t ht
 -- Unified proof (often much shorter)
 ```
 
-**Key insight:** `ContinuousOn.congr` takes `ContinuousOn f s` and `EqOn g f s` to give `ContinuousOn g s`. Direction matters: `EqOn` goes from the *new* function to the *known-continuous* function.
+`ContinuousOn.congr` takes `ContinuousOn f s` and `EqOn g f s` to give `ContinuousOn g s`. Direction matters: `EqOn` goes from the *new* function to the *known-continuous* function.
 
 ### Pattern: Transfer via `EventuallyEq`
 
@@ -96,38 +82,35 @@ exact (h_deriv_g.congr_of_eventuallyEq h_eq h_val).congr_deriv (one_smul _ _)
 - The complex function agrees with a simple one on the relevant set
 - Case splits are about matching definitions, not about mathematical content
 
----
+## Finset Patterns
 
-## Replace Finset Induction with Combinatorial Lemmas
+Replace Finset induction with direct combinatorial lemmas when the inductive step is mostly `simp` with `insert`/`erase`/`mem_image`.
 
-Many Finset proofs do induction over `insert`/`erase` when a direct combinatorial lemma exists.
-
-**Signal:** Proof uses `Finset.induction_on` and the inductive step is mostly `simp` with `insert`/`erase`/`mem_image`.
-
-**Before:** Manual induction over a Finset:
+**Before:** Manual induction over a Finset with mechanical insert/erase bookkeeping:
 ```lean
 apply Finset.induction_on s
 · simp
 · intro a s ha ih
   rw [Finset.image_insert, Finset.card_insert_of_not_mem]
-  -- [12 lines] of insert/erase/mem_image reasoning with simp
-  exact ih
+  simp only [Finset.mem_image, not_exists] at ha ⊢
+  constructor
+  · intro h; exact absurd (hf.eq_iff.mp h) (ha _ rfl)
+  · rw [ih]
+  -- ... more insert/erase/mem_image reasoning
 ```
 
-**After:** Typical after shape — one application of a `Finset.card_image_*` or `Finset.sum_image` lemma:
+**After:**
 ```lean
 exact Finset.card_image_of_injective s hf.injective
+-- or: Finset.sum_image fun x _ y _ h => hf h
+-- or: Finset.prod_image ...
 ```
 
-**Key insight:** Mathlib has pre-packaged lemmas for `card`, `sum`, `prod`, `sup`, and `inf` over `Finset.image`. If the induction step is mechanical `insert`/`erase` bookkeeping, the lemma almost certainly exists.
+Mathlib has pre-packaged lemmas for `card`, `sum`, `prod`, `sup`, and `inf` over `Finset.image`. If the induction step is mechanical bookkeeping, the lemma almost certainly exists.
 
----
+## Ext Lemmas
 
-## Replace Manual Pointwise Unfolding with Ext Lemmas
-
-Proofs that two morphisms are equal often coerce to bare functions and unfold pointwise when an `ext` lemma would suffice.
-
-**Signal:** Goal is equality of `MonoidHom`, `RingHom`, `LinearMap`, or `AlgHom` values, and the proof manually coerces or extensionalizes then rewrites with `map_add`/`map_mul`/`map_one`.
+Replace manual pointwise unfolding of morphism equality with `ext` lemmas. Applies when proofs coerce to bare functions and unfold with `map_add`/`map_mul`/`map_one` chains.
 
 **Before:** Manual pointwise unfolding to show two ring homomorphisms are equal:
 ```lean
@@ -135,59 +118,50 @@ show (f.comp g : R →+* S) = h
 apply DFunLike.ext
 intro x
 simp only [RingHom.comp_apply, f.map_add, f.map_mul]
--- [15 lines] of map_add/map_mul/map_one rewrites
+rw [g.map_one, f.map_add]
+simp only [map_mul, map_add, map_one]
+-- ... more map_* rewrites to close each case
 ```
 
-**After:** Typical after shape — use the appropriate `ext` lemma:
+**After:**
 ```lean
 ext x <;> simp
-```
-or for cases where `simp` needs guidance:
-```lean
-exact RingHom.ext fun x => by simp [h_comm]
+-- or when simp needs guidance:
+-- exact RingHom.ext fun x => by simp [h_comm]
 ```
 
-**Key insight:** `MonoidHom.ext`, `RingHom.ext`, `LinearMap.ext`, and `AlgHom.ext` reduce morphism equality to pointwise equality with the correct coercion context already in place. Combined with `simp`, this eliminates manual `DFunLike.ext` + `map_*` chains.
+`MonoidHom.ext`, `RingHom.ext`, `LinearMap.ext`, and `AlgHom.ext` reduce morphism equality to pointwise equality with the correct coercion context. Combined with `simp`, this eliminates manual `DFunLike.ext` + `map_*` chains.
 
----
+## Order/Lattice Patterns
 
-## Replace Order Plumbing with Compositional Lemmas
+Replace manual monotonicity threading and `sup`/`inf` splitting with compositional lemmas.
 
-Order/lattice proofs often manually thread monotonicity or split `sup`/`inf` when compositional lemmas exist.
-
-**Signal:** Proof uses `intro a b hab` followed by chains of `apply`/`exact` to establish monotonicity, or splits `sup_le`/`le_inf` goals by hand.
-
-**Before:** Manual monotonicity proof:
+**Before:** Manual monotonicity through a multi-layer composition:
 ```lean
 intro a b hab
 apply hg
-exact hf hab
--- [8 lines] when the composition is deeper or involves lattice operations
+apply hf
+exact hab
+-- or for deeper compositions:
+intro a b hab
+have h1 := hf hab
+have h2 := hg h1
+exact le_trans h2 (hk (le_refl _))
 ```
 
-**After:** Typical after shape — compositional monotonicity:
+**After:**
 ```lean
 exact hg.comp hf
+-- or for sup/inf goals:
+-- exact sup_le_iff.mpr ⟨h₁, h₂⟩
+-- these compose: (hg.comp hf).sup (hk.comp hf)
 ```
-or for `sup`/`inf` goals:
-```lean
-exact sup_le_iff.mpr ⟨h₁, h₂⟩
-```
 
-**Key insight:** `Monotone.comp`, `StrictMono.comp`, `Antitone.comp` handle composition chains. `sup_le_iff`, `le_inf_iff`, `sup_le_sup`, and `le_inf` handle lattice plumbing. These compose — `(hg.comp hf).sup (hk.comp hf)` is valid.
+`Monotone.comp`, `StrictMono.comp`, `Antitone.comp` handle composition chains. `sup_le_iff`, `le_inf_iff`, `sup_le_sup`, and `le_inf` handle lattice plumbing.
 
----
+## Helper Extraction
 
-## Extract Repeated Patterns as Helpers
-
-When the same proof pattern appears 2+ times with different arguments, extract it.
-
-### Identification
-
-Look for:
-- Same `rw`/`simp` lemma sequence with different arguments
-- Same `nlinarith`/`linarith` argument structure
-- Same definitional unfolding followed by the same simplification
+Extract repeated proof patterns (same `rw`/`simp` chain 2+ times, same `nlinarith` structure, same definitional unfolding) as standalone lemmas.
 
 ### Extraction Protocol
 
@@ -204,45 +178,24 @@ When extracting, ask:
 - **More general types?** Can `ℝ` become `[LinearOrderedField α]`?
 - **Mathlib-ready?** Would this be useful in mathlib? If so, state it in mathlib conventions (see [mathlib-style.md](mathlib-style.md)).
 
----
+## Missing Lemmas
 
-## Identify Missing Mathlib Lemmas
+Sometimes the right lemma doesn't exist in mathlib. Signs: 20+ lines to prove something "obvious", same proof repeated across projects, only basic library infrastructure needed, natural place in an existing module.
 
-Sometimes the right lemma doesn't exist in mathlib. Recognizing this is valuable.
-
-### Signs
-
-- 20+ lines to prove something "obvious"
-- Same proof repeated across multiple projects
-- Proof requires only basic library infrastructure
-- Natural place in the library (fits cleanly in an existing module)
-
-### What to Do
-
+What to do:
 1. State it in maximum generality (most general typeclasses)
 2. Follow mathlib naming conventions (see [mathlib-style.md](mathlib-style.md))
 3. Use a `private` version locally for now
 4. Note it in the refactoring report for potential contribution
 
----
+## Definition Problems
 
-## Reconsider Definitions
+Sometimes the proof is hard because the definition is fighting you. Signs: every proof starts with `unfold foo; simp`, same definitional unfolding in every lemma, arithmetic computations dominate due to discretization.
 
-Sometimes the proof is hard because the definition is fighting you.
-
-### Signs
-
-- Every proof starts with `unfold foo; simp` — definition is too opaque
-- Same definitional unfolding in every lemma — API is too thin
-- Arithmetic computations dominate — definition uses discretization that makes analysis hard
-
-### What to Do
-
+What to do:
 1. **Build the API** — prove key properties as standalone lemmas
 2. **Consider alternative definitions** — would an equivalent definition be easier to work with?
 3. **Use `simp` lemmas** — make key equalities available to `simp` so proofs don't need manual unfolding
-
----
 
 ## File-Level Audit Checklist
 
@@ -253,8 +206,6 @@ When analyzing a whole file:
 3. **Hand-rolled basics** — continuity proofs not using `fun_prop`, derivatives not using `HasDerivAt` chains, arithmetic not using `omega`/`positivity`/`norm_num`
 4. **Overly specific hypotheses** — can `=` become `≤`? Can `[NormedSpace ℝ E]` become `[Module ℝ E]`?
 5. **API coverage** — is every proof unfolding a definition directly? Should there be intermediate API lemmas?
-
----
 
 ## See Also
 
