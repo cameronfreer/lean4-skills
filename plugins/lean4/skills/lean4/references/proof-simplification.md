@@ -37,7 +37,7 @@ The single highest-impact simplification. For search protocol details, see [math
 | Filter membership | `Ioo_mem_nhdsGT`, `Ico_mem_nhdsGE`, `filter_upwards` |
 | Set equality on interval | `Set.EqOn`, `Set.EqOn.eventuallyEq_nhdsWithin` |
 | Finset induction over image/sum/card | `Finset.card_image_of_injective`, `Finset.sum_image`, `Finset.prod_image` |
-| Two maps equal by funext + unfolding | `MonoidHom.ext`, `RingHom.ext`, `LinearMap.ext`, `AlgHom.ext` |
+| Two morphisms equal by manual pointwise unfolding | `MonoidHom.ext`, `RingHom.ext`, `LinearMap.ext`, `AlgHom.ext` |
 | Monotonicity / sup-inf inequalities | `Monotone.comp`, `StrictMono.comp`, `sup_le_iff`, `le_inf_iff` |
 
 ### Cross-Domain Pattern Triggers
@@ -47,7 +47,7 @@ Quick cues for recognizing library-shaped proof idioms. Each points to the detai
 - **Case-split on set membership to prove continuity/differentiability** — likely a `ContinuousOn.congr` or `EventuallyEq` transfer (→ Congr Lemmas below)
 - **Piecewise function with endpoint/interior cases** — likely `Set.EqOn` + `ContinuousOn.congr` (→ Congr Lemmas below)
 - **Finset induction with insert/erase/simp** — likely a `Finset.card_image_*`, `Finset.sum_image`, or `Finset.prod_image` lemma (→ Finset Patterns below)
-- **funext + repeated map_add/map_mul rewrites** — likely an ext lemma: `RingHom.ext`, `LinearMap.ext`, etc. (→ Ext Lemmas below)
+- **Manual pointwise unfolding with map_add/map_mul after coercing morphisms** — likely an ext lemma: `RingHom.ext`, `LinearMap.ext`, etc. (→ Ext Lemmas below)
 - **Monotonicity by intro/apply chains, or sup/inf by splitting** — likely `Monotone.comp`, `sup_le_iff`, etc. (→ Order Patterns below)
 
 ---
@@ -123,15 +123,17 @@ exact Finset.card_image_of_injective s hf.injective
 
 ---
 
-## Replace Funext + Unfolding with Ext Lemmas
+## Replace Manual Pointwise Unfolding with Ext Lemmas
 
-Proofs that two morphisms are equal often unfold pointwise when an `ext` lemma would suffice.
+Proofs that two morphisms are equal often coerce to bare functions and unfold pointwise when an `ext` lemma would suffice.
 
-**Signal:** Goal is equality of `MonoidHom`, `RingHom`, `LinearMap`, or `AlgHom` values, and the proof starts with `funext` followed by repeated `map_add`/`map_mul` rewrites.
+**Signal:** Goal is equality of `MonoidHom`, `RingHom`, `LinearMap`, or `AlgHom` values, and the proof manually coerces or extensionalizes then rewrites with `map_add`/`map_mul`/`map_one`.
 
-**Before:** Pointwise unfolding to show two ring homomorphisms are equal:
+**Before:** Manual pointwise unfolding to show two ring homomorphisms are equal:
 ```lean
-funext x
+show (f.comp g : R →+* S) = h
+apply DFunLike.ext
+intro x
 simp only [RingHom.comp_apply, f.map_add, f.map_mul]
 -- [15 lines] of map_add/map_mul/map_one rewrites
 ```
@@ -145,7 +147,7 @@ or for cases where `simp` needs guidance:
 exact RingHom.ext fun x => by simp [h_comm]
 ```
 
-**Key insight:** `MonoidHom.ext`, `RingHom.ext`, `LinearMap.ext`, and `AlgHom.ext` reduce morphism equality to pointwise equality with the right type context already in place. Combined with `simp`, this eliminates manual `map_*` chains.
+**Key insight:** `MonoidHom.ext`, `RingHom.ext`, `LinearMap.ext`, and `AlgHom.ext` reduce morphism equality to pointwise equality with the correct coercion context already in place. Combined with `simp`, this eliminates manual `DFunLike.ext` + `map_*` chains.
 
 ---
 
