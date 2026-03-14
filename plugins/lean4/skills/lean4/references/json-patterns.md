@@ -52,6 +52,7 @@ Ground truth from `Lean/Data/Json/Elab.lean`:
   - String keys are preserved as written.
 - Antiquotation uses `Lean.toJson`:
   - `json%{x: $expr}` elaborates via `toJson expr`.
+  - Top-level antiquotation works too: `json% $expr` elaborates to `toJson expr`.
   - Missing `ToJson` instance causes elaboration failure.
 
 ## Patterns
@@ -83,6 +84,18 @@ def singletonObj [ToJson α] (k : String) (v : α) : Json :=
   Json.mkObj [(k, toJson v)]
 ```
 
+### Static skeleton + dynamic fields with `Json.mergeObj`
+
+Combine a `json%` skeleton with dynamic fields built separately.
+
+```lean
+import Lean.Data.Json
+open Lean
+
+def annotated (base : Json) (tag : String) : Json :=
+  base.mergeObj (Json.mkObj [("tag", toJson tag)])
+```
+
 ### Mix static and computed values
 
 ```lean
@@ -106,6 +119,8 @@ def stats (count : Nat) (ok : Bool) : Json :=
 - **`failed to synthesize ToJson ...`:**
   - Add/derive `ToJson` for the interpolated type.
   - Convert to a supported type before interpolation.
+- **Fields reordered in `pretty`/`compress`:**
+  - This is expected. Objects are stored in `TreeMap` order, not insertion order. Do not rely on field ordering.
 - **Key-related parse issues:**
   - Use `ident: value` or `"string key": value`.
   - Keys that are Lean keywords (e.g. `meta`, `where`, `import`) must be quoted as string literals.
