@@ -28,12 +28,12 @@ The single highest-impact simplification. For search protocol details, see [math
 
 | Proof Pattern | Mathlib Lemmas to Search |
 |---------------|-----------|
-| Continuity of piecewise function | `ContinuousOn.if`, `ContinuousOn.union_of_isClosed`, `LocallyFinite.continuousOn_iUnion` |
-| Property of a function that equals another on a set | `ContinuousOn.congr`, `HasDerivWithinAt.congr_of_eventuallyEq`, `Measurable.congr` |
+| Continuity of piecewise function | `ContinuousOn.if`, `ContinuousOn.union_of_isClosed`, `LocallyFinite.continuousOn_iUnion` (→ [Congr Lemmas](#congr-lemmas)) |
+| Property of a function that equals another on a set | `ContinuousOn.congr`, `HasDerivWithinAt.congr_of_eventuallyEq`, `Measurable.congr` (→ [Congr Lemmas](#congr-lemmas)) |
 | Floor/ceil equals specific value | `Nat.floor_eq_on_Ico`, `Int.floor_eq_iff` |
 | Lipschitz/bound transfer | `LipschitzWith.dist_le_mul`, `LipschitzOnWith` |
 | Filter membership | `Ioo_mem_nhdsGT`, `Ico_mem_nhdsGE`, `filter_upwards` |
-| Set equality on interval | `Set.EqOn`, `Set.EqOn.eventuallyEq_nhdsWithin` |
+| Set equality on interval | `Set.EqOn`, `Set.EqOn.eventuallyEq_nhdsWithin` (→ [Congr Lemmas](#congr-lemmas)) |
 | Finset induction over image/sum/card | `Finset.card_image_of_injective`, `Finset.sum_image`, `Finset.prod_image` (→ [Finset Patterns](#finset-patterns)) |
 | Two morphisms equal by manual pointwise unfolding | `MonoidHom.ext`, `RingHom.ext`, `LinearMap.ext`, `AlgHom.ext` (→ [Ext Lemmas](#ext-lemmas)) |
 | Monotonicity / sup-inf inequalities | `Monotone.comp`, `StrictMono.comp`, `sup_le_iff`, `le_inf_iff` (→ [Order/Lattice Patterns](#orderlattice-patterns)) |
@@ -65,9 +65,7 @@ intro t ht
 
 ### Pattern: Transfer via `EventuallyEq`
 
-**Before:** Manually differentiate a complex function by unfolding and assembling.
-
-**After:** Show the function agrees with a known-differentiable function eventually:
+When manually differentiating a complex function by unfolding and assembling, show it agrees with a known-differentiable function eventually instead:
 ```lean
 have h_eq : f =ᶠ[nhdsWithin t s] g := by
   filter_upwards [some_neighborhood_lemma] with x hx
@@ -136,6 +134,8 @@ ext x <;> simp
 
 Replace manual monotonicity threading and `sup`/`inf` splitting with compositional lemmas.
 
+### Pattern: Monotone composition
+
 **Before:** Manual monotonicity through a multi-layer composition:
 ```lean
 intro a b hab
@@ -152,12 +152,32 @@ exact le_trans h2 (hk (le_refl _))
 **After:**
 ```lean
 exact hg.comp hf
--- or for sup/inf goals:
--- exact sup_le_iff.mpr ⟨h₁, h₂⟩
--- these compose: (hg.comp hf).sup (hk.comp hf)
+-- deeper: exact (hk.comp hg).comp hf
 ```
 
-`Monotone.comp`, `StrictMono.comp`, `Antitone.comp` handle composition chains. `sup_le_iff`, `le_inf_iff`, `sup_le_sup`, and `le_inf` handle lattice plumbing.
+`Monotone.comp`, `StrictMono.comp`, `Antitone.comp` handle arbitrary composition depth.
+
+### Pattern: Lattice sup/inf splitting
+
+**Before:** Manual splitting of a `sup_le` or `le_inf` goal:
+```lean
+constructor
+· -- show a ≤ c
+  calc a ≤ b := h₁
+       _ ≤ c := h₂
+· -- show a' ≤ c
+  calc a' ≤ b' := h₃
+        _ ≤ c  := h₄
+```
+
+**After:**
+```lean
+exact sup_le_iff.mpr ⟨h₂.trans h₁, h₄.trans h₃⟩
+-- or: exact le_inf h_left h_right
+-- these compose: sup_le_sup h₁ h₂
+```
+
+`sup_le_iff`, `le_inf_iff`, `sup_le_sup`, and `le_inf` handle lattice plumbing.
 
 ## Helper Extraction
 
