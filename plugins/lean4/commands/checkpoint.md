@@ -75,4 +75,5 @@ git reset HEAD~N          # Undo last N commits
 
 - `/lean4:prove` - Guided cycle-by-cycle proving
 - `/lean4:review` - Read-only code review
+- `/lean4:refactor` - Strategy-level proof simplification
 - [Examples](../skills/lean4/references/command-examples.md#checkpoint)

@@ -25,6 +25,7 @@ This guide helps you upgrade from the legacy 3-plugin system (v3.x) to the unifi
 | `/lean4-theorem-proving:build-lean` | Use `lake build` directly |
 | `/lean4-theorem-proving:search-mathlib` | Use LSP `lean_leansearch` or scripts |
 | (no equivalent) | `/lean4:review` (NEW) |
+| (no equivalent) | `/lean4:refactor` (NEW) |
 | (no equivalent) | `/lean4:doctor` (NEW) |
 
 ### Environment Variables
@@ -94,9 +95,10 @@ Or run `/lean4:doctor cleanup` for guided removal.
 1. /lean4:prove            # Guided: asks preferences, cycle-by-cycle
 2. (prove handles fills, builds, commits per cycle)
 3. /lean4:review           # Read-only quality check
-4. /lean4:golf             # Optional optimization
-5. /lean4:checkpoint       # Verified save point
-6. git push                # Manual (safety guardrail)
+4. /lean4:refactor         # Strategy-level simplification (optional)
+5. /lean4:golf             # Tactic-level optimization (optional)
+6. /lean4:checkpoint       # Verified save point
+7. git push                # Manual (safety guardrail)
 ```
 
 Or for unattended work: `/lean4:autoprove` (autonomous with stop rules).

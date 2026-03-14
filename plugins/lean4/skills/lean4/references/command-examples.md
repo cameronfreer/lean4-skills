@@ -639,6 +639,47 @@ lake env lean InfinitaryLogic/Scott/Sentence.lean
 
 ---
 
+## refactor
+
+### Basic Usage
+
+```
+User: /lean4:refactor ForwardEuler/Main.lean
+```
+
+```markdown
+## Refactor Plan — ForwardEuler/Main.lean
+
+### Strategy Improvements
+1. `continuousOn_eulerPath` (line 104): case-splitting on endpoints
+   → Use `ContinuousOn.congr` + `Set.EqOn` (saves ~20 lines)
+
+2. `hasDerivWithinAt_eulerPath` (line 149): manual derivative via unfolding
+   → Use `HasDerivAt` chain + `congr_of_eventuallyEq` (saves ~5 lines)
+
+### Helper Extraction
+1. Floor computation from Ico membership — appears 4x (lines 89, 119, 155, 198)
+   → Extract `floor_eq_of_mem_Ico`
+
+### Estimated Impact
+- Lines before: 310
+- Lines after: ~245
+- Helpers extracted: 1
+- Mathlib lemmas newly applied: 3
+
+Apply these changes? [yes / no / skip to next]
+```
+
+### Dry Run
+
+```
+User: /lean4:refactor --scope=changed --dry-run
+```
+
+Reports opportunities without editing files.
+
+---
+
 ## golf
 
 ### Basic Usage
