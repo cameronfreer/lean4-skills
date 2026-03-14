@@ -20,6 +20,7 @@ Interactive teaching and mathlib exploration. Adapts to beginner, intermediate, 
 /lean4:learn --source ./paper.pdf            # Learn from a paper/PDF
 /lean4:learn --presentation=informal "Bolzano-Weierstrass"  # Prose, Lean-backed
 /lean4:learn --output=scratch                # Write results to scratch file
+/lean4:learn --style=socratic --adaptive=off  # Socratic, no style/level drift
 ```
 
 ## Inputs
@@ -40,6 +41,7 @@ Interactive teaching and mathlib exploration. Adapts to beginner, intermediate, 
 | --verify | no | `best-effort` | `best-effort` \| `strict`. Verification strictness for key claims. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#verification-status). |
 | --track | no | — | Exercise ladder: `nng-like` \| `set-theory-like` \| `analysis-like` \| `proofs-reintro`. Valid only with `--style=game`. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#track-ladders). |
 | --source | no | — | File path, URL, or PDF to seed learning. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#source-handling). |
+| --adaptive | no | `on` | `on` \| `off`. Controls whether the debate can change style/level. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#adaptive-control). |
 
 ### Scope defaults by mode (when `--scope=auto`)
 
@@ -62,6 +64,7 @@ Interactive teaching and mathlib exploration. Adapts to beginner, intermediate, 
 - `--intent`, `--presentation`, or `--verify` with invalid value → hard error.
 - `--track` without `--style=game` → warn + ignore. `--style=game` without `--track` → prompt track picker.
 - `--source` + `--scope=file|changed|project` → warn "source overrides scope for initial discovery". Unsupported source type → warn + ask for text excerpt.
+- `--adaptive` with invalid value → hard error. `--adaptive=off` freezes the Learning Profile: the debate cannot change `style` or `level`. Within-style remediation (hint escalation, trying a counterexample instead of repeating an explanation) is unaffected — those don't modify the profile.
 
 ## Actions
 
@@ -69,7 +72,7 @@ Interactive teaching and mathlib exploration. Adapts to beginner, intermediate, 
 
 **Two-layer contract:** All modes are Lean-backed by default. Lean verification is attempted for all key claims — theorem statements, correctness judgments, game pass/fail, and "therefore X" assertions. `--presentation` controls what is shown, not whether Lean runs. Each key-claim step carries a verification label: `[verified]`, `[partially-verified]`, or `[unverified]`. Under `--verify=strict`, never present claims as settled unless verified; on failure after retry, mark blocked and offer: continue conceptually or relax to `best-effort`. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#two-layer-architecture).
 
-Classify learning intent and establish a session Learning Profile: {intent, presentation, verify, style, track, level}. `--source` is per-invocation only (not persisted) unless user explicitly says "continue same source." Explicit flags are used directly; inference is only for `auto` values. **Announce** resolved intent and presentation, marking each as inferred or explicit. When `--presentation=auto`: if confidence is high, auto-resolve and announce; if ambiguous, ask: "Informal (prose, Lean-backed), supporting (prose + Lean snippets), or formal (Lean shown)?" Profile persists within the current conversation; explicit flags on later turns override and update it. Precedence (applied before validation rules): explicit flags > stored profile > inference. If explicit `--intent` conflicts with source-inferred intent, honor explicit and warn about mismatch. If explicit `--mode` conflicts with resolved intent (explicit or inferred), honor explicit mode and warn. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-behavior-matrix) for inference rules and the full behavior matrix.
+Classify learning intent and establish a session Learning Profile: {intent, presentation, verify, style, track, level, adaptive}. `--source` is per-invocation only (not persisted) unless user explicitly says "continue same source." Explicit flags are used directly; inference is only for `auto` values. **Announce** resolved intent and presentation, marking each as inferred or explicit. When `--presentation=auto`: if confidence is high, auto-resolve and announce; if ambiguous, ask: "Informal (prose, Lean-backed), supporting (prose + Lean snippets), or formal (Lean shown)?" Profile persists within the current conversation; explicit flags on later turns override and update it. Precedence (applied before validation rules): explicit flags > stored profile > inference. If explicit `--intent` conflicts with source-inferred intent, honor explicit and warn about mismatch. If explicit `--mode` conflicts with resolved intent (explicit or inferred), honor explicit mode and warn. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-behavior-matrix) for inference rules and the full behavior matrix.
 
 ### 1. Mode Resolution
 
@@ -143,6 +146,7 @@ The debate is internal reasoning. Whether the strategy note is surfaced depends 
 - In `--style=game`: follow the hint escalation ladder from the 1st failure (directional hint → specific hint → full answer with explanation). The Pace Advisor must flag repeated failure (2+) and may offer to regress to an easier level.
 - If the user's last 2 responses reveal the same misunderstanding, the debate MUST flag this and the chosen strategy MUST switch approach.
 - The debate may suggest `style` or `level` updates mid-session, but only for values that were inferred or defaulted. If the user explicitly set a flag (e.g., `--style=socratic`), the debate must not override it — instead, suggest the change and let the user confirm.
+- When `--adaptive=off`, the debate must not modify `style` or `level` in the Learning Profile. Within-style remediation (hint escalation, framing switches, counterexamples) is unaffected — the debate adapts how it teaches within the locked style, but cannot change which style or level is active.
 
 See [Pedagogical Self-Debate](../skills/lean4/references/learn-pathways.md#pedagogical-self-debate) for the full reference.
 

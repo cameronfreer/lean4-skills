@@ -172,6 +172,39 @@ This mechanism turns `/lean4:learn` from a static Q&A into an adaptive tutor. Wi
 
 After receiving a user response and before formulating a reply, `/lean4:learn` internally reasons from three advisor perspectives to select the best response strategy. This runs inside the iterate loop (step 5 in `learn.md`).
 
+### Debate State
+
+The debate maintains lightweight structured state across turns (not persisted across conversations):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `stuck_count` | int | Consecutive turns where the same misunderstanding appears. Reset on topic change or successful resolution. |
+| `misconceptions` | list of `{concept, framing_that_failed, framing_that_resolved}` | Scoped by concept/topic — a tactic misunderstanding does not pollute an unrelated analysis topic. |
+| `signal` | `engaged` \| `confused` \| `frustrated` \| `bored` | Inferred from response patterns: short/disengaged → bored; repeated errors → frustrated; tentative → confused; confident + correct → engaged. |
+| `last_strategy` | strategy name | The strategy used on the previous turn. See [Named Strategies](#named-strategies). |
+| `strategy_effectiveness` | `effective` \| `ineffective` \| `unknown` | Whether `last_strategy` resolved the issue. `ineffective` if the same problem recurs; `effective` if the learner advances. |
+| `failure_count` | int | Per-exercise failure count for hint escalation (game mode only). Reset when exercise changes. |
+
+State is updated after each user response, before the advisors run. Advisors read the state to inform their recommendations.
+
+### Named Strategies
+
+Each advisor picks from a fixed set of named strategies. This makes transitions explicit and trackable via `last_strategy`.
+
+| Strategy | Description | Typical trigger |
+|----------|-------------|-----------------|
+| `stay_course` | Continue current approach | Learner is engaged and progressing |
+| `hint` | Give a directional hint without revealing the answer | 1st failure in game mode |
+| `worked_example` | Switch to a fully worked example | Learner stuck on abstract explanation |
+| `prereq_reminder` | Surface a prerequisite concept | Misunderstanding rooted in a gap |
+| `counterexample` | Present a minimal counterexample to isolate a misconception | Learner holds a false belief |
+| `switch_style` | Change `style` (e.g., socratic → exercise) | Disengagement or repeated failure in current style |
+| `raise_level` | Increase difficulty | Consistent evidence of mastery (see confidence rule) |
+| `lower_level` | Decrease difficulty | Consistent evidence of struggle (see confidence rule) |
+| `reveal_answer` | Show the full answer with explanation | 3rd failure in game mode |
+
+Advisors propose strategies by name. The tiebreak rule picks one. `last_strategy` is updated after the reply.
+
 ### The Three Advisors
 
 | Advisor | Question it asks | Signals it looks for |
@@ -225,6 +258,21 @@ For explicit values, suggest instead:
 
 > *Pedagogy: You seem comfortable with this material — would you like to switch from socratic to exercise mode?*
 
+**Confidence threshold:** Only suggest or apply profile changes after consistent evidence across 2+ turns — not on a single strong signal. One expert-level question from a beginner may be a lucky guess or a narrow prior; two consecutive expert-level responses are a pattern. Similarly, one confused response does not justify lowering the level — wait for the pattern to repeat.
+
+### Adaptive Control
+
+`--adaptive` controls whether the debate can make profile-level changes (style, level). It does not disable the debate itself.
+
+| Setting | What's allowed | What's suppressed |
+|---------|---------------|-------------------|
+| `on` (default) | All debate behaviors: profile updates (for inferred values), strategy switches, stuck remediation, hint escalation | Nothing |
+| `off` | Within-style remediation: hint escalation (game), framing switches (counterexample, worked example, prereq surface), stuck detection | Profile modifications: `switch_style`, `raise_level`, `lower_level`, any write to the Learning Profile's `style` or `level` fields |
+
+Key distinction: remediation changes *how* the debate teaches within the locked style (e.g., trying a counterexample instead of repeating an explanation). Profile changes alter *which* style or level is active. `--adaptive=off` permits the former and blocks the latter.
+
+`--adaptive` persists in the Learning Profile across turns. Explicit `--adaptive=on` on a later turn re-enables full adaptivity.
+
 ### Stuck Detection
 
 If the user's last 2 responses reveal the **same misunderstanding**, the debate MUST flag this and the chosen strategy MUST switch approach — not repeat the same explanation. Options:
@@ -233,7 +281,7 @@ If the user's last 2 responses reveal the **same misunderstanding**, the debate 
 - Present a minimal counterexample to isolate the misconception
 - In `game` mode: escalate hint level (see below)
 
-**Misconception journal:** Across the session, mentally track observed misconceptions and which approach resolved them. When a new stuck event occurs, consult prior resolutions to avoid re-trying approaches that already failed for this learner. E.g., if switching to formal framing resolved a misconception earlier, prefer that framing again for similar gaps.
+**Misconception journal:** Track observed misconceptions scoped by concept — a tactic misunderstanding (e.g., confusing `simp` with `norm_num`) does not pollute an unrelated analysis topic (e.g., epsilon-delta). When a new stuck event occurs on a concept, consult prior resolutions for that concept to avoid re-trying approaches that already failed. E.g., if switching to formal framing resolved a `simp` misconception earlier, prefer that framing again for similar tactic gaps.
 
 ### Hint Escalation Protocol (game mode)
 
@@ -244,9 +292,18 @@ When the user fails an exercise, follow the escalation ladder from the 1st failu
 | 1st failure | Affirm attempt, give directional hint (no answer) |
 | 2nd failure | More specific hint: name the relevant tactic/lemma/concept |
 | 3rd failure | Show the full answer with step-by-step explanation |
-| After 3rd | Offer: retry a variation, regress to an easier level, or continue to next exercise |
+| After 3rd | Post-reveal recovery (see below), then offer: regress to an easier level or continue to next exercise |
 
 Never skip levels in the escalation ladder within a single exercise session. Reset the counter when the exercise changes.
+
+### Post-Reveal Recovery (game mode)
+
+After showing the full answer (3rd failure), do not immediately advance. The learner must demonstrate engagement with the revealed answer before moving on. These are follow-up actions within `reveal_answer`, not separate strategies:
+
+1. **Variation problem**: present a closely related exercise that tests the same concept with different values or a minor twist.
+2. **Reflection check**: ask the learner to explain in their own words why the answer works (informal) or to identify the key tactic/lemma (formal/supporting).
+
+Pick whichever fits the current `--presentation`. If the learner passes, advance normally. If they fail the variation, treat it as a new exercise with its own escalation ladder (reset `failure_count`). This prevents the hint ladder from ending in passive consumption.
 
 ### No Lean Verification
 
@@ -256,7 +313,7 @@ The self-debate step reasons about teaching strategy only. It must not trigger n
 
 Persisted within the current conversation only (not across new sessions).
 
-- Fields: {intent, presentation, verify, style, track, level}. `--source` is **per-invocation only** — not persisted unless user explicitly says "continue same source."
+- Fields: {intent, presentation, verify, style, track, level, adaptive}. `--source` is **per-invocation only** — not persisted unless user explicitly says "continue same source."
 - Established at Step 0 of first invocation.
 - Reused on subsequent turns within the same conversation.
 - Explicit flags on any turn override and update the profile.
