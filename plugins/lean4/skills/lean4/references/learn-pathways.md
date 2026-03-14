@@ -188,11 +188,19 @@ After each advisor generates a candidate response approach, pick the one best al
 
 **Example — advisors disagree:** The user gave an incorrect proof for exercise 3 (2nd attempt). Pace says "slow down, consolidate prerequisites." Method says "switch from socratic to a worked example." Depth says "go deeper on the specific subtlety they missed." Momentum tiebreak picks Method — switching to a worked example re-engages the learner while also addressing the gap. Pace's concern (consolidation) is served by the worked example itself.
 
-### Summary Note Format
+### Summary Note Visibility
 
-Always announce the chosen strategy before the actual reply, in a single sentence:
+The debate is always internal reasoning. Whether the `*Pedagogy: ...*` note is user-visible depends on `--presentation`:
+
+| Presentation | Note shown? |
+|-------------|-------------|
+| `informal` | Yes — one sentence before the reply |
+| `supporting` | Yes — one sentence before the reply |
+| `formal` | No — suppressed by default (code-first output). Surface only on request ("show Lean backing" or "why did the approach change?") |
 
 > *Pedagogy: [chosen strategy — e.g., "Hinting rather than revealing since you're close" or "Switching to a worked example since you've been stuck on the same concept twice."]*
+
+When `--level=expert` and `--style=tour`, the note may be omitted for straightforward navigation responses to avoid being patronizing.
 
 ### When to Run
 
@@ -203,15 +211,17 @@ Always announce the chosen strategy before the actual reply, in a single sentenc
 | `exercise` | On substantive user responses; skip for trivial menu picks |
 | `tour` | Skip for trivial navigation; run when user asks a question or expresses confusion |
 
-When `--level=expert` and `--style=tour`, the pedagogy note may be omitted for straightforward navigation responses to avoid being patronizing.
-
 ### Profile Updates Mid-Session
 
-The debate may update `style` or `level` in the Learning Profile if evidence is clear (e.g., user is consistently bored → raise `--level`; user is consistently lost → lower `--level` or switch `--style`). Announce any profile update inline:
+The debate may update `style` or `level` in the Learning Profile, but **only for values that were inferred or defaulted** — never override an explicit user flag. If the user ran `--style=socratic` and the debate thinks exercise mode would be better, it must suggest the change and wait for user confirmation rather than silently switching.
+
+For inferred/default values, update and announce inline:
 
 > *Pedagogy: Raising level to `expert` since your questions show strong prior familiarity; switching style to `exercise` to keep you engaged.*
 
-Profile updates from the debate follow the same precedence rules: they override inference but can be overridden by explicit user flags on a later turn.
+For explicit values, suggest instead:
+
+> *Pedagogy: You seem comfortable with this material — would you like to switch from socratic to exercise mode?*
 
 ### Stuck Detection
 
@@ -225,7 +235,7 @@ If the user's last 2 responses reveal the **same misunderstanding**, the debate 
 
 ### Hint Escalation Protocol (game mode)
 
-When the user fails the same exercise 2+ times, the Pace Advisor flags this. The chosen strategy must follow the escalation ladder:
+When the user fails an exercise, follow the escalation ladder from the 1st failure. The Pace Advisor must flag repeated failure (2+) and may suggest regressing to an easier level:
 
 | Failure count | Response strategy |
 |--------------|------------------|

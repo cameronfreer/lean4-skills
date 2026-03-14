@@ -124,21 +124,23 @@ After receiving the user's response (answer attempt, question, menu choice, or f
 
 Pick the best strategy based on the learner's current profile (`{intent, level, style, track}`) and what their response revealed. **Tiebreak:** prioritize the learner's momentum (keep them engaged) over completeness.
 
-Then announce the chosen strategy in a brief note before the actual reply:
+The debate is internal reasoning. Whether the strategy note is surfaced depends on `--presentation`:
+
+- **`informal` / `supporting`:** Show a one-sentence `*Pedagogy: ...*` note before the reply.
+- **`formal`:** Suppress the note by default (code-first output). Surface only if the user requests it via "show Lean backing" or asks why the approach changed.
 
 > *Pedagogy: [one sentence — e.g., "Hinting rather than revealing since you're close" or "Switching to a worked example since you've been stuck on the same concept twice."]*
 
 **When to run:**
 - **Mandatory** in `--style=game` and `--style=socratic` modes.
 - **Optional** (skip for trivial menu navigation) in `--style=tour` and `--style=exercise` modes.
+- When `--level=expert` and `--style=tour`, may be omitted for straightforward navigation responses.
 
 **Key constraints:**
 - Do NOT trigger new Lean verification here — reason about teaching strategy only, using already-discovered information.
-- In `--style=game`: if the user has failed the same exercise 2+ times, the Pace Advisor must flag this and the strategy must include hint escalation (directional hint → specific hint → full answer with explanation) or offer to regress to an easier level.
+- In `--style=game`: follow the hint escalation ladder from the 1st failure (directional hint → specific hint → full answer with explanation). The Pace Advisor must flag repeated failure (2+) and may offer to regress to an easier level.
 - If the user's last 2 responses reveal the same misunderstanding, the debate MUST flag this and the chosen strategy MUST switch approach.
-- The debate may update `style` or `level` in the Learning Profile mid-session if there is clear evidence it should change. Announce any profile update.
-- The summary note is always shown; never hidden. Keep it to 1 sentence. Format is presentation-independent (always italic markdown).
-- When `--level=expert` and `--style=tour`, the pedagogy note may be omitted for straightforward navigation responses.
+- The debate may suggest `style` or `level` updates mid-session, but only for values that were inferred or defaulted. If the user explicitly set a flag (e.g., `--style=socratic`), the debate must not override it — instead, suggest the change and let the user confirm.
 
 See [Pedagogical Self-Debate](../skills/lean4/references/learn-pathways.md#pedagogical-self-debate) for the full reference.
 
