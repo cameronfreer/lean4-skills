@@ -115,10 +115,10 @@ Replace manual pointwise unfolding of morphism equality with `ext` lemmas. Appli
 show (f.comp g : R →+* S) = h
 apply DFunLike.ext
 intro x
-simp only [RingHom.comp_apply, f.map_add, f.map_mul]
-rw [g.map_one, f.map_add]
-simp only [map_mul, map_add, map_one]
--- ... more map_* rewrites to close each case
+simp only [RingHom.comp_apply]
+-- unfold (f ∘ g)(x) and h(x), then rewrite with map_* lemmas:
+rw [map_add, map_mul, map_one]
+-- ... repeat for each generator / case
 ```
 
 **After:**
@@ -146,7 +146,8 @@ exact hab
 intro a b hab
 have h1 := hf hab
 have h2 := hg h1
-exact le_trans h2 (hk (le_refl _))
+have h3 := hk h2
+exact h3
 ```
 
 **After:**
