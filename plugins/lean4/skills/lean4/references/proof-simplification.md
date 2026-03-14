@@ -70,7 +70,7 @@ When manually differentiating a complex function by unfolding and assembling, sh
 have h_eq : f =ᶠ[nhdsWithin t s] g := by
   filter_upwards [some_neighborhood_lemma] with x hx
   exact function_agrees_on_interval x hx
-exact (h_deriv_g.congr_of_eventuallyEq h_eq h_val).congr_deriv (one_smul _ _)
+exact h_deriv_g.congr_of_eventuallyEq h_eq h_val
 ```
 
 ### When Congr Lemmas Help
@@ -92,15 +92,15 @@ apply Finset.induction_on s
   rw [Finset.image_insert, Finset.card_insert_of_not_mem]
   simp only [Finset.mem_image, not_exists] at ha ⊢
   constructor
-  · intro h; exact absurd (hf.eq_iff.mp h) (ha _ rfl)
+  · intro h; exact absurd (hinj.eq_iff.mp h) (ha _ rfl)
   · rw [ih]
   -- ... more insert/erase/mem_image reasoning
 ```
 
 **After:**
 ```lean
-exact Finset.card_image_of_injective s hf.injective
--- or: Finset.sum_image fun x _ y _ h => hf h
+exact Finset.card_image_of_injective s hinj
+-- or: Finset.sum_image fun x _ y _ h => hinj h
 -- or: Finset.prod_image ...
 ```
 
@@ -161,7 +161,7 @@ exact hg.comp hf
 
 **Before:** Manual splitting of a `sup_le` or `le_inf` goal:
 ```lean
-constructor
+refine sup_le ?_ ?_
 · -- show a ≤ c
   calc a ≤ b := h₁
        _ ≤ c := h₂
@@ -172,7 +172,7 @@ constructor
 
 **After:**
 ```lean
-exact sup_le_iff.mpr ⟨h₂.trans h₁, h₄.trans h₃⟩
+exact sup_le_iff.mpr ⟨h₁.trans h₂, h₃.trans h₄⟩
 -- or: exact le_inf h_left h_right
 -- these compose: sup_le_sup h₁ h₂
 ```
