@@ -53,7 +53,7 @@ No special setup required.
 #### LSP Server Not Working
 
 1. Verify installation: https://github.com/oOo0oOo/lean-lsp-mcp
-2. Run `lake build` in your project first (avoids timeouts)
+2. Run `lake build` in your project first (avoids timeouts). If fresh clone/worktree or after `lake clean`, prime cache first: `lake cache get` or `lake exe cache get`.
 3. Restart Claude Code
 4. Test: try `lean_goal` on a `.lean` file
 

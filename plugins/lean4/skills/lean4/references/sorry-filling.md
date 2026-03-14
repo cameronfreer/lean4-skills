@@ -180,12 +180,16 @@ LSP tools can sometimes show success when problems remain. After a sequence of c
 
 This catches issues that per-edit LSP may miss.
 
-**💡 Cache after clean**
-If you run `lake clean`, always follow up with:
+**💡 Cache after clean or in a fresh worktree**
+If you run `lake clean`, or start from a fresh clone/worktree, hydrate the cache before the first full build:
 ```bash
+lake cache get
+# or, in projects that use the older mathlib cache executable:
 lake exe cache get
 ```
-Otherwise you'll wait 30+ minutes for mathlib to recompile from scratch.
+Otherwise you may recompile large dependencies from scratch.
+
+Do this in the current worktree. Do not symlink another worktree's `.lake/build`; separate worktrees may be on different commits and should keep separate local build directories.
 
 ✅ **Do:**
 - Search mathlib exhaustively before proving

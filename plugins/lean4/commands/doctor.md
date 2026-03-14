@@ -198,6 +198,8 @@ No changes made. Run `/lean4:doctor cleanup --apply` to remove.
 | lake not found | Install via elan |
 | Scripts not executable | `chmod +x $LEAN4_SCRIPTS/*.sh` |
 | Build fails | `lake update && lake clean && lake build` |
+| Fresh worktree rebuild is slow / LSP times out on first use | Prime cache (`lake cache get` or `lake exe cache get`), then `lake build`; do not symlink `.lake/build` from another worktree |
+| Stale build after `lake clean` | Hydrate cache (`lake cache get` or `lake exe cache get`), then `lake build` |
 | Legacy plugin detected | Uninstall old plugin, remove directory |
 | Stale env vars | Restart session after removing old plugin |
 | Commands not found after migration | Check `/lean4:*` not `/lean4-theorem-proving:*` |

@@ -176,6 +176,14 @@ ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --report-only
 # Counts only (optional): --format=summary
 ```
 
+**Cold start / fresh worktree:**
+- Fresh worktree or after `lake clean`? Prime the cache in that worktree before the first real build.
+- Use the project's cache command: `lake cache get` on newer Lake, or `lake exe cache get` where the project still uses the mathlib cache executable.
+- If Lean LSP is cold or timing out on first use, run one `lake build` to bootstrap the workspace.
+- After bootstrap, return to the normal verification ladder:
+  `lean_diagnostic_messages(file)` → `lake env lean <path/to/File.lean>` (from project root) → `lake build` only at checkpoint/final gate.
+- Do **not** symlink another worktree's `.lake/build`; use Lake cache/artifact mechanisms instead.
+
 ## References
 
 **Cycle Engine:** [cycle-engine](references/cycle-engine.md) — shared prove/autoprove logic (stuck, deep mode, falsification, safety)

@@ -10,11 +10,25 @@
 
 ## Prerequisites
 
-**Before using LSP tools:**
+**Before using LSP tools in a fresh clone or worktree:**
 
-1. **Run `lake build` first** - The LSP server runs `lake serve` which can timeout during initial project build. Run `lake build` manually in your project directory before starting the MCP server to ensure fast startup and avoid timeouts.
+1. **Prime the cache in this worktree first.**
+   Use the project's cache command:
+   - `lake cache get` on newer Lake versions, or
+   - `lake exe cache get` for projects that still use the mathlib cache executable.
 
-2. **Install ripgrep** - Required for `lean_local_search` (the most-used search tool):
+   This avoids rebuilding dependencies from scratch after a fresh checkout or `lake clean`.
+
+2. **If the LSP server is cold or timing out, run one `lake build`.**
+   The LSP server runs through `lake serve` and can be slow on first startup if the workspace has not been built yet.
+
+3. **After bootstrap, use LSP for normal iteration.**
+   Day-to-day proof development should use LSP tools for discovery, search, and per-edit validation.
+   Reserve `lake env lean <path/to/File.lean>` (run from project root) for file-level gates and `lake build` for checkpoint/final verification.
+
+**Worktrees:** prime cache separately per worktree. Do **not** symlink another worktree's `.lake/build`.
+
+4. **Install ripgrep** - Required for `lean_local_search` (the most-used search tool):
    - macOS: `brew install ripgrep`
    - Linux: `apt install ripgrep` or https://github.com/BurntSushi/ripgrep#installation
    - Windows: https://github.com/BurntSushi/ripgrep#installation
