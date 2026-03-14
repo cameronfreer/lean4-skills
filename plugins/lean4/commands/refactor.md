@@ -74,6 +74,8 @@ Run /lean4:prove first, then retry /lean4:refactor.
 
 See [proof-simplification](../skills/lean4/references/proof-simplification.md) for the strategy guide (congr/EqOn patterns, generalization checklist, file-level audit).
 
+**Helper scope defaults:** Single use inside one proof → local (`have` / local helper). Reused within one file → `private theorem`. Public/non-private → only with explicit user approval or clear existing API reason.
+
 ## Safety
 
 - Does not change theorem/lemma statements

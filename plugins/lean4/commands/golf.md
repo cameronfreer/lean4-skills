@@ -87,6 +87,8 @@ Optimize Lean proofs that already compile. Reduce tactic count, shorten proofs, 
 **Skipped:** 2 (safety)
 **Total savings:** 8 lines (~12%)
 **Build status:** ✓ passing
+
+Optional next step: run `/lean4:refactor` on touched files for strategy-level simplification.
 ```
 
 ## Saturation
