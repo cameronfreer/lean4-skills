@@ -13,7 +13,7 @@ PLUGIN_ROOT="${LEAN4_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 ISSUES=0
 
 # Single source of truth for known commands (used by check_commands and check_cross_refs)
-KNOWN_COMMANDS="autoprove checkpoint doctor golf learn prove review"
+KNOWN_COMMANDS="autoprove checkpoint doctor formalize golf learn prove review"
 
 log() {
     echo "$1"
@@ -56,11 +56,12 @@ check_commands() {
         # Per-command line limits: prove/autoprove/doctor/review are inherently larger
         local max_lines=120
         case "$cmd" in
-            prove|autoprove) max_lines=230 ;;
+            prove|autoprove) max_lines=235 ;;
             doctor)          max_lines=220 ;;
+            formalize)       max_lines=160 ;;
             golf)            max_lines=150 ;;
             review)          max_lines=320 ;;
-            learn)           max_lines=200 ;;
+            learn)           max_lines=160 ;;
         esac
 
         if [[ $lines -gt $max_lines ]]; then
@@ -112,7 +113,9 @@ check_agents() {
 
         local max_lines=115
         case "$agent" in
+            lean4-axiom-eliminator) max_lines=120 ;;
             lean4-proof-golfer) max_lines=135 ;;
+            lean4-sorry-filler-deep) max_lines=125 ;;
         esac
 
         if [[ $lines -gt $max_lines ]]; then
@@ -135,7 +138,7 @@ check_agents() {
         fi
 
         # Validate tool names against allowed set
-        local allowed_tools="Read Grep Glob Edit Bash lean_goal lean_local_search lean_leanfinder lean_leansearch lean_loogle lean_multi_attempt lean_hover_info lean_diagnostic_messages"
+        local allowed_tools="Read Grep Glob Edit Bash lean_goal lean_local_search lean_leanfinder lean_leansearch lean_loogle lean_multi_attempt lean_hover_info lean_diagnostic_messages lean_run_code"
         local tools_line
         tools_line=$(grep "^tools:" "$file" | sed 's/^tools: *//')
         if [[ -n "$tools_line" ]]; then
@@ -214,10 +217,10 @@ check_references() {
         warn "Missing grind-tactic.md"
     fi
 
-    if [[ -f "$ref_dir/simproc-patterns.md" ]]; then
-        ok "simproc-patterns.md exists"
+    if [[ -f "$ref_dir/simp-reference.md" ]]; then
+        ok "simp-reference.md exists"
     else
-        warn "Missing simproc-patterns.md"
+        warn "Missing simp-reference.md"
     fi
 
     if [[ -f "$ref_dir/metaprogramming-patterns.md" ]]; then
@@ -288,7 +291,7 @@ check_cross_refs() {
     local agent_anchors="lean4-sorry-filler-deep lean4-proof-repair lean4-proof-golfer lean4-axiom-eliminator"
 
     # Valid anchors for cycle-engine.md
-    local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic falsification-artifacts repair-mode safety"
+    local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic falsification-artifacts repair-mode safety formalize-outer-loop algorithm formalize-commit-boundary session-generated-provenance statement-safety claim-queue file-assembly-contract review-router"
 
     while IFS= read -r file; do
         # Check links to command-examples.md
@@ -919,7 +922,7 @@ check_integrated_advanced_refs() {
     local _ar_file _ar_base
 
     # Each advanced reference must be linked from SKILL.md and have the scope guard
-    for _ar_base in grind-tactic.md simproc-patterns.md metaprogramming-patterns.md linter-authoring.md ffi-patterns.md verso-docs.md profiling-workflows.md; do
+    for _ar_base in grind-tactic.md simp-reference.md metaprogramming-patterns.md linter-authoring.md ffi-patterns.md verso-docs.md profiling-workflows.md; do
         _ar_file="$ref_dir/$_ar_base"
 
         if [[ ! -f "$_ar_file" ]]; then
@@ -1006,7 +1009,7 @@ check_advanced_reference_metadata() {
     local _am_base _am_file _am_date _am_date_epoch _am_now_epoch _am_age_days
     local _am_refs=(
         "grind-tactic.md"
-        "simproc-patterns.md"
+        "simp-reference.md"
         "metaprogramming-patterns.md"
         "linter-authoring.md"
         "ffi-patterns.md"
@@ -1065,7 +1068,7 @@ check_advanced_reference_language() {
     local _aw_base _aw_line _aw_match
     local _aw_refs=(
         "grind-tactic.md"
-        "simproc-patterns.md"
+        "simp-reference.md"
         "metaprogramming-patterns.md"
         "linter-authoring.md"
         "ffi-patterns.md"
@@ -1102,6 +1105,38 @@ check_advanced_reference_snippets() {
     fi
 }
 
+# Check 23: plugin.json version has a matching CHANGELOG entry
+check_version_changelog() {
+    log ""
+    log "Checking version ↔ changelog..."
+
+    local plugin_json="$PLUGIN_ROOT/.claude-plugin/plugin.json"
+    local changelog
+    changelog="$(cd "$PLUGIN_ROOT" && cd ../.. && pwd)/CHANGELOG.md"
+
+    if [[ ! -f "$plugin_json" ]]; then
+        warn "plugin.json not found at $plugin_json"
+        return
+    fi
+    if [[ ! -f "$changelog" ]]; then
+        warn "CHANGELOG.md not found at $changelog"
+        return
+    fi
+
+    local version
+    version=$(grep -oE '"version": *"[^"]+"' "$plugin_json" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+    if [[ -z "$version" ]]; then
+        warn "Could not extract version from plugin.json"
+        return
+    fi
+
+    if grep -q "## v${version}" "$changelog"; then
+        ok "plugin.json v${version} has matching CHANGELOG entry"
+    else
+        warn "plugin.json version ${version} has no '## v${version}' entry in CHANGELOG.md"
+    fi
+}
+
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
@@ -1130,6 +1165,7 @@ check_stale_plugin_paths
 check_advanced_reference_metadata
 check_advanced_reference_language
 check_advanced_reference_snippets
+check_version_changelog
 
 log ""
 log "================================"

@@ -18,6 +18,7 @@ Quick reference for systematically eliminating custom axioms from Lean 4 proofs.
 **Check axiom usage:**
 ```bash
 bash $LEAN4_SCRIPTS/check_axioms_inline.sh FILE.lean
+bash $LEAN4_SCRIPTS/check_axioms_inline.sh .          # scan entire project
 ```
 
 **For individual theorems:**
@@ -32,6 +33,7 @@ EOF
 **Always prefer the script over manual checks:**
 ```bash
 $LEAN4_SCRIPTS/check_axioms_inline.sh path/to/file.lean
+$LEAN4_SCRIPTS/check_axioms_inline.sh src/   # scan directory recursively
 ```
 
 The script handles namespace inference and filters standard axioms automatically.

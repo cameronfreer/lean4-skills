@@ -1,7 +1,7 @@
 ---
 name: lean4-proof-repair
 description: Compiler-guided iterative proof repair with two-stage model escalation (Haiku → Opus). Use for error-driven proof fixing with small sampling budgets (K=1).
-tools: Read, Grep, Glob, Edit, Bash, lean_goal, lean_local_search, lean_leanfinder, lean_leansearch, lean_loogle, lean_multi_attempt
+tools: Read, Grep, Glob, Edit, Bash, lean_goal, lean_local_search, lean_leanfinder, lean_leansearch, lean_loogle, lean_multi_attempt, lean_diagnostic_messages, lean_run_code
 model: haiku
 thinking: off
 ---
@@ -24,9 +24,9 @@ Structured error context (JSON):
 
 ## Actions
 
-1. **Classify error** from errorType
+1. **Classify error** — `lean_goal(file, line)` + `lean_diagnostic_messages(file)` first, then match errorType
 2. **Apply error-specific strategy** (see table below)
-3. **Search** if needed (LSP-first, fall back to scripts if unavailable):
+3. **Search** if needed (LSP-first; fall back to scripts only when LSP is unavailable, rate-limited, or inconclusive after bounded attempts):
    - `lean_leanfinder("query")` or `lean_local_search("keyword")` first
    - Script fallback: `$LEAN4_SCRIPTS/search_mathlib.sh` only after LSP exhausted
 4. **Generate minimal diff** (1-5 lines)
@@ -71,6 +71,7 @@ Structured error context (JSON):
 - May NOT rewrite entire functions
 - May NOT try random tactics
 - May NOT skip mathlib search
+- Use `lean_diagnostic_messages(file)` for per-edit validation before any Bash-based file gate; prefer `lean_run_code` over temporary `.lean` files for isolated scratch probes
 
 ## Example (Happy Path)
 
@@ -90,13 +91,15 @@ Output:
 **LSP-first order** (use before scripts):
 ```
 lean_goal(file, line)                # LSP live goal
+lean_diagnostic_messages(file)       # Current errors/warnings
 lean_leanfinder("query")            # Semantic search (try first)
 lean_local_search("keyword")        # Local + mathlib
 lean_loogle("type pattern")         # Type-based search
 lean_multi_attempt(file, line, snippets=[...])  # Test candidates
+lean_run_code("code")               # Isolated scratch experiments
 ```
 
-**Script fallback** (only after LSP budget exhausted):
+**Script fallback** (only when LSP is unavailable, rate-limited, or inconclusive after bounded attempts):
 ```bash
 $LEAN4_SCRIPTS/search_mathlib.sh    # Search by pattern
 $LEAN4_SCRIPTS/smart_search.sh      # Multi-source

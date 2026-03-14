@@ -37,17 +37,21 @@ Optimize Lean proofs that already compile. Reduce tactic count, shorten proofs, 
    ```bash
    ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/find_golfable.py" [file] --filter-false-positives
    ```
-3. **Lemma Replacement** (if `--search=quick` or `full`):
+3. **Exact-Collapse Pass** (bounded) — For apply/exact chain anchors from `$LEAN4_SCRIPTS/find_golfable.py`:
+   - **Mechanical** (≤30 anchors/file): Construct collapsed `exact` from tactic structure → `lean_multi_attempt` + `lean_diagnostic_messages` baseline check (no new diagnostics, no sorry increase). Accept if net decrease + readability not worse.
+   - **Exploratory** (when `--search≠off`; consumes `--search` budget): On remaining single-goal anchors, build candidate `exact` terms from chain lemmas + local hypotheses + dot-notation rewrites → `lean_multi_attempt` + diagnostics check. Probe caps are phase-local: `quick` ≤5 probes/file; `full` ≤15 probes/file; ≤2 probes/anchor. Time budget is shared with lemma replacement (step 4): `quick` 30s total, `full` 60s total across both phases.
+   - Skip: `calc`, `cases`/`induction`, multi-goal branches, blocks >7 lines, semicolon-heavy (>3), blocks with `have`/`refine`. `constructor` chains are handled by the existing instant-win rule, not this pass.
+4. **Lemma Replacement** (if `--search=quick` or `full`):
    - Run LSP searches per candidate; test with `lean_multi_attempt`
-   - `quick`: 1 search, ≤2 candidates; `full`: 2 searches, ≤3 candidates; budget ≤3 search calls, ≤60s
+   - `quick`: 1 search, ≤2 candidates; `full`: 2 searches, ≤3 candidates; ≤3 search calls; uses remaining shared time budget
    - Accept only shortest passing replacement with net size decrease
    - Hand off to axiom-eliminator if replacement needs statement changes or multi-file refactor
-4. **Verify Safety** - Check usage before inlining:
+5. **Verify Safety** - Check usage before inlining:
    ```bash
    ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/analyze_let_usage.py" [file] --line [line]
    ```
-5. **Apply** - Make changes with `lean_diagnostic_messages` after each; `lake build` for final verification
-6. **Report** - Show savings and saturation status
+6. **Apply** - Make changes with `lean_diagnostic_messages` after each; `lake build` for final verification
+7. **Report** - Show savings and saturation status
 
 ## Golfing Patterns
 
@@ -59,6 +63,7 @@ Optimize Lean proofs that already compile. Reduce tactic count, shorten proofs, 
 | `ext x; rfl` | `rfl` |
 | `simp; rfl` | `simp` |
 | `constructor; exact h1; exact h2` | `exact ⟨h1, h2⟩` |
+| `apply f; exact h` | `exact f h` |
 
 ### Safe with Verification
 

@@ -61,91 +61,57 @@ If `--planning=off`, skip initial planning but stuck-triggered replan is still m
 
 ## Actions
 
-Each cycle has 6 phases:
+Each cycle has 6 phases — see [cycle-engine.md](../skills/lean4/references/cycle-engine.md) for shared mechanics.
 
 ### Phase 1: Plan
 
-LSP-first discovery is **normative** (see [cycle-engine.md](../skills/lean4/references/cycle-engine.md#lsp-first-protocol)).
-
-1. **Discover state** — `lean_diagnostic_messages(file)` for errors/warnings, `lean_goal(file, line)` at each sorry
-2. **Search** — up to 3 LSP search tools (~30s): `lean_local_search`, one of `lean_leanfinder`/`lean_leansearch`, and `lean_loogle`. Record top candidates per sorry. Skip extended search for trivial goals.
-3. **Show plan** — list sorries found with top candidates, proposed order, get confirmation
+See [cycle-engine: LSP-First Protocol](../skills/lean4/references/cycle-engine.md#lsp-first-protocol). Discover sorries via LSP, search with up to 3 tools (~30s), show plan and get confirmation.
 
 ### Phase 2: Work (Per Sorry)
 
-See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) for detailed tactics. LSP-first is **normative** (see [cycle-engine.md](../skills/lean4/references/cycle-engine.md#lsp-first-protocol)).
+See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) and [cycle-engine: LSP-First Protocol](../skills/lean4/references/cycle-engine.md#lsp-first-protocol).
 
-1. **Understand** — refresh `lean_goal(file, line)` + read surrounding code
-2. **Search** — up to 2 LSP search tools (`lean_local_search` + one of `lean_leanfinder`/`lean_leansearch`/`lean_loogle`) before script fallback (skip if trivial or prior search was conclusive)
-3. **Generate candidates** — 2-3 candidate snippets from search results
-4. **Test** — `lean_multi_attempt(file, line, snippets=[...])`, prefer shortest passing candidate
-5. **Preflight falsification** (if goal is decidable/finite)
-   - Only for: `Fin n`, `Bool`, `Option`, small `Sum` types, bound-quantified `Nat`
-   - Try: `decide`, `simp with decide`, `native_decide`
-   - Time-boxed: 30–60s max
-   - If counterexample found → create `T_counterexample`, skip to salvage
-   - If no witness quickly → continue to proof attempts
-6. **Try tactics** (if no candidate passed) — `rfl`, `simp`, `ring`, `linarith`, `nlinarith`, `omega`, `exact?`, `apply?`, `grind`, `aesop`
-7. **Validate** — Use LSP diagnostics (`lean_diagnostic_messages`) to check sorry count decreased. Reserve `lake build` for review checkpoints or explicit `/lean4:checkpoint`.
-8. **Stage & Commit** — If `--commit=never`, skip staging and committing entirely. Otherwise, stage only files touched during this sorry (`git add <edited files>`), then:
+1. Refresh goal → search → generate 2-3 candidates → test via `lean_multi_attempt`
+2. Preflight falsification for decidable/finite goals (30-60s max)
+3. Tactic cascade if no candidate passed
+4. Validate via `lean_diagnostic_messages`
+5. Stage & commit (see below)
 
-   **Commit prompt** (when `--commit=ask`, the default):
-   Show the diff and ask before each commit:
-   ```
-   About to commit: fill: trivial_lemma - exact Nat.zero_le
-   Files: Helpers.lean
-   Diff: +1 -1 line
+**Staging rule:** If `--commit=never`, skip staging and committing entirely. Otherwise, stage only the files touched by this fill (`git add <edited files>`) — never `git add -A` or broad patterns.
 
-   Commit this? [yes / yes-all / no / never]
-   ```
-   - **yes** — commit this fill, prompt again for the next one
-   - **yes-all** — commit this and all future fills without prompting (switches to `auto` for rest of session)
-   - **no** — unstage (`git reset HEAD <files>`), skip this fill's commit, prompt again for the next one
-   - **never** — unstage (`git reset HEAD <files>`), skip all commits for rest of session (switches to `never` mode)
-
-   On **no** or **never**, always unstage so declined changes are not carried into a later commit.
-
-   If `--commit=auto`, commit without prompting.
+**Commit behavior** (unique to prove):
+Show diff and ask before each commit when `--commit=ask` (default):
+```
+Commit this? [yes / yes-all / no / never]
+```
+- **yes** — commit, prompt again next time
+- **yes-all** — switch to `auto` for rest of session
+- **no** — unstage (`git reset HEAD <files>`), skip this commit
+- **never** — unstage, skip all remaining commits for session
 
 **Constraints:** Max 3 candidates per sorry, ≤80 lines diff, NO statement changes, NO cross-file refactoring (fast path).
 
 ### Phase 3: Checkpoint
 
-If `--commit=never` (or the user chose **never** at the commit prompt), skip the checkpoint commit entirely — changes remain in the working tree.
-
-Otherwise, if `--checkpoint` is enabled and there is a non-empty diff:
-- Stage only files from **accepted** fills that were not already committed individually: `git add <accepted files>`
-- Do **not** re-stage files from declined fills — those stay in the working tree only
-- Do **not** re-stage files from rolled-back deep invocations — those are restored to pre-deep state
-- Commit: `git commit -m "checkpoint(lean4): [summary]"`
-
-If no files changed during this cycle, emit:
-> No changes this cycle — skipping checkpoint
-
-Do NOT create an empty commit. Checkpoint requires a non-empty diff.
+See [cycle-engine: Checkpoint Logic](../skills/lean4/references/cycle-engine.md#checkpoint-logic). Stage only files from **accepted** fills; exclude declined fills and rolled-back deep invocations.
 
 ### Phase 4: Review
 
-At configured intervals (`--review-every`), run review matching current scope:
-- Working on single sorry → `--scope=sorry --line=N`
-- Working on file → `--scope=file`
-- Never trigger `--scope=project` automatically
+See [cycle-engine: Review Phase](../skills/lean4/references/cycle-engine.md#review-phase). Runs at configured `--review-every` intervals.
 
 ### Phase 5: Replan
 
-After review → enter planner mode → produce/update action plan. Work phase follows that plan next cycle.
+See [cycle-engine: Replan Phase](../skills/lean4/references/cycle-engine.md#replan-phase).
 
 ### Phase 6: Continue / Stop
 
 Prompt the user after each full cycle:
-
 ```
 Cycle complete. Filled N/M sorries this cycle.
 - [continue] — run next cycle
 - [stop] — save progress and exit
 - [adjust] — change flags for next cycle
 ```
-
 Never auto-start the next cycle. Always ask.
 
 ## Deep Mode

@@ -23,7 +23,7 @@ LSP tools are the normative first-pass for all discovery, search, and validation
 
 **Planning phase (per target sorry):**
 1. `lean_goal(file, line)` — understand goal before ordering
-2. Up to 3 LSP search tools (time-boxed ~30s total): `lean_local_search`, one of `lean_leanfinder`/`lean_leansearch`/`lean_hammer_premise`, and `lean_loogle`
+2. Up to 3 LSP search tools (time-boxed ~30s total): `lean_local_search`, preferably `lean_leanfinder` for semantic/goal-aware search (`lean_leansearch` for natural-language fallback, `lean_hammer_premise` for premise suggestions), and `lean_loogle` for type-pattern gaps
 3. Record top candidate lemmas and intended next attempts in the plan
 4. **Trivial-goal shortcut:** If the goal is obviously solvable (`rfl`, `simp`, `exact` with a known lemma), skip extended search — proceed directly to work phase
 
@@ -281,6 +281,96 @@ Blocked git commands (both prove and autoprove):
 - `git commit --amend` (preserve history)
 - `gh pr create` (review first)
 - `git checkout --`/`git restore`/`git reset --hard`/`git clean` (use `git stash push -u` or revert commit)
+
+## Formalize Outer Loop
+
+Optional wrapper around the inner 6-phase cycle. Activated by `/lean4:autoprove --formalize=restage|auto`. Default `--formalize=never` leaves all behavior unchanged.
+
+### Algorithm
+
+Two entry shapes depending on whether `--source` is provided:
+
+```
+# Source-backed (--formalize=auto with --source):
+extract claim queue from --source (filtered by --claim-select) at startup
+while queue non-empty AND no stop rule:
+  1. Statement Acquisition:
+       pop next claim → invoke formalize → validate (lean_diagnostic_messages)
+       if --commit != never: stage target, commit "formalize: <summary>"
+       add emitted declarations to provenance set
+  2. Inner Cycle — run standard 6-phase cycle (unchanged)
+  3. If inner cycle exited via stuck:
+       Review Router — read next_action from stuck review
+       3a. formalize-restage → re-formalize (check provenance + statement-policy); commit if allowed
+       3b. Other next_action values → dispatch accordingly
+     Else (sorry-free or stop rule):
+       Advance to next claim
+
+# Scope-backed (--formalize=restage, no --source):
+  1. Inner Cycle — run standard 6-phase cycle on existing scope (unchanged)
+  2. If inner cycle exited via stuck:
+       Review Router — read next_action
+       2a. formalize-restage → re-formalize stuck declaration (check provenance + statement-policy)
+       2b. Other next_action values → dispatch accordingly
+     Else: normal exit
+```
+
+### Formalize Commit Boundary
+
+Formalize writes skeleton to a temp file (see [File Assembly Contract](#file-assembly-contract)); the outer loop appends to the target, validates with `lean_diagnostic_messages`, stages only target file, and commits with `formalize:` prefix. Clean rollback boundary between statement-shaping and proof-filling.
+
+If `--commit=never`, the outer loop skips staging and committing — the skeleton is still written to the target file (working tree only), but no `formalize:` commit is created. Provenance tracking still works because it is in-memory, not git-based.
+
+### Session-Generated Provenance
+
+Tracks which statements were introduced by formalize within the current autoprove invocation:
+
+- **Representation**: in-memory set of `(file, declaration_name)` pairs, built during the session.
+- **Population**: each formalize call appends its emitted declarations to the set.
+- **Scope**: lives for the duration of one `/lean4:autoprove` invocation. Not persisted to disk.
+- **On restart/resume**: provenance is empty. All existing statements are treated as user-authored (`preserve`). Conservative by design.
+- **On replan within same invocation**: provenance persists (in-memory state is not cleared).
+- **Usage**: `--statement-policy=rewrite-generated-only` checks this set before allowing restage rewrites.
+
+### Statement Safety
+
+| `--statement-policy` | User-authored | Session-generated | On restage |
+|---------------------|---------------|-------------------|------------|
+| `preserve` | Never rewrite | Never rewrite | Error: manual intervention needed |
+| `rewrite-generated-only` | Never rewrite | May rewrite | Rewrite if in provenance set; else create `T_salvaged` sibling |
+| `adjacent-drafts` | Never rewrite | Never rewrite | Create `T_salvaged` sibling |
+
+When `--formalize=restage|auto`, the effective default changes from `preserve` to `rewrite-generated-only` (with startup warning). This allows autonomous restage of session-generated statements. Explicit `--statement-policy=preserve` is respected but causes stuck restage to halt with an error rather than rewrite automatically.
+
+### Claim Queue
+
+- **Source**: single extraction pass from `--source` at autoprove startup, filtered by `--claim-select`. Uses formalize's ingestion logic (PDF → Read, URL → fetch, `.lean` → Read).
+- **Order**: document order (position in source). Deterministic across re-runs of the same source.
+- **Storage**: in-memory ordered list. Not persisted to disk.
+- **On restart**: re-extraction from `--source` produces same queue; cursor resets to beginning. Already-formalized claims detected via declaration-head matching in the target file.
+- **Iteration**: outer loop processes one claim at a time — pop next claim, pass it directly to formalize as the topic, run inner cycle to completion, then advance. The `--claim-select` flag filters claims at queue-extraction time only; individual formalize calls receive a single pre-selected claim. Queue management is autoprove-internal — formalize never sees `queue` as a selection policy.
+
+### File Assembly Contract
+
+- Formalize emits declaration-only blocks (no imports/opens/section wrappers) to temp path when `--caller=autoprove`. Declarations use fully-qualified names — no `open`/`open scoped` needed.
+- Import dependencies expressed as `-- needs-import: <module>` comments at top of temp output. This is the only structured signal.
+- Outer loop maintains target file preamble: deduplicates `-- needs-import:` lines, prepends new imports, appends declarations with `-- formalize: <claim> (<timestamp>)` boundary markers.
+- Declaration-name collision check before each append: match `theorem <name>`, `def <name>`, `lemma <name>`, etc. at line start in target file. If found, skip (already formalized in a prior run).
+
+### Review Router
+
+Stuck-mode review emits a `next_action` field. The outer loop dispatches:
+
+| `next_action` | Outer loop response |
+|---------------|---------------------|
+| `continue` | Resume inner cycle with revised plan |
+| `deep` | Escalate to deep mode |
+| `repair` | Enter repair mode for compiler blockers |
+| `formalize-restage` | Re-formalize the stuck declaration (check provenance + statement-policy) |
+| `golf` | Run golf pass on sorry-free file |
+| `stop` | Halt current claim, advance to next (or stop if queue empty) |
+
+`next_action` is informational when the outer loop is inactive (`--formalize=never`). When active, it is the routing gate.
 
 ## See Also
 

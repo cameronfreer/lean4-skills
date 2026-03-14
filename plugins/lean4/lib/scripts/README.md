@@ -50,6 +50,9 @@ Verify theorems use only standard mathlib axioms.
 # Check multiple files (batch mode)
 ./check_axioms_inline.sh "src/**/*.lean"
 
+# Scan a directory (recursively, skips .lake/.git)
+./check_axioms_inline.sh src/
+
 # Report-only (exit 0 even with custom axioms)
 ./check_axioms_inline.sh MyFile.lean --report-only
 ```
@@ -191,7 +194,7 @@ Keep stderr visible when invoking scripts; suppressing stderr to `/dev/null` hid
 
 ## Reference Documentation
 
-For tactic suggestions, proof templates, and simp hygiene best practices, see:
+For tactic suggestions, proof templates, simp hygiene, and simproc guidance, see:
 - [tactic-patterns.md](../../skills/lean4/references/tactic-patterns.md)
 - [proof-templates.md](../../skills/lean4/references/proof-templates.md)
-- [simp-hygiene.md](../../skills/lean4/references/simp-hygiene.md)
+- [simp-reference.md](../../skills/lean4/references/simp-reference.md)

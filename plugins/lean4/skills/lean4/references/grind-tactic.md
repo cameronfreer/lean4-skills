@@ -18,6 +18,9 @@
 - [Common Gotchas](#common-gotchas)
 - [Interactive Mode](#interactive-mode)
 - [Known Limitations](#known-limitations)
+- [Suggestions and Locals](#suggestions-and-locals)
+- [Simproc Escalation](#simproc-escalation)
+- [Anti-Patterns](#anti-patterns)
 - [Related References](#related-references)
 
 ## Quick Path
@@ -135,20 +138,38 @@ grind [-lemma3]
 
 ## Controls and Performance
 
-Key knobs:
+Key knobs (defaults from `Init/Grind/Config.lean`):
 
 ```lean
--- Case-splitting budget.
+-- Case-splitting budget (default 9).
 grind (splits := 0)
 grind (splits := 8)
+
+-- E-matching rounds per split phase (default 5).
+grind (ematch := 3)
+
+-- Theorem-instantiation generation limit (default 8).
+grind (gen := 5)
+
+-- Max E-matching instances per branch (default 1000).
+grind (instances := 300)
 
 -- Split sources.
 grind -splitIte -splitMatch +splitImp
 
 -- Solver toggles.
-grind -lia -linarith -ring
+grind -lia -linarith -ring -ac
+
+-- Faster but incomplete integer arithmetic (rational relaxation).
+grind +qlia
 
 grind -funCC +revert -reducible
+```
+
+Good first pass for slowdown diagnosis:
+
+```lean
+grind (splits := 4) (ematch := 3) (instances := 300) (gen := 5) -splitIte -splitMatch
 ```
 
 Performance tips:
@@ -156,6 +177,13 @@ Performance tips:
 2. Keep splitting bounded before adding large hint sets.
 3. Disable subsystems you do not need (`-ring`, `-linarith`, etc.).
 4. Prefer specialized tactics when a single theory dominates.
+5. Use traces to diagnose search behavior:
+
+```lean
+set_option trace.grind.ematch.instance true in
+set_option trace.grind.split true in
+grind
+```
 
 ## The `@[grind]` and `@[grind_pattern]` Attributes
 
@@ -172,18 +200,29 @@ Performance tips:
   exact h.left
 ```
 
-Use `@[grind]` sparingly on lemmas with stable, reusable patterns.
+Full attribute variant list:
+- `@[grind]`: default pattern inference
+- `@[grind =]`, `@[grind =_]`, `@[grind _=_]`: equality-oriented matching
+- `@[grind →]`, `@[grind ←]`: forward/backward oriented matching
+- `@[grind cases]`, `@[grind cases eager]`: split guidance for inductive predicates
+- `@[grind intro]`: use constructors of an inductive predicate as matching rules
+- `@[grind inj]`, `@[grind ext]`, `@[grind funCC]`, `@[grind norm]`, `@[grind unfold]`
+- `@[grind!]`: minimal indexable subexpression pattern selection
+
+Use `@[grind]` sparingly on lemmas with stable, reusable patterns. Keep exploratory annotations local first (`@[local grind ...]`); promote to global only after repeated wins across files.
 
 ### `@[grind_pattern]` for E-matching Shape
 
-When automatic pattern extraction is poor, `@[grind_pattern]` can improve matching behavior (especially on newer versions with constraints/guards):
+When automatic pattern extraction is poor, use explicit patterns:
 
 ```lean
--- Sketch: attach grind_pattern metadata to shape triggering.
-@[grind_pattern] theorem map_fusion (f g : α → α) (x : α) :
-    List.map f (List.map g [x]) = List.map (fun y => f (g y)) [x] := by
-  simp
+grind_pattern myThm => f x, g y where
+  guard x ≤ y
+  x =/= y
+  depth x < 8
 ```
+
+Supported constraints: `guard`, `check`, `size`, `depth`, `gen`, `max_insts`, value/ground predicates (`is_ground`, `is_value`, `is_strict_value`, `not_value`, `not_strict_value`), and definitional equality/inequality guards (`x =?= t`, `x =/= t`).
 
 Use this only when ordinary `@[grind]` registration is insufficient and profiling shows matching misses.
 
@@ -217,7 +256,7 @@ example [CommRing R] [NoZeroDivisors R] (h : x * y = 0) (hx : x ≠ 0) : y = 0 :
 
 ## Interactive Mode
 
-Interactive mode (`grind =>`) is useful mainly for debugging and targeted control.
+Use `grind => ...` as the default development mode — it is the most observable and steerable path.
 
 ```lean
 example (a b c : Nat) (h1 : a = b) (h2 : b = c) : a = c := by
@@ -227,10 +266,33 @@ example (a b c : Nat) (h1 : a = b) (h2 : b = c) : a = c := by
 ```
 
 Common commands:
-- `show_state`, `show_eqcs`, `show_cases`
+- `show_state`, `show_eqcs`, `show_cases`, `show_asserted`
 - `cases?`, `cases_next`
 - `instantiate [thm]`
+- `have` (inject missing intermediate facts)
 - `done` / `finish` / `finish?`
+
+### Debugging Loop
+
+```lean
+grind =>
+  show_state
+  instantiate
+  first
+    (show_asserted)
+    (skip)
+  first
+    (show_cases)
+    (skip)
+  first
+    (cases_next)
+    (skip)
+  first
+    (finish)
+    (skip)
+```
+
+Note: on well-annotated goals, `instantiate` may close the goal entirely. Guard trailing steps with `first ... (skip)` to avoid "no goals to be solved" errors. Once stable, replace ad-hoc `have` steps with annotations or `grind_pattern` so the proof can collapse toward `grind`/`grind only [...]`.
 
 ### Version-Sensitive `instantiate`
 
@@ -268,9 +330,55 @@ example : ∀ x : BitVec 64, (x &&& 0) = 0 := by
 
 4. Structural proofs (e.g., injectivity with induction/extensionality) usually need explicit proof structure.
 
+## Suggestions and Locals
+
+`grind` supports premise selection via `+suggestions` and local-library harvesting via `+locals`.
+
+Staged workflow:
+1. Prototype: `grind +suggestions +locals`
+2. Minimize: run `grind?`, adopt `grind only [...]` when stable
+3. Stabilize: convert repeatedly selected lemmas into `@[local grind ...]` / `@[local simp]`
+4. Promote to global annotations only after repeated success across files
+
+In large API files, prefer aggressive local annotations first so repetitive theorem arguments disappear. This keeps exploration fast while converging to deterministic proofs.
+
+## Simproc Escalation
+
+Create a simproc only when all are true:
+- the same rewrite pattern recurs across multiple goals/files
+- `simp` lemmas are noisy, fragile, or expensive
+- the reduction is deterministic and terminating
+
+For each simproc:
+- guard on expression head/arity
+- return `.continue` when not applicable
+- prefer definitional reduction via `whnf` (`dsimproc`)
+- keep the scope local unless reuse is proven
+
+Template:
+
+```lean
+import Lean
+open Lean Meta Simp
+
+dsimproc [simp] reduceFoo (Foo _ _) := fun e => do
+  unless e.isAppOfArity ``Foo 2 do
+    return .continue
+  let e' ← whnf e
+  return .done e'
+```
+
+## Anti-Patterns
+
+- Running `grind` first on unsimplified goals with large contexts
+- Adding broad global simp lemmas to help one stubborn goal
+- Introducing simprocs for one-off rewrites
+- Keeping fallback tactic chains in final proof scripts
+- Long-term dependence on `+suggestions` when stable annotations would make proofs deterministic
+
 ## Related References
 
 - [tactics-reference.md](tactics-reference.md) - Compact tactic catalog with quick `grind` entry
-- [simproc-patterns.md](simproc-patterns.md) - `simp`-side deterministic rewrite patterns
+- [simp-reference.md](simp-reference.md) - Simp hygiene + deterministic rewrite patterns
 - [Lean 4 Reference: The grind tactic](https://lean-lang.org/doc/reference/latest/The--grind--tactic/)
 - [Lean Releases](https://lean-lang.org/doc/reference/latest/releases/) - version-specific behavior

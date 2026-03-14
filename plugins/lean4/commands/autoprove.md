@@ -44,6 +44,12 @@ Autonomous multi-cycle theorem proving. Runs cycles automatically with hard stop
 | --max-cycles | No | 20 | Hard stop: max total cycles |
 | --max-total-runtime | No | 120m | Hard stop: max total runtime |
 | --max-stuck-cycles | No | 3 | Hard stop: max consecutive stuck cycles |
+| --formalize | No | never | `never` \| `restage` \| `auto`. See Formalize Outer Loop. |
+| --source | No | — | File path, URL, or PDF for claim extraction. Required when `--formalize=auto`. |
+| --claim-select | No | — | `first` \| `named:"..."` \| `regex:"..."`. Queue-extraction filter applied once at startup. Required when `--formalize=auto`. Ignored without `--source`. |
+| --formalize-rigor | No | sketch | `sketch` \| `checked`. Rigor for formalize skeleton. |
+| --statement-policy | No | preserve | `preserve` \| `rewrite-generated-only` \| `adjacent-drafts`. Default becomes `rewrite-generated-only` when `--formalize=restage\|auto` (see flag validation). |
+| --formalize-out | No | — | Target file for formalized claims. Required if no existing target in scope. |
 
 ### Review Source Coercion
 
@@ -59,6 +65,17 @@ Autoprove accepts all `--review-source` values for flag compatibility with `/lea
 > 3. Safe fallback to internal review on external failure
 > 4. Explicit opt-in flag, not default behavior
 
+### Formalize Flag Validation
+
+- `--formalize=auto` requires `--source`; error if missing.
+- `--formalize=auto` with `--source` requires `--claim-select`; error if missing (no unattended guessing).
+- `--formalize=auto` requires `--formalize-out` when no existing target file is in scope; error if missing.
+- `--formalize=restage` does NOT require `--source` — operates on existing scope with restage enabled on stuck. `--source` is ignored if provided (warn).
+- `--formalize=never` ignores `--source` (warn if provided).
+- `--formalize=restage|auto` with default `--statement-policy` coerces `preserve` → `rewrite-generated-only` at startup (warn). Explicit `--statement-policy=preserve` is respected but warns: stuck restage becomes manual intervention, not automatic rewrite.
+- `--claim-select` is a queue-extraction filter applied once at startup. Internal formalize calls receive individual popped claims, not the full `--source`.
+- `--claim-select` without `--source` is ignored (no effect).
+
 ## Startup Behavior
 
 No questionnaire. Discover state and start immediately.
@@ -72,68 +89,59 @@ No questionnaire. Discover state and start immediately.
 
 ## Actions
 
-Each cycle has 6 phases (same engine as `/lean4:prove`):
+Each cycle has 6 phases — see [cycle-engine.md](../skills/lean4/references/cycle-engine.md) for shared mechanics.
 
 ### Phase 1: Plan
 
-Discover current state via LSP-first protocol (see [cycle-engine.md](../skills/lean4/references/cycle-engine.md#lsp-first-protocol)): `lean_goal` at each sorry, up to 3 LSP search tools (~30s), record top candidates. Identify sorries, set order.
+See [cycle-engine: LSP-First Protocol](../skills/lean4/references/cycle-engine.md#lsp-first-protocol). Discover sorries via LSP, search with up to 3 tools (~30s), identify sorries, set order.
 
 ### Phase 2: Work (Per Sorry)
 
-See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) for detailed tactics. LSP-first is **normative** (see [cycle-engine.md](../skills/lean4/references/cycle-engine.md#lsp-first-protocol)).
+See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) and [cycle-engine: LSP-First Protocol](../skills/lean4/references/cycle-engine.md#lsp-first-protocol).
 
-1. **Understand** — refresh `lean_goal(file, line)` + read surrounding code
-2. **Search** — up to 2 LSP search tools (`lean_local_search` + one of `lean_leanfinder`/`lean_leansearch`/`lean_loogle`) before script fallback (skip if trivial or prior search was conclusive)
-3. **Generate candidates** — 2-3 candidate snippets from search results
-4. **Test** — `lean_multi_attempt(file, line, snippets=[...])`, prefer shortest passing candidate
-5. **Preflight falsification** (if goal is decidable/finite)
-   - Only for: `Fin n`, `Bool`, `Option`, small `Sum` types, bound-quantified `Nat`
-   - Try: `decide`, `simp with decide`, `native_decide`
-   - Time-boxed: 30–60s max
-   - If counterexample found → create `T_counterexample`, skip to salvage
-   - If no witness quickly → continue to proof attempts
-6. **Try tactics** (if no candidate passed) — `rfl`, `simp`, `ring`, `linarith`, `nlinarith`, `omega`, `exact?`, `apply?`, `grind`, `aesop`
-7. **Validate** — Use LSP diagnostics (`lean_diagnostic_messages`) to check sorry count decreased. Reserve `lake build` for review checkpoints or explicit `/lean4:checkpoint`.
-8. **Stage & Commit** — If `--commit=never`, skip staging and committing entirely. Otherwise, stage only files touched during this sorry (`git add <edited files>`), then commit:
-   `git commit -m "fill: [theorem] - [tactic]"`
+1. Refresh goal → search → generate 2-3 candidates → test via `lean_multi_attempt`
+2. Preflight falsification for decidable/finite goals (30-60s max)
+3. Tactic cascade if no candidate passed
+4. Validate via `lean_diagnostic_messages`
+5. Stage & commit
 
-   Default `--commit=auto` — commits without prompting. Use `--commit=never` to skip all commits.
+**Staging rule:** If `--commit=never`, skip staging and committing entirely. Otherwise, stage only the files touched by this fill (`git add <edited files>`) — never `git add -A` or broad patterns. Commit: `git commit -m "fill: [theorem] - [tactic]"`.
 
-   **Note:** `--commit=ask` is accepted for flag compatibility but **coerced to `auto`** at startup:
-   > ⚠ --commit=ask requires interactive confirmation. Using auto for unattended operation.
+**Commit behavior** (unique to autoprove):
+Default `--commit=auto` — commits without prompting. `--commit=ask` is coerced to `auto` at startup:
+> ⚠ --commit=ask requires interactive confirmation. Using auto for unattended operation.
 
-   Autoprove never blocks waiting for interactive input.
+Autoprove never blocks waiting for interactive input.
 
-**Constraints:** Max 3 candidates per sorry, ≤80 lines diff, NO statement changes, NO cross-file refactoring (fast path).
+**Constraints:** Max 3 candidates per sorry, ≤80 lines diff, NO statement changes (inner cycle; see Formalize Outer Loop for `--formalize` modes), NO cross-file refactoring (fast path).
 
 ### Phase 3: Checkpoint
 
-If `--commit=never`, skip the checkpoint commit entirely — changes remain in the working tree.
-
-Otherwise, if `--checkpoint` is enabled and there is a non-empty diff:
-- Stage only files from successful, non-rolled-back work: `git add <successful files>`
-- Do NOT stage files from rolled-back deep invocations — those are restored to pre-deep state
-- Commit: `git commit -m "checkpoint(lean4): [summary]"`
-
-If no files changed during this cycle, emit:
-> No changes this cycle — skipping checkpoint
-
-Do NOT create an empty commit. Checkpoint requires a non-empty diff.
+See [cycle-engine: Checkpoint Logic](../skills/lean4/references/cycle-engine.md#checkpoint-logic). Stage only files from successful work; exclude rolled-back deep invocations.
 
 ### Phase 4: Review
 
-At configured intervals (`--review-every`), run review matching current scope:
-- Working on single sorry → `--scope=sorry --line=N`
-- Working on file → `--scope=file`
-- Never trigger `--scope=project` automatically
+See [cycle-engine: Review Phase](../skills/lean4/references/cycle-engine.md#review-phase). Runs at configured `--review-every` intervals.
 
 ### Phase 5: Replan
 
-After review → enter planner mode → produce/update action plan. Work phase follows that plan next cycle.
+See [cycle-engine: Replan Phase](../skills/lean4/references/cycle-engine.md#replan-phase).
 
 ### Phase 6: Continue / Stop
 
 **Autonomous loop:** Auto-runs cycles without per-cycle user prompts. Checkpoint + review + replan at each cycle boundary ("come up for air").
+
+## Formalize Outer Loop
+
+When `--formalize` is not `never`, autoprove wraps the inner 6-phase cycle with formalize-driven statement acquisition (source-backed for `auto`, scope-backed for `restage`) and review-driven routing.
+
+| Mode | Behavior |
+|------|----------|
+| `never` (default) | No outer loop. Identical to pre-change behavior. |
+| `restage` | No claim queue. Run inner cycle on existing scope; on stuck, re-formalize if `next_action=formalize-restage` (subject to `--statement-policy`). |
+| `auto` | Full loop: extract claims from `--source`, formalize each, prove, restage on stuck (subject to `--statement-policy`). |
+
+The inner 6-phase cycle is unchanged. The outer loop reads the stuck-mode `next_action` field from review as its routing gate. See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#formalize-outer-loop) for the full algorithm, provenance tracking, claim queue, and file assembly contract.
 
 ## Stop Conditions
 
@@ -144,6 +152,7 @@ Autoprove stops when the **first** of these is satisfied:
 3. **Max cycles** — `--max-cycles` total cycles reached (default: 20)
 4. **Max runtime** — `--max-total-runtime` elapsed (default: 120m)
 5. **Manual user stop** — user interrupts
+6. **Queue empty** — all claims attempted; expected completion for `--formalize=auto` sessions
 
 ## Structured Summary on Stop
 
@@ -152,7 +161,7 @@ When autoprove stops (for any reason), emit:
 ```
 ## Autoprove Summary
 
-**Reason stopped:** [completion | max-stuck | max-cycles | max-runtime | user-stop]
+**Reason stopped:** [completion | max-stuck | max-cycles | max-runtime | user-stop | queue-empty]
 
 | Metric | Value |
 |--------|-------|
@@ -162,11 +171,13 @@ When autoprove stops (for any reason), emit:
 | Stuck cycles | S |
 | Deep invocations | D |
 | Time elapsed | T |
+| Formalizations | F |
 
 **Handoff recommendations:**
 - [If incomplete: "Run /lean4:prove for guided work on remaining N sorries"]
 - [If stuck: "Review stuck blockers: file:line, file:line"]
 - [If clean: "All sorries filled. Run /lean4:checkpoint to save."]
+- [If claims remaining: "N claims remaining in queue. Re-run with same --source and --formalize-out to continue (existing claims detected via target file)."]
 ```
 
 ## Deep Mode
@@ -175,7 +186,7 @@ Bounded subroutine for stubborn sorries. Default: `stuck` (auto-escalate when st
 
 Modes: `never` | `stuck` (default, auto on stuck) | `always` (auto on any failure). Note: `ask` is coerced to `stuck` (no interactive prompting in autoprove).
 
-Statement changes are logged but auto-skipped. Use `/lean4:prove` for interactive approval.
+Statement changes are logged but auto-skipped. When `--formalize` is active, statement work is handled by the outer loop's formalize-restage path, not by deep mode. Use `/lean4:prove` for interactive approval.
 
 **Safety:** Deep creates a path-scoped pre-deep snapshot, enforces scope/diff budgets, and auto-rolls back on regression. Rollback marks the sorry as stuck with reason.
 
@@ -211,6 +222,7 @@ Guardrailed git commands are blocked. See [cycle-engine.md](../skills/lean4/refe
 
 ## See Also
 
+- `/lean4:formalize` - Turn informal math into Lean statements
 - `/lean4:prove` - Guided cycle-by-cycle proving
 - `/lean4:checkpoint` - Manual save point
 - `/lean4:review` - Quality check (read-only)
