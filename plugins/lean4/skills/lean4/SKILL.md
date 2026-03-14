@@ -1,6 +1,6 @@
 ---
 name: lean4
-description: "Use when editing .lean files, debugging Lean 4 builds (type mismatch, sorry, failed to synthesize instance, axiom warnings, lake build errors), searching mathlib for lemmas, formalizing mathematics in Lean, or learning Lean 4 concepts. Also trigger when the user asks for help with Lean 4, mathlib, or lakefile. Do NOT trigger for Coq, Agda, Isabelle, or other non-Lean proof assistants."
+description: "Use when editing .lean files, debugging Lean 4 builds (type mismatch, sorry, failed to synthesize instance, axiom warnings, lake build errors), searching mathlib for lemmas, formalizing mathematics in Lean, or learning Lean 4 concepts. Also trigger when the user asks for help with Lean 4, mathlib, or lakefile. Do NOT trigger for Coq/Rocq, Agda, Isabelle, HOL4, Mizar, Idris, Megalodon, or other non-Lean theorem provers."
 ---
 
 # Lean 4 Theorem Proving
@@ -26,6 +26,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | `/lean4:autoprove` | Autonomous multi-cycle proving with stop rules |
 | `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
 | `/lean4:review` | Quality audit (`--mode=batch` or `--mode=stuck`) |
+| `/lean4:refactor` | Strategy-level proof simplification |
 | `/lean4:golf` | Optimize proofs for brevity |
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
 | `/lean4:doctor` | Plugin troubleshooting and migration help |
@@ -39,29 +40,36 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | Filling sorries (unattended) | `/lean4:autoprove` |
 | Verified save point | `/lean4:checkpoint` |
 | Quality check (read-only) | `/lean4:review` |
+| Simplify proof strategies (mathlib leverage, helpers) | `/lean4:refactor` |
 | Optimizing compiled proofs | `/lean4:golf` |
 | New to this project / exploring | `/lean4:learn --mode=repo` |
 | Navigating mathlib for a topic | `/lean4:learn --mode=mathlib` |
 | Something not working | `/lean4:doctor` |
+| Formalize + prove end-to-end | `/lean4:autoprove --formalize=auto --source=... --claim-select=first --formalize-out=...` |
 
 ## Typical Workflow
 
 ```
+/lean4:formalize           Turn informal math into Lean statements (optional entry)
+        ↓
 /lean4:prove               Guided cycle-by-cycle proving (asks before each cycle)
 /lean4:autoprove           Autonomous multi-cycle proving (runs with stop rules)
         ↓
-/lean4:golf                Optimize proofs (optional, prompted at end)
+/lean4:refactor            Simplify proof strategies (optional, or --dry-run to preview)
+        ↓
+/lean4:golf                Optimize proofs for tactic-level brevity (optional)
         ↓
 /lean4:checkpoint          Create verified save point
 ```
 
-Use `/lean4:learn` at any point to explore repo structure or navigate mathlib. Use `/lean4:formalize` to turn informal math into Lean statements.
+Use `/lean4:learn` at any point to explore repo structure or navigate mathlib. Use `/lean4:formalize` standalone or via `--formalize=auto` on autoprove for end-to-end source-to-proof.
 
 **Notes:**
 - `/lean4:prove` asks before each cycle; `/lean4:autoprove` loops autonomously with hard stop conditions
 - Both trigger `/lean4:review` at configured intervals (`--review-every`)
-- When reviews run (via `--review-every`), they act as gates: review → replan → approval → continue
-- Review supports `--mode=batch` (default) or `--mode=stuck` (triage)
+- When reviews run (via `--review-every`), they act as gates: review → replan → continue. In prove, replan requires user approval; in autoprove, replan auto-continues
+- Review supports `--mode=batch` (default) or `--mode=stuck` (triage); review is always read-only
+- `--formalize=auto` on autoprove wraps formalize+prove in a single command (source → claims → skeletons → proofs)
 - If you hit environment issues, run `/lean4:doctor` to diagnose
 
 ## LSP Tools (Preferred)
@@ -152,7 +160,7 @@ Order matters: provide outer structures before inner ones.
 Try in order (stop on first success):
 `rfl` → `simp` → `ring` → `linarith` → `nlinarith` → `omega` → `exact?` → `apply?` → `grind` → `aesop`
 
-Note: `exact?`/`apply?` query mathlib (slow). `grind` and `aesop` are powerful but may timeout.
+Note: `exact?`/`apply?` query mathlib (slow). `grind` and `aesop` are powerful but may timeout. See [grind-tactic](references/grind-tactic.md) for interactive workflows, annotation strategy, and simproc escalation.
 
 ## Troubleshooting
 
@@ -180,7 +188,7 @@ ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --report-only
 
 **Tactics:** [tactics-reference](references/tactics-reference.md) (tactic lookup — grep `^### TacticName`), [grind-tactic](references/grind-tactic.md) (SMT-style automation — when simp can't close), [simp-reference](references/simp-reference.md) (simp hygiene + custom simprocs), [tactic-patterns](references/tactic-patterns.md), [calc-patterns](references/calc-patterns.md)
 
-**Proof Development:** [proof-templates](references/proof-templates.md), [proof-refactoring](references/proof-refactoring.md) (28K — grep by topic), [sorry-filling](references/sorry-filling.md)
+**Proof Development:** [proof-templates](references/proof-templates.md), [proof-refactoring](references/proof-refactoring.md) (28K — grep by topic), [proof-simplification](references/proof-simplification.md) (strategy-level: mathlib search, congr lemmas, helper extraction), [sorry-filling](references/sorry-filling.md)
 
 **Optimization:** [proof-golfing](references/proof-golfing.md) (includes safety rules, bounded LSP lemma replacement, bulk rewrites, anti-patterns; escalates to axiom-eliminator), [proof-golfing-patterns](references/proof-golfing-patterns.md), [performance-optimization](references/performance-optimization.md) (grep by symptom), [profiling-workflows](references/profiling-workflows.md) (diagnose slow builds/proofs)
 
@@ -188,7 +196,7 @@ ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --report-only
 
 **Style:** [mathlib-style](references/mathlib-style.md), [verso-docs](references/verso-docs.md) (Verso doc comment roles and fixups)
 
-**Custom Syntax:** [lean4-custom-syntax](references/lean4-custom-syntax.md) (read when building notations, macros, elaborators, or DSLs), [metaprogramming-patterns](references/metaprogramming-patterns.md) (MetaM/TacticM API — composable blocks, elaborators), [scaffold-dsl](references/scaffold-dsl.md) (copy-paste DSL template)
+**Custom Syntax:** [lean4-custom-syntax](references/lean4-custom-syntax.md) (read when building notations, macros, elaborators, or DSLs), [metaprogramming-patterns](references/metaprogramming-patterns.md) (MetaM/TacticM API — composable blocks, elaborators), [scaffold-dsl](references/scaffold-dsl.md) (copy-paste DSL template), [json-patterns](references/json-patterns.md) (json% syntax + ToJson)
 
 **Quality:** [linter-authoring](references/linter-authoring.md) (project-specific linter rules), [ffi-patterns](references/ffi-patterns.md) (C/ObjC bindings via Lake)
 

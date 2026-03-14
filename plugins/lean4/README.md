@@ -16,6 +16,7 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 | `/lean4:autoprove` | Autonomous multi-cycle proving with stop rules |
 | `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
 | `/lean4:review` | Read-only quality review with optional external hooks |
+| `/lean4:refactor` | Strategy-level proof simplification |
 | `/lean4:golf` | Optimize proofs for brevity |
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
 | `/lean4:doctor` | Diagnostics and migration help |
@@ -28,6 +29,7 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 /lean4:autoprove           # Autonomous sorry filling (unattended)
 /lean4:checkpoint          # Verified commit
 /lean4:review              # Check quality (read-only)
+/lean4:refactor            # Simplify proof strategies
 /lean4:golf                # Optimize proofs
 /lean4:learn               # Explore repo or mathlib
 /lean4:doctor              # Diagnostics and migration help
@@ -102,12 +104,16 @@ Does **not** push — that's always manual (`git push`).
 
 Read-only. Does not modify files or create commits.
 
-Runs build verification, sorry audit, axiom check, style review, and golfing opportunity scan. Scopes automatically to what you're working on (`--scope=sorry`, `file`, `changed`, or `project`). Two modes:
+Runs build verification, sorry audit, axiom check, style review, strategy simplification opportunities, and golfing opportunity scan. Scopes automatically to what you're working on (`--scope=sorry`, `file`, `changed`, or `project`). Two modes:
 
 - **batch** (default) — full report with all sections
 - **stuck** — lightweight triage: top 3 blockers with next steps
 
 `prove` and `autoprove` trigger reviews automatically at configured intervals. You can also run `/lean4:review` manually at any time.
+
+### `/lean4:refactor` — Strategy-Level Simplification
+
+Finds better proof approaches: replaces hand-rolled arguments with mathlib lemmas, extracts repeated patterns as helpers, replaces case splits with `congr`/`EqOn` patterns. Asks before each batch of edits; reverts on verification failure. Compiled proofs only.
 
 ### `/lean4:golf` — Proof Optimization
 

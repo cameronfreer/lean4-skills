@@ -13,7 +13,7 @@ PLUGIN_ROOT="${LEAN4_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 ISSUES=0
 
 # Single source of truth for known commands (used by check_commands and check_cross_refs)
-KNOWN_COMMANDS="autoprove checkpoint doctor formalize golf learn prove review"
+KNOWN_COMMANDS="autoprove checkpoint doctor formalize golf learn prove refactor review"
 
 log() {
     echo "$1"
@@ -56,12 +56,12 @@ check_commands() {
         # Per-command line limits: prove/autoprove/doctor/review are inherently larger
         local max_lines=120
         case "$cmd" in
-            prove|autoprove) max_lines=230 ;;
+            prove|autoprove) max_lines=235 ;;
             doctor)          max_lines=220 ;;
             formalize)       max_lines=160 ;;
             golf)            max_lines=150 ;;
-            review)          max_lines=320 ;;
-            learn)           max_lines=175 ;;
+            review)          max_lines=330 ;;
+            learn)           max_lines=180 ;;
         esac
 
         if [[ $lines -gt $max_lines ]]; then
@@ -291,7 +291,7 @@ check_cross_refs() {
     local agent_anchors="lean4-sorry-filler-deep lean4-proof-repair lean4-proof-golfer lean4-axiom-eliminator"
 
     # Valid anchors for cycle-engine.md
-    local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic falsification-artifacts repair-mode safety"
+    local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic falsification-artifacts repair-mode safety formalize-outer-loop algorithm formalize-commit-boundary session-generated-provenance statement-safety claim-queue file-assembly-contract review-router"
 
     while IFS= read -r file; do
         # Check links to command-examples.md
@@ -1105,6 +1105,38 @@ check_advanced_reference_snippets() {
     fi
 }
 
+# Check 23: plugin.json version has a matching CHANGELOG entry
+check_version_changelog() {
+    log ""
+    log "Checking version ↔ changelog..."
+
+    local plugin_json="$PLUGIN_ROOT/.claude-plugin/plugin.json"
+    local changelog
+    changelog="$(cd "$PLUGIN_ROOT" && cd ../.. && pwd)/CHANGELOG.md"
+
+    if [[ ! -f "$plugin_json" ]]; then
+        warn "plugin.json not found at $plugin_json"
+        return
+    fi
+    if [[ ! -f "$changelog" ]]; then
+        warn "CHANGELOG.md not found at $changelog"
+        return
+    fi
+
+    local version
+    version=$(grep -oE '"version": *"[^"]+"' "$plugin_json" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+    if [[ -z "$version" ]]; then
+        warn "Could not extract version from plugin.json"
+        return
+    fi
+
+    if grep -q "## v${version}" "$changelog"; then
+        ok "plugin.json v${version} has matching CHANGELOG entry"
+    else
+        warn "plugin.json version ${version} has no '## v${version}' entry in CHANGELOG.md"
+    fi
+}
+
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
@@ -1133,6 +1165,7 @@ check_stale_plugin_paths
 check_advanced_reference_metadata
 check_advanced_reference_language
 check_advanced_reference_snippets
+check_version_changelog
 
 log ""
 log "================================"
