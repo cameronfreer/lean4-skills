@@ -156,7 +156,7 @@ Order matters: provide outer structures before inner ones.
 Try in order (stop on first success):
 `rfl` → `simp` → `ring` → `linarith` → `nlinarith` → `omega` → `exact?` → `apply?` → `grind` → `aesop`
 
-Note: `exact?`/`apply?` query mathlib (slow). `grind` and `aesop` are powerful but may timeout.
+Note: `exact?`/`apply?` query mathlib (slow). `grind` and `aesop` are powerful but may timeout. See [grind-tactic](references/grind-tactic.md) for interactive workflows, annotation strategy, and simproc escalation.
 
 ## Troubleshooting
 
