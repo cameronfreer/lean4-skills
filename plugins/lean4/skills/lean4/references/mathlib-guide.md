@@ -415,7 +415,7 @@ import Mathlib.Tactic.FieldSimp     -- field_simp
 import Mathlib.Tactic.Continuity    -- continuity
 import Mathlib.Tactic.Measurability -- measurability
 import Mathlib.Tactic.Positivity    -- positivity
-import Mathlib.Tactic.FunProp       -- fun_prop (Lean 4.13+)
+import Mathlib.Tactic.FunProp       -- fun_prop
 ```
 
 ## Verifying Lemmas Work

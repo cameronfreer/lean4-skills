@@ -377,7 +377,7 @@ linarith     -- Linear arithmetic on ANY additive group (not just ℝ or ℚ)
 nlinarith    -- Non-linear arithmetic
 norm_num     -- Normalize numerical expressions (including angle comparisons)
              -- Example: have h : angle_expr = 0 := by rw [lem]; norm_num at h
-omega        -- Integer linear arithmetic (Lean 4.13+)
+omega        -- Integer linear arithmetic
              -- Example: have : n < m := by omega
 ```
 
@@ -412,7 +412,7 @@ positivity      -- Prove positivity of measures/integrals
 
 **Compositional Function Properties (`fun_prop`):**
 
-`fun_prop` proves function properties compositionally by decomposing functions into simpler parts. Available in Lean 4.13+.
+`fun_prop` proves function properties compositionally by decomposing functions into simpler parts.
 
 **Basic usage:**
 ```lean

@@ -13,7 +13,7 @@ This reference provides detailed explanations and fixes for the most common comp
 | **"expected Filter got Measure"** | Dot notation namespace confusion | Use standalone: `EventuallyEq.lemma h` not `h.EventuallyEq.lemma` |
 | **"numerals are data but expected Prop"** | Value where proof expected | Use proof term: `tendsto_const_nhds` not `1` |
 | **"tactic 'exact' failed"** | Goal/term type mismatch | Use `apply` for unification or restructure: `⟨h.2, h.1⟩` |
-| **"unknown identifier"** | Missing import OR unqualified name | Import tactic OR qualify: `Filter.Tendsto` |
+| **"unknown identifier"** | Missing import OR namespace not opened | Import tactic OR `open Filter Topology` |
 | **"unexpected token/identifier"** | Section comment in proof | Replace `/-! -/` with `--` in tactic mode |
 | **"no goals to be solved"** | Tactic already finished | Remove redundant tactics after `simp` |
 | **"equation compiler failed"** | Can't prove termination | Add `termination_by my_rec n => n` clause |
@@ -231,7 +231,7 @@ have h2 := part2
 exact ⟨h1, h2⟩
 ```
 
-### 5. Unknown Identifier (Missing Tactic or Qualification)
+### 5. Unknown Identifier (Missing Tactic or Namespace Open)
 
 **Full error message:**
 ```
@@ -239,7 +239,7 @@ unknown identifier 'ring'
 unknown identifier 'Tendsto'
 ```
 
-**What it means:** Tactic not imported OR identifier needs qualification.
+**What it means:** Tactic not imported OR namespace not opened.
 
 **Cause 1: Missing tactic import**
 
@@ -258,23 +258,20 @@ import Mathlib.Tactic.Positivity    -- positivity
 2. Add `import Mathlib.Tactic.TacticName`
 3. Rebuild
 
-**Cause 2: Bare identifier needs qualification**
+**Cause 2: Missing `open` declarations**
 
-Lean 4 requires fully qualified names where Lean 3 allowed bare names:
+Names like `Tendsto` and `atTop` live in the `Filter` namespace. Without opening it, Lean cannot resolve them:
 
 ```lean
--- ❌ WRONG: Bare identifiers
+-- ❌ WRONG: bare identifiers without open
 have h : Tendsto f atTop (𝓝 x) := ...
 
--- ✅ CORRECT: Qualified names
-have h : Filter.Tendsto f Filter.atTop (nhds x) := ...
+-- ✅ CORRECT: open the relevant namespaces
+open Filter Topology in
+have h : Tendsto f atTop (𝓝 x) := ...
 ```
 
-**Common qualifications:**
-- `Tendsto` → `Filter.Tendsto`
-- `atTop` → `Filter.atTop`
-- `𝓝 x` → `nhds x`
-- `eventually` → `Filter.Eventually`
+Alternatively, you can fully qualify the names (`Filter.Tendsto`, `Filter.atTop`), but `open Filter Topology` is the standard mathlib practice.
 
 ### 6. Equation Compiler Failed (Termination)
 
@@ -366,7 +363,7 @@ have hm_pos' : m > 0 := Nat.pos_of_ne_zero (by
 - `norm_num`: Concrete arithmetic (`2 + 2 = 4`, `7 < 10`)
 - `simp`: Simplify using hypotheses and definitions
 - `linarith`: Linear inequalities with variables (`a + b ≤ c`, `x > 0 → x + 1 > 0`)
-- `omega`: Integer linear arithmetic (Lean 4.13+, works on `ℕ` and `ℤ`)
+- `omega`: Integer linear arithmetic (works on `ℕ` and `ℤ`)
 
 ### 8. Unexpected Token/Identifier in Proof (Section Doc Comments)
 
@@ -473,7 +470,7 @@ When encountering any error:
 When facing "unexpected identifier/token" in long proofs:
 
 1. ☐ Search for `/-! ... -/` section comments → replace with `--`
-2. ☐ Check for bare identifiers (`Tendsto`, `atTop`) → add qualification (`Filter.Tendsto`)
+2. ☐ Check for bare identifiers (`Tendsto`, `atTop`) → `open Filter Topology`
 3. ☐ Look for lambda shadowing → rename variables or add type annotations
 4. ☐ Check for "no goals" after `simp` → remove redundant tactics
 5. ☐ For section variables + explicit params → rely on section, use `(by infer_instance)`
