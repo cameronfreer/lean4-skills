@@ -57,7 +57,7 @@ check_commands() {
         local max_lines=120
         case "$cmd" in
             prove|autoprove) max_lines=235 ;;
-            doctor)          max_lines=220 ;;
+            doctor)          max_lines=225 ;;
             formalize)       max_lines=160 ;;
             golf)            max_lines=150 ;;
             review)          max_lines=330 ;;

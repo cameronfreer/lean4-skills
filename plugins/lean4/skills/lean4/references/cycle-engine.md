@@ -47,6 +47,8 @@ Do not suppress script stderr via `/dev/null`; surfaced errors are part of the f
 
 ## Build Target Policy
 
+For fresh clones/worktrees or after `lake clean`, hydrate cache first and do an initial `lake build` only if needed to bootstrap LSP; the ladder below is the normal steady-state workflow after startup.
+
 Three-tier verification ladder — use the lightest tool that answers the question:
 
 | Tier | Tool | When | Speed |
