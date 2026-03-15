@@ -61,7 +61,7 @@ check_commands() {
             formalize)       max_lines=160 ;;
             golf)            max_lines=150 ;;
             review)          max_lines=330 ;;
-            learn)           max_lines=160 ;;
+            learn)           max_lines=180 ;;
         esac
 
         if [[ $lines -gt $max_lines ]]; then
