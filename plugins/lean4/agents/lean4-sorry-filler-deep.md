@@ -3,10 +3,7 @@ name: lean4-sorry-filler-deep
 description: Strategic resolution of stubborn sorries; may refactor statements and move lemmas across files. Use when fast pass fails or for complex proofs.
 tools: Read, Grep, Glob, Edit, Bash, lean_goal, lean_local_search, lean_leanfinder, lean_leansearch, lean_loogle, lean_multi_attempt, lean_diagnostic_messages, lean_run_code
 model: opus
-thinking: on
 ---
-
-# Lean 4 Sorry Filler - Deep Pass
 
 ## Inputs
 

@@ -84,7 +84,7 @@
 
 **Tools available:** Glob, Grep, Read, Bash
 
-**Cost:** ~Haiku-level tokens
+**Cost:** Low (lightweight model)
 
 **When to use:**
 - "Find all files using MeasurableSpace"
@@ -100,7 +100,7 @@
 
 **Tools available:** Full toolset including Task
 
-**Cost:** ~Sonnet-level tokens
+**Cost:** Moderate (full-featured model)
 
 **When to use:**
 - "Search mathlib, evaluate which lemmas apply, recommend best 3"
@@ -367,7 +367,7 @@ to find the right mathlib lemma..."
 - Agent summary: ~50 tokens
 - Claude response: ~50 tokens
 - **Total: ~150 tokens in main conversation**
-- Agent uses Haiku/fast model (cheap)
+- Agent uses fast/lightweight model (cheap)
 - **Savings: 700 → 150 = 78% reduction**
 
 **Multiplied across a session:** 10 searches = 7000 tokens → 1500 tokens = **5500 tokens saved**

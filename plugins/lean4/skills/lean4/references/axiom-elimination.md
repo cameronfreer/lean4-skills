@@ -280,7 +280,7 @@ Estimated total: X+Y+Z days
 
 ## Output Expectations
 
-**Sonnet agents with thinking enabled:**
+**Agent output expectations:**
 - Outline plan FIRST (bullet points)
 - Show search results
 - Propose elimination strategy

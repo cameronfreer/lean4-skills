@@ -1,12 +1,9 @@
 ---
 name: lean4-proof-repair
-description: Compiler-guided iterative proof repair with two-stage model escalation (Haiku → Opus). Use for error-driven proof fixing with small sampling budgets (K=1).
+description: Compiler-guided iterative proof repair with two-stage repair escalation (fast → strong). Use for error-driven proof fixing with small sampling budgets (K=1).
 tools: Read, Grep, Glob, Edit, Bash, lean_goal, lean_local_search, lean_leanfinder, lean_leansearch, lean_loogle, lean_multi_attempt, lean_diagnostic_messages, lean_run_code
-model: haiku
-thinking: off
+model: sonnet
 ---
-
-# Lean 4 Proof Repair - Compiler-Guided
 
 ## Inputs
 
@@ -34,10 +31,10 @@ Structured error context (JSON):
 
 ## Two-Stage Approach
 
-| Stage | Model | Thinking | Max Attempts | Budget |
-|-------|-------|----------|--------------|--------|
-| 1 (Fast) | haiku | OFF | 6 | ~2s/attempt |
-| 2 (Precise) | opus | ON | 18 | ~10s/attempt |
+| Stage | Approach | Max Attempts | Budget |
+|-------|----------|--------------|--------|
+| 1 (Fast) | Quick obvious fixes | 6 | ~2s/attempt |
+| 2 (Precise) | Strategic reasoning, global context | 18 | ~10s/attempt |
 
 **Escalation triggers:** Same error 3× in Stage 1, `synth_instance`/`timeout`, Stage 1 exhausted. Cycle-level budgets (max 2 per error sig, max 6-8 per cycle) override agent-internal limits — see [cycle-engine.md](../skills/lean4/references/cycle-engine.md#repair-mode).
 

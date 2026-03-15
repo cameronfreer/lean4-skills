@@ -133,10 +133,6 @@ check_agents() {
         if ! grep -q "^model:" "$file"; then
             warn "$agent.md: Missing 'model:' in frontmatter"
         fi
-        if ! grep -q "^thinking:" "$file"; then
-            warn "$agent.md: Missing 'thinking:' in frontmatter"
-        fi
-
         # Validate tool names against allowed set
         local allowed_tools="Read Grep Glob Edit Bash lean_goal lean_local_search lean_leanfinder lean_leansearch lean_loogle lean_multi_attempt lean_hover_info lean_diagnostic_messages lean_run_code"
         local tools_line
