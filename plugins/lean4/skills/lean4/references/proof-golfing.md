@@ -10,32 +10,51 @@
 
 ## Quick Reference Table
 
-| Pattern | Savings | Risk | Priority | Benefit |
-|---------|---------|------|----------|---------|
-| Linter-guided simp cleanup | 2 lines | Zero | ⭐⭐⭐⭐⭐ | Performance |
-| `by rfl` → `rfl` | 1 line | Zero | ⭐⭐⭐⭐⭐ | Directness |
-| `rw; simp_rw` → `rw; simpa` | 1 line | Zero | ⭐⭐⭐⭐⭐ | Simplicity |
-| Eta-reduction `fun x => f x` → `f` | Tokens | Zero | ⭐⭐⭐⭐⭐ | Simplicity |
-| `.mpr` over `rwa` for trivial | 1 line | Zero | ⭐⭐⭐⭐⭐ | Directness |
-| `rw; exact` → `rwa` | 50% | Zero | ⭐⭐⭐⭐⭐ | Directness |
-| `ext + rfl` → `rfl` | 67% | Low | ⭐⭐⭐⭐⭐ | Directness |
-| intro-dsimp-exact → lambda | 75% | Low | ⭐⭐⭐⭐⭐ | Directness |
-| Extract repeated patterns to helpers | 40% | Low | ⭐⭐⭐⭐⭐ | Reusability |
-| let+have+exact inline | 60-80% | HIGH | ⭐⭐⭐⭐⭐ | Conciseness |
-| `by exact` → term mode | 1 line | Zero | ⭐⭐⭐⭐⭐ | Directness |
-| Dot notation `.rfl`/`.symm` | Tokens | Zero | ⭐⭐⭐⭐⭐ | Conciseness |
-| Inline `show` in `rw` | 50-70% | Zero | ⭐⭐⭐⭐⭐ | Conciseness |
-| Transport ▸ for rewrites | 1-2 lines | Zero | ⭐⭐⭐⭐⭐ | Conciseness |
-| apply/exact chain → `exact` | 30-60% | Low | ⭐⭐⭐⭐⭐ | Conciseness |
-| calc → .trans chains | 2-3 lines | Low | ⭐⭐⭐⭐ | Conciseness |
-| Single-use `have` inline | 30-50% | Low | ⭐⭐⭐⭐ | Clarity |
-| Redundant `ext` before `simp` | 50% | Medium | ⭐⭐⭐⭐ | Simplicity |
-| `congr; ext; rw` → `simp only` | 67% | Medium | ⭐⭐⭐⭐ | Simplicity |
-| Multi-pattern match | 7 lines | Low | ⭐⭐⭐ | Simplicity |
-| Successor pattern (n+k) | 25 lines | Low | ⭐⭐⭐ | Clarity |
-| Symmetric cases with `<;>` | 11 lines | Low | ⭐⭐⭐ | Conciseness |
+### Tier 1 — Performance (always apply)
 
-**ROI Strategy:** Do ⭐⭐⭐⭐⭐ first (instant wins), then ⭐⭐⭐⭐ (quick with testing), skip ⭐-⭐⭐ if time-limited.
+| Pattern | Savings | Risk |
+|---------|---------|------|
+| Linter-guided simp cleanup | 2 lines | Zero |
+| `simp only` over broad `simp` | Perf | Zero |
+| Direct lemma over automation in coercion-heavy goals | Perf | Zero |
+
+### Tier 2 — Directness (always apply)
+
+| Pattern | Savings | Risk |
+|---------|---------|------|
+| `by exact t` → `t` | 1 line | Zero |
+| `by rfl` → `rfl` | 1 line | Zero |
+| Eta-reduction `fun x => f x` → `f` | Tokens | Zero |
+| `.mpr`/`.mp` over `rwa` for trivial | 1 line | Zero |
+| Dot notation `.rfl`/`.symm` | Tokens | Zero |
+| `apply f; exact h` → `exact f h` | 1 line | Zero |
+| `ext x; rfl` → `rfl` | 67% | Low |
+| `constructor; exact; exact` → `exact ⟨_, _⟩` | 2 lines | Zero |
+| `simpa using h` → `exact h` when no simplification occurs | Clarity | Zero |
+
+### Tier 3 — Structural simplification (with verification)
+
+| Pattern | Savings | Risk |
+|---------|---------|------|
+| Single-use `have` inline (term < 40 chars) | 30-50% | Low |
+| let+have+exact inline | 60-80% | HIGH |
+| intro-dsimp-exact → lambda | 75% | Low |
+| Inline `show` in `rw` | 50-70% | Zero |
+
+### Tier 4 — Conditional (only when net score improves)
+
+| Pattern | Savings | Risk | Condition |
+|---------|---------|------|-----------|
+| `rw; exact` → `rwa` | 50% | Zero | Only when `rwa` genuinely deletes boilerplate, not as default |
+| `rw; simp_rw` → `rw; simpa` | 1 line | Zero | Only when it deletes surrounding boilerplate; never to replace a working `exact` |
+| apply/exact chain → `exact` | 30-60% | Low | Reject if >80 chars, >2 dot-chain depth, or removes meaningful names |
+| Transport ▸ for rewrites | 1-2 lines | Zero | |
+| calc → .trans chains | 2-3 lines | Low | |
+| Symmetric `<;>` | Lines | Low | Only for single identical tactic on literally identical goals |
+
+**ROI Strategy:** Tier 1 and 2 first (always safe), Tier 3 with verification, Tier 4 only when the net score (directness + clarity + perf) clearly improves. Skip 1-line wins that only compress without improving.
+
+**Not golf** (use `/lean4:refactor` instead): extracting repeated patterns to helpers, consolidating duplicate proof structure, API surface redesign.
 
 ## Critical Safety Warnings
 
@@ -198,20 +217,23 @@ Bulk mode activates automatically when ≥4 whitelisted candidates are found in 
 
 ## Anti-Patterns
 
-### Don't Use Semicolons Just to Combine Lines
+### Semicolon Policy
+
+Never introduce naked `;` as a golfing transform. `<;>` may be introduced only when applying a single identical tactic to literally identical goals (its intended purpose — e.g., `constructor <;> simp`); do not use it to compress non-identical branches.
+
+When counting line savings, each `;`-separated tactic counts as its own line — semicolons do not reduce line count. If existing code uses `;` or `<;>`, do not count those lines as savings and do not target rewrites that preserve or expand semicolon usage.
 
 ```lean
--- ❌ Bad (no savings)
-intro x; exact proof  -- Semicolon is a token!
+-- ❌ Never introduce as a golfing transform
+intro x; exact proof
 
--- ✅ Good (when saves ≥2 lines AND sequential)
-ext x; simp [...]; use y; simp  -- Sequential operations
+-- ❌ Don't compress non-identical branches
+cases h <;> (first_tactic; second_different_tactic)
+
+-- ✅ Allowed: single identical tactic on literally identical goals
+constructor <;> simp
+constructor <;> rfl
 ```
-
-**When semicolons ARE worth it:**
-- ✅ Sequential operations (ext → simp → use)
-- ✅ Saves ≥2 lines
-- ✅ Simple steps
 
 ### Don't Over-Inline
 

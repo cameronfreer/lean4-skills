@@ -1,12 +1,12 @@
 ---
 name: golf
-description: Optimize Lean proofs for brevity and clarity
+description: Improve Lean proofs for directness, clarity, and performance
 user_invocable: true
 ---
 
 # Lean4 Golf
 
-Optimize Lean proofs that already compile. Reduce tactic count, shorten proofs, improve readability.
+Improve Lean proofs that already compile. Prefer directness and clarity over brevity. Line count is a tiebreaker, not the goal.
 
 **Prerequisite:** Code must compile. Verify code compiles first (`lean_diagnostic_messages(file)` or `lake env lean <path/to/File.lean>` from project root; `lake build` for project-wide).
 
@@ -38,13 +38,13 @@ Optimize Lean proofs that already compile. Reduce tactic count, shorten proofs, 
    ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/find_golfable.py" [file] --filter-false-positives
    ```
 3. **Exact-Collapse Pass** (bounded) — For apply/exact chain anchors from `$LEAN4_SCRIPTS/find_golfable.py`:
-   - **Mechanical** (≤30 anchors/file): Construct collapsed `exact` from tactic structure → `lean_multi_attempt` + `lean_diagnostic_messages` baseline check (no new diagnostics, no sorry increase). Accept if net decrease + readability not worse.
+   - **Mechanical** (≤30 anchors/file): Construct collapsed `exact` from tactic structure → `lean_multi_attempt` + `lean_diagnostic_messages` baseline check (no new diagnostics, no sorry increase). Accept if the replacement is more direct or clearer. Reject if it introduces heavier automation (simpa, rwa, broad simp) to replace an explicit proof, if term length exceeds ~80 chars, if dot-chain depth > 2, or if it removes meaningful intermediate names. A 1-line saving that raises inference burden is not a win.
    - **Exploratory** (when `--search≠off`; consumes `--search` budget): On remaining single-goal anchors, build candidate `exact` terms from chain lemmas + local hypotheses + dot-notation rewrites → `lean_multi_attempt` + diagnostics check. Probe caps are phase-local: `quick` ≤5 probes/file; `full` ≤15 probes/file; ≤2 probes/anchor. Time budget is shared with lemma replacement (step 4): `quick` 30s total, `full` 60s total across both phases.
    - Skip: `calc`, `cases`/`induction`, multi-goal branches, blocks >7 lines, semicolon-heavy (>3), blocks with `have`/`refine`. `constructor` chains are handled by the existing instant-win rule, not this pass.
 4. **Lemma Replacement** (if `--search=quick` or `full`):
    - Run LSP searches per candidate; test with `lean_multi_attempt`
    - `quick`: 1 search, ≤2 candidates; `full`: 2 searches, ≤3 candidates; ≤3 search calls; uses remaining shared time budget
-   - Accept only shortest passing replacement with net size decrease
+   - Accept the best passing replacement by score: directness + elaboration cost + clarity > line count
    - Hand off to axiom-eliminator if replacement needs statement changes or multi-file refactor
 5. **Verify Safety** - Check usage before inlining:
    ```bash
@@ -57,13 +57,13 @@ Optimize Lean proofs that already compile. Reduce tactic count, shorten proofs, 
 
 ### Instant Wins (Always Apply)
 
-| Before | After |
-|--------|-------|
-| `rw [h]; exact trivial` | `rwa [h]` |
-| `ext x; rfl` | `rfl` |
-| `simp; rfl` | `simp` |
-| `constructor; exact h1; exact h2` | `exact ⟨h1, h2⟩` |
-| `apply f; exact h` | `exact f h` |
+| Before | After | Notes |
+|--------|-------|-------|
+| `ext x; rfl` | `rfl` | |
+| `simp; rfl` | `simp` | |
+| `constructor; exact h1; exact h2` | `exact ⟨h1, h2⟩` | |
+| `apply f; exact h` | `exact f h` | |
+| `by exact t` | `t` | At declaration RHS / term-wrapper positions only — not inside tactic blocks |
 
 ### Safe with Verification
 
@@ -78,15 +78,33 @@ Optimize Lean proofs that already compile. Reduce tactic count, shorten proofs, 
 - Complex have blocks
 - Named hypotheses in error messages
 
+### Golfing Policy
+
+**Semicolons:** Never introduce naked `;` as a golfing transform. `<;>` may be introduced only when applying a single identical tactic to literally identical goals (its intended purpose — e.g., `constructor <;> simp`); do not use it to compress non-identical branches. When counting line savings, each `;`-separated tactic counts as its own line — semicolons do not reduce line count. If existing code uses `;` or `<;>`, do not count those lines as savings and do not target rewrites that preserve or expand semicolon usage.
+
+**Tactic complexity ladder** (readability/inference-burden heuristic, not a literal performance ordering): `rfl`/`exact` < `rw`/`apply` < `simp only` < `simpa`/`rwa` < broad `simp`/`decide`/`omega`/`grind`. A golfing transform that moves UP this ladder requires more than a 1-line win to be accepted — the replacement must be genuinely clearer or more maintainable. A transform that moves DOWN is preferred even if it doesn't save lines. Separately, **performance wins** come from narrowing `simp` to `simp only`, using direct lemmas over automation, and avoiding search-heavy tactics in coercion-heavy goals — these are always worth pursuing regardless of line count.
+
+**Minimum value filter:** 1-line savings are only worth surfacing if they are (a) zero-risk syntax cleanup (e.g., `by exact` → `t`) or (b) also improve clarity or performance. Otherwise they are bulk-cleanup noise, not user-facing opportunities.
+
+**`simpa`/`rwa` direction rule:**
+- Never replace `exact t` with `simpa using t` unless `exact t` fails.
+- Only replace `simpa using` with `exact` when the elaborated target is already literally the same type — do not guess.
+- `simpa using` is only a win when it deletes surrounding boilerplate (an extra `rw`, `change`, or `simp` block).
+- In coercion-heavy or subtype-heavy proofs, test `exact` first; only fall back to `simpa using` if transport is actually needed.
+- Treat `calc` steps, subtype witnesses, and cast/transport goals as unsafe-by-default for wrapper removal (simpa→exact, rwa→rw+exact).
+- Note: `simp using` is NOT a drop-in for `simpa using` in term positions — they have different semantics.
+
 ## Output
 
 ```markdown
 ## Golf Results
 
-**Optimizations applied:** 5
-**Skipped:** 2 (safety)
-**Total savings:** 8 lines (~12%)
+**Meaningful simplifications:** 3 (directness improvements)
+**Performance cleanups:** 1 (simp narrowing)
+**Syntax cleanups:** 1 (by exact → term)
+**Skipped:** 2 (1 safety, 1 marginal compression)
 **Build status:** ✓ passing
+**Total savings:** 8 lines (~12%)
 
 Optional next step: run `/lean4:checkpoint` to save progress.
 ```

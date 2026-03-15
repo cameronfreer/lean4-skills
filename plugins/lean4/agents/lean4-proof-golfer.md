@@ -1,6 +1,6 @@
 ---
 name: lean4-proof-golfer
-description: Golf Lean 4 proofs after they compile; reduce tactics/lines without changing semantics. Use after successful compilation to achieve 30-40% size reduction.
+description: Golf Lean 4 proofs after they compile; improve proofs for directness, clarity, and performance without changing semantics. Use after successful compilation to achieve 30-40% size reduction.
 tools: Read, Grep, Glob, Edit, Bash, lean_goal, lean_local_search, lean_leanfinder, lean_loogle, lean_multi_attempt, lean_diagnostic_messages
 model: opus
 ---
@@ -33,12 +33,12 @@ model: opus
 4. **Lemma replacement search** (if search_mode ≠ off):
    - `lean_local_search` first, then `lean_leanfinder` or `lean_loogle`
    - `quick`: 1 search, ≤2 candidates; `full`: 2 searches, ≤3 candidates
-   - Test with `lean_multi_attempt`; accept only shortest passing replacement with net size decrease
+   - Test with `lean_multi_attempt`; accept the best passing replacement by score (directness + elaboration cost + clarity > line count)
    - Budget: ≤3 search calls, max 3 candidates; uses remaining shared time budget (`quick` 30s, `full` 60s total across steps 3–4)
    - If replacement needs statement changes or multi-file refactor → stop, hand off to axiom-eliminator
 
 5. **Apply optimizations** (max 3 hunks × 60 lines each):
-   - Priority: `rw;exact`→`rwa`, `ext+rfl`→`rfl`, `apply+exact`→`exact`, verified inlines
+   - Priority: directness wins first (`by exact`→`t`, `apply+exact`→`exact`, `ext+rfl`→`rfl`), then perf (linter simp cleanup, `simp only` narrowing), then verified inlines
    - `lean_diagnostic_messages(file)` after each change; `lake build` only for final verification
    - Revert immediately on failure
 
@@ -50,12 +50,13 @@ model: opus
 Proof Golfing Results:
 
 File: [filename]
-Patterns attempted: N
-Successful: M
-Failed/Reverted: K
+Meaningful simplifications: N (directness improvements)
+Performance cleanups: M
+Syntax cleanups: K
+Skipped: J (marginal compressions)
+Failed/Reverted: L
 
-Total savings:
-- Lines: X → Y (Z% reduction)
+Lines: X → Y (Z% reduction)
 
 [If success rate < 20%]: SATURATION REACHED
 ```
@@ -78,6 +79,16 @@ Total savings:
 - On permission denial → stop immediately, report back to parent agent
 - Skip candidate when replacement TERM introduces a nested tactic-mode boundary (`by` at non-top-level); if context classification is uncertain, skip
 - Verify symbol resolves in current imports and argument order matches before replacing; no broad replace-all
+
+## Golfing Policy
+
+**Semicolons:** Never introduce naked `;` as a golfing transform. `<;>` only for literally identical single-tactic goals (e.g., `constructor <;> simp`). Each `;`-separated tactic counts as its own line — semicolons do not reduce line count.
+
+**Tactic complexity ladder** (per golf.md): `rfl`/`exact` < `rw`/`apply` < `simp only` < `simpa`/`rwa` < broad `simp`/`decide`/`omega`/`grind`. Moving UP the ladder requires more than a 1-line win. Moving DOWN is preferred even at zero line savings. Performance wins (narrowing `simp`, direct lemmas) are always worth pursuing.
+
+**Minimum value filter:** 1-line savings only worth surfacing if (a) zero-risk syntax cleanup or (b) also improve clarity or performance.
+
+**`simpa`/`rwa` direction:** Never replace `exact t` with `simpa using t` unless `exact t` fails. `simpa using` is only a win when it deletes surrounding boilerplate. In coercion-heavy proofs, test `exact` first. See golf.md for full rules.
 
 ## Delegation Awareness
 

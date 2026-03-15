@@ -59,7 +59,7 @@ check_commands() {
             prove|autoprove) max_lines=235 ;;
             doctor)          max_lines=225 ;;
             formalize)       max_lines=160 ;;
-            golf)            max_lines=150 ;;
+            golf)            max_lines=160 ;;
             review)          max_lines=330 ;;
             learn)           max_lines=180 ;;
         esac
@@ -114,7 +114,7 @@ check_agents() {
         local max_lines=115
         case "$agent" in
             lean4-axiom-eliminator) max_lines=120 ;;
-            lean4-proof-golfer) max_lines=135 ;;
+            lean4-proof-golfer) max_lines=145 ;;
             lean4-sorry-filler-deep) max_lines=125 ;;
         esac
 

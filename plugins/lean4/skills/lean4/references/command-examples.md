@@ -701,35 +701,42 @@ Claude: Verifying build...
 
 Finding golfing opportunities...
 
-Found 6 patterns:
-- 4 instant wins (rw+exact, ext+rfl)
+Found 7 patterns:
+- 3 directness wins (ext+rfl, apply+exact, constructor+exact)
+- 1 performance cleanup (simp narrowing)
 - 1 safe inline (let used once)
 - 1 skip (let used 5 times)
+- 1 skip (rwa replacement — marginal)
 
 Applying optimizations...
 
-[1/5] Line 23: rw [h]; exact → rwa [h]
-  Building... ✓
+[1/6] Line 45: ext x; rfl → rfl (directness)
+  Diagnostics... ✓
 
-[2/5] Line 45: ext x; rfl → rfl
-  Building... ✓
+[2/6] Line 66: apply f; exact h → exact f h (directness)
+  Diagnostics... ✓
 
-[3/5] Line 67: Inline let bound := ...
+[3/6] Line 112: constructor; exact; exact → exact ⟨_, _⟩ (directness)
+  Diagnostics... ✓
+
+[4/6] Line 34: simp [...] → simp only [...] (performance)
+  Diagnostics... ✓
+
+[5/6] Line 67: Inline let bound := ...
   Checking usage... 1 reference, safe
-  Building... ✓
+  Diagnostics... ✓
 
-[4/5] Line 89: simp [*]; rfl → simp [*]
-  Building... ✓
-
-[5/5] Line 112: constructor; exact; exact → exact ⟨_, _⟩
-  Building... ✓
+[6/6] Line 23: rw [h]; exact → rwa [h]
+  Skipped: only 1-line win, moves up tactic complexity ladder (rw+exact → rwa)
 
 ## Golf Results
 
-Optimizations applied: 5/6
-Skipped: 1 (let used 5 times)
-Total savings: 7 lines (~10%)
+Meaningful simplifications: 3 (directness improvements)
+Performance cleanups: 1 (simp narrowing)
+Syntax cleanups: 1 (let inline)
+Skipped: 2 (1 safety — let used 5×, 1 marginal — rwa replacement)
 Build status: ✓ passing
+Total savings: 6 lines (~9%)
 ```
 
 ### Dry Run Example
@@ -743,14 +750,15 @@ Claude: Scanning for opportunities...
 
 **File:** Core.lean
 
-| Line | Pattern | Confidence | Savings |
-|------|---------|------------|---------|
-| 23 | rw + exact → rwa | High | 1 line |
-| 45 | Inline let (1 use) | High | 2 lines |
-| 56 | Inline let (4 uses) | Skip | - |
-| 78 | ext + rfl → rfl | High | 1 line |
+| Line | Pattern | Benefit | Confidence | Savings |
+|------|---------|---------|------------|---------|
+| 78 | ext + rfl → rfl | Directness | High | 1 line |
+| 45 | Inline let (1 use) | Clarity | High | 2 lines |
+| 34 | simp → simp only | Performance | High | 0 lines |
+| 56 | Inline let (4 uses) | — | Skip | - |
+| 23 | rw + exact → rwa | Marginal | Skip | 1 line |
 
-**Estimated savings:** 4 lines from 3 safe optimizations
+**Estimated savings:** 3 lines from 3 safe optimizations (+ 1 perf-only)
 **Run without --dry-run to apply**
 ```
 
@@ -768,6 +776,51 @@ Remaining 3 opportunities are false positives or low-value.
 
 Success rate dropped to 15% (below 20% threshold).
 Recommend stopping further golfing on this file.
+```
+
+### Taste-Driven Golfing Example
+
+```
+User: /lean4:golf Analysis.lean
+
+Claude: Verifying build...
+✓ Analysis.lean compiles
+
+Finding golfing opportunities...
+
+Found 8 patterns (4 actionable, 4 skipped)
+
+[1/4] Line 23: apply f; exact h → exact f h (directness)
+  Diagnostics... ✓
+
+[2/4] Line 45: simp [h1, h2, h3] → simp only [h1, h2] (performance — linter flagged h3 unused)
+  Diagnostics... ✓
+
+[3/4] Line 67: rw [h]; exact trivial → rwa [h]
+  Skipped: 1-line win but moves up tactic complexity ladder (rw+exact is explicit,
+  rwa is heavier automation). Not worth surfacing.
+
+[4/4] Line 89: 3-line proof → 1 line with <;>
+  cases h with | inl => simp [ha] | inr => simp [hb]
+  Candidate: cases h <;> simp [ha, hb]
+  Skipped: branches use different simp arguments — <;> only for literally identical goals
+
+[5/4] Line 102: simpa using h_bound → exact h_bound
+  Diagnostics... ✓ (simpa does no actual simplification here — exact is more direct)
+
+[6/4] Line 115: 2-line proof kept as-is
+  have h_key := critical_step a b
+  exact h_key.trans (by ring)
+  Candidate 1-line: exact (critical_step a b).trans (by ring)
+  Skipped: named intermediate `h_key` has semantic value, 1-line form is more opaque
+
+## Golf Results
+
+Meaningful simplifications: 2 (directness improvements)
+Performance cleanups: 1 (simp narrowing)
+Skipped: 3 (1 tactic complexity, 1 non-identical <;>, 1 semantic name preserved)
+Build status: ✓ passing
+Total savings: 3 lines (~5%)
 ```
 
 ### Search Mode Example

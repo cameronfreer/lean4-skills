@@ -10,6 +10,18 @@
 
 ---
 
+## Tactic Complexity Ladder
+
+Readability/inference-burden heuristic (not a literal performance ordering):
+
+`rfl`/`exact` < `rw`/`apply` < `simp only` < `simpa`/`rwa` < broad `simp`/`decide`/`omega`/`grind`
+
+A golfing transform that moves UP this ladder requires more than a 1-line win — the replacement must be genuinely clearer or more maintainable. A transform that moves DOWN is preferred even if it doesn't save lines.
+
+Separately, **performance wins** come from narrowing `simp` to `simp only`, using direct lemmas over automation, and avoiding search-heavy tactics in coercion-heavy goals — these are always worth pursuing regardless of line count.
+
+---
+
 ## High-Priority Patterns (⭐⭐⭐⭐⭐)
 
 ### Pattern -1: Linter-Guided simp Cleanup (Performance)
@@ -61,7 +73,7 @@ have h : f = g := rfl
 
 When terms are definitionally equal, `rfl` suffices. Low risk - test with build, revert if fails.
 
-### Pattern 2A: `rw; simp_rw` → `rw; simpa` (Simplicity)
+### Pattern 2A: `rw; simp_rw` → `rw; simpa` (Conditional)
 
 ```lean
 -- Before
@@ -75,7 +87,7 @@ rw [compl_iInter] at h
 simpa [compl_compl] using h
 ```
 
-Use `simpa` for binder-aware simplification. Zero risk.
+**Conditional:** `simpa using` is only a win when it deletes surrounding boilerplate (an extra `rw`, `change`, or `simp` block). Never replace `exact t` with `simpa using t` unless `exact t` fails. In coercion-heavy or subtype-heavy proofs, test `exact` first; only fall back to `simpa using` if transport is actually needed. Note: `simp using` is NOT a drop-in for `simpa using` — they have different semantics.
 
 ### Pattern 2B: Eta-Reduction (Simplicity)
 
@@ -109,22 +121,6 @@ have h : ∀ i : Fin m, p (ι i) := fun i => i.isLt
 ```
 
 Convert `intro x; dsimp; exact term` to direct lambda. 75% reduction.
-
-### Pattern 2E: Extract Repeated Patterns to Helpers (Reusability)
-
-```lean
--- Before (duplication)
-have hf' : ∀ x ∈ Ioo a b, HasDerivAt f (deriv f x) x := by intro x hx; exact ...
-have hg' : ∀ x ∈ Ioo a b, HasDerivAt g (deriv g x) x := by intro x hx; exact ...
-
--- After (single helper)
-have toHasDerivAt {h : ℝ → ℝ} (hd : DifferentiableOn ℝ h (Ioo a b)) :
-    ∀ x ∈ Ioo a b, HasDerivAt h (deriv h x) x := fun x hx => ...
-have hf' := toHasDerivAt hfd
-have hg' := toHasDerivAt hgd
-```
-
-40% reduction when pattern appears 2+ times. Low risk.
 
 ### Pattern 3: let+have+exact Inline (Conciseness)
 
@@ -254,9 +250,25 @@ Typically 30–60% reduction. Low risk (same proof terms, reorganized).
 - **Mechanical pass** (≤30 anchors/file): Construct collapsed `exact` from tactic structure → verify with `lean_multi_attempt` + `lean_diagnostic_messages` baseline check.
 - **Exploratory pass** (when `--search≠off`): Build candidate `exact` terms from three sources: (1) chain lemmas with different argument order or dot notation, (2) local hypotheses that unify with the goal, (3) known dot-notation rewrites (`.comp`, `.trans`, `.symm`, `.mul`, etc.). Test via `lean_multi_attempt`.
 - **Regression gate:** Every accepted collapse must pass `lean_diagnostic_messages` baseline check — no new diagnostics, no sorry increase. Not just "compiles in lean_multi_attempt."
-- **Readability:** Net decrease + readability not worse — avoid deeply nested terms or >2 dot-chain depth unless clear net win.
+- **Reject heuristics:**
+  - Reject if collapse introduces `simpa`/`rwa` from a direct explicit proof (moves up the tactic complexity ladder)
+  - Reject if collapsed term length > ~80 chars
+  - Reject if dot-chain depth > 2
+  - Reject if it removes meaningful intermediate names (named `have` with semantic value)
+  - Reject if it only saves 1 line and raises inference burden
 - **Processing order:** Bottom-up to avoid line drift.
 - **Budget:** Mechanical ≤30 anchors/file. Exploratory per-anchor ≤2 probes, per-file: `quick` ≤5 probes/30s, `full` ≤15 probes/60s (shared with lemma replacement).
+
+### Pattern 7A: `simpa using` → `exact` (Directness)
+
+```lean
+-- Before
+simpa using h
+-- After
+exact h
+```
+
+When `simpa` does no simplification, prefer `exact` — it is lower on the tactic complexity ladder and makes intent explicit. Zero risk.
 
 ---
 
@@ -344,17 +356,6 @@ Skip explicit `exact` when simp makes goal trivial. 67% reduction.
 ---
 
 ## Medium-Priority Patterns (⭐⭐⭐)
-
-### Pattern 7A: `simpa using` → `exact` (Clarity)
-
-```lean
--- Before
-simpa using h
--- After
-exact h
-```
-
-When `simpa` does no simplification, use `exact`. Zero risk.
 
 ### Pattern 7B: Unused Lambda Variable Cleanup (Quality)
 
@@ -458,22 +459,23 @@ match i with | 0 => omega | 1 | 2 => rfl | n+3 => [proof]
 
 Use `| n+k =>` for "n ≥ k" range cases. ~25 lines saved.
 
-### Pattern 13: Symmetric Cases with `<;>` (Conciseness)
+### Pattern 13: Symmetric Cases with `<;>` (Conditional)
 
 ```lean
--- Before (duplicate structure)
-cases h with | inl => ... | inr => ...  -- identical bodies
--- After
-rcases h with rfl | rfl <;> (intro h; have : ... := ...; omega)
+-- Before (duplicate structure, literally identical bodies)
+cases h with | inl => simp | inr => simp
+-- After (single identical tactic on identical goals)
+cases h <;> simp
 ```
 
-Use `rcases ... <;>` when both branches structurally identical. ~11 lines saved.
+**Conditional:** `<;>` is allowed only when applying a single identical tactic to literally identical goals (its intended purpose). Do not introduce `<;>` to compress non-identical branches. When counting savings, each `;`-separated tactic counts as its own line.
 
 ### Pattern 14: Inline omega (Conciseness)
 
 ```lean
 -- Before
-have : 2 < n + 3 := by omega; exact hzero _ this
+have : 2 < n + 3 := by omega
+exact hzero _ this
 -- After
 exact hzero _ (by omega)
 ```
