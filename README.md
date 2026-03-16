@@ -28,7 +28,7 @@ Typical session: `prove` (or `autoprove`) → `review` → `refactor` → `golf`
 - **`prove`** — Guided, interactive. Asks preferences at startup, prompts before each commit, pauses between cycles. Start here.
 - **`autoprove`** — Autonomous, unattended. Auto-commits, loops until a stop condition fires (max cycles, max time, or stuck).
 - Both share one cycle engine: **Plan → Work → Checkpoint → Review → Replan → Continue/Stop**. Each sorry gets a mathlib search, tactic attempts, and validation. `--commit` controls per-fill commit behavior. When stuck, both force a review + replan.
-- Editing `.lean` files without a command activates the skill for one bounded pass — fix the immediate issue, then suggest `prove` or `autoprove` for more.
+**Without a command:** Editing `.lean` files activates the skill for one bounded pass — fix the immediate issue, then suggest `/lean4:prove` or `/lean4:autoprove` for more. If the agent needs short "what should I try next?" triage on a blocked goal, use the bundled [`stuck?` skill](plugins/lean4/skills/stuck/SKILL.md).
 
 See [plugin README](plugins/lean4/README.md) for the full command guide.
 
@@ -86,6 +86,7 @@ claude mcp add lean-lsp uvx lean-lsp-mcp
 ## Documentation
 
 - [SKILL.md](plugins/lean4/skills/lean4/SKILL.md) - Core skill reference
+- [stuck?](plugins/lean4/skills/stuck/SKILL.md) - Short unblock loop when the agent needs the next Lean move
 - [INSTALLATION.md](INSTALLATION.md) - Setup guide
 - [Commands](plugins/lean4/commands/) - Command documentation
 - [Advanced References](plugins/lean4/skills/lean4/references/) - grind, simprocs, metaprogramming, linters, FFI, verso-docs, profiling
