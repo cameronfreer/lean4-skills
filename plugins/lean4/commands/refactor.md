@@ -1,6 +1,6 @@
 ---
 name: refactor
-description: Strategy-level proof simplification
+description: Leverage mathlib, extract helpers, simplify proof strategies
 user_invocable: true
 ---
 

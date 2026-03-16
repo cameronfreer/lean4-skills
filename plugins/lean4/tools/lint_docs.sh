@@ -1244,6 +1244,47 @@ check_release_metadata() {
     fi
 }
 
+# Check 24: Command descriptions aligned across surfaces
+check_description_alignment() {
+    log ""
+    log "Checking command description alignment..."
+
+    local cmd_dir="$PLUGIN_ROOT/commands"
+    local skill_md="$PLUGIN_ROOT/skills/lean4/SKILL.md"
+    local plugin_readme="$PLUGIN_ROOT/README.md"
+    local repo_root
+    repo_root="$(cd "$PLUGIN_ROOT" && cd ../.. && pwd)"
+    local repo_readme="$repo_root/README.md"
+
+    local _da_cmd _da_desc _da_mismatches
+    _da_mismatches=0
+
+    for _da_cmd in $KNOWN_COMMANDS; do
+        local cmd_file="$cmd_dir/$_da_cmd.md"
+        [[ -f "$cmd_file" ]] || continue
+
+        # Extract description from frontmatter (line starting with "description:")
+        _da_desc=$(sed -n '/^---$/,/^---$/{ s/^description: *//p; }' "$cmd_file" | head -1)
+        [[ -z "$_da_desc" ]] && continue
+
+        # Check SKILL.md and plugin README (should match frontmatter exactly).
+        # Root README uses abbreviated descriptions so is not checked here.
+        for surface in "$skill_md" "$plugin_readme"; do
+            [[ -f "$surface" ]] || continue
+            local _da_base
+            _da_base=$(basename "$surface")
+            if ! grep -qF "$_da_desc" "$surface"; then
+                warn "$_da_base: $_da_cmd description mismatch (expected: '$_da_desc')"
+                _da_mismatches=1
+            fi
+        done
+    done
+
+    if [[ $_da_mismatches -eq 0 ]]; then
+        ok "Command descriptions aligned across all surfaces"
+    fi
+}
+
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
@@ -1273,6 +1314,7 @@ check_advanced_reference_metadata
 check_advanced_reference_language
 check_advanced_reference_snippets
 check_release_metadata
+check_description_alignment
 
 log ""
 log "================================"
