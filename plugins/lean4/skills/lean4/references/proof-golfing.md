@@ -334,7 +334,7 @@ Nat.add_lt_add_left hij k
 1. let+have+exact: 50% of all savings, 60-80% per instance
 2. Smart ext: 50% reduction, no clarity loss
 3. ext-simp chains: Saves ≥2 lines when natural
-4. rwa: Instant wins, zero risk
+4. rwa: Conditional (only when it deletes boilerplate, not as default compression)
 5. ext+rfl → rfl: High value when works
 
 ## Detailed References

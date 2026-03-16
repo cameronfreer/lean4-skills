@@ -736,6 +736,43 @@ check_golf_policy() {
     if [[ $ref_missing -eq 0 ]]; then
         ok "proof-golfing.md: Bulk-trigger anchors present"
     fi
+
+    # Golf policy consistency: check for stale unconditional rwa/simp-only/semicolon language
+    local drift=0
+
+    # No unconditional "rwa: instant win" or "rwa.*zero risk" in references
+    if grep -qiE 'rwa.*instant win|rwa.*zero risk' "$ref_file"; then
+        warn "proof-golfing.md: Stale unconditional rwa language (should be conditional per golf policy)"
+        drift=1
+    fi
+
+    local patterns_file="$PLUGIN_ROOT/skills/lean4/references/proof-golfing-patterns.md"
+    if [[ -f "$patterns_file" ]] && grep -qiE '^### Pattern 1:.*rw.*rwa' "$patterns_file" && \
+       ! grep -qiE 'Conditional' "$patterns_file" | head -1 >/dev/null 2>&1; then
+        # Just check that Pattern 1 has "Conditional" somewhere nearby
+        if ! grep -A5 '^### Pattern 1:' "$patterns_file" | grep -qi 'conditional'; then
+            warn "proof-golfing-patterns.md: Pattern 1 (rwa) missing 'Conditional' marker"
+            drift=1
+        fi
+    fi
+
+    # <;> policy must be consistent: command, agent, and references should all allow identical-goal <;>
+    for f in "$file" "$agent_file" "$ref_file"; do
+        if grep -qE '<;>.*never|never.*<;>' "$f" && ! grep -qE '<;>.*identical|identical.*<;>' "$f"; then
+            warn "$(basename "$f"): <;> policy inconsistency — bans <;> without identical-goal exception"
+            drift=1
+        fi
+    done
+
+    # Terminal simp only caveat must appear in patterns file
+    if [[ -f "$patterns_file" ]] && ! grep -qi 'terminal.*simp only' "$patterns_file"; then
+        warn "proof-golfing-patterns.md: Missing terminal simp only caveat"
+        drift=1
+    fi
+
+    if [[ $drift -eq 0 ]]; then
+        ok "Golf policy consistency: no stale language detected"
+    fi
 }
 
 # Check 13: Backward-compat scripts alias

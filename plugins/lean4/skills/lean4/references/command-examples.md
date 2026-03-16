@@ -455,7 +455,7 @@ Claude: Running review on Core.lean...
 - Line 78: Proof is 38 lines - consider extracting helper lemma
 
 ### Golfing Opportunities
-- Line 23: `rw [h]; exact trivial` → `rwa [h]`
+- Line 23: `apply f; exact h` → `exact f h` (directness win)
 - Line 56: `ext x; simp` - verify if `simp` alone suffices
 
 ### Complexity Summary
@@ -834,7 +834,7 @@ Claude: Verifying build...
 Finding golfing opportunities...
 Found 4 syntactic patterns + 2 lemma replacement candidates
 
-[1/6] Line 23: rw [h]; exact → rwa [h]
+[1/6] Line 23: apply f; exact h → exact f h (directness)
   Diagnostics... ✓
 
 [2/6] Line 30: custom_continuous_comp → Continuous.comp (mathlib)
@@ -875,10 +875,10 @@ Stopping delegation immediately — switching to direct mode.
 
 Continuing in main agent (no subagents will be launched)...
 
-[1/6] Line 23: rw [h]; exact → rwa [h]
+[1/6] Line 23: apply f; exact h → exact f h (directness)
   Diagnostics... ✓
 
-[2/6] Line 45: ext x; rfl → rfl
+[2/6] Line 45: ext x; rfl → rfl (directness)
   Diagnostics... ✓
 
 [continues directly without delegation...]

@@ -70,7 +70,7 @@ def classify_proof(tactics: List[str]) -> tuple:
     # Category A: rw + exact/rfl — high chance exact? finds direct lemma
     if len(tactics) <= 3 and any(t.startswith('rw') for t in tactics) and \
        any(t.startswith(('exact', 'rfl')) for t in tactics):
-        return ('rw_exact', 'high', 'rw + exact pattern — exact? may find direct lemma')
+        return ('rw_exact', 'high', 'rw + exact pattern — try exact? for direct lemma (do not default to rwa compression)')
 
     # Category B: rw + ring/norm_num — identity might be known
     if len(tactics) <= 3 and any(t.startswith('rw') for t in tactics) and \

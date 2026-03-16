@@ -86,7 +86,7 @@ Lines: X → Y (Z% reduction)
 
 **Scoring order** (per golf.md): directness → inference burden → perf/determinism → length. Length is a core goal but a tiebreaker. Inference/perf judged heuristically by tactic complexity ladder (`rfl`/`exact` < `rw`/`apply` < `simp only` < `simpa`/`rwa` < broad `simp`/`decide`/`omega`/`grind`), not by measurement.
 
-**Hard reject:** introduces `;`/`<;>` · moves UP ladder for only 1-line win · removes meaningful names · >80 chars or >2 dot-chain · replaces `exact` with `simpa`/`rwa` unless `exact` fails.
+**Hard reject:** introduces naked `;` · introduces `<;>` on non-identical goals · moves UP ladder for only 1-line win · removes meaningful names · >80 chars or >2 dot-chain · replaces `exact` with `simpa`/`rwa` unless `exact` fails.
 
 **Terminal `simp only`:** Non-terminal `simp` → `simp only` always valid. Terminal `simp` → `simp only` is a style split — skip in delegate mode unless project already uses it nearby.
 

@@ -51,7 +51,7 @@ theorem count : a = 9 ∧ b = 2 := ⟨rfl, rfl⟩
 
 Term mode for definitional equalities. Use `⟨_, _⟩` instead of `constructor <;> rfl`. Zero risk.
 
-### Pattern 1: `rw; exact` → `rwa`
+### Pattern 1: `rw; exact` → `rwa` (Conditional)
 
 ```lean
 -- Before
@@ -60,7 +60,7 @@ rw [h1, h2] at h; exact h
 rwa [h1, h2] at h
 ```
 
-Standard mathlib idiom. `rwa` = "rewrite and assumption". Zero risk.
+**Conditional:** `rwa` is a standard mathlib idiom, but as a golfing transform it moves UP the tactic complexity ladder (`rw`+`exact` → `rwa`). Only apply when `rwa` genuinely deletes surrounding boilerplate (extra `simp`/`change` blocks), not as a default 1-line compression. See golf.md `simpa`/`rwa` direction rule.
 
 ### Pattern 2: `ext + rfl` → `rfl`
 
@@ -294,7 +294,7 @@ lemma foo : Measure.map ... := by congr 1; ext ω i; rw [h]
 lemma foo : Measure.map ... := by simp only [h]
 ```
 
-`simp` handles congruence and extensionality automatically. 67% reduction.
+`simp` handles congruence and extensionality automatically. 67% reduction. **Caveat:** If `simp only` would be terminal (closing the goal), this is subject to the terminal `simp only` style split — ask for user confirmation in interactive mode, skip in non-interactive unless project already uses terminal `simp only` nearby.
 
 ### Pattern 5A: Remove Redundant `show` Wrappers (Simplicity)
 
