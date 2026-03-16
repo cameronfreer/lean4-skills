@@ -13,9 +13,13 @@ model: opus
 
 ## Actions
 
-1. **Find patterns** with false-positive filtering:
+1. **Find patterns** (in policy order: directness → structural → conditional) with false-positive filtering:
    ```bash
    ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/find_golfable.py" FILE.lean --filter-false-positives
+   ```
+   For direct-proof discovery when search_mode ≠ off or syntactic pass stalls:
+   ```bash
+   ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/find_exact_candidates.py" FILE.lean
    ```
 
 2. **Verify safety** before inlining any binding:
@@ -27,7 +31,7 @@ model: opus
    - 5+ uses: NEVER inline
 
 3. **Exact-collapse pass** (for `apply-exact-chain` anchors from step 1):
-   - Mechanical (≤30 anchors/file): construct collapsed `exact` → `lean_multi_attempt` + `lean_diagnostic_messages` baseline check; accept if net decrease + readability not worse
+   - Mechanical (≤30 anchors/file): construct collapsed `exact` → `lean_multi_attempt` + `lean_diagnostic_messages` baseline check; accept by scoring order (per golf.md: directness → inference burden → perf → length)
    - Exploratory (when search_mode ≠ off; shared budget): candidate `exact` from chain lemmas + local hyps + dot-notation rewrites → `lean_multi_attempt`; ≤2 probes/anchor, `quick` ≤5/file 30s, `full` ≤15/file 60s. Skip: `calc`, multi-goal, blocks >7 lines, semicolon-heavy, `have`/`refine`
 
 4. **Lemma replacement search** (if search_mode ≠ off):

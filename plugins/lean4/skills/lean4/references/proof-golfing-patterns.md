@@ -4,6 +4,7 @@
 
 ## Contents
 - [High-Priority Patterns (⭐⭐⭐⭐⭐)](#high-priority-patterns-)
+- [Conditional Patterns](#conditional-patterns)
 - [Medium-Priority Patterns (⭐⭐⭐⭐)](#medium-priority-patterns-)
 - [Medium-Priority Patterns (⭐⭐⭐)](#medium-priority-patterns--1)
 - [Documentation Quality Patterns (⭐⭐)](#documentation-quality-patterns-)
@@ -51,17 +52,6 @@ theorem count : a = 9 ∧ b = 2 := ⟨rfl, rfl⟩
 
 Term mode for definitional equalities. Use `⟨_, _⟩` instead of `constructor <;> rfl`. Zero risk.
 
-### Pattern 1: `rw; exact` → `rwa` (Conditional)
-
-```lean
--- Before
-rw [h1, h2] at h; exact h
--- After
-rwa [h1, h2] at h
-```
-
-**Conditional:** `rwa` is a standard mathlib idiom, but as a golfing transform it moves UP the tactic complexity ladder (`rw`+`exact` → `rwa`). Only apply when `rwa` genuinely deletes surrounding boilerplate (extra `simp`/`change` blocks), not as a default 1-line compression. See golf.md `simpa`/`rwa` direction rule.
-
 ### Pattern 2: `ext + rfl` → `rfl`
 
 ```lean
@@ -72,22 +62,6 @@ have h : f = g := rfl
 ```
 
 When terms are definitionally equal, `rfl` suffices. Low risk - test with build, revert if fails.
-
-### Pattern 2A: `rw; simp_rw` → `rw; simpa` (Conditional)
-
-```lean
--- Before
-have h := this.interior_compl
-rw [compl_iInter] at h
-simp_rw [compl_compl] at h
-exact h
--- After
-have h := this.interior_compl
-rw [compl_iInter] at h
-simpa [compl_compl] using h
-```
-
-**Conditional:** `simpa using` is only a win when it deletes surrounding boilerplate (an extra `rw`, `change`, or `simp` block). Never replace `exact t` with `simpa using t` unless `exact t` fails. In coercion-heavy or subtype-heavy proofs, test `exact` first; only fall back to `simpa using` if transport is actually needed. Note: `simp using` is NOT a drop-in for `simpa using` — they have different semantics.
 
 ### Pattern 2B: Eta-Reduction (Simplicity)
 
@@ -269,6 +243,39 @@ exact h
 ```
 
 When `simpa` does no simplification, prefer `exact` — it is lower on the tactic complexity ladder and makes intent explicit. Zero risk.
+
+---
+
+## Conditional Patterns
+
+Patterns that improve code only in specific contexts. Apply only when the scoring order clearly favors the replacement.
+
+### Pattern 1: `rw; exact` → `rwa` (Conditional)
+
+```lean
+-- Before
+rw [h1, h2] at h; exact h
+-- After
+rwa [h1, h2] at h
+```
+
+**Conditional:** `rwa` is a standard mathlib idiom, but as a golfing transform it moves UP the tactic complexity ladder (`rw`+`exact` → `rwa`). Only apply when `rwa` genuinely deletes surrounding boilerplate (extra `simp`/`change` blocks), not as a default 1-line compression. See golf.md `simpa`/`rwa` direction rule.
+
+### Pattern 2A: `rw; simp_rw` → `rw; simpa` (Conditional)
+
+```lean
+-- Before
+have h := this.interior_compl
+rw [compl_iInter] at h
+simp_rw [compl_compl] at h
+exact h
+-- After
+have h := this.interior_compl
+rw [compl_iInter] at h
+simpa [compl_compl] using h
+```
+
+**Conditional:** `simpa using` is only a win when it deletes surrounding boilerplate (an extra `rw`, `change`, or `simp` block). Never replace `exact t` with `simpa using t` unless `exact t` fails. In coercion-heavy or subtype-heavy proofs, test `exact` first; only fall back to `simpa using` if transport is actually needed. Note: `simp using` is NOT a drop-in for `simpa using` — they have different semantics.
 
 ---
 

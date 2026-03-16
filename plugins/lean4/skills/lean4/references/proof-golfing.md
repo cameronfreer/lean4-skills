@@ -114,16 +114,16 @@ This cleanup often accounts for 60%+ of available savings.
 Use systematic search, not sequential reading:
 
 ```bash
-# 1. Find let+have+exact (HIGHEST value)
-grep -A 10 "let .*:=" file.lean | grep -B 8 "exact"
-
-# 2. Find by-exact wrappers
+# 1. Find by-exact wrappers (directness)
 grep -B 1 "exact" file.lean | grep "by$"
 
-# 3. Find ext+simp patterns
-grep -n "ext.*simp" file.lean
+# 2. Find apply-exact chains (directness)
+grep -A 1 "apply " file.lean | grep "exact"
 
-# 4. Find rw+exact (for rwa)
+# 3. Find let+have+exact (structural — verify binding usage)
+grep -A 10 "let .*:=" file.lean | grep -B 8 "exact"
+
+# 4. Find rw+exact (conditional — see rwa direction rule)
 grep -A 1 "rw \[" file.lean | grep "exact"
 ```
 
