@@ -69,7 +69,7 @@ Lines: X → Y (Z% reduction)
 
 - Max 3 edit hunks per run, each ≤60 lines
 - No semantic changes
-- No new dependencies, except one import when replacing a custom helper or axiom with a Mathlib lemma and net proof size decreases
+- No new dependencies, except one import when replacing a custom helper or axiom with a Mathlib lemma and the replacement scores better by the lexicographic order (directness → inference burden → perf → length)
 - Must verify safety before inlining
 - Stop when success rate < 20%
 - May NOT skip safety verification

@@ -571,7 +571,7 @@ def format_output(patterns: List[GolfablePattern], verbose: bool = False) -> str
     for i, pattern in enumerate(patterns, 1):
         output.append(f"{i}. {pattern.pattern_type.upper()} [{pattern.priority} PRIORITY] ({pattern.benefit})")
         output.append(f"   File: {pattern.file_path}:{pattern.line_number}")
-        output.append(f"   Lines: {pattern.line_count} | Est. reduction: {pattern.reduction_estimate}")
+        output.append(f"   Lines: {pattern.line_count} | Benefit: {pattern.benefit} | Est. reduction: {pattern.reduction_estimate}")
 
         if verbose:
             output.append(f"\n   Preview:")
@@ -580,13 +580,13 @@ def format_output(patterns: List[GolfablePattern], verbose: bool = False) -> str
 
         output.append("")
 
-    # Summary by priority
-    high = sum(1 for p in patterns if p.priority == 'HIGH')
-    med = sum(1 for p in patterns if p.priority == 'MEDIUM')
-    low = sum(1 for p in patterns if p.priority == 'LOW')
+    # Summary by benefit type (policy order)
+    directness = sum(1 for p in patterns if p.benefit == 'directness')
+    structural = sum(1 for p in patterns if p.benefit == 'structural')
+    conditional = sum(1 for p in patterns if p.benefit == 'conditional')
 
-    output.append(f"Summary: {high} HIGH, {med} MEDIUM, {low} LOW priority")
-    output.append(f"Expected total reduction: 30-40% with systematic optimization (heuristic estimate)\n")
+    output.append(f"Summary: {directness} directness, {structural} structural, {conditional} conditional")
+    output.append(f"Scoring order: directness → inference burden → perf → length\n")
 
     return '\n'.join(output)
 

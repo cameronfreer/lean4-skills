@@ -143,7 +143,7 @@ For each let+have+exact pattern:
 
 When search mode is enabled, replacement candidates follow the same safety rules:
 - Only accept if `lean_multi_attempt` passes
-- Only accept if net proof size decreases
+- Only accept if the replacement scores better by the lexicographic order (directness → inference burden → perf → length)
 - Max one new import per replacement
 - If replacement type-mismatches or needs statement changes → skip (hand off to axiom-eliminator)
 
@@ -191,7 +191,7 @@ When `--search` is enabled, the golfer performs a bounded LSP search pass before
 
 1. Search for mathlib equivalents of custom helpers/axioms
 2. Test replacements with `lean_multi_attempt`
-3. Accept only if: replacement passes, net size decreases, and at most one new import needed
+3. Accept only if: replacement passes, scores better by the lexicographic order, and at most one new import needed
 
 **Budgets:** `quick` = 1 search, ≤2 candidates; `full` = 2 searches, ≤3 candidates. Max 3 search calls total, ≤60s.
 

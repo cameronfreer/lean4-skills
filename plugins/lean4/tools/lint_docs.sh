@@ -792,11 +792,15 @@ check_golf_policy() {
         drift=1
     fi
 
-    # lean4-proof-golfer.md exact-collapse pass must reference "scoring order" not "net decrease"
-    if grep -q 'net decrease' "$agent_file"; then
-        warn "lean4-proof-golfer.md: Stale 'net decrease' acceptance rule (should reference scoring order)"
-        drift=1
-    fi
+    # No size-first acceptance language in agent or reference docs
+    for _gp_file in "$agent_file" "$ref_file"; do
+        local _gp_base
+        _gp_base=$(basename "$_gp_file")
+        if grep -qiE 'net (proof )?size decrease|net decrease' "$_gp_file"; then
+            warn "$_gp_base: Stale size-first acceptance language (should reference scoring order)"
+            drift=1
+        fi
+    done
 
     if [[ $drift -eq 0 ]]; then
         ok "Golf policy consistency: no stale language detected"
@@ -1267,13 +1271,16 @@ check_description_alignment() {
         _da_desc=$(sed -n '/^---$/,/^---$/{ s/^description: *//p; }' "$cmd_file" | head -1)
         [[ -z "$_da_desc" ]] && continue
 
-        # Check SKILL.md and plugin README (should match frontmatter exactly).
+        # Check SKILL.md and plugin README table rows (should match frontmatter exactly).
         # Root README uses abbreviated descriptions so is not checked here.
+        # We match against table rows containing the command name to avoid false positives
+        # from the same text appearing elsewhere in the file.
         for surface in "$skill_md" "$plugin_readme"; do
             [[ -f "$surface" ]] || continue
             local _da_base
             _da_base=$(basename "$surface")
-            if ! grep -qF "$_da_desc" "$surface"; then
+            # Extract table rows mentioning this command and check for the description
+            if ! grep -F "$_da_cmd" "$surface" | grep '|' | grep -qF "$_da_desc"; then
                 warn "$_da_base: $_da_cmd description mismatch (expected: '$_da_desc')"
                 _da_mismatches=1
             fi
