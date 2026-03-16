@@ -45,7 +45,10 @@ python3 plugins/lean4/lib/scripts/test_apply_exact_chains.py
 
 ## find_golfable.py Ordering Test
 
-Validates that `analyze_file()` sorts patterns by policy order (directness → structural → conditional) using the `benefit` field, including intra-phase position (by-exact before apply-exact-chain within directness).
+Validates policy-order sorting (directness → structural → conditional),
+intra-phase position (by-exact before apply-exact-chain), and cross-file
+ordering (directness from a later file before conditional from an earlier
+file in recursive scans).
 
 ```bash
 python3 plugins/lean4/lib/scripts/tests/test_ordering.py

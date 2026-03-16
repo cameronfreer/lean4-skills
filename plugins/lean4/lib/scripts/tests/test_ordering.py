@@ -6,6 +6,9 @@ Validates that analyze_file() returns patterns sorted by policy order:
 and that intra-phase ordering matches the documented phase position
 (by-exact before apply-exact-chain within directness).
 
+Also validates cross-file ordering via analyze_files(): directness hits
+from a later file appear before conditional hits from an earlier file.
+
 Run:
     python3 tests/test_ordering.py
     # or from repo root:
@@ -19,7 +22,7 @@ from pathlib import Path
 
 # Allow import from parent directory
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from find_golfable import analyze_file
+from find_golfable import analyze_file, analyze_files
 
 
 # Lean fixture with patterns from each benefit category.
@@ -99,6 +102,57 @@ class TestBenefitOrdering(unittest.TestCase):
         for p in self.patterns:
             self.assertIn(p.benefit, valid_benefits,
                           f"{p.pattern_type} has invalid benefit '{p.benefit}'")
+
+
+# -- Cross-file fixtures --
+# Conditional-only file (alphabetically first → processed first without global sort)
+CONDITIONAL_ONLY = """\
+-- constructor pattern (conditional, needs >=6 branch lines)
+theorem baz : Prop := by
+  constructor
+    exact True.intro
+    exact True.intro
+    exact True.intro
+    exact True.intro
+    exact True.intro
+    exact True.intro
+"""
+
+# Directness-only file (alphabetically last → processed second)
+DIRECTNESS_ONLY = """\
+-- by-exact pattern (directness)
+theorem foo : Nat := by
+  exact 42
+"""
+
+
+class TestCrossFileOrdering(unittest.TestCase):
+    """Directness from a later file appears before conditional from an earlier file."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        # aaa sorts before zzz — conditional file is processed first
+        cond_path = Path(self.tmpdir) / "aaa_conditional.lean"
+        cond_path.write_text(CONDITIONAL_ONLY)
+        dir_path = Path(self.tmpdir) / "zzz_directness.lean"
+        dir_path.write_text(DIRECTNESS_ONLY)
+        self.files = [cond_path, dir_path]
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir)
+
+    def test_global_sort_across_files(self):
+        """analyze_files() globally sorts: directness before conditional."""
+        patterns = analyze_files(self.files)
+        benefits = [p.benefit for p in patterns]
+        self.assertIn("directness", benefits)
+        self.assertIn("conditional", benefits)
+        first_directness = benefits.index("directness")
+        first_conditional = benefits.index("conditional")
+        self.assertLess(first_directness, first_conditional,
+                        f"directness (idx {first_directness}) should precede "
+                        f"conditional (idx {first_conditional}) across files")
 
 
 if __name__ == "__main__":

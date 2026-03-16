@@ -8,7 +8,7 @@ Identifies optimization patterns with estimated reduction potential.
 import re
 import sys
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import Iterable, List, Tuple, Optional
 from dataclasses import dataclass
 
 @dataclass
@@ -506,6 +506,19 @@ def find_apply_exact_chains(file_path: Path, lines: List[str]) -> List[GolfableP
     return patterns
 
 
+_BENEFIT_ORDER = {'directness': 0, 'performance': 1, 'structural': 2, 'conditional': 3}
+_PHASE_POSITION = {
+    'by exact wrapper': 0, 'apply-exact-chain': 1,
+    'have-calc single-use': 2, 'let + have + exact': 3,
+    'constructor branches': 4, 'calc chain': 5, 'multiple haves': 6,
+}
+
+
+def _sort_key(p: GolfablePattern) -> tuple:
+    """Policy-order sort key: benefit → phase position → line count."""
+    return (_BENEFIT_ORDER.get(p.benefit, 3), _PHASE_POSITION.get(p.pattern_type, 99), -p.line_count)
+
+
 def analyze_file(file_path: Path, pattern_types: Optional[List[str]] = None,
                 filter_false_positives: bool = False) -> List[GolfablePattern]:
     """Analyze a file for optimization patterns.
@@ -546,17 +559,25 @@ def analyze_file(file_path: Path, pattern_types: Optional[List[str]] = None,
 
         all_patterns.extend(patterns)
 
-    # Sort by benefit type (policy order), then documented phase position, then size as tiebreaker.
-    # Phase position matches the help-text ordering within each benefit bucket.
-    benefit_order = {'directness': 0, 'performance': 1, 'structural': 2, 'conditional': 3}
-    phase_position = {
-        'by exact wrapper': 0, 'apply-exact-chain': 1,       # Phase A
-        'have-calc single-use': 2, 'let + have + exact': 3,  # Phase B
-        'constructor branches': 4, 'calc chain': 5, 'multiple haves': 6,  # Phase C
-    }
-    all_patterns.sort(key=lambda p: (benefit_order.get(p.benefit, 3), phase_position.get(p.pattern_type, 99), -p.line_count))
+    all_patterns.sort(key=_sort_key)
 
     return all_patterns
+
+
+def analyze_files(files: Iterable[Path], pattern_types: Optional[List[str]] = None,
+                  filter_false_positives: bool = False) -> List[GolfablePattern]:
+    """Analyze multiple files and return globally sorted patterns.
+
+    Files are iterated in sorted order for deterministic output.
+    Results are globally sorted by policy order.
+    """
+    all_patterns = []
+    for file_path in sorted(files):
+        patterns = analyze_file(file_path, pattern_types, filter_false_positives)
+        all_patterns.extend(patterns)
+    all_patterns.sort(key=_sort_key)
+    return all_patterns
+
 
 def format_output(patterns: List[GolfablePattern], verbose: bool = False) -> str:
     """Format patterns for display."""
@@ -661,11 +682,8 @@ Pattern types (policy order):
         print(f"No .lean files found in {path}", file=sys.stderr)
         return 1
 
-    # Analyze files
-    all_patterns = []
-    for file_path in files:
-        patterns = analyze_file(file_path, args.patterns, args.filter_false_positives)
-        all_patterns.extend(patterns)
+    # Analyze files (globally sorted by policy order)
+    all_patterns = analyze_files(files, args.patterns, args.filter_false_positives)
 
     # Output results
     output = format_output(all_patterns, args.verbose)
