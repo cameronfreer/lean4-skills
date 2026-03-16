@@ -53,15 +53,18 @@ check_commands() {
         local lines
         lines=$(wc -l < "$file")
 
-        # Per-command line limits: prove/autoprove/doctor/review are inherently larger
+        # Per-command line limits (explicit for every command)
         local max_lines=120
         case "$cmd" in
-            prove|autoprove) max_lines=235 ;;
-            doctor)          max_lines=225 ;;
-            formalize)       max_lines=160 ;;
-            golf)            max_lines=170 ;;
-            review)          max_lines=330 ;;
-            learn)           max_lines=180 ;;
+            autoprove)  max_lines=235 ;;
+            checkpoint) max_lines=90 ;;
+            doctor)     max_lines=225 ;;
+            formalize)  max_lines=160 ;;
+            golf)       max_lines=170 ;;
+            learn)      max_lines=180 ;;
+            prove)      max_lines=235 ;;
+            refactor)   max_lines=120 ;;
+            review)     max_lines=330 ;;
         esac
 
         if [[ $lines -gt $max_lines ]]; then

@@ -7,8 +7,14 @@
 - `proof-golfing-patterns.md`: move conditional patterns (rwa, simpa) out of High-Priority section
 - `proof-golfing.md`: reorder Phase 1 search commands to policy order
 - Surface `find_exact_candidates.py` as optional companion in golf.md, agent, and scripts README
-- `lint_docs.sh`: add drift checks for stale "HIGHEST value" and "net decrease" language
+- `lint_docs.sh`: add drift checks for stale "HIGHEST value" and "net decrease" language; explicit `max_lines` for all commands
 - New `tests/test_ordering.py` for deterministic benefit-based sort validation
+- Align agent files with official Claude Code conventions (#2f8293f)
+- `/lean4:learn`: add pedagogical self-debate step to iterate loop (#43)
+- `lint_docs.sh`: expand version lint to full release-metadata consistency check (#50)
+- Add cold-start / fresh-worktree build-order guidance (#49)
+- Replace deprecated `induction'` with structured induction syntax (#46)
+- Normalize WRONG/CORRECT labels in compilation-errors.md
 
 ## v4.3.2 (March 2026)
 - New [`/lean4:refactor`](plugins/lean4/commands/refactor.md) command: strategy-level proof simplification (mathlib leverage, helper extraction, congr/EqOn patterns)
