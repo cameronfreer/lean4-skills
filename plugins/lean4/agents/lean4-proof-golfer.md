@@ -1,6 +1,6 @@
 ---
 name: lean4-proof-golfer
-description: Golf Lean 4 proofs after they compile; improve proofs for directness, clarity, and performance without changing semantics. Use after successful compilation to achieve 30-40% size reduction.
+description: Golf Lean 4 proofs after they compile; improve proofs for directness, clarity, performance, and brevity without changing semantics. Use after successful compilation to achieve 30-40% size reduction.
 tools: Read, Grep, Glob, Edit, Bash, lean_goal, lean_local_search, lean_leanfinder, lean_loogle, lean_multi_attempt, lean_diagnostic_messages
 model: opus
 ---

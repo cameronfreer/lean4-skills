@@ -1,6 +1,6 @@
 ---
 name: golf
-description: Improve Lean proofs for directness, clarity, and performance
+description: Improve Lean proofs for directness, clarity, performance, and brevity
 user_invocable: true
 ---
 

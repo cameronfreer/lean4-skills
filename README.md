@@ -15,7 +15,7 @@ others all use the same core skill; only the invocation surface differs.
 | checkpoint | Verified save point (build + axiom check + commit) |
 | review | Read-only quality review |
 | refactor | Strategy-level proof simplification |
-| golf | Improve proofs for directness, clarity, and performance |
+| golf | Improve proofs for directness, clarity, performance, and brevity |
 | learn | Interactive teaching and mathlib exploration |
 | doctor | Diagnostics and migration help |
 

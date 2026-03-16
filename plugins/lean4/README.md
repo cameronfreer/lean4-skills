@@ -17,7 +17,7 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 | `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
 | `/lean4:review` | Read-only quality review with optional external hooks |
 | `/lean4:refactor` | Strategy-level proof simplification |
-| `/lean4:golf` | Improve proofs for directness, clarity, and performance |
+| `/lean4:golf` | Improve proofs for directness, clarity, performance, and brevity |
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
 | `/lean4:doctor` | Diagnostics and migration help |
 
