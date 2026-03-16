@@ -6,7 +6,7 @@ user_invocable: true
 
 # Lean4 Golf
 
-Improve Lean proofs that already compile. Prefer directness and clarity over brevity. Line count is a tiebreaker, not the goal.
+Improve Lean proofs that already compile. Score candidates by: correctness → directness → clarity/inference burden → performance/determinism → length. Length is still a core goal, but a tiebreaker among acceptable proofs.
 
 **Prerequisite:** Code must compile. Verify code compiles first (`lean_diagnostic_messages(file)` or `lake env lean <path/to/File.lean>` from project root; `lake build` for project-wide).
 
@@ -44,7 +44,7 @@ Improve Lean proofs that already compile. Prefer directness and clarity over bre
 4. **Lemma Replacement** (if `--search=quick` or `full`):
    - Run LSP searches per candidate; test with `lean_multi_attempt`
    - `quick`: 1 search, ≤2 candidates; `full`: 2 searches, ≤3 candidates; ≤3 search calls; uses remaining shared time budget
-   - Accept the best passing replacement by score: directness + elaboration cost + clarity > line count
+   - Accept the best passing replacement by the scoring order below
    - Hand off to axiom-eliminator if replacement needs statement changes or multi-file refactor
 5. **Verify Safety** - Check usage before inlining:
    ```bash
@@ -82,11 +82,13 @@ Improve Lean proofs that already compile. Prefer directness and clarity over bre
 
 **Semicolons:** Never introduce naked `;` as a golfing transform. `<;>` may be introduced only when applying a single identical tactic to literally identical goals (its intended purpose — e.g., `constructor <;> simp`); do not use it to compress non-identical branches. When counting line savings, each `;`-separated tactic counts as its own line — semicolons do not reduce line count. If existing code uses `;` or `<;>`, do not count those lines as savings and do not target rewrites that preserve or expand semicolon usage.
 
-**Tactic complexity ladder** (readability/inference-burden heuristic, not a literal performance ordering): `rfl`/`exact` < `rw`/`apply` < `simp only` < `simpa`/`rwa` < broad `simp`/`decide`/`omega`/`grind`. A golfing transform that moves UP this ladder requires more than a 1-line win to be accepted — the replacement must be genuinely clearer or more maintainable. A transform that moves DOWN is preferred even if it doesn't save lines. Separately, **performance wins** come from narrowing `simp` to `simp only`, using direct lemmas over automation, and avoiding search-heavy tactics in coercion-heavy goals — these are always worth pursuing regardless of line count.
+**Scoring order.** A candidate is a win iff correct and not rejected (see below). Among wins, prefer in this order: (1) more direct proof shape, (2) lower inference/search burden, (3) better performance/determinism, (4) shorter code. Length is still a core goal of golf — it is a tiebreaker among acceptable proofs, not a license to introduce heavier tactics. Inference burden and performance are judged heuristically by the tactic complexity ladder, not by measurement: `rfl`/`exact` < `rw`/`apply` < `simp only` < `simpa`/`rwa` < broad `simp`/`decide`/`omega`/`grind`.
 
-**Terminal `simp only` caveat:** Narrowing non-terminal `simp` → `simp only` is always a valid perf/determinism cleanup (and the [FlexibleLinter](https://leanprover-community.github.io/mathlib4_docs/Mathlib/Tactic/Linter/FlexibleLinter.html) may flag non-`only` simp before rigid tactics). However, *terminal* `simp` vs `simp only` is a genuine style split — some projects prefer terminal `simp` for resilience to simp-set changes. Do not narrow terminal `simp` to `simp only`, and do not introduce new terminal `simp only` to replace a direct proof, without user confirmation. In interactive mode, ask once per session. In non-interactive/delegate mode, skip terminal `simp only` changes unless the project already uses terminal `simp only` nearby or the user has opted in.
+**Hard reject if:** introduces `;` or `<;>` (per semicolon policy) · moves UP the complexity ladder for only a 1-line win · removes meaningful names · collapsed term > ~80 chars or dot-chain > 2 · replaces direct proof with terminal `simp only` without user opt-in · replaces `exact` with `simpa`/`rwa` unless `exact` fails.
 
-**Minimum value filter:** 1-line savings are only worth surfacing if they are (a) zero-risk syntax cleanup (e.g., `by exact` → `t`) or (b) also improve clarity or performance. Otherwise they are bulk-cleanup noise, not user-facing opportunities.
+**Terminal `simp only` caveat:** Narrowing non-terminal `simp` → `simp only` is always valid (the [FlexibleLinter](https://leanprover-community.github.io/mathlib4_docs/Mathlib/Tactic/Linter/FlexibleLinter.html) flags non-`only` simp before rigid tactics). But terminal `simp` vs `simp only` is a style split — some projects prefer terminal `simp` for resilience to simp-set changes (the converse concern). Do not narrow terminal `simp` or introduce terminal `simp only` without user confirmation. In non-interactive/delegate mode, skip unless project style already uses it nearby.
+
+**Minimum value filter:** 1-line savings only worth surfacing if (a) zero-risk syntax cleanup (e.g., `by exact` → `t`) or (b) also improve clarity or performance.
 
 **`simpa`/`rwa` direction rule:**
 - Never replace `exact t` with `simpa using t` unless `exact t` fails.

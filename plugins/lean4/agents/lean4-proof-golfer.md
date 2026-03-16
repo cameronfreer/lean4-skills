@@ -33,7 +33,7 @@ model: opus
 4. **Lemma replacement search** (if search_mode ≠ off):
    - `lean_local_search` first, then `lean_leanfinder` or `lean_loogle`
    - `quick`: 1 search, ≤2 candidates; `full`: 2 searches, ≤3 candidates
-   - Test with `lean_multi_attempt`; accept the best passing replacement by score (directness + elaboration cost + clarity > line count)
+   - Test with `lean_multi_attempt`; accept the best passing replacement by scoring order (per golf.md: directness → inference burden → perf → length)
    - Budget: ≤3 search calls, max 3 candidates; uses remaining shared time budget (`quick` 30s, `full` 60s total across steps 3–4)
    - If replacement needs statement changes or multi-file refactor → stop, hand off to axiom-eliminator
 
@@ -84,11 +84,13 @@ Lines: X → Y (Z% reduction)
 
 **Semicolons:** Never introduce naked `;` as a golfing transform. `<;>` only for literally identical single-tactic goals (e.g., `constructor <;> simp`). Each `;`-separated tactic counts as its own line — semicolons do not reduce line count.
 
-**Tactic complexity ladder** (per golf.md): `rfl`/`exact` < `rw`/`apply` < `simp only` < `simpa`/`rwa` < broad `simp`/`decide`/`omega`/`grind`. Moving UP the ladder requires more than a 1-line win. Moving DOWN is preferred even at zero line savings. Performance wins (narrowing `simp`, direct lemmas) are always worth pursuing.
+**Scoring order** (per golf.md): directness → inference burden → perf/determinism → length. Length is a core goal but a tiebreaker. Inference/perf judged heuristically by tactic complexity ladder (`rfl`/`exact` < `rw`/`apply` < `simp only` < `simpa`/`rwa` < broad `simp`/`decide`/`omega`/`grind`), not by measurement.
 
-**Terminal `simp only`:** Narrowing non-terminal `simp` → `simp only` is always valid (FlexibleLinter may flag non-`only` before rigid tactics). But terminal `simp` vs `simp only` is a style split — do not narrow terminal `simp` or introduce terminal `simp only` without user confirmation. In delegate mode, skip terminal `simp only` changes unless project style already uses it nearby.
+**Hard reject:** introduces `;`/`<;>` · moves UP ladder for only 1-line win · removes meaningful names · >80 chars or >2 dot-chain · replaces `exact` with `simpa`/`rwa` unless `exact` fails.
 
-**Minimum value filter:** 1-line savings only worth surfacing if (a) zero-risk syntax cleanup or (b) also improve clarity or performance.
+**Terminal `simp only`:** Non-terminal `simp` → `simp only` always valid. Terminal `simp` → `simp only` is a style split — skip in delegate mode unless project already uses it nearby.
+
+**Minimum value filter:** 1-line savings only if (a) zero-risk syntax cleanup or (b) also improve clarity or performance.
 
 **`simpa`/`rwa` direction:** Never replace `exact t` with `simpa using t` unless `exact t` fails. `simpa using` is only a win when it deletes surrounding boilerplate. In coercion-heavy proofs, test `exact` first. See golf.md for full rules.
 

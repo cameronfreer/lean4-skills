@@ -54,7 +54,9 @@
 | calc → .trans chains | 2-3 lines | Low | |
 | Symmetric `<;>` | Lines | Low | Only for single identical tactic on literally identical goals |
 
-**ROI Strategy:** Tier 1 and 2 first (always safe), Tier 3 with verification, Tier 4 only when the net score (directness + clarity + perf) clearly improves. Skip 1-line wins that only compress without improving.
+**Scoring order:** Among correct candidates, prefer: (1) more direct proof shape, (2) lower inference/search burden, (3) better perf/determinism, (4) shorter code. Inference and perf are judged heuristically by the tactic complexity ladder, not by measurement. Length is still a core goal — but a tiebreaker among acceptable proofs.
+
+**ROI Strategy:** Tier 1 and 2 first (always safe), Tier 3 with verification, Tier 4 only when the scoring order clearly favors the replacement.
 
 **Not golf** (use `/lean4:refactor` instead): extracting repeated patterns to helpers, consolidating duplicate proof structure, API surface redesign.
 
