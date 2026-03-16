@@ -2,7 +2,7 @@
 """Deterministic test for benefit-based sort order in find_golfable.py.
 
 Validates that analyze_file() returns patterns sorted by policy order:
-  directness → structural → conditional
+  directness → performance → structural → conditional
 and that intra-phase ordering matches the documented phase position
 (by-exact before apply-exact-chain within directness).
 

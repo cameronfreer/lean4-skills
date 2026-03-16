@@ -515,8 +515,9 @@ _PHASE_POSITION = {
 
 
 def _sort_key(p: GolfablePattern) -> tuple:
-    """Policy-order sort key: benefit → phase position → line count."""
-    return (_BENEFIT_ORDER.get(p.benefit, 3), _PHASE_POSITION.get(p.pattern_type, 99), -p.line_count)
+    """Policy-order sort key: benefit → phase position → line count → file → line."""
+    return (_BENEFIT_ORDER.get(p.benefit, 3), _PHASE_POSITION.get(p.pattern_type, 99),
+            -p.line_count, str(p.file_path), p.line_number)
 
 
 def analyze_file(file_path: Path, pattern_types: Optional[List[str]] = None,

@@ -45,7 +45,7 @@ python3 plugins/lean4/lib/scripts/test_apply_exact_chains.py
 
 ## find_golfable.py Ordering Test
 
-Validates policy-order sorting (directness → structural → conditional),
+Validates policy-order sorting (directness → performance → structural → conditional),
 intra-phase position (by-exact before apply-exact-chain), and cross-file
 ordering (directness from a later file before conditional from an earlier
 file in recursive scans).
