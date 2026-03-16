@@ -187,6 +187,10 @@ Categories (by priority):
   HIGH:    rw_exact, rw_ring, constructor_exact, intro_exact
   MEDIUM:  simp_linarith, by_contra, have_exact, unfold_exact, convert
   LOW:     short_generic
+
+This script is the natural companion for "find a more direct proof term" —
+use it early in the golf workflow (before broad lemma replacement), not as
+an afterthought. Pair with find_golfable.py for full pattern coverage.
         """
     )
     parser.add_argument('path', help='Lean file or directory to scan')

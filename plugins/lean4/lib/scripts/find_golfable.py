@@ -21,6 +21,7 @@ class GolfablePattern:
     snippet: str
     reduction_estimate: str
     priority: str
+    benefit: str = 'conditional'  # directness | structural | conditional
 
 def count_lines_in_range(lines: List[str], start_idx: int, end_idx: int) -> int:
     """Count non-empty, non-comment lines in a range."""
@@ -45,7 +46,9 @@ def count_binding_uses(lines: List[str], binding_name: str, start_idx: int) -> i
     return max(0, uses - 1)
 
 def find_let_have_exact(file_path: Path, lines: List[str], filter_multi_use: bool = False) -> List[GolfablePattern]:
-    """Find let + have + exact patterns (HIGHEST value).
+    """Find let + have + exact patterns.
+
+    Structural simplification (60-80% reduction). Verify binding usage before applying.
 
     Args:
         filter_multi_use: If True, filter out let bindings used ≥3 times (false positives)
@@ -94,7 +97,8 @@ def find_let_have_exact(file_path: Path, lines: List[str], filter_multi_use: boo
                             line_count=line_count,
                             snippet=snippet[:200] + "..." if len(snippet) > 200 else snippet,
                             reduction_estimate="60-80%",
-                            priority="HIGH"
+                            priority="HIGH",
+                            benefit="structural",
                         ))
                         i = j
                         break
@@ -119,7 +123,8 @@ def find_by_exact(file_path: Path, lines: List[str]) -> List[GolfablePattern]:
                     line_count=2,
                     snippet=snippet,
                     reduction_estimate="50%",
-                    priority="MEDIUM"
+                    priority="MEDIUM",
+                    benefit="directness",
                 ))
 
     return patterns
@@ -151,7 +156,8 @@ def find_calc_chains(file_path: Path, lines: List[str]) -> List[GolfablePattern]
                     line_count=calc_lines,
                     snippet=snippet[:200] + "..." if len(snippet) > 200 else snippet,
                     reduction_estimate="30-50%",
-                    priority="MEDIUM"
+                    priority="MEDIUM",
+                    benefit="conditional",
                 ))
                 i = j - 1
         i += 1
@@ -184,7 +190,8 @@ def find_constructor_branches(file_path: Path, lines: List[str]) -> List[Golfabl
                     line_count=branch_lines,
                     snippet=snippet[:200] + "..." if len(snippet) > 200 else snippet,
                     reduction_estimate="25-50%",
-                    priority="LOW"
+                    priority="LOW",
+                    benefit="conditional",
                 ))
                 i = j - 1
         i += 1
@@ -215,7 +222,8 @@ def find_multiple_haves(file_path: Path, lines: List[str]) -> List[GolfablePatte
                     line_count=have_count * 2,  # Rough estimate
                     snippet=snippet[:200] + "..." if len(snippet) > 200 else snippet,
                     reduction_estimate="10-30%",
-                    priority="LOW"
+                    priority="LOW",
+                    benefit="conditional",
                 ))
                 i = j - 1
         i += 1
@@ -322,7 +330,8 @@ def find_have_calc(file_path: Path, lines: List[str]) -> List[GolfablePattern]:
                         line_count=calc_line - have_line + 1,
                         snippet=snippet[:200] + "..." if len(snippet) > 200 else snippet,
                         reduction_estimate=reduction,
-                        priority=priority
+                        priority=priority,
+                        benefit="structural",
                     ))
 
                     i = calc_end - 1
@@ -487,7 +496,8 @@ def find_apply_exact_chains(file_path: Path, lines: List[str]) -> List[GolfableP
             line_count=block_line_count,
             snippet=snippet[:200] + "..." if len(snippet) > 200 else snippet,
             reduction_estimate="30-60%",
-            priority="HIGH"
+            priority="HIGH",
+            benefit="directness",
         ))
 
         i = block_end
@@ -514,7 +524,7 @@ def analyze_file(file_path: Path, pattern_types: Optional[List[str]] = None,
 
     # If no specific patterns requested, find all
     if pattern_types is None or 'all' in pattern_types:
-        pattern_types = ['let-have-exact', 'have-calc', 'by-exact', 'calc', 'constructor', 'multiple-haves', 'apply-exact-chain']
+        pattern_types = ['by-exact', 'apply-exact-chain', 'have-calc', 'let-have-exact', 'constructor', 'calc', 'multiple-haves']
 
     for pattern_type in pattern_types:
         if pattern_type == 'let-have-exact':
@@ -536,9 +546,10 @@ def analyze_file(file_path: Path, pattern_types: Optional[List[str]] = None,
 
         all_patterns.extend(patterns)
 
-    # Sort by priority and potential savings
+    # Sort by benefit type (policy order), then priority, then size as tiebreaker
+    benefit_order = {'directness': 0, 'performance': 1, 'structural': 2, 'conditional': 3}
     priority_order = {'HIGH': 0, 'MEDIUM': 1, 'LOW': 2}
-    all_patterns.sort(key=lambda p: (priority_order[p.priority], -p.line_count))
+    all_patterns.sort(key=lambda p: (benefit_order.get(p.benefit, 3), priority_order[p.priority], -p.line_count))
 
     return all_patterns
 
@@ -553,7 +564,7 @@ def format_output(patterns: List[GolfablePattern], verbose: bool = False) -> str
     output.append(f"{'='*70}\n")
 
     for i, pattern in enumerate(patterns, 1):
-        output.append(f"{i}. {pattern.pattern_type.upper()} [{pattern.priority} PRIORITY]")
+        output.append(f"{i}. {pattern.pattern_type.upper()} [{pattern.priority} PRIORITY] ({pattern.benefit})")
         output.append(f"   File: {pattern.file_path}:{pattern.line_number}")
         output.append(f"   Lines: {pattern.line_count} | Est. reduction: {pattern.reduction_estimate}")
 
@@ -594,15 +605,18 @@ Examples:
   # Analyze all .lean files in directory
   %(prog)s src/ --recursive
 
-Pattern types:
-  let-have-exact  : let + have + exact pattern (HIGHEST value, 60-80%% reduction)
-  have-calc       : have used once in following calc (MEDIUM value, 40-50%% reduction)
-  by-exact        : by-exact wrapper pattern (50%% reduction)
-  calc            : Long calc chains (30-50%% reduction)
-  constructor     : Constructor branches (25-50%% reduction)
-  multiple-haves  : 5+ consecutive haves (10-30%% reduction)
-  apply-exact-chain : apply/exact chains collapsible to single exact (30-60%% reduction)
-  all             : All patterns (default)
+Pattern types (policy order):
+  Phase A — Directness (always apply):
+    by-exact          : by-exact wrapper → term mode (50%% reduction)
+    apply-exact-chain : apply/exact chains → single exact (30-60%% reduction)
+  Phase B — Structural simplification (with verification):
+    have-calc         : have used once in following calc (40-50%% reduction)
+    let-have-exact    : let+have+exact inline (60-80%% reduction, HIGH RISK — verify binding usage)
+  Phase C — Conditional:
+    constructor       : Constructor branches (25-50%% reduction, large blocks only)
+    calc              : Long calc chains (30-50%% reduction)
+    multiple-haves    : 5+ consecutive haves (10-30%% reduction)
+  all               : All patterns (default)
         """
     )
 

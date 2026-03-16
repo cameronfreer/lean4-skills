@@ -59,7 +59,7 @@ check_commands() {
             prove|autoprove) max_lines=235 ;;
             doctor)          max_lines=225 ;;
             formalize)       max_lines=160 ;;
-            golf)            max_lines=165 ;;
+            golf)            max_lines=170 ;;
             review)          max_lines=330 ;;
             learn)           max_lines=180 ;;
         esac
@@ -114,7 +114,7 @@ check_agents() {
         local max_lines=115
         case "$agent" in
             lean4-axiom-eliminator) max_lines=120 ;;
-            lean4-proof-golfer) max_lines=150 ;;
+            lean4-proof-golfer) max_lines=155 ;;
             lean4-sorry-filler-deep) max_lines=125 ;;
         esac
 
@@ -767,6 +767,25 @@ check_golf_policy() {
     # Terminal simp only caveat must appear in patterns file
     if [[ -f "$patterns_file" ]] && ! grep -qi 'terminal.*simp only' "$patterns_file"; then
         warn "proof-golfing-patterns.md: Missing terminal simp only caveat"
+        drift=1
+    fi
+
+    # Script language drift: find_golfable.py epilog must not label let-have-exact "HIGHEST value"
+    local script_file="$PLUGIN_ROOT/lib/scripts/find_golfable.py"
+    if [[ -f "$script_file" ]] && grep -qi 'HIGHEST value' "$script_file"; then
+        warn "find_golfable.py: Stale 'HIGHEST value' label (should use policy phase order)"
+        drift=1
+    fi
+
+    # proof-golfing.md Phase 1 must not label any pattern "HIGHEST value"
+    if grep -qi 'HIGHEST value' "$ref_file"; then
+        warn "proof-golfing.md: Stale 'HIGHEST value' label in Phase 1 search order"
+        drift=1
+    fi
+
+    # lean4-proof-golfer.md exact-collapse pass must reference "scoring order" not "net decrease"
+    if grep -q 'net decrease' "$agent_file"; then
+        warn "lean4-proof-golfer.md: Stale 'net decrease' acceptance rule (should reference scoring order)"
         drift=1
     fi
 

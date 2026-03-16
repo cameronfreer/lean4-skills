@@ -33,9 +33,13 @@ Improve Lean proofs that already compile. Score candidates by: correctness → d
 ## Actions
 
 1. **Verify Build** - Ensure code compiles before optimizing
-2. **Find Patterns** - Detect golfable patterns:
+2. **Find Patterns** - Detect golfable patterns (in policy order: directness → structural → conditional):
    ```bash
    ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/find_golfable.py" [file] --filter-false-positives
+   ```
+   For direct-proof discovery when `--search` is enabled or syntactic pass stalls:
+   ```bash
+   ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/find_exact_candidates.py" [file]
    ```
 3. **Exact-Collapse Pass** (bounded) — For apply/exact chain anchors from `$LEAN4_SCRIPTS/find_golfable.py`:
    - **Mechanical** (≤30 anchors/file): Construct collapsed `exact` from tactic structure → `lean_multi_attempt` + `lean_diagnostic_messages` baseline check (no new diagnostics, no sorry increase). Accept if the replacement is more direct or clearer. Reject if it introduces heavier automation (simpa, rwa, broad simp) to replace an explicit proof, if term length exceeds ~80 chars, if dot-chain depth > 2, or if it removes meaningful intermediate names. A 1-line saving that raises inference burden is not a win.

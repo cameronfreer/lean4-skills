@@ -17,6 +17,7 @@ Hard-primitive scripts for Lean 4 workflows. These implement functionality that'
 | `find_instances.sh` | Find type class instances | Need instance patterns or examples |
 | `unused_declarations.sh` | Find unused theorems/defs | Code cleanup, identifying dead code |
 | `find_golfable.py` | Find proof-golfing opportunities | After proofs compile, before final commit |
+| `find_exact_candidates.py` | Find exact? replacement candidates | Optional companion for direct-proof discovery |
 | `analyze_let_usage.py` | Detect false-positive optimizations | Before inlining let bindings |
 
 ## Core Scripts
@@ -155,6 +156,15 @@ Identify proof optimization opportunities.
 ```bash
 # Recommended: filter out false positives
 ./find_golfable.py MyFile.lean --filter-false-positives
+```
+
+### find_exact_candidates.py
+
+Optional companion for direct-proof discovery when `--search` is enabled or syntactic pass stalls. Scans for short tactic proofs where `exact?` might find a one-liner.
+
+```bash
+./find_exact_candidates.py MyFile.lean
+./find_exact_candidates.py src/ --recursive --priority high
 ```
 
 ### analyze_let_usage.py

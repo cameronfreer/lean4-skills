@@ -43,6 +43,14 @@ Run from the repo root:
 python3 plugins/lean4/lib/scripts/test_apply_exact_chains.py
 ```
 
+## find_golfable.py Ordering Test
+
+Validates that `analyze_file()` sorts patterns by policy order (directness → structural → conditional) using the `benefit` field.
+
+```bash
+cd plugins/lean4/lib/scripts && python3 -m pytest tests/test_ordering.py -v
+```
+
 ## Reference Documentation
 
 Scripts for tactic suggestions, proof templates, simp hygiene, and simproc patterns have been converted to reference documentation:
