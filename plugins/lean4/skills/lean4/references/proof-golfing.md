@@ -10,32 +10,55 @@
 
 ## Quick Reference Table
 
-| Pattern | Savings | Risk | Priority | Benefit |
-|---------|---------|------|----------|---------|
-| Linter-guided simp cleanup | 2 lines | Zero | ⭐⭐⭐⭐⭐ | Performance |
-| `by rfl` → `rfl` | 1 line | Zero | ⭐⭐⭐⭐⭐ | Directness |
-| `rw; simp_rw` → `rw; simpa` | 1 line | Zero | ⭐⭐⭐⭐⭐ | Simplicity |
-| Eta-reduction `fun x => f x` → `f` | Tokens | Zero | ⭐⭐⭐⭐⭐ | Simplicity |
-| `.mpr` over `rwa` for trivial | 1 line | Zero | ⭐⭐⭐⭐⭐ | Directness |
-| `rw; exact` → `rwa` | 50% | Zero | ⭐⭐⭐⭐⭐ | Directness |
-| `ext + rfl` → `rfl` | 67% | Low | ⭐⭐⭐⭐⭐ | Directness |
-| intro-dsimp-exact → lambda | 75% | Low | ⭐⭐⭐⭐⭐ | Directness |
-| Extract repeated patterns to helpers | 40% | Low | ⭐⭐⭐⭐⭐ | Reusability |
-| let+have+exact inline | 60-80% | HIGH | ⭐⭐⭐⭐⭐ | Conciseness |
-| `by exact` → term mode | 1 line | Zero | ⭐⭐⭐⭐⭐ | Directness |
-| Dot notation `.rfl`/`.symm` | Tokens | Zero | ⭐⭐⭐⭐⭐ | Conciseness |
-| Inline `show` in `rw` | 50-70% | Zero | ⭐⭐⭐⭐⭐ | Conciseness |
-| Transport ▸ for rewrites | 1-2 lines | Zero | ⭐⭐⭐⭐⭐ | Conciseness |
-| apply/exact chain → `exact` | 30-60% | Low | ⭐⭐⭐⭐⭐ | Conciseness |
-| calc → .trans chains | 2-3 lines | Low | ⭐⭐⭐⭐ | Conciseness |
-| Single-use `have` inline | 30-50% | Low | ⭐⭐⭐⭐ | Clarity |
-| Redundant `ext` before `simp` | 50% | Medium | ⭐⭐⭐⭐ | Simplicity |
-| `congr; ext; rw` → `simp only` | 67% | Medium | ⭐⭐⭐⭐ | Simplicity |
-| Multi-pattern match | 7 lines | Low | ⭐⭐⭐ | Simplicity |
-| Successor pattern (n+k) | 25 lines | Low | ⭐⭐⭐ | Clarity |
-| Symmetric cases with `<;>` | 11 lines | Low | ⭐⭐⭐ | Conciseness |
+### Tier 1 — Performance (always apply)
 
-**ROI Strategy:** Do ⭐⭐⭐⭐⭐ first (instant wins), then ⭐⭐⭐⭐ (quick with testing), skip ⭐-⭐⭐ if time-limited.
+| Pattern | Savings | Risk |
+|---------|---------|------|
+| Linter-guided simp cleanup | 2 lines | Zero |
+| `simp` → `simp only` (non-terminal) | Perf | Zero |
+| Direct lemma over automation in coercion-heavy goals | Perf | Zero |
+
+**Terminal `simp only` caveat:** Do not narrow terminal `simp` → `simp only` or introduce new terminal `simp only` without user confirmation — some projects prefer terminal `simp` for resilience to simp-set changes (the converse of the [FlexibleLinter](https://leanprover-community.github.io/mathlib4_docs/Mathlib/Tactic/Linter/FlexibleLinter.html) concern, which flags non-`only` simp in non-terminal positions). In non-interactive mode, skip terminal `simp only` changes unless project style already uses it nearby.
+
+### Tier 2 — Directness (always apply)
+
+| Pattern | Savings | Risk |
+|---------|---------|------|
+| `by exact t` → `t` | 1 line | Zero |
+| `by rfl` → `rfl` | 1 line | Zero |
+| Eta-reduction `fun x => f x` → `f` | Tokens | Zero |
+| `.mpr`/`.mp` over `rwa` for trivial | 1 line | Zero |
+| Dot notation `.rfl`/`.symm` | Tokens | Zero |
+| `apply f; exact h` → `exact f h` | 1 line | Zero |
+| `ext x; rfl` → `rfl` | 67% | Low |
+| `constructor; exact; exact` → `exact ⟨_, _⟩` | 2 lines | Zero |
+| `simpa using h` → `exact h` when no simplification occurs | Clarity | Zero |
+
+### Tier 3 — Structural simplification (with verification)
+
+| Pattern | Savings | Risk |
+|---------|---------|------|
+| Single-use `have` inline (term < 40 chars) | 30-50% | Low |
+| let+have+exact inline | 60-80% | HIGH |
+| intro-dsimp-exact → lambda | 75% | Low |
+| Inline `show` in `rw` | 50-70% | Zero |
+
+### Tier 4 — Conditional (only when net score improves)
+
+| Pattern | Savings | Risk | Condition |
+|---------|---------|------|-----------|
+| `rw; exact` → `rwa` | 50% | Zero | Only when `rwa` genuinely deletes boilerplate, not as default |
+| `rw; simp_rw` → `rw; simpa` | 1 line | Zero | Only when it deletes surrounding boilerplate; never to replace a working `exact` |
+| apply/exact chain → `exact` | 30-60% | Low | Reject if >80 chars, >2 dot-chain depth, or removes meaningful names |
+| Transport ▸ for rewrites | 1-2 lines | Zero | |
+| calc → .trans chains | 2-3 lines | Low | |
+| Symmetric `<;>` | Lines | Low | Only for single identical tactic on literally identical goals |
+
+**Scoring order:** Among correct candidates, prefer: (1) more direct proof shape, (2) lower inference/search burden, (3) better perf/determinism, (4) shorter code. Inference and perf are judged heuristically by the tactic complexity ladder, not by measurement. Length is still a core goal — but a tiebreaker among acceptable proofs.
+
+**ROI Strategy:** Tier 1 and 2 first (always safe), Tier 3 with verification, Tier 4 only when the scoring order clearly favors the replacement.
+
+**Not golf** (use `/lean4:refactor` instead): extracting repeated patterns to helpers, consolidating duplicate proof structure, API surface redesign.
 
 ## Critical Safety Warnings
 
@@ -91,16 +114,16 @@ This cleanup often accounts for 60%+ of available savings.
 Use systematic search, not sequential reading:
 
 ```bash
-# 1. Find let+have+exact (HIGHEST value)
-grep -A 10 "let .*:=" file.lean | grep -B 8 "exact"
-
-# 2. Find by-exact wrappers
+# 1. Find by-exact wrappers (directness)
 grep -B 1 "exact" file.lean | grep "by$"
 
-# 3. Find ext+simp patterns
-grep -n "ext.*simp" file.lean
+# 2. Find apply-exact chains (directness)
+grep -A 1 "apply " file.lean | grep "exact"
 
-# 4. Find rw+exact (for rwa)
+# 3. Find let+have+exact (structural — verify binding usage)
+grep -A 10 "let .*:=" file.lean | grep -B 8 "exact"
+
+# 4. Find rw+exact (conditional — see rwa direction rule)
 grep -A 1 "rw \[" file.lean | grep "exact"
 ```
 
@@ -120,7 +143,7 @@ For each let+have+exact pattern:
 
 When search mode is enabled, replacement candidates follow the same safety rules:
 - Only accept if `lean_multi_attempt` passes
-- Only accept if net proof size decreases
+- Only accept if the replacement scores better by the lexicographic order (directness → inference burden → perf → length)
 - Max one new import per replacement
 - If replacement type-mismatches or needs statement changes → skip (hand off to axiom-eliminator)
 
@@ -168,7 +191,7 @@ When `--search` is enabled, the golfer performs a bounded LSP search pass before
 
 1. Search for mathlib equivalents of custom helpers/axioms
 2. Test replacements with `lean_multi_attempt`
-3. Accept only if: replacement passes, net size decreases, and at most one new import needed
+3. Accept only if: replacement passes, scores better by the lexicographic order, and at most one new import needed
 
 **Budgets:** `quick` = 1 search, ≤2 candidates; `full` = 2 searches, ≤3 candidates. Max 3 search calls total, ≤60s.
 
@@ -198,20 +221,23 @@ Bulk mode activates automatically when ≥4 whitelisted candidates are found in 
 
 ## Anti-Patterns
 
-### Don't Use Semicolons Just to Combine Lines
+### Semicolon Policy
+
+Never introduce naked `;` as a golfing transform. `<;>` may be introduced only when applying a single identical tactic to literally identical goals (its intended purpose — e.g., `constructor <;> simp`); do not use it to compress non-identical branches.
+
+When counting line savings, each `;`-separated tactic counts as its own line — semicolons do not reduce line count. If existing code uses `;` or `<;>`, do not count those lines as savings and do not target rewrites that preserve or expand semicolon usage.
 
 ```lean
--- ❌ Bad (no savings)
-intro x; exact proof  -- Semicolon is a token!
+-- ❌ Never introduce as a golfing transform
+intro x; exact proof
 
--- ✅ Good (when saves ≥2 lines AND sequential)
-ext x; simp [...]; use y; simp  -- Sequential operations
+-- ❌ Don't compress non-identical branches
+cases h <;> (first_tactic; second_different_tactic)
+
+-- ✅ Allowed: single identical tactic on literally identical goals
+constructor <;> simp
+constructor <;> rfl
 ```
-
-**When semicolons ARE worth it:**
-- ✅ Sequential operations (ext → simp → use)
-- ✅ Saves ≥2 lines
-- ✅ Simple steps
 
 ### Don't Over-Inline
 
@@ -308,7 +334,7 @@ Nat.add_lt_add_left hij k
 1. let+have+exact: 50% of all savings, 60-80% per instance
 2. Smart ext: 50% reduction, no clarity loss
 3. ext-simp chains: Saves ≥2 lines when natural
-4. rwa: Instant wins, zero risk
+4. rwa: Conditional (only when it deletes boilerplate, not as default compression)
 5. ext+rfl → rfl: High value when works
 
 ## Detailed References

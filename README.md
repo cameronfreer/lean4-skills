@@ -14,8 +14,8 @@ others all use the same core skill; only the invocation surface differs.
 | autoprove | Autonomous multi-cycle proving with stop rules |
 | checkpoint | Verified save point (build + axiom check + commit) |
 | review | Read-only quality review |
-| refactor | Strategy-level proof simplification |
-| golf | Optimize proofs for brevity |
+| refactor | Leverage mathlib, extract helpers, simplify proof strategies |
+| golf | Improve proofs for directness, clarity, performance, and brevity |
 | learn | Interactive teaching and mathlib exploration |
 | doctor | Diagnostics and migration help |
 

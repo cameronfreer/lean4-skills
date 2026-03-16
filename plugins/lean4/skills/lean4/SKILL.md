@@ -22,14 +22,14 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | Command | Purpose |
 |---------|---------|
 | `/lean4:formalize` | Turn informal math into Lean statements |
-| `/lean4:prove` | Guided cycle-by-cycle theorem proving |
-| `/lean4:autoprove` | Autonomous multi-cycle proving with stop rules |
-| `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
-| `/lean4:review` | Quality audit (`--mode=batch` or `--mode=stuck`) |
-| `/lean4:refactor` | Strategy-level proof simplification |
-| `/lean4:golf` | Optimize proofs for brevity |
+| `/lean4:prove` | Guided cycle-by-cycle theorem proving with explicit checkpoints |
+| `/lean4:autoprove` | Autonomous multi-cycle theorem proving with hard stop rules |
+| `/lean4:checkpoint` | Save progress with a safe commit checkpoint |
+| `/lean4:review` | Read-only code review of Lean proofs |
+| `/lean4:refactor` | Leverage mathlib, extract helpers, simplify proof strategies |
+| `/lean4:golf` | Improve Lean proofs for directness, clarity, performance, and brevity |
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
-| `/lean4:doctor` | Plugin troubleshooting and migration help |
+| `/lean4:doctor` | Diagnostics, cleanup, and migration help |
 
 ### Which Command?
 
@@ -55,9 +55,9 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 /lean4:prove               Guided cycle-by-cycle proving (asks before each cycle)
 /lean4:autoprove           Autonomous multi-cycle proving (runs with stop rules)
         ↓
-/lean4:refactor            Simplify proof strategies (optional, or --dry-run to preview)
+/lean4:refactor            Leverage mathlib, extract helpers (optional, or --dry-run to preview)
         ↓
-/lean4:golf                Optimize proofs for tactic-level brevity (optional)
+/lean4:golf                Improve proofs for directness, clarity, performance, and brevity (optional)
         ↓
 /lean4:checkpoint          Create verified save point
 ```

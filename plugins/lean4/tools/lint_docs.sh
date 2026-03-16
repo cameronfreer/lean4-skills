@@ -53,15 +53,18 @@ check_commands() {
         local lines
         lines=$(wc -l < "$file")
 
-        # Per-command line limits: prove/autoprove/doctor/review are inherently larger
+        # Per-command line limits (explicit for every command)
         local max_lines=120
         case "$cmd" in
-            prove|autoprove) max_lines=235 ;;
-            doctor)          max_lines=225 ;;
-            formalize)       max_lines=160 ;;
-            golf)            max_lines=150 ;;
-            review)          max_lines=330 ;;
-            learn)           max_lines=180 ;;
+            autoprove)  max_lines=235 ;;
+            checkpoint) max_lines=90 ;;
+            doctor)     max_lines=225 ;;
+            formalize)  max_lines=160 ;;
+            golf)       max_lines=170 ;;
+            learn)      max_lines=180 ;;
+            prove)      max_lines=235 ;;
+            refactor)   max_lines=120 ;;
+            review)     max_lines=330 ;;
         esac
 
         if [[ $lines -gt $max_lines ]]; then
@@ -114,7 +117,7 @@ check_agents() {
         local max_lines=115
         case "$agent" in
             lean4-axiom-eliminator) max_lines=120 ;;
-            lean4-proof-golfer) max_lines=135 ;;
+            lean4-proof-golfer) max_lines=155 ;;
             lean4-sorry-filler-deep) max_lines=125 ;;
         esac
 
@@ -736,6 +739,72 @@ check_golf_policy() {
     if [[ $ref_missing -eq 0 ]]; then
         ok "proof-golfing.md: Bulk-trigger anchors present"
     fi
+
+    # Golf policy consistency: check for stale unconditional rwa/simp-only/semicolon language
+    local drift=0
+
+    # No unconditional "rwa: instant win" or "rwa.*zero risk" in references
+    if grep -qiE 'rwa.*instant win|rwa.*zero risk' "$ref_file"; then
+        warn "proof-golfing.md: Stale unconditional rwa language (should be conditional per golf policy)"
+        drift=1
+    fi
+
+    local patterns_file="$PLUGIN_ROOT/skills/lean4/references/proof-golfing-patterns.md"
+    if [[ -f "$patterns_file" ]]; then
+        # Pattern 1 heading must have "Conditional" within 5 lines
+        if grep -q '^### Pattern 1:' "$patterns_file" && \
+           ! grep -A5 '^### Pattern 1:' "$patterns_file" | grep -qi 'conditional'; then
+            warn "proof-golfing-patterns.md: Pattern 1 (rwa) missing 'Conditional' marker"
+            drift=1
+        fi
+        # Pattern 2A heading must have "Conditional" within 5 lines
+        if grep -q '^### Pattern 2A:' "$patterns_file" && \
+           ! grep -A5 '^### Pattern 2A:' "$patterns_file" | grep -qi 'conditional'; then
+            warn "proof-golfing-patterns.md: Pattern 2A (simpa) missing 'Conditional' marker"
+            drift=1
+        fi
+    fi
+
+    # <;> policy must be consistent: command, agent, and references should all allow identical-goal <;>
+    for f in "$file" "$agent_file" "$ref_file"; do
+        if grep -qE '<;>.*never|never.*<;>' "$f" && ! grep -qE '<;>.*identical|identical.*<;>' "$f"; then
+            warn "$(basename "$f"): <;> policy inconsistency — bans <;> without identical-goal exception"
+            drift=1
+        fi
+    done
+
+    # Terminal simp only caveat must appear in patterns file
+    if [[ -f "$patterns_file" ]] && ! grep -qi 'terminal.*simp only' "$patterns_file"; then
+        warn "proof-golfing-patterns.md: Missing terminal simp only caveat"
+        drift=1
+    fi
+
+    # Script language drift: find_golfable.py epilog must not label let-have-exact "HIGHEST value"
+    local script_file="$PLUGIN_ROOT/lib/scripts/find_golfable.py"
+    if [[ -f "$script_file" ]] && grep -qi 'HIGHEST value' "$script_file"; then
+        warn "find_golfable.py: Stale 'HIGHEST value' label (should use policy phase order)"
+        drift=1
+    fi
+
+    # proof-golfing.md Phase 1 must not label any pattern "HIGHEST value"
+    if grep -qi 'HIGHEST value' "$ref_file"; then
+        warn "proof-golfing.md: Stale 'HIGHEST value' label in Phase 1 search order"
+        drift=1
+    fi
+
+    # No size-first acceptance language in agent or reference docs
+    for _gp_file in "$agent_file" "$ref_file"; do
+        local _gp_base
+        _gp_base=$(basename "$_gp_file")
+        if grep -qiE 'net (proof )?size decrease|net decrease' "$_gp_file"; then
+            warn "$_gp_base: Stale size-first acceptance language (should reference scoring order)"
+            drift=1
+        fi
+    done
+
+    if [[ $drift -eq 0 ]]; then
+        ok "Golf policy consistency: no stale language detected"
+    fi
 }
 
 # Check 13: Backward-compat scripts alias
@@ -1179,6 +1248,50 @@ check_release_metadata() {
     fi
 }
 
+# Check 24: Command descriptions aligned across surfaces
+check_description_alignment() {
+    log ""
+    log "Checking command description alignment..."
+
+    local cmd_dir="$PLUGIN_ROOT/commands"
+    local skill_md="$PLUGIN_ROOT/skills/lean4/SKILL.md"
+    local plugin_readme="$PLUGIN_ROOT/README.md"
+    local repo_root
+    repo_root="$(cd "$PLUGIN_ROOT" && cd ../.. && pwd)"
+    local repo_readme="$repo_root/README.md"
+
+    local _da_cmd _da_desc _da_mismatches
+    _da_mismatches=0
+
+    for _da_cmd in $KNOWN_COMMANDS; do
+        local cmd_file="$cmd_dir/$_da_cmd.md"
+        [[ -f "$cmd_file" ]] || continue
+
+        # Extract description from frontmatter (line starting with "description:")
+        _da_desc=$(sed -n '/^---$/,/^---$/{ s/^description: *//p; }' "$cmd_file" | head -1)
+        [[ -z "$_da_desc" ]] && continue
+
+        # Check SKILL.md and plugin README table rows (should match frontmatter exactly).
+        # Root README uses abbreviated descriptions so is not checked here.
+        # We match against table rows containing the command name to avoid false positives
+        # from the same text appearing elsewhere in the file.
+        for surface in "$skill_md" "$plugin_readme"; do
+            [[ -f "$surface" ]] || continue
+            local _da_base
+            _da_base=$(basename "$surface")
+            # Extract table rows mentioning this command and check for the description
+            if ! grep -F "$_da_cmd" "$surface" | grep '|' | grep -qF "$_da_desc"; then
+                warn "$_da_base: $_da_cmd description mismatch (expected: '$_da_desc')"
+                _da_mismatches=1
+            fi
+        done
+    done
+
+    if [[ $_da_mismatches -eq 0 ]]; then
+        ok "Command descriptions aligned across all surfaces"
+    fi
+}
+
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
@@ -1208,6 +1321,7 @@ check_advanced_reference_metadata
 check_advanced_reference_language
 check_advanced_reference_snippets
 check_release_metadata
+check_description_alignment
 
 log ""
 log "================================"

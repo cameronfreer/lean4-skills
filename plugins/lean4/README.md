@@ -12,14 +12,14 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 | Command | Description |
 |---------|-------------|
 | `/lean4:formalize` | Turn informal math into Lean statements |
-| `/lean4:prove` | Guided cycle-by-cycle theorem proving |
-| `/lean4:autoprove` | Autonomous multi-cycle proving with stop rules |
-| `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
-| `/lean4:review` | Read-only quality review with optional external hooks |
-| `/lean4:refactor` | Strategy-level proof simplification |
-| `/lean4:golf` | Optimize proofs for brevity |
+| `/lean4:prove` | Guided cycle-by-cycle theorem proving with explicit checkpoints |
+| `/lean4:autoprove` | Autonomous multi-cycle theorem proving with hard stop rules |
+| `/lean4:checkpoint` | Save progress with a safe commit checkpoint |
+| `/lean4:review` | Read-only code review of Lean proofs |
+| `/lean4:refactor` | Leverage mathlib, extract helpers, simplify proof strategies |
+| `/lean4:golf` | Improve Lean proofs for directness, clarity, performance, and brevity |
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
-| `/lean4:doctor` | Diagnostics and migration help |
+| `/lean4:doctor` | Diagnostics, cleanup, and migration help |
 
 ## Quick Start
 
@@ -115,9 +115,9 @@ Runs build verification, sorry audit, axiom check, style review, strategy simpli
 
 Finds better proof approaches: replaces hand-rolled arguments with mathlib lemmas, extracts repeated patterns as helpers, replaces case splits with `congr`/`EqOn` patterns. Asks before each batch of edits; reverts on verification failure. Compiled proofs only.
 
-### `/lean4:golf` — Proof Optimization
+### `/lean4:golf` — Proof Improvement
 
-Finds and applies safe optimizations: `rw+exact → rwa`, inline single-use `let`, `ext+rfl → rfl`, etc. Verifies with `lean_diagnostic_messages` after each change (`lake build` at final gate only) and reverts failures. Stops when the success rate drops below 20% (saturation).
+Scores candidates by directness → inference burden → performance → length. Applies safe patterns: `by exact t → t`, `apply+exact → exact`, inline single-use `let`, `ext+rfl → rfl`, etc. Conditional patterns (`rw+exact → rwa`) require net score improvement. Verifies with `lean_diagnostic_messages` after each change (`lake build` at final gate only) and reverts failures. Stops when the success rate drops below 20% (saturation).
 
 Usually run after proving, either prompted at the end of a `prove` session or explicitly.
 
