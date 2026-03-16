@@ -86,6 +86,8 @@ Lines: X → Y (Z% reduction)
 
 **Tactic complexity ladder** (per golf.md): `rfl`/`exact` < `rw`/`apply` < `simp only` < `simpa`/`rwa` < broad `simp`/`decide`/`omega`/`grind`. Moving UP the ladder requires more than a 1-line win. Moving DOWN is preferred even at zero line savings. Performance wins (narrowing `simp`, direct lemmas) are always worth pursuing.
 
+**Terminal `simp only`:** Narrowing non-terminal `simp` → `simp only` is always valid (FlexibleLinter may flag non-`only` before rigid tactics). But terminal `simp` vs `simp only` is a style split — do not narrow terminal `simp` or introduce terminal `simp only` without user confirmation. In delegate mode, skip terminal `simp only` changes unless project style already uses it nearby.
+
 **Minimum value filter:** 1-line savings only worth surfacing if (a) zero-risk syntax cleanup or (b) also improve clarity or performance.
 
 **`simpa`/`rwa` direction:** Never replace `exact t` with `simpa using t` unless `exact t` fails. `simpa using` is only a win when it deletes surrounding boilerplate. In coercion-heavy proofs, test `exact` first. See golf.md for full rules.

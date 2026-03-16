@@ -15,8 +15,10 @@
 | Pattern | Savings | Risk |
 |---------|---------|------|
 | Linter-guided simp cleanup | 2 lines | Zero |
-| `simp only` over broad `simp` | Perf | Zero |
+| `simp` → `simp only` (non-terminal) | Perf | Zero |
 | Direct lemma over automation in coercion-heavy goals | Perf | Zero |
+
+**Terminal `simp only` caveat:** Do not narrow terminal `simp` → `simp only` or introduce new terminal `simp only` without user confirmation — some projects prefer terminal `simp` for resilience to simp-set changes (the converse of the [FlexibleLinter](https://leanprover-community.github.io/mathlib4_docs/Mathlib/Tactic/Linter/FlexibleLinter.html) concern, which flags non-`only` simp in non-terminal positions). In non-interactive mode, skip terminal `simp only` changes unless project style already uses it nearby.
 
 ### Tier 2 — Directness (always apply)
 

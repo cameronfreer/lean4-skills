@@ -18,7 +18,7 @@ Readability/inference-burden heuristic (not a literal performance ordering):
 
 A golfing transform that moves UP this ladder requires more than a 1-line win — the replacement must be genuinely clearer or more maintainable. A transform that moves DOWN is preferred even if it doesn't save lines.
 
-Separately, **performance wins** come from narrowing `simp` to `simp only`, using direct lemmas over automation, and avoiding search-heavy tactics in coercion-heavy goals — these are always worth pursuing regardless of line count.
+Separately, **performance wins** come from narrowing `simp` to `simp only`, using direct lemmas over automation, and avoiding search-heavy tactics in coercion-heavy goals — these are always worth pursuing regardless of line count. **Exception:** terminal `simp` → `simp only` is a style split (some prefer terminal `simp` for resilience to simp-set changes — the converse of the [FlexibleLinter](https://leanprover-community.github.io/mathlib4_docs/Mathlib/Tactic/Linter/FlexibleLinter.html) concern). Requires user confirmation.
 
 ---
 
@@ -33,7 +33,7 @@ simp only [decide_eq_false_iff_not, decide_eq_true_eq]
 simp only [decide_eq_true_eq]
 ```
 
-Remove unused `simp` arguments flagged by linter. Zero risk (compiler-verified), faster elaboration.
+Remove unused `simp` arguments flagged by linter. Zero risk (compiler-verified), faster elaboration. Note: this is about removing unused lemma arguments from `simp only [...]` calls, not about narrowing `simp` → `simp only` (see terminal `simp only` caveat in the ladder above).
 
 ### Pattern 0: `by rfl` → `rfl` (Directness)
 
