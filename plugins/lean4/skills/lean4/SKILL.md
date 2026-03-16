@@ -27,7 +27,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
 | `/lean4:review` | Quality audit (`--mode=batch` or `--mode=stuck`) |
 | `/lean4:refactor` | Strategy-level proof simplification |
-| `/lean4:golf` | Optimize proofs for brevity |
+| `/lean4:golf` | Improve proofs for directness, clarity, and performance |
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
 | `/lean4:doctor` | Plugin troubleshooting and migration help |
 
@@ -57,7 +57,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
         ↓
 /lean4:refactor            Simplify proof strategies (optional, or --dry-run to preview)
         ↓
-/lean4:golf                Optimize proofs for tactic-level brevity (optional)
+/lean4:golf                Improve proofs for directness, clarity, and performance (optional)
         ↓
 /lean4:checkpoint          Create verified save point
 ```
