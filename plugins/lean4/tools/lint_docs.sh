@@ -750,11 +750,17 @@ check_golf_policy() {
     fi
 
     local patterns_file="$PLUGIN_ROOT/skills/lean4/references/proof-golfing-patterns.md"
-    if [[ -f "$patterns_file" ]] && grep -qiE '^### Pattern 1:.*rw.*rwa' "$patterns_file" && \
-       ! grep -qiE 'Conditional' "$patterns_file" | head -1 >/dev/null 2>&1; then
-        # Just check that Pattern 1 has "Conditional" somewhere nearby
-        if ! grep -A5 '^### Pattern 1:' "$patterns_file" | grep -qi 'conditional'; then
+    if [[ -f "$patterns_file" ]]; then
+        # Pattern 1 heading must have "Conditional" within 5 lines
+        if grep -q '^### Pattern 1:' "$patterns_file" && \
+           ! grep -A5 '^### Pattern 1:' "$patterns_file" | grep -qi 'conditional'; then
             warn "proof-golfing-patterns.md: Pattern 1 (rwa) missing 'Conditional' marker"
+            drift=1
+        fi
+        # Pattern 2A heading must have "Conditional" within 5 lines
+        if grep -q '^### Pattern 2A:' "$patterns_file" && \
+           ! grep -A5 '^### Pattern 2A:' "$patterns_file" | grep -qi 'conditional'; then
+            warn "proof-golfing-patterns.md: Pattern 2A (simpa) missing 'Conditional' marker"
             drift=1
         fi
     fi

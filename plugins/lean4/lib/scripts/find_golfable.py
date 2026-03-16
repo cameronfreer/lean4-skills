@@ -546,10 +546,15 @@ def analyze_file(file_path: Path, pattern_types: Optional[List[str]] = None,
 
         all_patterns.extend(patterns)
 
-    # Sort by benefit type (policy order), then priority, then size as tiebreaker
+    # Sort by benefit type (policy order), then documented phase position, then size as tiebreaker.
+    # Phase position matches the help-text ordering within each benefit bucket.
     benefit_order = {'directness': 0, 'performance': 1, 'structural': 2, 'conditional': 3}
-    priority_order = {'HIGH': 0, 'MEDIUM': 1, 'LOW': 2}
-    all_patterns.sort(key=lambda p: (benefit_order.get(p.benefit, 3), priority_order[p.priority], -p.line_count))
+    phase_position = {
+        'by exact wrapper': 0, 'apply-exact-chain': 1,       # Phase A
+        'have-calc single-use': 2, 'let + have + exact': 3,  # Phase B
+        'constructor branches': 4, 'calc chain': 5, 'multiple haves': 6,  # Phase C
+    }
+    all_patterns.sort(key=lambda p: (benefit_order.get(p.benefit, 3), phase_position.get(p.pattern_type, 99), -p.line_count))
 
     return all_patterns
 
