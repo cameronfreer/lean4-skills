@@ -2,7 +2,7 @@
   "name": "lean4-skills",
   "owner": {
     "name": "Cameron Freer",
-    "email": "cameronfreer@gmail.com, lean4skills@gmail.com"
+    "email": "lean4skills@gmail.com"
   },
   "metadata": {
     "description": "Lean 4 theorem proving with guided + autonomous proving, LSP-first workflows, guardrails, and contribution helpers",

@@ -39,7 +39,7 @@ See [plugin README](plugins/lean4/README.md) for the full command guide.
 ```bash
 /plugin marketplace add cameronfreer/lean4-skills
 /plugin install lean4
-/plugin install lean4-contribute   # optional — bug reports, feature requests, insights
+/plugin install lean4-contribute   # opt-in to contribute bug reports, request features, or share insights
 ```
 
 ### Other Hosts
