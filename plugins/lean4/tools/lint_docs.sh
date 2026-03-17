@@ -1375,6 +1375,17 @@ check_contribute_policy() {
     else
         warn "SKILL.md contribute policy missing consent guardrail phrases (need: never invoke unprompted, explicit opt-in, once per topic, never mid-proof)"
     fi
+
+    # Install-hint branch: must have "not installed" fallback with once-per-session limit
+    local _ih_fail=0
+    echo "$section" | grep -qi 'not installed' || _ih_fail=1
+    echo "$section" | grep -qi 'once per session' || _ih_fail=1
+
+    if [[ $_ih_fail -eq 0 ]]; then
+        ok "SKILL.md contribute policy has install-hint fallback"
+    else
+        warn "SKILL.md contribute policy missing install-hint fallback (need: not installed, once per session)"
+    fi
 }
 
 # Main
