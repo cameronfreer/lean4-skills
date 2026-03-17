@@ -234,7 +234,7 @@ plugins/lean4/
 └── lib/scripts/        # 12 hard-primitive scripts
 ```
 
-## Upgrading from V3
+## Upgrading from v3
 
 See [MIGRATION.md](MIGRATION.md) for upgrade guide.
 
@@ -245,4 +245,4 @@ See [MIGRATION.md](MIGRATION.md) for upgrade guide.
 - [Scripts](lib/scripts/README.md) - Script reference
 - [Custom Syntax](skills/lean4/references/lean4-custom-syntax.md) - Notations, macros, elaborators, DSLs
 - [DSL Scaffold](skills/lean4/references/scaffold-dsl.md) - Copy-paste DSL template
-- [Advanced References](skills/lean4/references/) - grind, simprocs, metaprogramming, linters, FFI, verso-docs, profiling
+- [References](skills/lean4/references/) - grind, simprocs, metaprogramming, linters, FFI, verso-docs, profiling

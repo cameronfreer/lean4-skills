@@ -39,6 +39,7 @@ See [plugin README](plugins/lean4/README.md) for the full command guide.
 ```bash
 /plugin marketplace add cameronfreer/lean4-skills
 /plugin install lean4
+/plugin install lean4-contribute   # opt-in to contribute bug reports, request features, or share insights
 ```
 
 ### Other Hosts
@@ -85,12 +86,20 @@ claude mcp add lean-lsp uvx lean-lsp-mcp
 
 ## Documentation
 
-- [SKILL.md](plugins/lean4/skills/lean4/SKILL.md) - Core skill reference
 - [INSTALLATION.md](INSTALLATION.md) - Setup guide
+
+**lean4 plugin**
+- [SKILL.md](plugins/lean4/skills/lean4/SKILL.md) - Core skill reference
 - [Commands](plugins/lean4/commands/) - Command documentation
-- [Advanced References](plugins/lean4/skills/lean4/references/) - grind, simprocs, metaprogramming, linters, FFI, verso-docs, profiling
+- [References](plugins/lean4/skills/lean4/references/) - cycle engine, mathlib style, proof golfing, tactic patterns, grind, metaprogramming, and more
+
+**lean4-contribute plugin**
+- [README](plugins/lean4-contribute/README.md) - Bug reports, feature requests, share insights
+
+---
+
 - [CHANGELOG.md](CHANGELOG.md) - Version history
-- Migrating from V3 (Claude Code): see [MIGRATION.md](plugins/lean4/MIGRATION.md)
+- Migrating from v3 (Claude Code): see [MIGRATION.md](plugins/lean4/MIGRATION.md)
 
 ## Changelog
 
