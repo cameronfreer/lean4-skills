@@ -1,7 +1,7 @@
 ---
 name: bug-report
 description: Draft a bug report issue for lean4-skills
-user_invocable: true
+disable-model-invocation: true
 ---
 
 # Bug Report

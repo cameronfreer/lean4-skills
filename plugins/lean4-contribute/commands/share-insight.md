@@ -1,7 +1,7 @@
 ---
 name: share-insight
 description: Draft a shareable insight from your session as a GitHub issue
-user_invocable: true
+disable-model-invocation: true
 ---
 
 # Share Insight

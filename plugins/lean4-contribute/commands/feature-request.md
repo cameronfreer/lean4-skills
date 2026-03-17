@@ -1,7 +1,7 @@
 ---
 name: feature-request
 description: Draft a feature request issue for lean4-skills
-user_invocable: true
+disable-model-invocation: true
 ---
 
 # Feature Request

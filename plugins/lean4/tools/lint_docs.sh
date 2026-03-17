@@ -1204,18 +1204,23 @@ check_release_metadata() {
         return
     fi
 
-    # Extract marketplace.json fields — use jq to select the lean4 plugin entry
-    # by name (falls back to sed if jq unavailable)
+    # Extract marketplace.json fields via python3
     local market_version market_plugin_desc market_source market_plugin_count
     market_version=$(grep -oE '"version": *"[^"]+"' "$marketplace_json" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-    if command -v jq &>/dev/null; then
-        market_plugin_desc=$(jq -r '.plugins[] | select(.name == "lean4") | .description' "$marketplace_json")
-        market_source=$(jq -r '.plugins[] | select(.name == "lean4") | .source' "$marketplace_json")
-    else
-        # Fallback: extract lean4 plugin fields via sed (fragile with multiple plugins)
-        market_plugin_desc=$(sed -n 's/.*"description": *"\([^"]*\)".*/\1/p' "$marketplace_json" | tail -1)
-        market_source=$(sed -n 's/.*"source": *"\([^"]*\)".*/\1/p' "$marketplace_json" | head -1)
-    fi
+    market_plugin_desc=$(python3 -c "
+import json, sys
+data = json.load(open(sys.argv[1]))
+for p in data.get('plugins', []):
+    if p.get('name') == 'lean4':
+        print(p.get('description', '')); break
+" "$marketplace_json")
+    market_source=$(python3 -c "
+import json, sys
+data = json.load(open(sys.argv[1]))
+for p in data.get('plugins', []):
+    if p.get('name') == 'lean4':
+        print(p.get('source', '')); break
+" "$marketplace_json")
     market_plugin_count=$(grep -c '"name": *"lean4"' "$marketplace_json")
 
     # 1. Version match
