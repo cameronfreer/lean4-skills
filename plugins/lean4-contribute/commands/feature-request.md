@@ -74,6 +74,8 @@ After confirmation, submit using the first available method:
 1. **`gh` CLI** — Try: `gh issue create --repo cameronfreer/lean4-skills --title "<title>" --body "<body>" --label enhancement`.
    If the label fails (e.g. `enhancement` doesn't exist on the repo), retry
    without `--label` and note that the label was advisory only.
+   If `gh` fails for auth or network reasons, **stop** — do not retry. Fall
+   through to the browser or email path immediately.
 2. **Browser fallback** — Provide a prefilled GitHub URL:
    `https://github.com/cameronfreer/lean4-skills/issues/new?title=<url-encoded-title>&body=<url-encoded-body>&labels=enhancement`
    (the `labels=` param is best-effort; GitHub ignores unknown labels silently)

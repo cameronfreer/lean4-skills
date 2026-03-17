@@ -39,8 +39,9 @@ Each command follows the same three-step flow:
 ## What Each Command Shares
 
 - **bug-report** — Summary, expected vs actual behavior, repro steps, a minimal
-  Lean snippet, environment info, and build diagnostics. Optionally includes a
-  possible-fix diff if one exists locally.
+  Lean snippet, environment info, and build diagnostics. A prose fix summary is
+  included when relevant; a minimal patch excerpt is only added after a separate
+  confirmation step.
 - **feature-request** — Problem description, current workaround, desired
   behavior, acceptance criteria, and alternatives considered.
 - **share-insight** — A pattern, antipattern, or mixed insight inferred from

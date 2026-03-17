@@ -104,6 +104,29 @@ for cmd in "${expected_cmds[@]}"; do
     else
         fail "$cmd.md user_invocable is '$inv', expected 'true'"
     fi
+
+    # Trust-contract checks
+    if grep -q "Display the.*complete.*issue draft" "$cmd_file"; then
+        ok "$cmd.md requires showing complete draft"
+    else
+        fail "$cmd.md missing 'Display the complete issue draft' requirement"
+    fi
+
+    if grep -q "Do.*not.*proceed unless the user explicitly confirms" "$cmd_file"; then
+        ok "$cmd.md requires explicit confirmation"
+    else
+        fail "$cmd.md missing explicit confirmation gate"
+    fi
+
+    has_gh=0; has_browser=0; has_email=0
+    grep -q 'gh issue create' "$cmd_file" && has_gh=1
+    grep -q 'github.com/cameronfreer/lean4-skills/issues/new' "$cmd_file" && has_browser=1
+    grep -q 'lean4skills@gmail.com' "$cmd_file" && has_email=1
+    if [[ "$has_gh" -eq 1 && "$has_browser" -eq 1 && "$has_email" -eq 1 ]]; then
+        ok "$cmd.md has all three submit paths (gh, browser, email)"
+    else
+        fail "$cmd.md missing submit path(s): gh=$has_gh browser=$has_browser email=$has_email"
+    fi
 done
 
 # Summary
