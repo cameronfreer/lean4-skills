@@ -1,7 +1,6 @@
 ---
 name: bug-report
 description: Draft a bug report issue for lean4-skills
-disable-model-invocation: true
 ---
 
 # Bug Report
@@ -71,6 +70,9 @@ Labels: bug
 
 ## Possible Fix
 <prose summary of fix; minimal patch excerpt only if user confirmed>
+
+---
+*Drafted via [lean4-contribute](https://github.com/cameronfreer/lean4-skills)*
 ```
 
 ## Showing the Draft

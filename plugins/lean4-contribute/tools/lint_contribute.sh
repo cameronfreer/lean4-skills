@@ -85,7 +85,6 @@ for cmd in "${expected_cmds[@]}"; do
     # Check frontmatter fields
     name=$(sed -n 's/^name: *//p' "$cmd_file")
     desc=$(sed -n 's/^description: *//p' "$cmd_file")
-    dmi=$(sed -n 's/^disable-model-invocation: *//p' "$cmd_file")
 
     if [[ "$name" == "$cmd" ]]; then
         ok "$cmd.md name matches filename"
@@ -97,12 +96,6 @@ for cmd in "${expected_cmds[@]}"; do
         ok "$cmd.md has description"
     else
         fail "$cmd.md missing description"
-    fi
-
-    if [[ "$dmi" == "true" ]]; then
-        ok "$cmd.md disable-model-invocation: true"
-    else
-        fail "$cmd.md disable-model-invocation is '$dmi', expected 'true'"
     fi
 
     # Trust-contract checks

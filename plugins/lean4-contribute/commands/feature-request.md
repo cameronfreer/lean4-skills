@@ -1,7 +1,6 @@
 ---
 name: feature-request
 description: Draft a feature request issue for lean4-skills
-disable-model-invocation: true
 ---
 
 # Feature Request
@@ -54,6 +53,9 @@ Labels: enhancement
 
 ## Urgency / Frequency
 <how often, how blocking>
+
+---
+*Drafted via [lean4-contribute](https://github.com/cameronfreer/lean4-skills)*
 ```
 
 ## Showing the Draft

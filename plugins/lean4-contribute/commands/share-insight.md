@@ -1,7 +1,6 @@
 ---
 name: share-insight
 description: Draft a shareable insight from your session as a GitHub issue
-disable-model-invocation: true
 ---
 
 # Share Insight
@@ -78,6 +77,9 @@ Labels: insight
 
 ## Confidence
 <high / medium / low>
+
+---
+*Drafted via [lean4-contribute](https://github.com/cameronfreer/lean4-skills)*
 ```
 
 ## Showing the Draft
