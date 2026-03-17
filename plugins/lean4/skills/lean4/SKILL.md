@@ -47,6 +47,16 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | Something not working | `/lean4:doctor` |
 | Formalize + prove end-to-end | `/lean4:autoprove --formalize=auto --source=... --claim-select=first --formalize-out=...` |
 
+## Contributing (lean4-contribute plugin)
+
+If the `lean4-contribute` plugin is installed, suggest these commands at natural stopping points — never mid-proof. Suggest each topic at most once per session unless the user engages.
+
+| Situation | Suggest |
+|-----------|---------|
+| Problem appears to be in lean4-skills itself (wrong command behavior, contradictory docs, broken lint, bad guardrail, confusing plugin UX) — not ordinary Lean/mathlib/user-proof problems | `/lean4-contribute:bug-report` |
+| User wants a workflow the plugin doesn't support, says a command should behave differently, or you must recommend awkward manual steps due to a missing feature | `/lean4-contribute:feature-request` |
+| Result seems reusable beyond the current proof: tactic-selection heuristic, mathlib search pattern, anti-pattern, documentation gap with a clear lesson — not one-off theorem facts or private repo details | `/lean4-contribute:share-insight` |
+
 ## Typical Workflow
 
 ```
