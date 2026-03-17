@@ -1,0 +1,6 @@
+{
+  "name": "lean4-contribute",
+  "version": "0.1.0",
+  "description": "Draft and submit bug reports, feature requests, and insights for lean4-skills as GitHub issues. Commands may share Lean code snippets with GitHub — review every draft before confirming.",
+  "author": {"name": "Cameron Freer", "email": "lean4skills@gmail.com"}
+}
