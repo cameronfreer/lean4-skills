@@ -1340,6 +1340,43 @@ check_host_agnostic() {
     fi
 }
 
+# Check 26: Contribute command consent policy in SKILL.md
+check_contribute_policy() {
+    log ""
+    log "Checking contribute consent policy..."
+
+    local skill_md="$PLUGIN_ROOT/skills/lean4/SKILL.md"
+    if [[ ! -f "$skill_md" ]]; then
+        return  # No SKILL.md, nothing to check
+    fi
+
+    # Extract the Contributing section (from ## Contributing to next ## heading)
+    # Uses awk state machine: robust against code blocks and heading content
+    local section
+    section=$(awk '
+        /^## Contributing/ { found=1; next }
+        found && /^## /    { exit }
+        found              { print }
+    ' "$skill_md")
+
+    if [[ -z "$section" ]]; then
+        warn "SKILL.md missing ## Contributing section"
+        return
+    fi
+
+    local _cp_fail=0
+    echo "$section" | grep -qi 'never invoke unprompted' || _cp_fail=1
+    echo "$section" | grep -qi 'explicit.*opt-in' || _cp_fail=1
+    echo "$section" | grep -qi 'once per topic' || _cp_fail=1
+    echo "$section" | grep -qi 'never mid-proof' || _cp_fail=1
+
+    if [[ $_cp_fail -eq 0 ]]; then
+        ok "SKILL.md contribute policy has required consent guardrails"
+    else
+        warn "SKILL.md contribute policy missing consent guardrail phrases (need: never invoke unprompted, explicit opt-in, once per topic, never mid-proof)"
+    fi
+}
+
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
@@ -1371,6 +1408,7 @@ check_advanced_reference_snippets
 check_release_metadata
 check_description_alignment
 check_host_agnostic
+check_contribute_policy
 
 log ""
 log "================================"

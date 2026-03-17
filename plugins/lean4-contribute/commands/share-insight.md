@@ -8,6 +8,17 @@ description: Draft a shareable insight from your session as a GitHub issue
 Draft and submit a reusable insight (pattern, antipattern, or mixed) as a
 GitHub issue on `cameronfreer/lean4-skills`.
 
+## Precondition
+
+Invoke this command only if the user explicitly ran it or explicitly agreed to
+draft a shareable insight. If invoked without prior opt-in, ask:
+
+> That seems reusable beyond this task. Want me to draft a shareable insight?
+
+If the user explicitly ran `/lean4-contribute:share-insight`, treat that as opt-in.
+Do not proceed unless the user confirms. Do not mine git diff, infer insight
+candidates, or ask structured questions until consent is given.
+
 ## Discovering Candidates
 
 Before asking the user, look at:

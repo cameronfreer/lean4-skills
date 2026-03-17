@@ -2,7 +2,8 @@
 
 > **Contribution helper.** Draft and submit bug reports, feature requests, and
 > shareable insights for [lean4-skills](https://github.com/cameronfreer/lean4-skills)
-> as GitHub issues — directly from your editor.
+> as GitHub issues — directly from your editor. Your coding agent may suggest
+> drafting at natural stopping points; drafting starts only after you opt in.
 
 **Privacy notice:** Commands may include Lean code snippets, diagnostics, or
 diff fragments in the drafted issue body. Every draft is shown in full before
@@ -18,13 +19,16 @@ submission, and nothing is sent without your explicit confirmation.
 
 ## How It Works
 
-Each command follows the same three-step flow:
+Each command follows the same four-step flow:
 
-1. **Draft** — Gathers context (session state, diffs, diagnostics) and builds a
+1. **Suggest** — Your coding agent may suggest drafting at a natural stopping
+   point. Drafting begins only after you explicitly opt in — or you can start
+   directly with a slash command.
+2. **Draft** — Gathers context (session state, diffs, diagnostics) and builds a
    structured issue body locally.
-2. **Review** — Shows you the exact title, labels, and body that will be
+3. **Review** — Shows you the exact title, labels, and body that will be
    submitted. You can edit or cancel.
-3. **Submit** — After your explicit confirmation, submits via the best available
+4. **Submit** — After your explicit confirmation, submits via the best available
    channel:
    - **`gh` CLI** — `gh issue create` on `cameronfreer/lean4-skills` (preferred)
    - **Browser** — Prefilled GitHub new-issue URL (fallback if `gh` unavailable)

@@ -127,6 +127,35 @@ for cmd in "${expected_cmds[@]}"; do
     else
         ok "$cmd.md is host-agnostic (no Claude mentions)"
     fi
+
+    # Consent precondition: draft-start consent gate
+    if grep -q "If invoked without prior opt-in" "$cmd_file"; then
+        ok "$cmd.md has draft-start consent gate"
+    else
+        fail "$cmd.md missing draft-start consent gate"
+    fi
+
+    # Consent precondition: direct-slash opt-in rule
+    if grep -q "/lean4-contribute:$cmd" "$cmd_file" && grep -q "treat that as opt-in" "$cmd_file"; then
+        ok "$cmd.md has direct-slash opt-in rule"
+    else
+        fail "$cmd.md missing direct-slash opt-in rule"
+    fi
+
+    # Attribution footer in issue template
+    if grep -q "Drafted via.*lean4-contribute" "$cmd_file"; then
+        ok "$cmd.md has attribution footer"
+    else
+        fail "$cmd.md missing attribution footer in issue template"
+    fi
+
+    # Model-invocable guard: frontmatter must NOT have disable-model-invocation
+    frontmatter=$(awk 'NR==1 && /^---$/ { found=1; next } found && /^---$/ { exit } found { print }' "$cmd_file")
+    if echo "$frontmatter" | grep -q '^disable-model-invocation:'; then
+        fail "$cmd.md frontmatter has disable-model-invocation (breaks discoverability; consent gate is the safety check)"
+    else
+        ok "$cmd.md is model-invocable (consent-gated)"
+    fi
 done
 
 # Summary

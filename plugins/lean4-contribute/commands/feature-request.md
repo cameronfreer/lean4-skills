@@ -7,6 +7,17 @@ description: Draft a feature request issue for lean4-skills
 
 Draft and submit a feature request as a GitHub issue on `cameronfreer/lean4-skills`.
 
+## Precondition
+
+Invoke this command only if the user explicitly ran it or explicitly agreed to
+draft a feature request. If invoked without prior opt-in, ask:
+
+> This looks like a plugin workflow gap. Want me to draft a feature request?
+
+If the user explicitly ran `/lean4-contribute:feature-request`, treat that as opt-in.
+Do not proceed unless the user confirms. Do not gather structured questions
+or build an issue body until consent is given.
+
 ## Gathering Context
 
 Collect the following from the user and the current session. Ask for anything
