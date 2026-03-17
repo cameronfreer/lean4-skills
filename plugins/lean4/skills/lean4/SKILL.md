@@ -66,7 +66,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 
 - At most once per session. Do not repeat if the user declined, ignored it, or moved on.
 - Never mid-proof or during an active debugging loop.
-- One short line, not a pitch: "If you want, run `/plugin install lean4-contribute` and I can draft that report for you here."
+- One short line, not a pitch: "If you want, install the `lean4-contribute` plugin and I can draft that report for you here." See the [install instructions](../../../../README.md#installation) for your host.
 
 ## Typical Workflow
 
