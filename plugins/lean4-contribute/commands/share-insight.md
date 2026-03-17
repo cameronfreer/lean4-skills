@@ -97,9 +97,12 @@ Do **not** proceed unless the user explicitly confirms.
 
 After confirmation, submit using the first available method:
 
-1. **`gh` CLI** — Run: `gh issue create --repo cameronfreer/lean4-skills --title "<title>" --body "<body>" --label insight`
+1. **`gh` CLI** — Try: `gh issue create --repo cameronfreer/lean4-skills --title "<title>" --body "<body>" --label insight`.
+   If the label fails (e.g. `insight` doesn't exist on the repo), retry without
+   `--label` and note that the label was advisory only.
 2. **Browser fallback** — Provide a prefilled GitHub URL:
    `https://github.com/cameronfreer/lean4-skills/issues/new?title=<url-encoded-title>&body=<url-encoded-body>&labels=insight`
+   (the `labels=` param is best-effort; GitHub ignores unknown labels silently)
 3. **Email fallback** — Draft an email to `lean4skills@gmail.com` with subject
    `[Insight] <title>` and the full issue body, for the user to send manually.
 
