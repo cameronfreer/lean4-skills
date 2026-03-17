@@ -1303,6 +1303,43 @@ check_description_alignment() {
     fi
 }
 
+# Check 25: Host-agnostic language in core surfaces
+# SKILL.md and commands are loaded into any host's context, so they must not
+# reference "Claude" by name.  Allowed exceptions:
+#   - doctor.md (contains .claude/ paths and `claude mcp` product commands)
+#   - .claude-plugin/ path fragments (directory name, not prose)
+check_host_agnostic() {
+    log ""
+    log "Checking host-agnostic language..."
+
+    local _ha_files _ha_fail
+    _ha_fail=0
+
+    # SKILL.md
+    local skill_md="$PLUGIN_ROOT/skills/lean4/SKILL.md"
+    if [[ -f "$skill_md" ]]; then
+        if grep -inE 'claude' "$skill_md" | grep -ivE '\.claude[-/]' | grep -q .; then
+            warn "SKILL.md mentions 'Claude' — core skill must be host-agnostic"
+            _ha_fail=1
+        fi
+    fi
+
+    # Command files (skip doctor.md — it has legitimate .claude/ paths)
+    while IFS= read -r file; do
+        local _ha_base
+        _ha_base=$(basename "$file")
+        [[ "$_ha_base" == "doctor.md" ]] && continue
+        if grep -inE 'claude' "$file" | grep -ivE '\.claude[-/]' | grep -q .; then
+            warn "$_ha_base mentions 'Claude' — commands must be host-agnostic"
+            _ha_fail=1
+        fi
+    done < <(find "$PLUGIN_ROOT/commands" -name "*.md" -type f 2>/dev/null)
+
+    if [[ $_ha_fail -eq 0 ]]; then
+        ok "Host-agnostic language checked"
+    fi
+}
+
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
@@ -1333,6 +1370,7 @@ check_advanced_reference_language
 check_advanced_reference_snippets
 check_release_metadata
 check_description_alignment
+check_host_agnostic
 
 log ""
 log "================================"

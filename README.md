@@ -116,7 +116,7 @@ See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 Issues and PRs welcome at https://github.com/cameronfreer/lean4-skills.
 
-If you have the `lean4-contribute` plugin installed, you can file bug reports, request features, or share insights directly from your editor — Claude will draft a structured issue and submit it after your review. Each draft is shown in full before submission; nothing is sent without explicit confirmation.
+If you have the `lean4-contribute` plugin installed, you can file bug reports, request features, or share insights directly from your editor — your coding agent will draft a structured issue and submit it after your review. Each draft is shown in full before submission; nothing is sent without explicit confirmation.
 
 ## License & Citation
 

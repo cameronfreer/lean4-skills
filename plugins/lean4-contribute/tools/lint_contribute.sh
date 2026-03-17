@@ -120,6 +120,13 @@ for cmd in "${expected_cmds[@]}"; do
     else
         fail "$cmd.md missing submit path(s): gh=$has_gh browser=$has_browser email=$has_email"
     fi
+
+    # Host-agnostic check: commands must not mention "Claude" (use host-neutral language)
+    if grep -qi 'claude' "$cmd_file"; then
+        fail "$cmd.md mentions 'Claude' — commands must be host-agnostic"
+    else
+        ok "$cmd.md is host-agnostic (no Claude mentions)"
+    fi
 done
 
 # Summary
