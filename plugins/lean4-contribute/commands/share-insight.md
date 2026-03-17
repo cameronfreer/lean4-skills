@@ -89,6 +89,9 @@ wants to switch. Ask:
 > Here is the insight I will submit. Review it carefully — it may contain code
 > snippets from your session.
 >
+> By submitting, you agree that this content may be incorporated into
+> lean4-skills under its [MIT license](https://github.com/cameronfreer/lean4-skills/blob/main/LICENSE).
+>
 > **Submit this issue?** (yes / edit / switch to alternate / cancel)
 
 Do **not** proceed unless the user explicitly confirms.

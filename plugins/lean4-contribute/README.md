@@ -47,4 +47,6 @@ Each command follows the same three-step flow:
 - **share-insight** — A pattern, antipattern, or mixed insight inferred from
   your session, with a minimal example and context.
 
-All drafts include a privacy/redaction check before submission.
+All drafts include a privacy/redaction check before submission. By submitting,
+you agree that the content may be incorporated into lean4-skills under its
+[MIT license](https://github.com/cameronfreer/lean4-skills/blob/main/LICENSE).

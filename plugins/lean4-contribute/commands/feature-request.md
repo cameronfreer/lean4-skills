@@ -63,6 +63,9 @@ Ask:
 
 > Here is the feature request I will submit. Review it carefully.
 >
+> By submitting, you agree that this content may be incorporated into
+> lean4-skills under its [MIT license](https://github.com/cameronfreer/lean4-skills/blob/main/LICENSE).
+>
 > **Submit this issue?** (yes / edit / cancel)
 
 Do **not** proceed unless the user explicitly confirms.
