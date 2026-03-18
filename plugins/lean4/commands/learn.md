@@ -114,7 +114,8 @@ Offer the depth-check menu:
 - show source / show proof state / show alternative approach
 - **show Lean backing** (on-demand transparency into the verification layer)
 - go deeper / switch mode / broaden scope
-- **formalize a specific result** → suggest `/lean4:formalize`
+- **draft a skeleton** → suggest `/lean4:draft` (skeleton only)
+- **formalize a specific result** → suggest `/lean4:formalize` (draft + prove)
 - **save to scratch** / **write to file** (mid-session output actions — `--output` is part of the loop, not just startup config)
 
 ### 5. Pedagogical Self-Debate

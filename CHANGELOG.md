@@ -1,5 +1,18 @@
 # Changelog
 
+## v4.4.0 (March 2026)
+
+Separates drafting from proving with a cleaner command surface. Existing invocations
+continue to work; see MIGRATION.md for the full compatibility story.
+
+- NEW `/lean4:draft`: skeleton-only drafting (default `--mode=skeleton`); `--mode=attempt` recovers old formalize proof-attempt behavior
+- REWRITE `/lean4:formalize`: syntax-compatible with old formalize, but now broader — runs interactive synthesis (draft + prove); users wanting the old lighter drafting path should use `/lean4:draft`
+- NEW `/lean4:autoformalize`: autonomous synthesis (draft + autoprove); preferred over `autoprove --formalize=auto`
+- TIGHTENED `/lean4:prove` and `/lean4:autoprove`: declaration headers are now immutable (header fence); deep mode emits `next_action = redraft` instead of modifying statements
+- DEPRECATED `autoprove --formalize=*` flags: still functional, recommend `/lean4:autoformalize`
+- Cycle-engine: "Formalize Outer Loop" → "Synthesis Outer Loop"
+- Router action `formalize-restage` → `redraft`; commit prefix `formalize:` → `draft:`
+
 ## v4.3.3 (March 2026)
 - Align golf scripts and docs with lexicographic scoring policy (directness → inference burden → perf → length)
 - `find_golfable.py`: add `benefit` field, reorder patterns to policy order, phase-ordered CLI output

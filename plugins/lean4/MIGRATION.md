@@ -171,6 +171,29 @@ Both `lib/scripts/` and `scripts/` (compat alias) resolve to the same directory.
 
 Run `/lean4:doctor` for full diagnostics.
 
+## V4.3.x → V4.4.0
+
+**Separates drafting from proving** with a cleaner command surface.
+
+### What Changed and Why
+
+- `draft` is the honest name for "translate informal → formal skeleton." Old `formalize` did this plus proof attempts, which muddied the separation from `prove`.
+- `formalize` now means the full pipeline: draft a skeleton and prove it. This is a superset of old behavior.
+- `autoformalize` surfaces the `autoprove --formalize=auto` workflow as a first-class command with cleaner flag names.
+- Proof engines (`prove`/`autoprove`) no longer touch declaration headers. If the statement is wrong, they recommend `redraft` instead of silently rewriting.
+
+### Migration Table
+
+| Old invocation | What to use now | Compatibility |
+|---|---|---|
+| `/lean4:formalize "claim"` | `/lean4:formalize "claim"` (superset: now also proves) or `/lean4:draft "claim"` (skeleton only) | Yes — formalize still accepts this |
+| `/lean4:formalize --rigor=axiomatic "claim"` | `/lean4:formalize --rigor=axiomatic "claim"` | Yes — rigor stays on formalize |
+| `/lean4:formalize "claim"` → save → `/lean4:prove` later | `/lean4:draft "claim"` → save → `/lean4:prove` (cleaner separation) | Yes — old formalize still works for this pattern too |
+| `/lean4:autoprove --formalize=auto --source=paper.pdf --claim-select=first --formalize-out=Paper.lean` | `/lean4:autoformalize --source=paper.pdf --claim-select=first --out=Paper.lean` | Old flags still accepted on autoprove (deprecated, functional) |
+| `/lean4:autoprove --formalize=auto --formalize-rigor=checked ...` | `/lean4:autoformalize --rigor=checked ...` | `--formalize-rigor` → `--rigor` on autoformalize |
+| `/lean4:autoprove --formalize=restage` | `/lean4:autoformalize` (without `--source`, scope-backed mode) | Old flag still accepted (deprecated) |
+| `/lean4:prove --deep` with statement generalization | Statement changes now require `/lean4:formalize`; prove emits `next_action = redraft` | **Behavioral narrowing** — only breaking change |
+
 ## V4.0.4 → V4.0.5
 
 **`/lean4:autoprover` split into two commands:**

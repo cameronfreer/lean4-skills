@@ -11,7 +11,9 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 
 | Command | Description |
 |---------|-------------|
-| `/lean4:formalize` | Turn informal math into Lean statements |
+| `/lean4:draft` | Draft Lean declaration skeletons from informal claims |
+| `/lean4:formalize` | Interactive formalization — drafting plus guided proving |
+| `/lean4:autoformalize` | Autonomous end-to-end formalization from informal sources |
 | `/lean4:prove` | Guided cycle-by-cycle theorem proving with explicit checkpoints |
 | `/lean4:autoprove` | Autonomous multi-cycle theorem proving with hard stop rules |
 | `/lean4:checkpoint` | Save progress with a safe commit checkpoint |
@@ -24,7 +26,9 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 ## Quick Start
 
 ```bash
-/lean4:formalize           # Turn informal math into Lean statements
+/lean4:draft               # Draft Lean skeletons from informal claims
+/lean4:formalize           # Interactive synthesis (draft + prove)
+/lean4:autoformalize       # Autonomous synthesis (source → proof)
 /lean4:prove               # Guided sorry filling (interactive)
 /lean4:autoprove           # Autonomous sorry filling (unattended)
 /lean4:checkpoint          # Verified commit
@@ -45,9 +49,17 @@ When you edit `.lean` files in a normal conversation, the plugin activates autom
 > Use `/lean4:prove` for guided cycle-by-cycle help.
 > Use `/lean4:autoprove` for autonomous cycles with stop safeguards.
 
-### `/lean4:formalize` — Autoformalization
+### `/lean4:draft` — Skeleton Drafting
 
-Turns informal mathematical claims into Lean 4 theorem statements. Drafts skeletons, attempts proofs, verifies axiom hygiene, and produces an assumption ledger for axiomatic drafts (`--rigor=axiomatic`). Accepts `--source` to ingest papers or files.
+Drafts Lean 4 declaration skeletons from informal claims. Default `--mode=skeleton` produces sorry-stubbed statements; `--mode=attempt` adds a proof-attempt loop. No proving, no falsification — use `/lean4:formalize` for the full pipeline.
+
+### `/lean4:formalize` — Interactive Synthesis
+
+Combines drafting and guided proving in one human-in-the-loop workflow. Drafts a skeleton, then runs prove cycles with user interaction. Owns the right to modify declaration headers (the prove phase itself cannot). Accepts `--source` to ingest papers or files.
+
+### `/lean4:autoformalize` — Autonomous Synthesis
+
+Extracts claims from a source, drafts skeletons, and proves them — all unattended. Replaces the old `autoprove --formalize=auto` workflow as a first-class command with cleaner flag names.
 
 ### `/lean4:prove` — Guided Proving
 

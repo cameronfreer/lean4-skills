@@ -9,7 +9,9 @@ others all use the same core skill; only the invocation surface differs.
 
 | Workflow | Description |
 |---|---|
-| formalize | Turn informal math into Lean statements |
+| draft | Draft Lean declaration skeletons from informal claims |
+| formalize | Interactive formalization — drafting plus guided proving |
+| autoformalize | Autonomous end-to-end formalization from informal sources |
 | prove | Guided cycle-by-cycle theorem proving |
 | autoprove | Autonomous multi-cycle proving with stop rules |
 | checkpoint | Verified save point (build + axiom check + commit) |
@@ -21,7 +23,7 @@ others all use the same core skill; only the invocation surface differs.
 
 **Claude Code:** invoke as `/lean4:<name>`. **Other hosts:** follow the corresponding workflow in [SKILL.md](plugins/lean4/skills/lean4/SKILL.md).
 
-Typical session: `prove` (or `autoprove`) → `review` → `refactor` → `golf` → `checkpoint` → `git push`.
+Typical session: `draft` (or `formalize` / `autoformalize`) → `prove` (or `autoprove`) → `review` → `refactor` → `golf` → `checkpoint` → `git push`.
 
 ## How It Works
 
