@@ -21,7 +21,7 @@ candidates, or ask structured questions until consent is given.
 
 ## Discovering Candidates
 
-Before asking the user, look at:
+Once the user has opted in (see [Precondition](#precondition) above), look at:
 
 - Current conversation / session context
 - Current git diff (`git diff` and `git diff --cached`)

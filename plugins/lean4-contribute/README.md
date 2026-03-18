@@ -36,9 +36,14 @@ Each command follows the same four-step flow:
 
 ## Installation
 
+**Claude Code:**
 ```bash
 /plugin install lean4-contribute
 ```
+
+Other hosts: the commands are plain markdown specs under [`commands/`](commands/)
+and may be usable in other hosts that support similar command loading, but
+documented setup currently covers Claude Code only.
 
 ## What Each Command Shares
 

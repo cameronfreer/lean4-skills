@@ -156,6 +156,20 @@ for cmd in "${expected_cmds[@]}"; do
     else
         ok "$cmd.md is model-invocable (consent-gated)"
     fi
+
+    # share-insight-specific: Discovering Candidates must reference consent gate
+    if [[ "$cmd" == "share-insight" ]]; then
+        dc_section=$(awk '
+            /^## Discovering Candidates/ { found=1; next }
+            found && /^## /              { exit }
+            found                        { print }
+        ' "$cmd_file")
+        if echo "$dc_section" | grep -qi 'opt.in\|precondition\|consent'; then
+            ok "$cmd.md Discovering Candidates references consent gate"
+        else
+            fail "$cmd.md Discovering Candidates does not reference consent gate"
+        fi
+    fi
 done
 
 # Summary
