@@ -288,16 +288,16 @@ else
     fail "Check 18: Auto happy path tokens out of order or missing"
 fi
 
-# Check 17: Scenario — stuck → restage (token ordering + re-formalize co-occurrence)
+# Check 17: Scenario — stuck → redraft (token ordering + re-draft co-occurrence)
 if assert_ordered "$source_block" "stuck" "next_action" "redraft"; then
-    # formalize-restage and re-formalize share a line; verify co-occurrence
+    # redraft and re-draft share a line; verify co-occurrence
     if echo "$source_block" | grep 'redraft' | grep -q 're-draft'; then
-        ok "Check 19: Stuck → restage token order + re-formalize step"
+        ok "Check 19: Stuck → redraft token order + re-draft step"
     else
         fail "Check 19: redraft line missing re-draft step"
     fi
 else
-    fail "Check 19: Stuck → restage tokens out of order or missing"
+    fail "Check 19: Stuck → redraft tokens out of order or missing"
 fi
 
 # Check 20: preserve row restage column contains Error/manual
