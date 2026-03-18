@@ -13,7 +13,7 @@ PLUGIN_ROOT="${LEAN4_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 ISSUES=0
 
 # Single source of truth for known commands (used by check_commands and check_cross_refs)
-KNOWN_COMMANDS="autoprove checkpoint doctor formalize golf learn prove refactor review"
+KNOWN_COMMANDS="autoformalize autoprove checkpoint doctor draft formalize golf learn prove refactor review"
 
 log() {
     echo "$1"
@@ -56,10 +56,12 @@ check_commands() {
         # Per-command line limits (explicit for every command)
         local max_lines=120
         case "$cmd" in
-            autoprove)  max_lines=235 ;;
+            autoformalize) max_lines=180 ;;
+            autoprove)  max_lines=200 ;;
             checkpoint) max_lines=90 ;;
             doctor)     max_lines=225 ;;
-            formalize)  max_lines=160 ;;
+            draft)      max_lines=160 ;;
+            formalize)  max_lines=180 ;;
             golf)       max_lines=170 ;;
             learn)      max_lines=180 ;;
             prove)      max_lines=235 ;;
@@ -290,7 +292,7 @@ check_cross_refs() {
     local agent_anchors="lean4-sorry-filler-deep lean4-proof-repair lean4-proof-golfer lean4-axiom-eliminator"
 
     # Valid anchors for cycle-engine.md
-    local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic falsification-artifacts repair-mode safety formalize-outer-loop algorithm formalize-commit-boundary session-generated-provenance statement-safety claim-queue file-assembly-contract review-router"
+    local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic falsification-artifacts repair-mode safety synthesis-outer-loop algorithm draft-commit-boundary header-fence session-generated-provenance statement-safety claim-queue file-assembly-contract review-router"
 
     while IFS= read -r file; do
         # Check links to command-examples.md

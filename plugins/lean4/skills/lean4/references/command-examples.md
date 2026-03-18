@@ -4,6 +4,62 @@ Extended examples and session transcripts for Lean4 plugin commands.
 
 ---
 
+## draft
+
+### Skeleton-Only Drafting
+
+````
+User: /lean4:draft "Every continuous function on a compact set is bounded"
+
+Claude: Parsing claim and drafting skeleton...
+
+## Theorem Skeleton
+
+```lean
+theorem continuous_on_compact_bounded
+    {X : Type*} [TopologicalSpace X] [MetricSpace X]
+    {Y : Type*} [MetricSpace Y]
+    {K : Set X} (hK : IsCompact K)
+    {f : X → Y} (hf : ContinuousOn f K) :
+    IsBounded (f '' K) := by
+  sorry
+```
+
+Elaboration check (--elab-check=best-effort)... ✓ (1 sorry, no other diagnostics)
+
+What next?
+- [alternative] Different formalization (e.g., using Bornology)
+- [save to scratch] Write to scratch file
+````
+
+### Attempt Mode
+
+````
+User: /lean4:draft --mode=attempt "The sum of two continuous functions is continuous"
+
+Claude: Parsing claim and drafting skeleton...
+
+```lean
+theorem continuous_add {f g : ℝ → ℝ} (hf : Continuous f) (hg : Continuous g) :
+    Continuous (f + g) := by
+  sorry
+```
+
+Attempting proof (--mode=attempt)...
+lean_local_search("Continuous add") → found `Continuous.add`
+Trying: `exact hf.add hg`
+Diagnostics... ✓
+
+Proof found! Skeleton upgraded from sorry to verified proof.
+
+What next?
+- [show source] See the mathlib proof
+- [alternative] Different formalization
+- [save to scratch] Write to scratch file
+````
+
+---
+
 ## formalize
 
 ### Autoformalization
@@ -171,6 +227,86 @@ Building... ✓
 - `stop` - Save progress and exit
 - `skip` - Skip current sorry, try next
 - `rollback N` - Undo last N commits
+```
+
+---
+
+## autoformalize
+
+### Basic Usage
+
+```
+/lean4:autoformalize --source ./paper.pdf --claim-select=first --out=Paper.lean
+/lean4:autoformalize --source ./paper.pdf --claim-select=regex:"Theorem.*" --out=Paper.lean --rigor=checked
+```
+
+### Full Session Example
+
+```
+User: /lean4:autoformalize --source ./paper.pdf --claim-select=first --out=Paper.lean
+
+Claude: Extracting claims from ./paper.pdf...
+Found 4 claims in document order:
+  1. Theorem 2.1 (Continuity bound)
+  2. Lemma 2.3 (Monotone helper)
+  3. Theorem 3.1 (Main convergence)
+  4. Corollary 3.2 (Uniform bound)
+
+[Synthesis — Claim 1/4: Theorem 2.1]
+Drafting "Theorem 2.1"...
+  draft → temp file (declaration-only block, fully-qualified names)
+  Outer loop: append to Paper.lean with boundary marker
+  lean_diagnostic_messages(Paper.lean) → ✓
+  Committing: "draft: Theorem 2.1 continuity bound"
+
+Starting inner cycle on Paper.lean...
+[Cycle 1] Working on Paper.lean:18 - `continuity_bound`
+  Goal: ⊢ ∀ x ∈ K, ‖f x‖ ≤ C
+  lean_leanfinder("IsCompact ContinuousOn norm bound") → found candidate
+  Applying: `exact hK.isCompact.norm_le_of_continuousOn hf` ✓
+  Committing: "fill: continuity_bound - isCompact.norm_le"
+
+Sorry-free. Advancing to next claim.
+
+[Synthesis — Claim 2/4: Lemma 2.3]
+Drafting "Lemma 2.3"...
+  draft → temp file → outer loop appends to Paper.lean
+  Committing: "draft: Lemma 2.3 monotone helper"
+
+[Cycle 2] Working on Paper.lean:34 - `monotone_helper`
+  Stuck after 3 attempts.
+  Running stuck review...
+  **next_action:** redraft
+
+  Redrafting: declaration in provenance set → rewrite allowed
+  Re-drafting with weaker hypotheses...
+  Committing: "draft: redraft monotone_helper"
+
+[Cycle 3] Retrying Paper.lean:34 - `monotone_helper` (redrafted)
+  Applying: `exact Monotone.comp hg hf` ✓
+  Committing: "fill: monotone_helper - Monotone.comp"
+
+Sorry-free. Advancing to next claim.
+
+[...claims 3-4...]
+
+## Autoformalize Summary
+
+**Reason stopped:** queue-empty (all claims attempted)
+
+| Metric | Value |
+|--------|-------|
+| Claims attempted | 4/4 |
+| Sorries before | 0 |
+| Sorries after | 0 |
+| Cycles run | 6 |
+| Stuck cycles | 1 |
+| Deep invocations | 0 |
+| Time elapsed | 12m |
+| Drafts | 4 (1 restaged) |
+
+**Handoff recommendations:**
+- All sorries filled. Run /lean4:checkpoint to save.
 ```
 
 ---
