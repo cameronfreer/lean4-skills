@@ -27,10 +27,14 @@ Typical session: `draft` (or `formalize` / `autoformalize`) → `prove` (or `aut
 
 ## How It Works
 
-- **`prove`** — Guided, interactive. Asks preferences at startup, prompts before each commit, pauses between cycles. Start here.
-- **`autoprove`** — Autonomous, unattended. Auto-commits, loops until a stop condition fires (max cycles, max time, or stuck).
-- Both share one cycle engine: **Plan → Work → Checkpoint → Review → Replan → Continue/Stop**. Each sorry gets a mathlib search, tactic attempts, and validation. `--commit` controls per-fill commit behavior. When stuck, both force a review + replan.
-- Editing `.lean` files without a command activates the skill for one bounded pass — fix the immediate issue, then suggest `prove` or `autoprove` for more.
+- **`draft`** — Skeleton-only drafting from informal claims. Use when you want Lean declarations without a full prove run.
+- **`formalize`** — Interactive synthesis. Drafts a skeleton, then runs guided prove cycles with user interaction.
+- **`autoformalize`** — Autonomous synthesis. Extracts claims from a source, drafts skeletons, and proves them unattended.
+- **`prove`** — Guided proof engine for existing declarations. Asks preferences at startup, prompts before each commit, pauses between cycles.
+- **`autoprove`** — Autonomous proof engine for existing declarations. Auto-commits, loops until a stop condition fires (max cycles, max time, or stuck).
+- The proof engines share one cycle engine: **Plan → Work → Checkpoint → Review → Replan → Continue/Stop**. Each sorry gets a mathlib search, tactic attempts, and validation. `--commit` controls per-fill commit behavior. When stuck, both force a review + replan.
+- `formalize` and `autoformalize` wrap drafting around that same engine. Statement and header changes belong there — `prove` and `autoprove` keep declaration headers immutable.
+- Editing `.lean` files without a command activates the skill for one bounded pass — fix the immediate issue, then suggest the right next command: `draft` / `formalize` for statement work, `prove` / `autoprove` for proof work.
 
 See [plugin README](plugins/lean4/README.md) for the full command guide.
 
