@@ -41,7 +41,12 @@ See [plugin README](plugins/lean4/README.md) for the full command guide.
 ```bash
 /plugin marketplace add cameronfreer/lean4-skills
 /plugin install lean4
-/plugin install lean4-contribute   # opt-in to contribute bug reports, request features, or share insights
+```
+
+Optionally, install the contribution helper to draft bug reports, feature requests, or shareable insights from your editor:
+
+```bash
+/plugin install lean4-contribute
 ```
 
 ### Other Hosts
