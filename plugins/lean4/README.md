@@ -44,10 +44,10 @@ git push                   # Manual, after review
 
 ### Without a Command
 
-When you edit `.lean` files in a normal conversation, the plugin activates automatically — it helps with the immediate issue (a build error, a single sorry) but does one bounded pass only. No looping, no deep escalation. At the end it suggests:
+When you edit `.lean` files in a normal conversation, the plugin activates automatically — it helps with the immediate issue (a build error, a single sorry) but does one bounded pass only. No looping, no deep escalation. At the end it suggests the right next command:
 
-> Use `/lean4:prove` for guided cycle-by-cycle help.
-> Use `/lean4:autoprove` for autonomous cycles with stop safeguards.
+> Use `/lean4:draft` or `/lean4:formalize` for statement work.
+> Use `/lean4:prove` or `/lean4:autoprove` for proof work.
 
 ### `/lean4:draft` — Skeleton Drafting
 
@@ -242,7 +242,7 @@ plugins/lean4/
 │   └── references/     # Reference docs
 ├── agents/             # 4 specialized agents
 ├── hooks/              # Bootstrap and guardrails
-├── scripts/           # Compat alias → lib/scripts
+├── scripts/            # Compat alias → lib/scripts
 └── lib/scripts/        # 12 hard-primitive scripts
 ```
 
