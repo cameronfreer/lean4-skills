@@ -138,7 +138,7 @@ If deep budget is exhausted with no progress → stuck.
 | `--deep-max-files` | 1 | 2 | Max files deep may edit per invocation |
 | `--deep-max-lines` | 120 | 200 | Max added+deleted lines per deep invocation |
 | `--deep-regression-gate` | `strict` | `strict` | `strict`: auto-abort on regression; `off`: log only |
-| Statement changes | Interactive approval prompt | Logged but auto-skipped |
+| Statement changes | Not permitted — rollback + stuck; hand off to `/lean4:formalize` | Not permitted — rollback + stuck; emit `next_action = redraft` when synthesis outer loop is active |
 | `--commit=ask` | Per-commit prompt (yes/yes-all/no/never) | Coerced to `auto` at startup |
 
 ### Deep Safety Definitions
