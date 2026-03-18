@@ -1,12 +1,22 @@
 ---
 name: bug-report
 description: Draft a bug report issue for lean4-skills
-disable-model-invocation: true
 ---
 
 # Bug Report
 
 Draft and submit a bug report as a GitHub issue on `cameronfreer/lean4-skills`.
+
+## Precondition
+
+Invoke this command only if the user explicitly ran it or explicitly agreed to
+draft a bug report. If invoked without prior opt-in, ask:
+
+> This looks like a lean4-skills bug. Want me to draft a bug report?
+
+If the user explicitly ran `/lean4-contribute:bug-report`, treat that as opt-in.
+Do not proceed unless the user confirms. Do not mine git diff, gather
+diagnostics, or ask structured questions until consent is given.
 
 ## Gathering Context
 
@@ -71,6 +81,9 @@ Labels: bug
 
 ## Possible Fix
 <prose summary of fix; minimal patch excerpt only if user confirmed>
+
+---
+*Drafted via [lean4-contribute](https://github.com/cameronfreer/lean4-skills)*
 ```
 
 ## Showing the Draft

@@ -1303,6 +1303,91 @@ check_description_alignment() {
     fi
 }
 
+# Check 25: Host-agnostic language in core surfaces
+# SKILL.md and commands are loaded into any host's context, so they must not
+# reference "Claude" by name.  Allowed exceptions:
+#   - doctor.md (contains .claude/ paths and `claude mcp` product commands)
+#   - .claude-plugin/ path fragments (directory name, not prose)
+check_host_agnostic() {
+    log ""
+    log "Checking host-agnostic language..."
+
+    local _ha_files _ha_fail
+    _ha_fail=0
+
+    # SKILL.md
+    local skill_md="$PLUGIN_ROOT/skills/lean4/SKILL.md"
+    if [[ -f "$skill_md" ]]; then
+        if grep -inE 'claude' "$skill_md" | grep -ivE '\.claude[-/]' | grep -q .; then
+            warn "SKILL.md mentions 'Claude' — core skill must be host-agnostic"
+            _ha_fail=1
+        fi
+    fi
+
+    # Command files (skip doctor.md — it has legitimate .claude/ paths)
+    while IFS= read -r file; do
+        local _ha_base
+        _ha_base=$(basename "$file")
+        [[ "$_ha_base" == "doctor.md" ]] && continue
+        if grep -inE 'claude' "$file" | grep -ivE '\.claude[-/]' | grep -q .; then
+            warn "$_ha_base mentions 'Claude' — commands must be host-agnostic"
+            _ha_fail=1
+        fi
+    done < <(find "$PLUGIN_ROOT/commands" -name "*.md" -type f 2>/dev/null)
+
+    if [[ $_ha_fail -eq 0 ]]; then
+        ok "Host-agnostic language checked"
+    fi
+}
+
+# Check 26: Contribute command consent policy in SKILL.md
+check_contribute_policy() {
+    log ""
+    log "Checking contribute consent policy..."
+
+    local skill_md="$PLUGIN_ROOT/skills/lean4/SKILL.md"
+    if [[ ! -f "$skill_md" ]]; then
+        return  # No SKILL.md, nothing to check
+    fi
+
+    # Extract the Contributing section (from ## Contributing to next ## heading)
+    # Uses awk state machine: robust against code blocks and heading content
+    local section
+    section=$(awk '
+        /^## Contributing/ { found=1; next }
+        found && /^## /    { exit }
+        found              { print }
+    ' "$skill_md")
+
+    if [[ -z "$section" ]]; then
+        warn "SKILL.md missing ## Contributing section"
+        return
+    fi
+
+    local _cp_fail=0
+    echo "$section" | grep -qi 'never invoke unprompted' || _cp_fail=1
+    echo "$section" | grep -qi 'explicit.*opt-in' || _cp_fail=1
+    echo "$section" | grep -qi 'once per topic' || _cp_fail=1
+    echo "$section" | grep -qi 'never mid-proof' || _cp_fail=1
+
+    if [[ $_cp_fail -eq 0 ]]; then
+        ok "SKILL.md contribute policy has required consent guardrails"
+    else
+        warn "SKILL.md contribute policy missing consent guardrail phrases (need: never invoke unprompted, explicit opt-in, once per topic, never mid-proof)"
+    fi
+
+    # Install-hint branch: must have "not installed" fallback with once-per-session limit
+    local _ih_fail=0
+    echo "$section" | grep -qi 'not installed' || _ih_fail=1
+    echo "$section" | grep -qi 'once per session' || _ih_fail=1
+
+    if [[ $_ih_fail -eq 0 ]]; then
+        ok "SKILL.md contribute policy has install-hint fallback"
+    else
+        warn "SKILL.md contribute policy missing install-hint fallback (need: not installed, once per session)"
+    fi
+}
+
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
@@ -1333,6 +1418,8 @@ check_advanced_reference_language
 check_advanced_reference_snippets
 check_release_metadata
 check_description_alignment
+check_host_agnostic
+check_contribute_policy
 
 log ""
 log "================================"

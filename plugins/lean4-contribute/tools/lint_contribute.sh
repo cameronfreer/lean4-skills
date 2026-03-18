@@ -85,7 +85,6 @@ for cmd in "${expected_cmds[@]}"; do
     # Check frontmatter fields
     name=$(sed -n 's/^name: *//p' "$cmd_file")
     desc=$(sed -n 's/^description: *//p' "$cmd_file")
-    dmi=$(sed -n 's/^disable-model-invocation: *//p' "$cmd_file")
 
     if [[ "$name" == "$cmd" ]]; then
         ok "$cmd.md name matches filename"
@@ -97,12 +96,6 @@ for cmd in "${expected_cmds[@]}"; do
         ok "$cmd.md has description"
     else
         fail "$cmd.md missing description"
-    fi
-
-    if [[ "$dmi" == "true" ]]; then
-        ok "$cmd.md disable-model-invocation: true"
-    else
-        fail "$cmd.md disable-model-invocation is '$dmi', expected 'true'"
     fi
 
     # Trust-contract checks
@@ -126,6 +119,61 @@ for cmd in "${expected_cmds[@]}"; do
         ok "$cmd.md has all three submit paths (gh, browser, email)"
     else
         fail "$cmd.md missing submit path(s): gh=$has_gh browser=$has_browser email=$has_email"
+    fi
+
+    # Host-agnostic check: commands must not mention "Claude" (use host-neutral language)
+    if grep -qi 'claude' "$cmd_file"; then
+        fail "$cmd.md mentions 'Claude' — commands must be host-agnostic"
+    else
+        ok "$cmd.md is host-agnostic (no Claude mentions)"
+    fi
+
+    # Consent precondition: draft-start consent gate
+    if grep -q "If invoked without prior opt-in" "$cmd_file"; then
+        ok "$cmd.md has draft-start consent gate"
+    else
+        fail "$cmd.md missing draft-start consent gate"
+    fi
+
+    # Consent precondition: direct-slash opt-in rule
+    if grep -q "/lean4-contribute:$cmd" "$cmd_file" && grep -q "treat that as opt-in" "$cmd_file"; then
+        ok "$cmd.md has direct-slash opt-in rule"
+    else
+        fail "$cmd.md missing direct-slash opt-in rule"
+    fi
+
+    # Attribution footer in issue template
+    if grep -q "Drafted via.*lean4-contribute" "$cmd_file"; then
+        ok "$cmd.md has attribution footer"
+    else
+        fail "$cmd.md missing attribution footer in issue template"
+    fi
+
+    # Model-invocable guard: frontmatter must NOT have disable-model-invocation
+    frontmatter=$(awk 'NR==1 && /^---$/ { found=1; next } found && /^---$/ { exit } found { print }' "$cmd_file")
+    if echo "$frontmatter" | grep -q '^disable-model-invocation:'; then
+        fail "$cmd.md frontmatter has disable-model-invocation (breaks discoverability; consent gate is the safety check)"
+    else
+        ok "$cmd.md is model-invocable (consent-gated)"
+    fi
+
+    # share-insight-specific: Discovering Candidates must reference consent gate
+    if [[ "$cmd" == "share-insight" ]]; then
+        dc_section=$(awk '
+            /^## Discovering Candidates/ { found=1; next }
+            found && /^## /              { exit }
+            found                        { print }
+        ' "$cmd_file")
+        if echo "$dc_section" | grep -qi 'opt.in\|precondition\|consent'; then
+            ok "$cmd.md Discovering Candidates references consent gate"
+        else
+            fail "$cmd.md Discovering Candidates does not reference consent gate"
+        fi
+        if echo "$dc_section" | grep -qi 'generic\|project.specific\|redact'; then
+            ok "$cmd.md Discovering Candidates has title-privacy guidance"
+        else
+            fail "$cmd.md Discovering Candidates missing title-privacy guidance"
+        fi
     fi
 done
 

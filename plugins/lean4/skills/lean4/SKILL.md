@@ -47,6 +47,27 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | Something not working | `/lean4:doctor` |
 | Formalize + prove end-to-end | `/lean4:autoprove --formalize=auto --source=... --claim-select=first --formalize-out=...` |
 
+## Contributing (lean4-contribute plugin)
+
+**If the `lean4-contribute` plugin is installed,** you may **suggest** these commands at natural stopping points. Rules:
+
+- **Suggest first, never invoke unprompted.** Offer a one-line question; do not start the command flow.
+- **Only invoke after explicit user opt-in** in the current conversation. Silence, topic change, or implicit frustration do not count as consent.
+- **At most once per topic per session** unless the user engages.
+- **Never mid-proof.** Wait for a natural stopping point.
+
+| Situation | Suggest |
+|-----------|---------|
+| Problem appears to be in lean4-skills itself (wrong command behavior, contradictory docs, broken lint, bad guardrail, confusing plugin UX) — not ordinary Lean/mathlib/user-proof problems | "This looks like a lean4-skills bug. Want me to draft a bug report?" → `/lean4-contribute:bug-report` |
+| User wants a workflow the plugin doesn't support, says a command should behave differently, or you must recommend awkward manual steps due to a missing feature | "This looks like a plugin workflow gap. Want me to draft a feature request?" → `/lean4-contribute:feature-request` |
+| Result seems reusable beyond the current task: tactic-selection heuristic, mathlib search pattern, anti-pattern, documentation gap with a clear lesson — not one-off theorem facts or private repo details | "That seems reusable beyond this task. Want me to draft a shareable insight?" → `/lean4-contribute:share-insight` |
+
+**If the plugin is not installed** and the user clearly hit a lean4-skills bug, workflow gap, or reusable insight (same criteria as above — not ordinary Lean/mathlib issues), you may offer the install hint once:
+
+- At most once per session. Do not repeat if the user declined, ignored it, or moved on.
+- Never mid-proof or during an active debugging loop.
+- One short line, not a pitch: "If you want, install the `lean4-contribute` plugin and I can draft that report for you here." See the [lean4-contribute README](../../../../plugins/lean4-contribute/README.md#installation) for setup.
+
 ## Typical Workflow
 
 ```

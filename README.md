@@ -69,7 +69,11 @@ The skill works standalone, but plays especially well with [lean-lsp-mcp](https:
 
 **Claude Code** (run from your Lean project root):
 ```bash
+# Local — available in all your projects
 claude mcp add lean-lsp uvx lean-lsp-mcp
+
+# Or project-scoped — creates .mcp.json, version-controllable with your repo
+claude mcp add lean-lsp -s project uvx lean-lsp-mcp
 ```
 
 **Other hosts:** See [INSTALLATION.md → MCP Server](INSTALLATION.md#lean-lsp-mcp-server-all-hosts)
@@ -93,8 +97,11 @@ claude mcp add lean-lsp uvx lean-lsp-mcp
 - [Commands](plugins/lean4/commands/) - Command documentation
 - [References](plugins/lean4/skills/lean4/references/) - cycle engine, mathlib style, proof golfing, tactic patterns, grind, metaprogramming, and more
 
-**lean4-contribute plugin**
-- [README](plugins/lean4-contribute/README.md) - Bug reports, feature requests, share insights
+**lean4-contribute plugin** — opt-in helper for filing issues on this repo from your editor
+- [README](plugins/lean4-contribute/README.md) - Full command guide and privacy details
+- `/lean4-contribute:bug-report` — draft a bug report (plugin bugs, not Lean/mathlib issues)
+- `/lean4-contribute:feature-request` — request a workflow the plugin doesn't support yet
+- `/lean4-contribute:share-insight` — share a reusable pattern or antipattern from your session
 
 ---
 
@@ -107,7 +114,12 @@ See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ## Contributing
 
-Issues and PRs welcome at https://github.com/cameronfreer/lean4-skills
+Issues and PRs welcome at https://github.com/cameronfreer/lean4-skills.
+
+If you have the `lean4-contribute` plugin installed, your coding agent may
+suggest filing bug reports, feature requests, or sharing insights at natural
+stopping points. Drafting starts only after you opt in; submission has its own
+separate confirmation. Each draft is shown in full before anything is sent.
 
 ## License & Citation
 

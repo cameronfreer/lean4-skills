@@ -1,7 +1,6 @@
 ---
 name: share-insight
 description: Draft a shareable insight from your session as a GitHub issue
-disable-model-invocation: true
 ---
 
 # Share Insight
@@ -9,9 +8,20 @@ disable-model-invocation: true
 Draft and submit a reusable insight (pattern, antipattern, or mixed) as a
 GitHub issue on `cameronfreer/lean4-skills`.
 
+## Precondition
+
+Invoke this command only if the user explicitly ran it or explicitly agreed to
+draft a shareable insight. If invoked without prior opt-in, ask:
+
+> That seems reusable beyond this task. Want me to draft a shareable insight?
+
+If the user explicitly ran `/lean4-contribute:share-insight`, treat that as opt-in.
+Do not proceed unless the user confirms. Do not mine git diff, infer insight
+candidates, or ask structured questions until consent is given.
+
 ## Discovering Candidates
 
-Before asking the user, look at:
+Once the user has opted in (see [Precondition](#precondition) above), look at:
 
 - Current conversation / session context
 - Current git diff (`git diff` and `git diff --cached`)
@@ -19,7 +29,7 @@ Before asking the user, look at:
 
 From these, infer **1–5 candidate insights**. For each candidate, note:
 
-- A one-line title
+- A one-line title (keep titles generic — avoid project-specific names, paths, or identifiers)
 - Classification: **pattern** (what worked), **antipattern** (what failed), or
   **mixed** (worked in some contexts, failed in others)
 
@@ -78,6 +88,9 @@ Labels: insight
 
 ## Confidence
 <high / medium / low>
+
+---
+*Drafted via [lean4-contribute](https://github.com/cameronfreer/lean4-skills)*
 ```
 
 ## Showing the Draft
