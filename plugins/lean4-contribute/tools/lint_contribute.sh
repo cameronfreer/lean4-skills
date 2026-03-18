@@ -169,6 +169,11 @@ for cmd in "${expected_cmds[@]}"; do
         else
             fail "$cmd.md Discovering Candidates does not reference consent gate"
         fi
+        if echo "$dc_section" | grep -qi 'generic\|project.specific\|redact'; then
+            ok "$cmd.md Discovering Candidates has title-privacy guidance"
+        else
+            fail "$cmd.md Discovering Candidates missing title-privacy guidance"
+        fi
     fi
 done
 

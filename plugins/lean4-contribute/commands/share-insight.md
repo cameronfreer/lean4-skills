@@ -29,7 +29,7 @@ Once the user has opted in (see [Precondition](#precondition) above), look at:
 
 From these, infer **1–5 candidate insights**. For each candidate, note:
 
-- A one-line title
+- A one-line title (keep titles generic — avoid project-specific names, paths, or identifiers)
 - Classification: **pattern** (what worked), **antipattern** (what failed), or
   **mixed** (worked in some contexts, failed in others)
 
