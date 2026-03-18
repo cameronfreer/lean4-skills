@@ -315,7 +315,7 @@ while queue non-empty AND no stop rule:
   2. Inner Cycle — run standard 6-phase cycle (unchanged)
   3. If inner cycle exited via stuck:
        Review Router — read next_action from stuck review
-       3a. redraft → re-formalize (check provenance + statement-policy); commit if allowed
+       3a. redraft → re-draft (check provenance + statement-policy); commit if allowed
        3b. Other next_action values → dispatch accordingly
      Else (sorry-free or stop rule):
        Advance to next claim
@@ -324,7 +324,7 @@ while queue non-empty AND no stop rule:
   1. Inner Cycle — run standard 6-phase cycle on existing scope (unchanged)
   2. If inner cycle exited via stuck:
        Review Router — read next_action
-       2a. redraft → re-formalize stuck declaration (check provenance + statement-policy)
+       2a. redraft → re-draft stuck declaration (check provenance + statement-policy)
        2b. Other next_action values → dispatch accordingly
      Else: normal exit
 ```

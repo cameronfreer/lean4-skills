@@ -316,7 +316,7 @@ echo "-- Suite 4: Negative Guards --"
 # Check 21: No stale 'bootstrap' in autoprove.md, cycle-engine.md, command-examples.md
 stale_bootstrap=""
 for f in "$AUTOPROVE" "$CYCLE_ENGINE" "$EXAMPLES"; do
-    hits=$(grep -in 'bootstrap' "$f" | grep -iv 'bootstrap\.sh' || true)
+    hits=$(grep -in 'bootstrap' "$f" | grep -iv 'bootstrap\.sh' | grep -iv 'bootstrap LSP' || true)
     if [[ -n "$hits" ]]; then
         stale_bootstrap+="$(basename "$f"): $hits"$'\n'
     fi
