@@ -1,6 +1,6 @@
 # Cycle Engine Reference
 
-> Shared logic for `/lean4:prove` and `/lean4:autoprove`.
+> Shared logic for `/lean4:prove`, `/lean4:autoprove`, `/lean4:formalize`, and `/lean4:autoformalize`.
 
 Both commands share a six-phase cycle engine. This reference documents the shared mechanics; command-specific behavior is noted inline.
 
@@ -113,7 +113,7 @@ When stuck and user declines the plan (prove) or review flags falsification (aut
 
 ## Deep Mode
 
-Bounded subroutine for stubborn sorries. Allows multi-file refactoring, helper extraction, and statement generalization.
+Bounded subroutine for stubborn sorries. Allows multi-file refactoring and helper extraction.
 
 **Budget enforcement:**
 - `--deep-sorry-budget` — max sorries per deep invocation
@@ -180,6 +180,18 @@ Example (illustrative, not contractual):
 | `cross-file` | Multi-file refactoring, helper extraction |
 
 If deep edits exceed `--deep-max-files` or `--deep-max-lines`, the engine triggers immediate rollback and marks stuck with reason `"deep: scope exceeded — N files / M lines"`.
+
+### Header Fence
+
+Declaration headers (everything from `theorem`/`def`/`lemma` through `:= by`) are immutable during proof engine execution. The engine snapshots headers at deep entry and compares at each checkpoint.
+
+| Context | On header change |
+|---------|-----------------|
+| `prove` (deep) | Immediate rollback, mark stuck: `"deep: header fence — declaration header modified"`. Suggest `/lean4:formalize`. |
+| `autoprove` (deep) | Immediate rollback, mark stuck. When synthesis outer loop is active, emit `next_action = redraft`. |
+| `formalize` / `autoformalize` | Statement changes are owned by the synthesis wrapper, not the proof engine. The wrapper invokes redraft when needed. |
+
+The header fence resolves an earlier inconsistency where the inner cycle said "NO statement changes" but deep mode allowed statement generalization.
 
 ### Deep Regression Gate
 
@@ -284,9 +296,9 @@ Blocked git commands (both prove and autoprove):
 - `gh pr create` (review first)
 - `git checkout --`/`git restore`/`git reset --hard`/`git clean` (use `git stash push -u` or revert commit)
 
-## Formalize Outer Loop
+## Synthesis Outer Loop
 
-Optional wrapper around the inner 6-phase cycle. Activated by `/lean4:autoprove --formalize=restage|auto`. Default `--formalize=never` leaves all behavior unchanged.
+Optional wrapper around the inner 6-phase cycle. Activated by `/lean4:formalize` (interactive), `/lean4:autoformalize` (autonomous), or deprecated `autoprove --formalize=restage|auto` flags.
 
 ### Algorithm
 
@@ -297,13 +309,13 @@ Two entry shapes depending on whether `--source` is provided:
 extract claim queue from --source (filtered by --claim-select) at startup
 while queue non-empty AND no stop rule:
   1. Statement Acquisition:
-       pop next claim → invoke formalize → validate (lean_diagnostic_messages)
-       if --commit != never: stage target, commit "formalize: <summary>"
+       pop next claim → invoke draft → validate (lean_diagnostic_messages)
+       if --commit != never: stage target, commit "draft: <summary>"
        add emitted declarations to provenance set
   2. Inner Cycle — run standard 6-phase cycle (unchanged)
   3. If inner cycle exited via stuck:
        Review Router — read next_action from stuck review
-       3a. formalize-restage → re-formalize (check provenance + statement-policy); commit if allowed
+       3a. redraft → re-formalize (check provenance + statement-policy); commit if allowed
        3b. Other next_action values → dispatch accordingly
      Else (sorry-free or stop rule):
        Advance to next claim
@@ -312,24 +324,24 @@ while queue non-empty AND no stop rule:
   1. Inner Cycle — run standard 6-phase cycle on existing scope (unchanged)
   2. If inner cycle exited via stuck:
        Review Router — read next_action
-       2a. formalize-restage → re-formalize stuck declaration (check provenance + statement-policy)
+       2a. redraft → re-formalize stuck declaration (check provenance + statement-policy)
        2b. Other next_action values → dispatch accordingly
      Else: normal exit
 ```
 
-### Formalize Commit Boundary
+### Draft Commit Boundary
 
-Formalize writes skeleton to a temp file (see [File Assembly Contract](#file-assembly-contract)); the outer loop appends to the target, validates with `lean_diagnostic_messages`, stages only target file, and commits with `formalize:` prefix. Clean rollback boundary between statement-shaping and proof-filling.
+Draft writes skeleton to a temp file (see [File Assembly Contract](#file-assembly-contract)); the outer loop appends to the target, validates with `lean_diagnostic_messages`, stages only target file, and commits with `draft:` prefix. Clean rollback boundary between statement-shaping and proof-filling.
 
-If `--commit=never`, the outer loop skips staging and committing — the skeleton is still written to the target file (working tree only), but no `formalize:` commit is created. Provenance tracking still works because it is in-memory, not git-based.
+If `--commit=never`, the outer loop skips staging and committing — the skeleton is still written to the target file (working tree only), but no `draft:` commit is created. Provenance tracking still works because it is in-memory, not git-based.
 
 ### Session-Generated Provenance
 
-Tracks which statements were introduced by formalize within the current autoprove invocation:
+Tracks which statements were introduced by draft within the current synthesis session:
 
 - **Representation**: in-memory set of `(file, declaration_name)` pairs, built during the session.
-- **Population**: each formalize call appends its emitted declarations to the set.
-- **Scope**: lives for the duration of one `/lean4:autoprove` invocation. Not persisted to disk.
+- **Population**: each draft call appends its emitted declarations to the set.
+- **Scope**: lives for the duration of one synthesis session (`/lean4:formalize`, `/lean4:autoformalize`, or `/lean4:autoprove --formalize=*`). Not persisted to disk.
 - **On restart/resume**: provenance is empty. All existing statements are treated as user-authored (`preserve`). Conservative by design.
 - **On replan within same invocation**: provenance persists (in-memory state is not cleared).
 - **Usage**: `--statement-policy=rewrite-generated-only` checks this set before allowing restage rewrites.
@@ -354,9 +366,9 @@ When `--formalize=restage|auto`, the effective default changes from `preserve` t
 
 ### File Assembly Contract
 
-- Formalize emits declaration-only blocks (no imports/opens/section wrappers) to temp path when `--caller=autoprove`. Declarations use fully-qualified names — no `open`/`open scoped` needed.
+- Formalize emits declaration-only blocks (no imports/opens/section wrappers) to temp path when `--caller=autoformalize|formalize`. Declarations use fully-qualified names — no `open`/`open scoped` needed.
 - Import dependencies expressed as `-- needs-import: <module>` comments at top of temp output. This is the only structured signal.
-- Outer loop maintains target file preamble: deduplicates `-- needs-import:` lines, prepends new imports, appends declarations with `-- formalize: <claim> (<timestamp>)` boundary markers.
+- Outer loop maintains target file preamble: deduplicates `-- needs-import:` lines, prepends new imports, appends declarations with `-- draft: <claim> (<timestamp>)` boundary markers.
 - Declaration-name collision check before each append: match `theorem <name>`, `def <name>`, `lemma <name>`, etc. at line start in target file. If found, skip (already formalized in a prior run).
 
 ### Review Router
@@ -368,7 +380,7 @@ Stuck-mode review emits a `next_action` field. The outer loop dispatches:
 | `continue` | Resume inner cycle with revised plan |
 | `deep` | Escalate to deep mode |
 | `repair` | Enter repair mode for compiler blockers |
-| `formalize-restage` | Re-formalize the stuck declaration (check provenance + statement-policy) |
+| `redraft` | Re-draft the stuck declaration (check provenance + statement-policy) |
 | `golf` | Run golf pass on sorry-free file |
 | `stop` | Halt current claim, advance to next (or stop if queue empty) |
 

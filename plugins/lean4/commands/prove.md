@@ -89,7 +89,7 @@ Commit this? [yes / yes-all / no / never]
 - **no** — unstage (`git reset HEAD <files>`), skip this commit
 - **never** — unstage, skip all remaining commits for session
 
-**Constraints:** Max 3 candidates per sorry, ≤80 lines diff, NO statement changes, NO cross-file refactoring (fast path).
+**Constraints:** Max 3 candidates per sorry, ≤80 lines diff, NO statement changes, NO cross-file refactoring (fast path). Declaration headers are immutable — if deep mode suggests a header change, it must stop and recommend `/lean4:formalize`.
 
 ### Phase 3: Checkpoint
 
@@ -120,13 +120,17 @@ Bounded subroutine for stubborn sorries. Enabled via `--deep`. Default: `never`.
 
 Modes: `never` | `ask` (prompt first) | `stuck` (auto on stuck) | `always` (auto on any failure).
 
-Statement changes require interactive approval. Deep allows multi-file refactoring, helper extraction, and statement generalization (with approval).
+Statement changes are NOT permitted. Declaration headers are immutable (header fence). If deep concludes the statement is wrong, it emits `next_action = redraft` but does not rewrite. Suggest `/lean4:formalize` for statement work. Deep allows multi-file refactoring and helper extraction within the header fence.
 
 **Safety:** Deep creates a path-scoped pre-deep snapshot (`--deep-snapshot`), enforces scope/diff budgets (`--deep-scope`, `--deep-max-files`, `--deep-max-lines`), and auto-rolls back on regression (`--deep-regression-gate`). Rollback marks the sorry as stuck with reason.
 
 **Validation:** Deep-safety flags are validated at startup; invalid values produce descriptive errors.
 
 See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#deep-mode) for full semantics, definitions, and prove/autoprove comparison.
+
+### Header Fence
+
+Declaration headers (everything from `theorem`/`def`/`lemma` through `:= by`) are snapshotted at deep entry. At each checkpoint, the engine compares headers against the snapshot. Any header change triggers immediate rollback and marks the sorry as stuck with `"deep: header fence — declaration header modified"`. The prove phase itself never modifies headers; statement changes require `/lean4:formalize`.
 
 ## Stuck Definition
 
@@ -180,6 +184,8 @@ Guardrailed git commands are blocked. See [cycle-engine.md](../skills/lean4/refe
 
 ## See Also
 
+- `/lean4:draft` - Draft Lean declaration skeletons
+- `/lean4:autoformalize` - Autonomous end-to-end formalization
 - `/lean4:autoprove` - Autonomous multi-cycle proving
 - `/lean4:checkpoint` - Manual save point
 - `/lean4:review` - Quality check (read-only)
