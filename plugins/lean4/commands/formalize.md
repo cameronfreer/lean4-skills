@@ -147,7 +147,7 @@ Always run `bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target> --report-only`
 
 - **Read-only in chat mode.** Does not write files unless `--output` requests it.
 - **No silent mutations.** Prefer LSP tools (`lean_goal`) over file writes for compilation checks. If LSP unavailable and temp file needed for internal compilation, write only under `/tmp/lean4-formalize/`, auto-cleanup after use, warn user before writing.
-- **No commits in standalone mode.** `/formalize` never commits in standalone mode. `--output=file` writes but does not stage or commit.
+- **No commits in standalone mode.** `/formalize` never commits in standalone mode (`--commit` is accepted for prove-phase compatibility but inert — no staging, no committing). `--output=file` writes but does not stage or commit.
 - **Path restriction.** User-requested outputs (`--output=file`, `--output=scratch`) restricted to workspace root (scratch uses `.scratch/lean4/`). Reject path traversal (`../`) or absolute paths outside workspace. Internal temp files may use `/tmp/lean4-formalize/`.
 - **Overwrite protection.** `--output=file` with existing target requires `--overwrite`; otherwise hard error.
 - **Never add global axioms silently.** Assumptions go as explicit theorem parameters or in `namespace Assumptions`. Always verified with `bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target> --report-only`.

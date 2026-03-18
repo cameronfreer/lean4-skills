@@ -50,7 +50,7 @@ Autonomous end-to-end formalization: extracts claims from a source, drafts Lean 
 - `--source` is required; error if missing.
 - `--claim-select` is required; error if missing (no unattended guessing).
 - `--out` is required when no existing target file is in scope; error if missing.
-- `--statement-policy=preserve` is respected but warns: stuck restage becomes manual intervention, not automatic rewrite.
+- `--statement-policy=preserve` is respected but warns: stuck redraft path becomes manual intervention, not automatic rewrite.
 
 ## Actions
 
@@ -90,7 +90,7 @@ When autoformalize stops, emit:
 | Stuck cycles | K |
 | Deep invocations | D |
 | Time elapsed | T |
-| Drafts | F (R restaged) |
+| Drafts | F (R redrafted) |
 
 **Handoff recommendations:**
 - [If incomplete: "Run /lean4:formalize for guided work on remaining claims"]

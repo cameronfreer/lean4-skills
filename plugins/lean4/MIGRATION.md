@@ -191,7 +191,7 @@ Run `/lean4:doctor` for full diagnostics.
 | `/lean4:formalize "claim"` → save → `/lean4:prove` later | `/lean4:draft "claim"` → save → `/lean4:prove` (cleaner separation) | Yes — old formalize still works for this pattern too |
 | `/lean4:autoprove --formalize=auto --source=paper.pdf --claim-select=first --formalize-out=Paper.lean` | `/lean4:autoformalize --source=paper.pdf --claim-select=first --out=Paper.lean` | Old flags still accepted on autoprove (deprecated, functional) |
 | `/lean4:autoprove --formalize=auto --formalize-rigor=checked ...` | `/lean4:autoformalize --rigor=checked ...` | `--formalize-rigor` → `--rigor` on autoformalize |
-| `/lean4:autoprove --formalize=restage` | `/lean4:autoformalize` (without `--source`, scope-backed mode) | Old flag still accepted (deprecated) |
+| `/lean4:autoprove --formalize=restage` | Old flag still works (deprecated). For interactive redrafting of existing scope, use `/lean4:formalize`. | No first-class autonomous replacement — `autoformalize` requires `--source` |
 | `/lean4:prove --deep` with statement generalization | Statement changes now require `/lean4:formalize`; prove emits `next_action = redraft` | **Behavioral narrowing** — only breaking change |
 
 ## V4.0.4 → V4.0.5

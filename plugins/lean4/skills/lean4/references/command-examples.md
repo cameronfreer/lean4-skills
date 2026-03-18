@@ -257,7 +257,9 @@ Found 4 claims in document order:
   3. Theorem 3.1 (Main convergence)
   4. Corollary 3.2 (Uniform bound)
 
-[Synthesis — Claim 1/4: Theorem 2.1]
+Applying --claim-select=first → queue: [Theorem 2.1]
+
+[Synthesis — Claim 1/1: Theorem 2.1]
 Drafting "Theorem 2.1"...
   draft → temp file (declaration-only block, fully-qualified names)
   Outer loop: append to Paper.lean with boundary marker
@@ -271,29 +273,7 @@ Starting inner cycle on Paper.lean...
   Applying: `exact hK.isCompact.norm_le_of_continuousOn hf` ✓
   Committing: "fill: continuity_bound - isCompact.norm_le"
 
-Sorry-free. Advancing to next claim.
-
-[Synthesis — Claim 2/4: Lemma 2.3]
-Drafting "Lemma 2.3"...
-  draft → temp file → outer loop appends to Paper.lean
-  Committing: "draft: Lemma 2.3 monotone helper"
-
-[Cycle 2] Working on Paper.lean:34 - `monotone_helper`
-  Stuck after 3 attempts.
-  Running stuck review...
-  **next_action:** redraft
-
-  Redrafting: declaration in provenance set → rewrite allowed
-  Re-drafting with weaker hypotheses...
-  Committing: "draft: redraft monotone_helper"
-
-[Cycle 3] Retrying Paper.lean:34 - `monotone_helper` (redrafted)
-  Applying: `exact Monotone.comp hg hf` ✓
-  Committing: "fill: monotone_helper - Monotone.comp"
-
-Sorry-free. Advancing to next claim.
-
-[...claims 3-4...]
+Sorry-free. Queue empty.
 
 ## Autoformalize Summary
 
@@ -301,14 +281,14 @@ Sorry-free. Advancing to next claim.
 
 | Metric | Value |
 |--------|-------|
-| Claims attempted | 4/4 |
+| Claims attempted | 1/1 |
 | Sorries before | 0 |
 | Sorries after | 0 |
-| Cycles run | 6 |
-| Stuck cycles | 1 |
+| Cycles run | 1 |
+| Stuck cycles | 0 |
 | Deep invocations | 0 |
-| Time elapsed | 12m |
-| Drafts | 4 (1 restaged) |
+| Time elapsed | 3m |
+| Drafts | 1 |
 
 **Handoff recommendations:**
 - All sorries filled. Run /lean4:checkpoint to save.

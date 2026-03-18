@@ -37,7 +37,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 
 | Situation | Command |
 |-----------|---------|
-| Draft a Lean skeleton (no proof attempt) | `/lean4:draft` |
+| Draft a Lean skeleton (skeleton by default) | `/lean4:draft` |
 | Draft + prove interactively | `/lean4:formalize` |
 | Filling sorries (interactive) | `/lean4:prove` |
 | Filling sorries (unattended) | `/lean4:autoprove` |
@@ -53,11 +53,11 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 ## Typical Workflow
 
 ```
-┌─ Entry points (pick one) ─────────────────────────────────────────────┐
-│ /lean4:draft              Skeleton only (no proof attempt)            │
-│ /lean4:formalize          Interactive: draft + guided proving         │
-│ /lean4:autoformalize      Autonomous: draft + autonomous proving     │
-└───────────────────────────────────────────────────────────────────────┘
+┌─ Entry points (pick one) ──────────────────────────────────────────────────────────┐
+│ /lean4:draft              Skeleton by default (--mode=attempt for shallow proof)   │
+│ /lean4:formalize          Interactive: draft + guided proving                      │
+│ /lean4:autoformalize      Autonomous: draft + autonomous proving                   │
+└────────────────────────────────────────────────────────────────────────────────────┘
         ↓ (if sorries remain)
 /lean4:prove / autoprove    Proof engines (sorry filling, no header edits)
         ↓
