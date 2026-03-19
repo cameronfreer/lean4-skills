@@ -93,7 +93,7 @@ Proceed? (yes / no)
 **next_action:** continue
 ```
 
-**next_action classification (stuck mode):** `continue` (retryable), `deep` (needs escalation), `repair` (compiler blocker), `formalize-restage` (statement-shape blocker), `golf` (sorry-free), `stop` (no path). Informational unless autoprove outer loop is active.
+**next_action classification (stuck mode):** `continue` (retryable), `deep` (needs escalation), `repair` (compiler blocker), `redraft` (statement-shape blocker), `golf` (sorry-free), `stop` (no path). Informational unless autoprove outer loop is active.
 
 **Falsification flag:** Include when analysis suggests statement may be false:
 - Decidable goal that failed `decide` or `native_decide`

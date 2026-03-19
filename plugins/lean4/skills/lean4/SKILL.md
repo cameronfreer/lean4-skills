@@ -15,13 +15,15 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 
 **Respect scope.** Follow the user's preference: fill one sorry, its transitive dependencies, all sorries in a file, or everything. Ask if unclear.
 
-**Never change statements or add axioms without explicit permission.** Theorem/lemma statements, type signatures, and docstrings are off-limits unless the user requests changes. Inline comments may be adjusted; docstrings may not (they're part of the API). Custom axioms require explicit approval—if a proof seems to need one, stop and discuss.
+**Never change statements or add axioms without explicit permission.** Theorem/lemma statements, type signatures, and docstrings are off-limits unless the user requests changes. Inline comments may be adjusted; docstrings may not (they're part of the API). Custom axioms require explicit approval—if a proof seems to need one, stop and discuss. Exception: within synthesis wrappers (`/lean4:formalize`, `/lean4:autoformalize`), session-generated declarations may be redrafted under the outer-loop statement-safety rules; see cycle-engine.md.
 
 ## Commands
 
 | Command | Purpose |
 |---------|---------|
-| `/lean4:formalize` | Turn informal math into Lean statements |
+| `/lean4:draft` | Draft Lean declaration skeletons from informal claims |
+| `/lean4:formalize` | Interactive formalization — drafting plus guided proving |
+| `/lean4:autoformalize` | Autonomous end-to-end formalization from informal sources |
 | `/lean4:prove` | Guided cycle-by-cycle theorem proving with explicit checkpoints |
 | `/lean4:autoprove` | Autonomous multi-cycle theorem proving with hard stop rules |
 | `/lean4:checkpoint` | Save progress with a safe commit checkpoint |
@@ -35,7 +37,8 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 
 | Situation | Command |
 |-----------|---------|
-| Draft a Lean statement from an informal claim | `/lean4:formalize` |
+| Draft a Lean skeleton (skeleton by default) | `/lean4:draft` |
+| Draft + prove interactively | `/lean4:formalize` |
 | Filling sorries (interactive) | `/lean4:prove` |
 | Filling sorries (unattended) | `/lean4:autoprove` |
 | Verified save point | `/lean4:checkpoint` |
@@ -45,7 +48,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | New to this project / exploring | `/lean4:learn --mode=repo` |
 | Navigating mathlib for a topic | `/lean4:learn --mode=mathlib` |
 | Something not working | `/lean4:doctor` |
-| Formalize + prove end-to-end | `/lean4:autoprove --formalize=auto --source=... --claim-select=first --formalize-out=...` |
+| Formalize + prove end-to-end (unattended) | `/lean4:autoformalize --source=... --claim-select=first --out=...` |
 
 ## Contributing (lean4-contribute plugin)
 
@@ -71,26 +74,30 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 ## Typical Workflow
 
 ```
-/lean4:formalize           Turn informal math into Lean statements (optional entry)
+┌─ Entry points (pick one) ──────────────────────────────────────────────────────────┐
+│ /lean4:draft              Skeleton by default (--mode=attempt for shallow proof)   │
+│ /lean4:formalize          Interactive: draft + guided proving                      │
+│ /lean4:autoformalize      Autonomous: draft + autonomous proving                   │
+└────────────────────────────────────────────────────────────────────────────────────┘
+        ↓ (if sorries remain)
+/lean4:prove / autoprove    Proof engines (sorry filling, no header edits)
         ↓
-/lean4:prove               Guided cycle-by-cycle proving (asks before each cycle)
-/lean4:autoprove           Autonomous multi-cycle proving (runs with stop rules)
+/lean4:refactor            Leverage mathlib, extract helpers (optional)
         ↓
-/lean4:refactor            Leverage mathlib, extract helpers (optional, or --dry-run to preview)
-        ↓
-/lean4:golf                Improve proofs for directness, clarity, performance, and brevity (optional)
+/lean4:golf                Improve proofs (optional)
         ↓
 /lean4:checkpoint          Create verified save point
 ```
 
-Use `/lean4:learn` at any point to explore repo structure or navigate mathlib. Use `/lean4:formalize` standalone or via `--formalize=auto` on autoprove for end-to-end source-to-proof.
+Use `/lean4:learn` at any point to explore repo structure or navigate mathlib. Three entry points: `/lean4:draft` for skeletons, `/lean4:formalize` for interactive synthesis (draft + guided proving), `/lean4:autoformalize` for unattended source-to-proof.
 
 **Notes:**
 - `/lean4:prove` asks before each cycle; `/lean4:autoprove` loops autonomously with hard stop conditions
 - Both trigger `/lean4:review` at configured intervals (`--review-every`)
 - When reviews run (via `--review-every`), they act as gates: review → replan → continue. In prove, replan requires user approval; in autoprove, replan auto-continues
 - Review supports `--mode=batch` (default) or `--mode=stuck` (triage); review is always read-only
-- `--formalize=auto` on autoprove wraps formalize+prove in a single command (source → claims → skeletons → proofs)
+- `/lean4:autoformalize` wraps draft+autoprove in a single command (source → claims → skeletons → proofs); replaces `autoprove --formalize=auto`
+- Proof engines (`prove`/`autoprove`) never modify declaration headers (header fence)
 - If you hit environment issues, run `/lean4:doctor` to diagnose
 
 ## LSP Tools (Preferred)

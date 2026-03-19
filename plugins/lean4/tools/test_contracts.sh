@@ -18,6 +18,8 @@ CYCLE_ENGINE="$PLUGIN_ROOT/skills/lean4/references/cycle-engine.md"
 REVIEW="$PLUGIN_ROOT/commands/review.md"
 FORMALIZE="$PLUGIN_ROOT/commands/formalize.md"
 EXAMPLES="$PLUGIN_ROOT/skills/lean4/references/command-examples.md"
+DRAFT="$PLUGIN_ROOT/commands/draft.md"
+AUTOFORMALIZE="$PLUGIN_ROOT/commands/autoformalize.md"
 
 PASS=0
 FAIL=0
@@ -139,7 +141,7 @@ fi
 
 # Check 9: --formalize mode enum match between inputs table and outer loop table
 inputs_modes=$(grep -E '^\| --formalize ' "$AUTOPROVE" | grep -oE '`[a-z]+`' | sed 's/`//g' | sort -u)
-loop_modes=$(extract_section "$AUTOPROVE" "## Formalize Outer Loop" | grep '^| `' | grep -oE '`[a-z]+`' | sed 's/`//g' | sort -u)
+loop_modes=$(extract_section "$AUTOPROVE" "## Formalize Outer Loop (Deprecated)" | grep '^| `' | grep -oE '`[a-z]+`' | sed 's/`//g' | sort -u)
 if [[ "$inputs_modes" == "$loop_modes" ]]; then
     ok "Check 9: --formalize modes match (inputs ↔ outer loop table)"
 else
@@ -162,7 +164,7 @@ else
 fi
 
 # Check 9: --formalize modes — autoprove ↔ cycle-engine
-ce_outer_section=$(extract_section "$CYCLE_ENGINE" "## Formalize Outer Loop")
+ce_outer_section=$(extract_section "$CYCLE_ENGINE" "## Synthesis Outer Loop")
 ce_modes=$(echo "$ce_outer_section" | grep -oE -- '--formalize=[a-z|]+' | tr '|' '\n' | sed 's/--formalize=//' | sort -u)
 if [[ "$inputs_modes" == "$ce_modes" ]]; then
     ok "Check 11: --formalize modes match (autoprove ↔ cycle-engine)"
@@ -179,6 +181,15 @@ else
     fail "Check 12: --claim-select mismatch: autoprove=[$ap_claim] formalize=[$fm_claim]"
 fi
 
+# Check 12b: --claim-select policies — autoformalize ↔ draft
+af_claim=$(grep -E '^\| --claim-select ' "$AUTOFORMALIZE" | grep -oE '`[a-z]+' | sed 's/`//' | sort -u)
+dr_claim=$(grep -E '^\| --claim-select ' "$DRAFT" | grep -oE '`[a-z]+' | sed 's/`//' | sort -u)
+if [[ "$af_claim" == "$dr_claim" ]]; then
+    ok "Check 12b: --claim-select policies match (autoformalize ↔ draft)"
+else
+    fail "Check 12b: --claim-select mismatch: autoformalize=[$af_claim] draft=[$dr_claim]"
+fi
+
 # Check 13: --statement-policy — autoprove ↔ cycle-engine Statement Safety
 ap_stmt=$(grep -E '^\| --statement-policy ' "$AUTOPROVE" | grep -oE '`[a-z][a-z-]*`' | sed 's/`//g' | sort -u)
 stmt_section=$(extract_section "$CYCLE_ENGINE" "### Statement Safety")
@@ -187,6 +198,14 @@ if [[ "$ap_stmt" == "$ce_stmt" ]]; then
     ok "Check 13: --statement-policy match (autoprove ↔ cycle-engine)"
 else
     fail "Check 13: --statement-policy mismatch: autoprove=[$ap_stmt] cycle-engine=[$ce_stmt]"
+fi
+
+# Check 13b: --statement-policy — autoformalize ↔ cycle-engine
+af_stmt=$(grep -E '^\| --statement-policy ' "$AUTOFORMALIZE" | grep -oE '`[a-z][a-z-]*`' | sed 's/`//g' | sort -u)
+if [[ "$af_stmt" == "$ce_stmt" ]]; then
+    ok "Check 13b: --statement-policy match (autoformalize ↔ cycle-engine)"
+else
+    fail "Check 13b: --statement-policy mismatch: autoformalize=[$af_stmt] cycle-engine=[$ce_stmt]"
 fi
 
 # Check 14: Stop reasons — bold labels slugified ↔ pipe-delimited tokens
@@ -263,22 +282,22 @@ fi
 
 # Check 16: Scenario — auto happy path (token ordering in source-backed block)
 source_block=$(echo "$algo_section" | awk '/Source-backed/,/Scope-backed/ { print }')
-if assert_ordered "$source_block" "claim queue" "invoke formalize" "Inner Cycle" "Advance"; then
+if assert_ordered "$source_block" "claim queue" "invoke draft" "Inner Cycle" "Advance"; then
     ok "Check 18: Auto happy path token order"
 else
     fail "Check 18: Auto happy path tokens out of order or missing"
 fi
 
-# Check 17: Scenario — stuck → restage (token ordering + re-formalize co-occurrence)
-if assert_ordered "$source_block" "stuck" "next_action" "formalize-restage"; then
-    # formalize-restage and re-formalize share a line; verify co-occurrence
-    if echo "$source_block" | grep 'formalize-restage' | grep -q 're-formalize'; then
-        ok "Check 19: Stuck → restage token order + re-formalize step"
+# Check 17: Scenario — stuck → redraft (token ordering + re-draft co-occurrence)
+if assert_ordered "$source_block" "stuck" "next_action" "redraft"; then
+    # redraft and re-draft share a line; verify co-occurrence
+    if echo "$source_block" | grep 'redraft' | grep -q 're-draft'; then
+        ok "Check 19: Stuck → redraft token order + re-draft step"
     else
-        fail "Check 19: formalize-restage line missing re-formalize step"
+        fail "Check 19: redraft line missing re-draft step"
     fi
 else
-    fail "Check 19: Stuck → restage tokens out of order or missing"
+    fail "Check 19: Stuck → redraft tokens out of order or missing"
 fi
 
 # Check 20: preserve row restage column contains Error/manual
@@ -297,7 +316,7 @@ echo "-- Suite 4: Negative Guards --"
 # Check 21: No stale 'bootstrap' in autoprove.md, cycle-engine.md, command-examples.md
 stale_bootstrap=""
 for f in "$AUTOPROVE" "$CYCLE_ENGINE" "$EXAMPLES"; do
-    hits=$(grep -in 'bootstrap' "$f" | grep -iv 'bootstrap\.sh' || true)
+    hits=$(grep -in 'bootstrap' "$f" | grep -iv 'bootstrap\.sh' | grep -iv 'bootstrap LSP' || true)
     if [[ -n "$hits" ]]; then
         stale_bootstrap+="$(basename "$f"): $hits"$'\n'
     fi

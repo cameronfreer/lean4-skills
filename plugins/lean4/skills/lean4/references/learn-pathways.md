@@ -1,6 +1,6 @@
 # Learning Pathways Reference
 
-Shared reference for `/lean4:learn` and `/lean4:formalize`. "Formalize" below refers to the `/lean4:formalize` command (formerly `--mode=formalize` in learn).
+Shared reference for `/lean4:learn`, `/lean4:draft`, and `/lean4:formalize`. "Formalize" below refers to the `/lean4:formalize` command (formerly `--mode=formalize` in learn).
 
 ## Intent Taxonomy
 
@@ -25,7 +25,7 @@ Intent × command/mode → explanation focus, tool priorities, presentation effe
 | `authoring` | `repo` | Compare local code against mathlib conventions | `formal` (default) |
 | `internals` | `repo` | Dive into elaborator, `Term.Elab`, macro expansion | `formal` (default) |
 
-All combinations are valid. No mode/presentation pair requires coercion. Learn routes natural-language math claims to `/lean4:formalize`; it does not enter formalize mode itself.
+All combinations are valid. No mode/presentation pair requires coercion. Learn routes natural-language math claims to `/lean4:formalize` (or `/lean4:draft` for skeleton-only); it does not enter formalize mode itself.
 
 ### Inference Rules (when `--intent=auto`)
 

@@ -9,7 +9,9 @@ others all use the same core skill; only the invocation surface differs.
 
 | Workflow | Description |
 |---|---|
-| formalize | Turn informal math into Lean statements |
+| draft | Draft Lean declaration skeletons from informal claims |
+| formalize | Interactive formalization — drafting plus guided proving |
+| autoformalize | Autonomous end-to-end formalization from informal sources |
 | prove | Guided cycle-by-cycle theorem proving |
 | autoprove | Autonomous multi-cycle proving with stop rules |
 | checkpoint | Verified save point (build + axiom check + commit) |
@@ -21,14 +23,18 @@ others all use the same core skill; only the invocation surface differs.
 
 **Claude Code:** invoke as `/lean4:<name>`. **Other hosts:** follow the corresponding workflow in [SKILL.md](plugins/lean4/skills/lean4/SKILL.md).
 
-Typical session: `prove` (or `autoprove`) → `review` → `refactor` → `golf` → `checkpoint` → `git push`.
+Typical session: `draft` (or `formalize` / `autoformalize`) → `prove` (or `autoprove`) → `review` → `refactor` → `golf` → `checkpoint` → `git push`.
 
 ## How It Works
 
-- **`prove`** — Guided, interactive. Asks preferences at startup, prompts before each commit, pauses between cycles. Start here.
-- **`autoprove`** — Autonomous, unattended. Auto-commits, loops until a stop condition fires (max cycles, max time, or stuck).
-- Both share one cycle engine: **Plan → Work → Checkpoint → Review → Replan → Continue/Stop**. Each sorry gets a mathlib search, tactic attempts, and validation. `--commit` controls per-fill commit behavior. When stuck, both force a review + replan.
-- Editing `.lean` files without a command activates the skill for one bounded pass — fix the immediate issue, then suggest `prove` or `autoprove` for more.
+- **`draft`** — Skeleton-only drafting from informal claims. Use when you want Lean declarations without a full prove run.
+- **`formalize`** — Interactive synthesis. Drafts a skeleton, then runs guided prove cycles with user interaction.
+- **`autoformalize`** — Autonomous synthesis. Extracts claims from a source, drafts skeletons, and proves them unattended.
+- **`prove`** — Guided proof engine for existing declarations. Asks preferences at startup, prompts before each commit, pauses between cycles.
+- **`autoprove`** — Autonomous proof engine for existing declarations. Auto-commits, loops until a stop condition fires (max cycles, max time, or stuck).
+- The proof engines share one cycle engine: **Plan → Work → Checkpoint → Review → Replan → Continue/Stop**. Each sorry gets a mathlib search, tactic attempts, and validation. `--commit` controls per-fill commit behavior. When stuck, both force a review + replan.
+- `formalize` and `autoformalize` wrap drafting around that same engine. Statement and header changes belong there — `prove` and `autoprove` keep declaration headers immutable.
+- Editing `.lean` files without a command activates the skill for one bounded pass — fix the immediate issue, then suggest the right next command: `draft` / `formalize` for statement work, `prove` / `autoprove` for proof work.
 
 See [plugin README](plugins/lean4/README.md) for the full command guide.
 
@@ -39,7 +45,12 @@ See [plugin README](plugins/lean4/README.md) for the full command guide.
 ```bash
 /plugin marketplace add cameronfreer/lean4-skills
 /plugin install lean4
-/plugin install lean4-contribute   # opt-in to contribute bug reports, request features, or share insights
+```
+
+Optionally, install the contribution helper to draft bug reports, feature requests, or shareable insights from your editor:
+
+```bash
+/plugin install lean4-contribute
 ```
 
 ### Other Hosts

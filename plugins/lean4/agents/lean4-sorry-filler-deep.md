@@ -1,6 +1,6 @@
 ---
 name: lean4-sorry-filler-deep
-description: Strategic resolution of stubborn sorries; may refactor statements and move lemmas across files. Use when fast pass fails or for complex proofs.
+description: Strategic resolution of stubborn sorries; may refactor across files within the header fence. Use when fast pass fails or for complex proofs.
 tools: Read, Grep, Glob, Edit, Bash, lean_goal, lean_local_search, lean_leanfinder, lean_leansearch, lean_loogle, lean_multi_attempt, lean_diagnostic_messages, lean_run_code
 model: opus
 ---
@@ -16,7 +16,7 @@ model: opus
 1. **Understand why fast pass failed**:
    - Start with `lean_goal(file, line)` and `lean_diagnostic_messages(file)` before any edits or Bash verification
    - Read surrounding code and dependencies
-   - Check if needs: statement generalization, argument reordering, helper lemmas, type class refactoring
+   - Check if needs: argument reordering, helper lemmas, type class refactoring (statement generalization NOT permitted — header fence)
    - Search with 1-2 LSP tools before trying fallback scripts or file-level compilation
 
 2. **Outline plan FIRST** (~200-500 tokens):
@@ -58,7 +58,7 @@ Final summary (~200-300 tokens):
 ## Constraints
 
 - May refactor across files (with compile verification)
-- May generalize statements (with user confirmation)
+- May NOT generalize statements (header fence). Report `next_action = redraft` if statement appears wrong.
 - May NOT change statements without permission
 - May NOT introduce axioms without permission
 - May NOT make large architectural changes without approval
