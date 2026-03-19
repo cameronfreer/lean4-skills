@@ -73,7 +73,7 @@ Autoprove accepts all `--review-source` values for flag compatibility with `/lea
 - `--formalize=restage` does NOT require `--source` — operates on existing scope with restage enabled on stuck. `--source` is ignored if provided (warn).
 - `--formalize=never` ignores `--source` (warn if provided).
 - `--formalize=restage|auto` with default `--statement-policy` coerces `preserve` → `rewrite-generated-only` at startup (warn). Explicit `--statement-policy=preserve` is respected but warns: stuck restage becomes manual intervention, not automatic rewrite.
-- `--claim-select` is a queue-extraction filter applied once at startup. Internal formalize calls receive individual popped claims, not the full `--source`.
+- `--claim-select` is a queue-extraction filter applied once at startup. Internal draft calls receive individual popped claims, not the full `--source`.
 - `--claim-select` without `--source` is ignored (no effect).
 
 ## Startup Behavior
@@ -135,13 +135,13 @@ See [cycle-engine: Replan Phase](../skills/lean4/references/cycle-engine.md#repl
 
 > **Deprecated:** Prefer `/lean4:autoformalize` for new workflows. These flags remain functional for compatibility.
 
-When `--formalize` is not `never`, autoprove wraps the inner 6-phase cycle with formalize-driven statement acquisition (source-backed for `auto`, scope-backed for `restage`) and review-driven routing.
+When `--formalize` is not `never`, autoprove wraps the inner 6-phase cycle with draft-driven statement acquisition (source-backed for `auto`, scope-backed for `restage`) and review-driven routing.
 
 | Mode | Behavior |
 |------|----------|
 | `never` (default) | No outer loop. Identical to pre-change behavior. |
 | `restage` | No claim queue. Run inner cycle on existing scope; on stuck, re-draft if `next_action=redraft` (subject to `--statement-policy`). |
-| `auto` | Full loop: extract claims from `--source`, formalize each, prove, restage on stuck (subject to `--statement-policy`). |
+| `auto` | Full loop: extract claims from `--source`, draft each, prove, restage on stuck (subject to `--statement-policy`). |
 
 The inner 6-phase cycle is unchanged. The outer loop reads the stuck-mode `next_action` field from review as its routing gate. See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#synthesis-outer-loop) for the full algorithm, provenance tracking, claim queue, and file assembly contract.
 

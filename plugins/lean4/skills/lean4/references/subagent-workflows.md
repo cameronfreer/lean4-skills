@@ -458,7 +458,9 @@ The lean4 plugin provides these main commands:
 
 | Command | Purpose |
 |---------|---------|
-| `/lean4:formalize` | Turn informal math into Lean statements |
+| `/lean4:draft` | Skeleton drafting from informal claims |
+| `/lean4:formalize` | Interactive synthesis (draft + guided prove) |
+| `/lean4:autoformalize` | Autonomous synthesis (draft → prove loop with claim queue) |
 | `/lean4:prove` | Guided cycle-by-cycle proving |
 | `/lean4:autoprove` | Autonomous multi-cycle proving |
 | `/lean4:checkpoint` | Verified commit with axiom check |
