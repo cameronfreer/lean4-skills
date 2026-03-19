@@ -1390,6 +1390,23 @@ check_contribute_policy() {
     fi
 }
 
+check_bare_slash_links() {
+    log ""
+    log "Checking for bare /slash link labels..."
+
+    # Markdown links like [/lean4:review](...) cause closing-tag parse errors
+    # in some hosts. The label should be backtick-wrapped: [`/lean4:review`](...)
+    local found=0
+    while IFS= read -r line; do
+        warn "Bare /slash link label: $line"
+        found=1
+    done < <(grep -rnE '\[/[^]]+\]\(' "$PLUGIN_ROOT" --include='*.md' | grep -v '\[`' || true)
+
+    if [[ $found -eq 0 ]]; then
+        ok "No bare /slash link labels found"
+    fi
+}
+
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
@@ -1422,6 +1439,7 @@ check_release_metadata
 check_description_alignment
 check_host_agnostic
 check_contribute_policy
+check_bare_slash_links
 
 log ""
 log "================================"
