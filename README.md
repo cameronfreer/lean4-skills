@@ -70,13 +70,15 @@ git clone --depth 1 https://github.com/cameronfreer/lean4-skills.git
 
 ## Lean LSP MCP Server (Optional, Highly Recommended)
 
-The skill works standalone, but plays especially well with [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) — **sub-second feedback** instead of 30+ second `lake build` cycles. Works with any MCP-capable host.
+The skill works standalone, but plays especially well with [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) — faster mathlib search and **sub-second feedback** instead of 30+ second `lake build` cycles. Works with any MCP-capable host.
 
 **What you get:**
 - `lean_goal` — exact goal state at any line
 - `lean_local_search` / `lean_leanfinder` / `lean_leansearch` / `lean_loogle` — mathlib search
 - `lean_multi_attempt` — test multiple tactics in parallel
 - `lean_hammer_premise` — premise suggestions for simp/aesop/grind
+- `lean_diagnostic_messages` — per-file error/warning check without a full `lake build`
+- …and more (hover info, goal-conditioned search, state inspection, etc.)
 
 **Claude Code** (run from your Lean project root):
 ```bash

@@ -233,7 +233,7 @@ Any LLM coding agent that can read markdown and run shell commands can use this 
    bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" path/to/YourFile.lean --report-only
    bash "$LEAN4_SCRIPTS/search_mathlib.sh" "continuous" name
    ```
-5. If your agent supports MCP, add lean-lsp-mcp for sub-second feedback
+5. If your agent supports MCP, add lean-lsp-mcp for faster mathlib search and sub-second feedback
 
 **Optional — skill auto-discovery:** Some setups may support discovering
 skills at `.agents/skills/<name>/SKILL.md`. This is host-dependent — check
@@ -267,8 +267,8 @@ python3 "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary --report-only
 
 ## Lean LSP MCP Server (All Hosts)
 
-[lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) provides sub-second
-feedback. Works with any MCP-capable host. Setup: a few minutes.
+[lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) provides faster mathlib
+search and sub-second feedback. Works with any MCP-capable host. Setup: a few minutes.
 
 **What you get:**
 - `lean_goal(file, line)` — See exact goal at cursor
@@ -278,6 +278,8 @@ feedback. Works with any MCP-capable host. Setup: a few minutes.
 - `lean_loogle("?a → ?b → _")` — Type-pattern (rate-limited)
 - `lean_hammer_premise(file, line, col)` — Premise suggestions for simp/aesop/grind (rate-limited)
 - `lean_multi_attempt(file, line, snippets=[...])` — Test multiple tactics
+- `lean_diagnostic_messages(file)` — Per-file error/warning check without a full `lake build`
+- …and more (hover info, goal-conditioned search, state inspection, etc.)
 
 **One-time setup:** ~5 minutes. Highly recommended.
 
