@@ -358,11 +358,11 @@ When `--formalize=restage|auto`, the effective default changes from `preserve` t
 
 ### Claim Queue
 
-- **Source**: single extraction pass from `--source` at autoprove startup, filtered by `--claim-select`. Uses draft's ingestion logic (PDF → Read, URL → fetch, `.lean` → Read).
+- **Source**: single extraction pass from `--source` at synthesis-wrapper startup, filtered by `--claim-select`. Uses draft's ingestion logic (PDF → Read, URL → fetch, `.lean` → Read).
 - **Order**: document order (position in source). Deterministic across re-runs of the same source.
 - **Storage**: in-memory ordered list. Not persisted to disk.
 - **On restart**: re-extraction from `--source` produces same queue; cursor resets to beginning. Already-formalized claims detected via declaration-head matching in the target file.
-- **Iteration**: outer loop processes one claim at a time — pop next claim, pass it directly to draft as the topic, run inner cycle to completion, then advance. The `--claim-select` flag filters claims at queue-extraction time only; individual draft calls receive a single pre-selected claim. Queue management is autoprove-internal — draft never sees `queue` as a selection policy.
+- **Iteration**: outer loop processes one claim at a time — pop next claim, pass it directly to draft as the topic, run inner cycle to completion, then advance. The `--claim-select` flag filters claims at queue-extraction time only; individual draft calls receive a single pre-selected claim. Queue management is outer-loop-internal — draft never sees `queue` as a selection policy.
 
 ### File Assembly Contract
 
