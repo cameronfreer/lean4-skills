@@ -358,15 +358,15 @@ When `--formalize=restage|auto`, the effective default changes from `preserve` t
 
 ### Claim Queue
 
-- **Source**: single extraction pass from `--source` at autoprove startup, filtered by `--claim-select`. Uses formalize's ingestion logic (PDF → Read, URL → fetch, `.lean` → Read).
+- **Source**: single extraction pass from `--source` at autoprove startup, filtered by `--claim-select`. Uses draft's ingestion logic (PDF → Read, URL → fetch, `.lean` → Read).
 - **Order**: document order (position in source). Deterministic across re-runs of the same source.
 - **Storage**: in-memory ordered list. Not persisted to disk.
 - **On restart**: re-extraction from `--source` produces same queue; cursor resets to beginning. Already-formalized claims detected via declaration-head matching in the target file.
-- **Iteration**: outer loop processes one claim at a time — pop next claim, pass it directly to formalize as the topic, run inner cycle to completion, then advance. The `--claim-select` flag filters claims at queue-extraction time only; individual formalize calls receive a single pre-selected claim. Queue management is autoprove-internal — formalize never sees `queue` as a selection policy.
+- **Iteration**: outer loop processes one claim at a time — pop next claim, pass it directly to draft as the topic, run inner cycle to completion, then advance. The `--claim-select` flag filters claims at queue-extraction time only; individual draft calls receive a single pre-selected claim. Queue management is autoprove-internal — draft never sees `queue` as a selection policy.
 
 ### File Assembly Contract
 
-- Formalize emits declaration-only blocks (no imports/opens/section wrappers) to temp path when `--caller=autoformalize|formalize`. Declarations use fully-qualified names — no `open`/`open scoped` needed.
+- Draft emits declaration-only blocks (no imports/opens/section wrappers) to temp path when `--caller=autoformalize|formalize`. Declarations use fully-qualified names — no `open`/`open scoped` needed.
 - Import dependencies expressed as `-- needs-import: <module>` comments at top of temp output. This is the only structured signal.
 - Outer loop maintains target file preamble: deduplicates `-- needs-import:` lines, prepends new imports, appends declarations with `-- draft: <claim> (<timestamp>)` boundary markers.
 - Declaration-name collision check before each append: match `theorem <name>`, `def <name>`, `lemma <name>`, etc. at line start in target file. If found, skip (already formalized in a prior run).

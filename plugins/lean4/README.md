@@ -51,7 +51,7 @@ When you edit `.lean` files in a normal conversation, the plugin activates autom
 
 ### `/lean4:draft` — Skeleton Drafting
 
-Drafts Lean 4 declaration skeletons from informal claims. Default `--mode=skeleton` produces sorry-stubbed statements; `--mode=attempt` adds a proof-attempt loop. No proving, no falsification — use `/lean4:formalize` for the full pipeline.
+Drafts Lean 4 declaration skeletons from informal claims. Default `--mode=skeleton` produces sorry-stubbed statements; `--mode=attempt` adds a proof-attempt loop. No full proof engine (no cycles, no falsification) — use `/lean4:formalize` for the full pipeline.
 
 ### `/lean4:formalize` — Interactive Synthesis
 
