@@ -248,5 +248,5 @@ Use `preferences.verbosity` to signal desired response detail level.
 
 ## See Also
 
-- [/lean4:review](../../../commands/review.md) - Review command documentation
+- [`/lean4:review`](../../../commands/review.md) - Review command documentation
 - [mathlib-style.md](mathlib-style.md) - Style guidelines for suggestions
