@@ -10,9 +10,9 @@ Extended workflow examples for Lean4 plugin internal workflows.
 
 ---
 
-## lean4-sorry-filler-deep
+## sorry-filler-deep
 
-### Structural Refactoring Example
+### Helper Extraction Example
 
 ```
 ## Sorry Filling Plan
@@ -20,13 +20,13 @@ Extended workflow examples for Lean4 plugin internal workflows.
 **Target:** Core.lean:156 - `filter_convergence`
 
 **Why it's hard:**
-- Statement uses Set but should use Filter
-- Need intermediate lemma about Filter.Eventually
+- Need Filter.Eventually lemma but it doesn't exist yet
 - Type class instance ordering issue
+- Existing proof approach requires an intermediate bridging lemma
 
 **Strategy:**
-1. Generalize statement from Set to Filter
-2. Add helper lemma `filter_eventually_of_set`
+1. Extract helper lemma `filter_eventually_of_set` bridging Set and Filter
+2. Add import for `Mathlib.Order.Filter.Basic`
 3. Prove main theorem using helper
 4. Verify dependent theorems still work
 
@@ -38,28 +38,16 @@ Extended workflow examples for Lean4 plugin internal workflows.
 ## Phase 1 Complete
 
 **Actions taken:**
-- Generalized `filter_convergence` type signature
+- Added `filter_eventually_of_set` helper lemma
 - Added import for `Mathlib.Order.Filter.Basic`
 
 **Compile status:** ✓ Success
 
-**Next phase:** Add helper lemma
+**Next phase:** Fill original sorry using helper
 
 ---
 
 ## Phase 2 Complete
-
-**Actions taken:**
-- Added `filter_eventually_of_set` helper (8 lines)
-- Placed in Helpers.lean for reuse
-
-**Compile status:** ✓ Success
-
-**Next phase:** Fill original sorry
-
----
-
-## Phase 3 Complete
 
 **Actions taken:**
 - Filled sorry using helper lemma
@@ -72,8 +60,8 @@ Extended workflow examples for Lean4 plugin internal workflows.
 ## Sorry Filled Successfully
 
 **Target:** Core.lean:156
-**Strategy used:** structural refactoring
-**Phases completed:** 3
+**Strategy used:** helper extraction
+**Phases completed:** 2
 **Total edits:** 2 files changed
 
 **Summary:**
@@ -91,7 +79,7 @@ Extended workflow examples for Lean4 plugin internal workflows.
 
 ---
 
-## lean4-proof-repair
+## proof-repair
 
 ### Type Mismatch Repair
 
@@ -176,7 +164,7 @@ Fallback if needed: `$LEAN4_SCRIPTS/search_mathlib.sh "continuous.*real" name`
 
 ---
 
-## lean4-proof-golfer
+## proof-golfer
 
 ### Verified Inlining Example
 
@@ -270,7 +258,7 @@ Handoff: not needed (single-line, no statement change)
 
 ---
 
-## lean4-axiom-eliminator
+## axiom-eliminator
 
 ### Migration Plan Example
 

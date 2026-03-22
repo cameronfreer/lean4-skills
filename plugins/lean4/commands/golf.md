@@ -147,7 +147,7 @@ sed/bulk rewrites activate automatically when ≥4 whitelisted syntax-only patte
 
 ### Delegation Execution Policy
 
-When delegating to `lean4-proof-golfer` subagents:
+When delegating to `proof-golfer` subagents:
 
 1. **Preflight** — run one golfer task on a small target first
 2. **Permission gate** — if preflight hits Edit/Bash permission prompt → stop delegation immediately, switch to direct mode in main agent; never launch additional agents after first permission denial

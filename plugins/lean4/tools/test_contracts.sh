@@ -364,6 +364,52 @@ else
     fail "Check 23: stuck_has_next_action=$pass_21a, batch_lacks_next_action=$pass_21b"
 fi
 
+###############################################################################
+# Suite 5: Agent dispatch name resolution
+###############################################################################
+echo ""
+echo "--- Suite 5: Agent dispatch name resolution ---"
+
+# Build set of valid agent names from frontmatter
+valid_agents=""
+for agent_file in "$PLUGIN_ROOT"/agents/*.md; do
+    aname=$(grep -m1 '^name:' "$agent_file" | sed 's/^name: *//')
+    if [[ -n "$aname" ]]; then
+        valid_agents="$valid_agents $aname"
+    fi
+done
+
+# Search plugin docs for dispatch references to lean4 plugin agents.
+# Match only known agent name patterns (not generic "Dispatch an Explore agent" etc.)
+agent_pattern='sorry-filler-deep|proof-repair|proof-golfer|axiom-eliminator'
+# Also check for old lean4- prefixed forms that should no longer exist
+old_pattern='lean4-sorry-filler-deep|lean4-proof-repair|lean4-proof-golfer|lean4-axiom-eliminator'
+
+dispatch_ok=1
+
+# Check for stale old-form references
+old_refs=$(grep -rn -E "$old_pattern" "$PLUGIN_ROOT"/skills/ "$PLUGIN_ROOT"/commands/ "$PLUGIN_ROOT"/agents/ 2>/dev/null \
+    | grep -v '^Binary' || true)
+if [[ -n "$old_refs" ]]; then
+    fail "Check 24: Stale old-form agent names found:"
+    echo "$old_refs" | head -10
+    dispatch_ok=0
+fi
+
+# Check dispatch examples resolve to valid agent names
+dispatch_refs=$(grep -rn -oE "Dispatch ($agent_pattern)" "$PLUGIN_ROOT"/skills/ "$PLUGIN_ROOT"/commands/ 2>/dev/null \
+    | sed 's/.*Dispatch //' || true)
+for ref in $dispatch_refs; do
+    if ! echo "$valid_agents" | grep -qw "$ref"; then
+        fail "Check 24: Dispatch reference '$ref' does not match any agent frontmatter name"
+        dispatch_ok=0
+    fi
+done
+
+if [[ "$dispatch_ok" -eq 1 ]]; then
+    ok "Check 24: All agent dispatch names resolve to valid frontmatter names"
+fi
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]
