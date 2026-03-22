@@ -62,11 +62,12 @@ Without `tee`, piping to `head`/`grep` discards the rest. With `tee`, the full o
 
 ---
 
-## Minimum Workflow (3 Steps)
+## Minimum Workflow (4 Steps)
 
 1. `lean_goal(file, line)` - See what to prove
 2. `lean_multi_attempt(file, line, snippets=["simp", "ring", "exact?"])` - Test tactics
 3. `lean_diagnostic_messages(file)` - Verify no errors
+4. If diagnostics show "Try this" → `lean_code_actions(file, line)` - Resolve suggestion to edit
 
 ## Full Workflow Pattern
 
@@ -79,8 +80,9 @@ Without `tee`, piping to `head`/`grep` discards the rest. With `tee`, the full o
      "  simp", "  omega", "  apply lemma"
    ])
 4. [Edit file with winner]
-5. lean_diagnostic_messages(file)           # Verify
-6. lean_goal(file, line)                    # Confirm "no goals"
+5. lean_diagnostic_messages(file)           # Verify — check for "Try this"
+6. lean_code_actions(file, line)            # If "Try this" appeared, resolve it
+7. lean_goal(file, line)                    # Confirm no remaining goals
 ```
 
 **Total time:** < 10 seconds (LSP) vs 30+ seconds per iteration (build-only)
@@ -123,6 +125,7 @@ Without `tee`, piping to `head`/`grep` discards the rest. With `tee`, the full o
 | `lean_local_search` | **Local** | None | Instant | Find lemmas (use first!) |
 | `lean_multi_attempt` | **Local** | None | Instant | Test tactics in parallel |
 | `lean_diagnostic_messages` | **Local** | None | Instant | Check errors |
+| `lean_code_actions` | **Local** | None | Instant | Resolve "Try this" suggestions |
 | `lean_hover_info` | **Local** | None | Instant | Check syntax/types |
 | `lean_file_outline` | **Local** | None | Fast | File structure overview |
 | `lean_run_code` | **Local** | None | Fast | Run standalone snippets |
@@ -227,7 +230,7 @@ lean_multi_attempt(file, line=13, snippets=[
   "  omega",
   "  apply Nat.add_comm"
 ])
-→ All three show "no goals" ✅
+→ All three show "no goals" — confirm with lean_diagnostic_messages before committing
 ```
 **Pick simplest: `omega`**
 

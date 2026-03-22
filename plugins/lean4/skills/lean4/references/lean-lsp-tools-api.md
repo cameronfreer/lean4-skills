@@ -22,7 +22,7 @@ For workflow patterns and quick reference, see [lean-lsp-server.md](lean-lsp-ser
 **Local tools (unlimited, instant):**
 - Direct LSP queries against your project files
 - No rate limits, < 1 second response time
-- Tools: `lean_goal`, `lean_local_search`, `lean_multi_attempt`, `lean_diagnostic_messages`, `lean_hover_info`, `lean_file_outline`, `lean_run_code`, `lean_profile_proof`, `lean_file_contents` (DEPRECATED — use Read tool)
+- Tools: `lean_goal`, `lean_local_search`, `lean_multi_attempt`, `lean_diagnostic_messages`, `lean_code_actions`, `lean_hover_info`, `lean_file_outline`, `lean_run_code`, `lean_profile_proof`, `lean_file_contents` (DEPRECATED — use Read tool)
 
 **External tools (rate limits vary per tool):**
 - Remote API calls to leansearch.net, leanfinder, loogle.lean-lang.org
@@ -125,6 +125,27 @@ lean_diagnostic_messages(file)
 
 ---
 
+### `lean_code_actions` - Resolve "Try This" Suggestions
+
+**When to use:** After `lean_diagnostic_messages` reports a "Try this" suggestion, or after running `simp?`, `exact?`, `apply?`, or similar query tactics that produce suggestions.
+
+**Purpose:** Resolves LSP code actions into concrete edits. When Lean suggests a replacement (e.g., `simp?` suggests `simp only [Nat.add_comm]`), this tool returns the resolved edit so you can apply it directly instead of manually parsing the suggestion from diagnostic output.
+
+**Parameters:**
+- `file_path` (required): Absolute path to Lean file
+- `line` (required): Line number where the suggestion appears (1-indexed)
+
+**Example:**
+```
+-- After running simp? at line 15, diagnostics show "Try this: simp only [Nat.add_comm]"
+lean_code_actions(file, line=15)
+→ Returns the resolved edit replacing simp? with simp only [Nat.add_comm]
+```
+
+**Workflow position:** Use after `lean_diagnostic_messages`, before manual search. If diagnostics suggest a fix, `lean_code_actions` is cheaper and more reliable than searching for the fix yourself.
+
+---
+
 ### `lean_local_search` - Find Declarations
 
 **Why use this FIRST:**
@@ -200,7 +221,7 @@ lean_multi_attempt(file, line=13, snippets=[
 ])
 
 → Output (v0.17+): Returns **structured goals** for each snippet:
-[{"snippet": "  simp [Nat.add_comm]", "goals": []},  # no goals = success!
+[{"snippet": "  simp [Nat.add_comm]", "goals": []},  # no goals — verify with lean_diagnostic_messages
  {"snippet": "  omega", "goals": []},
  {"snippet": "  apply Nat.add_comm", "goals": []}]
 ```
@@ -237,9 +258,9 @@ Chain tactics with `;` - still single line!
 - **No comments** - avoid `--` in snippets
 - **For testing only** - edit file properly after choosing
 
-**Return structure (v0.17+):** Array of result objects with structured goals (see Example 1 above). Each entry contains `snippet` and `goals` (empty array = success).
+**Return structure (v0.17+):** Array of result objects with structured goals (see Example 1 above). Each entry contains `snippet` and `goals` (empty goals array means the tactic closed all visible goals — always follow up with `lean_diagnostic_messages(file)` to confirm no residual errors).
 
-**Legacy return (pre-v0.17):** Array of strings, one per snippet: `"<snippet>:\n<goal_state_or_error>\n\n"`. Success: `"no goals"`. Failure: error message.
+**Legacy return (pre-v0.17):** Array of strings, one per snippet: `"<snippet>:\n<goal_state_or_error>\n\n"`. Tactic closed goals: `"no goals"`. Failure: error message. Always confirm with `lean_diagnostic_messages`.
 
 **Workflow:**
 1. `lean_goal` to see what you need

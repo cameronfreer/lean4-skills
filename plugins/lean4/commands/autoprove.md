@@ -102,7 +102,7 @@ See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) and [cycle-e
 1. Refresh goal → search → generate 2-3 candidates → test via `lean_multi_attempt`
 2. Preflight falsification for decidable/finite goals (30-60s max)
 3. Tactic cascade if no candidate passed
-4. Validate via `lean_diagnostic_messages`
+4. Validate via `lean_diagnostic_messages`; if "Try this" suggestion appears, resolve with `lean_code_actions`
 5. Stage & commit
 
 **Staging rule:** If `--commit=never`, skip staging and committing entirely. Otherwise, stage only the files touched by this fill (`git add <edited files>`) — never `git add -A` or broad patterns. Commit: `git commit -m "fill: [theorem] - [tactic]"`.

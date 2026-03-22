@@ -139,7 +139,7 @@ check_agents() {
             warn "$agent.md: Missing 'model:' in frontmatter"
         fi
         # Validate tool names against allowed set
-        local allowed_tools="Read Grep Glob Edit Bash lean_goal lean_local_search lean_leanfinder lean_leansearch lean_loogle lean_multi_attempt lean_hover_info lean_diagnostic_messages lean_run_code"
+        local allowed_tools="Read Grep Glob Edit Bash lean_goal lean_local_search lean_leanfinder lean_leansearch lean_loogle lean_multi_attempt lean_hover_info lean_diagnostic_messages lean_code_actions lean_run_code"
         local tools_line
         tools_line=$(grep "^tools:" "$file" | sed 's/^tools: *//')
         if [[ -n "$tools_line" ]]; then

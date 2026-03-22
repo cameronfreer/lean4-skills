@@ -6,10 +6,10 @@ Quick reference for filling Lean 4 sorries systematically.
 
 ## Core Workflow
 
-1. **Understand Context** - Read surrounding code, identify goal type
+1. **Understand Context** - `lean_goal(file, line)` first, then read surrounding code
 2. **Search Mathlib FIRST** - Most proofs already exist
 3. **Generate Candidates** - 2-3 proof approaches
-4. **Test Before Applying** - Use `lean_diagnostic_messages(file)` or `lean_multi_attempt`
+4. **Test Before Applying** - Use `lean_multi_attempt` to test candidates, then `lean_diagnostic_messages(file)` to confirm no residual errors
 5. **Apply Working Solution** - Shortest working proof wins
 
 ## LSP-First Requirement
@@ -18,7 +18,9 @@ Quick reference for filling Lean 4 sorries systematically.
 1. `lean_goal(file, line)` — understand the goal
 2. `lean_local_search("keyword")` — search mathlib
 3. `lean_multi_attempt(file, line, snippets=[...])` — test candidates
-4. If initial searches/attempts are inconclusive: `lean_hammer_premise(file, line, col)` — premise suggestions for simp/aesop/grind (rate-limited 3/30s)
+4. `lean_diagnostic_messages(file)` — verify no residual errors; check for "Try this" suggestions
+5. If diagnostics show "Try this" → `lean_code_actions(file, line)` to resolve to a concrete edit
+6. If initial searches/attempts are inconclusive: `lean_hammer_premise(file, line, col)` — premise suggestions for simp/aesop/grind (rate-limited 3/30s)
 
 **Scratch-work preference order:**
 - Use the live file + `lean_goal` / `lean_multi_attempt` / `lean_diagnostic_messages` when the question depends on the actual file context.

@@ -1,5 +1,13 @@
 # Changelog
 
+## v4.4.2 (March 2026)
+
+- Surface `lean_code_actions` across all skill, command, agent, and reference docs (#70)
+- Tighten `lean_multi_attempt` success interpretation: empty goals alone is not proof success
+- Budget `lean_run_code` in SKILL.md: isolated probes only, not a substitute for live inspection
+- Make `lean_goal` explicit as first step in sorry-filling Core Workflow
+- Add `lean_diagnostic_messages` → `lean_code_actions` ladder to LSP-first requirement
+
 ## v4.4.1 (March 2026)
 
 - BREAKING: Rename proof-editing agents to drop `lean4-` prefix (#67)
