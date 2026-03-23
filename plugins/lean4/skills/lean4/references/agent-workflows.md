@@ -133,9 +133,6 @@ Stage 1 outputs (after 3 failures, escalates to Stage 2):
 +++ Core.lean
 @@ -87,0 +87,1 @@
 +variable [MeasurableSpace β] in
-@@ -89,1 +90,1 @@
--theorem foo : Measurable (f ∘ g) := by
-+theorem foo [MeasurableSpace β] : Measurable (f ∘ g) := by
 ```
 
 ### Unknown Identifier Repair

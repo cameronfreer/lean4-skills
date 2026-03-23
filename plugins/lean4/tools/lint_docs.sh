@@ -1407,10 +1407,30 @@ check_bare_slash_links() {
     fi
 }
 
+# Fence-aware section extractor (skips headings inside ``` code blocks).
+# Based on test_contracts.sh extract_section().
+# Usage: _extract_section_fenced FILE "## Heading"
+_extract_section_fenced() {
+    local file="$1"
+    local heading="$2"
+    local prefix
+    prefix="${heading%%[^#]*}"
+    local level="${#prefix}"
+    awk -v start="$heading" -v lvl="$level" '
+        /^```/ { in_fence = !in_fence }
+        $0 == start && !found { found=1; next }
+        found && !in_fence && /^#+/ {
+            match($0, /^#+/)
+            if (RLENGTH <= lvl) exit
+        }
+        found { print }
+    ' "$file"
+}
+
 # Check: Header-fence regression guard
-# For each agent with a "May NOT generalize" constraint, verify that
-# example blocks in the agent file and its agent-workflows.md section
-# do not demonstrate statement generalization.
+# For each agent with a header-fence constraint, verify that example blocks
+# in the agent file and its agent-workflows.md section do not demonstrate
+# statement generalization or declaration-header modifications.
 check_header_fence_examples() {
     log ""
     log "Checking header-fence example consistency..."
@@ -1425,33 +1445,73 @@ check_header_fence_examples() {
             continue
         fi
 
-        # Extract constraints section
+        # Extract constraints section (fence-aware)
         local constraints
-        constraints=$(sed -n '/^## Constraints/,/^## /p' "$agent_file" | head -n -1)
+        constraints=$(_extract_section_fenced "$agent_file" "## Constraints")
         if [[ -z "$constraints" ]]; then
             continue
         fi
 
-        # Check if this agent has a header-fence / no-generalize constraint
-        if ! echo "$constraints" | grep -qi 'NOT generalize'; then
+        # Determine which header-fence checks apply
+        local check_generalize=0
+        local check_header_mod=0
+        if echo "$constraints" | grep -qi 'NOT generalize'; then
+            check_generalize=1
+        fi
+        if echo "$constraints" | grep -qiE 'NOT modify declaration headers|header fence'; then
+            check_header_mod=1
+        fi
+        if [[ "$check_generalize" -eq 0 ]] && [[ "$check_header_mod" -eq 0 ]]; then
             continue
         fi
 
-        # Check example blocks in the agent file itself
+        # Extract examples from agent file (fence-aware)
         local examples
-        examples=$(sed -n '/^## Example/,/^## /p' "$agent_file" | head -n -1)
-        if echo "$examples" | grep -qiE 'Generalize.*(statement|signature|type)'; then
-            warn "$agent_name: Agent example demonstrates generalization despite header-fence constraint"
-            fence_ok=0
+        examples=$(_extract_section_fenced "$agent_file" "## Example (Happy Path)")
+        if [[ -z "$examples" ]]; then
+            examples=$(_extract_section_fenced "$agent_file" "## Example")
+        fi
+
+        # Check generalization in agent examples
+        if [[ "$check_generalize" -eq 1 ]] && [[ -n "$examples" ]]; then
+            if echo "$examples" | grep -qiE 'Generalize.*(statement|signature|type)'; then
+                warn "$agent_name: Agent example demonstrates generalization despite header-fence constraint"
+                fence_ok=0
+            fi
+        fi
+
+        # Check header modification in agent examples (diff hunks changing declaration lines)
+        if [[ "$check_header_mod" -eq 1 ]] && [[ -n "$examples" ]]; then
+            if echo "$examples" | grep -qE '^\+\s*(theorem|def|lemma|instance) ' | grep -v '^---' | head -1 | read -r _plus_line; then
+                if echo "$examples" | grep -qE '^\-\s*(theorem|def|lemma|instance) '; then
+                    warn "$agent_name: Agent example modifies a declaration header despite header-fence constraint"
+                    fence_ok=0
+                fi
+            fi
         fi
 
         # Check corresponding section in agent-workflows.md
         if [[ -f "$workflows_file" ]]; then
             local wf_section
-            wf_section=$(sed -n "/^## $agent_name\$/,/^## /p" "$workflows_file" | head -n -1)
-            if echo "$wf_section" | grep -qiE 'Generalize.*(statement|signature|type)'; then
-                warn "$agent_name: agent-workflows.md example demonstrates generalization despite header-fence constraint"
-                fence_ok=0
+            wf_section=$(_extract_section_fenced "$workflows_file" "## $agent_name")
+
+            if [[ -n "$wf_section" ]]; then
+                # Check generalization
+                if [[ "$check_generalize" -eq 1 ]]; then
+                    if echo "$wf_section" | grep -qiE 'Generalize.*(statement|signature|type)'; then
+                        warn "$agent_name: agent-workflows.md example demonstrates generalization despite header-fence constraint"
+                        fence_ok=0
+                    fi
+                fi
+
+                # Check header modification in diff hunks
+                if [[ "$check_header_mod" -eq 1 ]]; then
+                    if echo "$wf_section" | grep -qE '^\+\s*(theorem|def|lemma|instance) ' && \
+                       echo "$wf_section" | grep -qE '^\-\s*(theorem|def|lemma|instance) '; then
+                        warn "$agent_name: agent-workflows.md example modifies a declaration header despite header-fence constraint"
+                        fence_ok=0
+                    fi
+                fi
             fi
         fi
     done

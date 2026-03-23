@@ -68,6 +68,7 @@ Structured error context (JSON):
 - May NOT rewrite entire functions
 - May NOT try random tactics
 - May NOT skip mathlib search
+- May NOT modify declaration headers (header fence). If the fix requires a signature change, return no diff and let the caller escalate.
 - Use `lean_diagnostic_messages(file)` for per-edit validation before any Bash-based file gate; prefer `lean_run_code` over temporary `.lean` files for isolated scratch probes
 
 ## Example (Happy Path)
