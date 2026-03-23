@@ -1482,11 +1482,10 @@ check_header_fence_examples() {
 
         # Check header modification in agent examples (diff hunks changing declaration lines)
         if [[ "$check_header_mod" -eq 1 ]] && [[ -n "$examples" ]]; then
-            if echo "$examples" | grep -qE '^\+\s*(theorem|def|lemma|instance) ' | grep -v '^---' | head -1 | read -r _plus_line; then
-                if echo "$examples" | grep -qE '^\-\s*(theorem|def|lemma|instance) '; then
-                    warn "$agent_name: Agent example modifies a declaration header despite header-fence constraint"
-                    fence_ok=0
-                fi
+            if echo "$examples" | grep -qE '^\+\s*(theorem|def|lemma|instance) ' && \
+               echo "$examples" | grep -qE '^\-\s*(theorem|def|lemma|instance) '; then
+                warn "$agent_name: Agent example modifies a declaration header despite header-fence constraint"
+                fence_ok=0
             fi
         fi
 
