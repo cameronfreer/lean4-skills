@@ -114,7 +114,11 @@ lean_loogle("?a → ?b → _")                      # Type-pattern (unlimited if
 lean_hammer_premise(file, line, col)            # Premise suggestions for simp/aesop/grind (3/30s)
 lean_state_search(file, line, col)              # Goal-conditioned lemma search (3/30s)
 lean_multi_attempt(file, line, snippets=[...])  # Test multiple tactics
+lean_diagnostic_messages(file)                  # Per-file error/warning check
+lean_code_actions(file, line)                   # Resolve "Try this" suggestions to edits
 ```
+
+`lean_run_code` is for isolated scratch experiments, not a substitute for live proof-state inspection via `lean_goal`/`lean_multi_attempt`/`lean_diagnostic_messages`. Prefer live-file tools when the question depends on actual file context.
 
 ## Core Primitives
 

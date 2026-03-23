@@ -139,7 +139,7 @@ check_agents() {
             warn "$agent.md: Missing 'model:' in frontmatter"
         fi
         # Validate tool names against allowed set
-        local allowed_tools="Read Grep Glob Edit Bash lean_goal lean_local_search lean_leanfinder lean_leansearch lean_loogle lean_multi_attempt lean_hover_info lean_diagnostic_messages lean_run_code"
+        local allowed_tools="Read Grep Glob Edit Bash lean_goal lean_local_search lean_leanfinder lean_leansearch lean_loogle lean_multi_attempt lean_hover_info lean_diagnostic_messages lean_code_actions lean_run_code"
         local tools_line
         tools_line=$(grep "^tools:" "$file" | sed 's/^tools: *//')
         if [[ -n "$tools_line" ]]; then
@@ -1520,6 +1520,43 @@ check_header_fence_examples() {
     fi
 }
 
+# Check 27: Proof-complete shortcut guard
+# Prevents docs from equating empty goals_after / "no goals" with proof completion
+# without requiring diagnostic verification.
+check_proof_complete_shortcut() {
+    log ""
+    log "Checking for proof-complete shortcut anti-patterns..."
+
+    local _pc_base _pc_line _pc_match
+
+    while IFS= read -r file; do
+        _pc_base=$(basename "$file")
+
+        # Skip historical docs and non-behavioral internals
+        [[ "$_pc_base" == "MIGRATION.md" ]] && continue
+        [[ "$_pc_base" == "CHANGELOG.md" ]] && continue
+        case "$file" in */tools/*) continue ;; esac
+
+        # Use awk to emit only lines outside ``` fences, prefixed with line number
+        while IFS=: read -r _pc_line _pc_match; do
+            [[ -z "$_pc_line" ]] && continue
+
+            # Allow explicit anti-pattern warnings / corrections
+            if echo "$_pc_match" | grep -qiE '(Never|Do not|Wrong|Incorrect|anti.?pattern|forbidden|avoid|does not confirm)'; then
+                continue
+            fi
+
+            warn "$_pc_base:$_pc_line: Equates empty goals/no-goals with proof completion without requiring diagnostic verification"
+            (( ++ISSUES ))
+        done < <(awk '
+            /^```/ { in_fence = !in_fence; next }
+            !in_fence { print NR ":" $0 }
+        ' "$file" | grep -iE '= proof complete|goals_after.*proof complete|Repeat until.*no goals' || true)
+    done < <(find "$PLUGIN_ROOT" -name "*.md" -type f)
+
+    ok "Proof-complete shortcut check done"
+}
+
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
@@ -1554,6 +1591,7 @@ check_host_agnostic
 check_contribute_policy
 check_bare_slash_links
 check_header_fence_examples
+check_proof_complete_shortcut
 
 log ""
 log "================================"
