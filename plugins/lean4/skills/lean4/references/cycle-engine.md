@@ -32,7 +32,8 @@ LSP tools are the normative first-pass for all discovery, search, and validation
 2. Run up to 2 LSP search tools before any script fallback (skip if trivial goal or prior planning search was conclusive)
 3. Generate 2-3 candidate proof snippets from search results. When `lean_hammer_premise` returns premises, generate `simp only [p1, p2]` and `grind [p1, p2]` candidates.
 4. Test with `lean_multi_attempt(file, line, snippets=[...])`
-5. Prefer shortest passing candidate; only then edit/commit
+5. `lean_diagnostic_messages(file)` — verify; if "Try this" → `lean_code_actions(file, line)` → apply → `lean_diagnostic_messages(file)` to re-verify
+6. Prefer shortest passing candidate; only then edit/commit
 
 **Fallback gate:** Script fallback (`$LEAN4_SCRIPTS/smart_search.sh`, `$LEAN4_SCRIPTS/search_mathlib.sh`) and repair agents are permitted when:
 - LSP search budget is exhausted (at least 2 searches returning empty/inconclusive), OR

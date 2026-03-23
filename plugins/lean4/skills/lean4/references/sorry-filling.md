@@ -19,7 +19,7 @@ Quick reference for filling Lean 4 sorries systematically.
 2. `lean_local_search("keyword")` — search mathlib
 3. `lean_multi_attempt(file, line, snippets=[...])` — test candidates
 4. `lean_diagnostic_messages(file)` — verify no residual errors; check for "Try this" suggestions
-5. If diagnostics show "Try this" → `lean_code_actions(file, line)` to resolve to a concrete edit
+5. If diagnostics show "Try this" → `lean_code_actions(file, line)` to resolve to a concrete edit → `lean_diagnostic_messages(file)` to re-verify after applying
 6. If initial searches/attempts are inconclusive: `lean_hammer_premise(file, line, col)` — premise suggestions for simp/aesop/grind (rate-limited 3/30s)
 
 **Scratch-work preference order:**

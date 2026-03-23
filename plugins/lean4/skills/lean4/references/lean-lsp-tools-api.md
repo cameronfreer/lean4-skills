@@ -80,7 +80,7 @@ lemma test_add_comm (n m : ℕ) : n + m = m + n := by
   "goals_after": []
 }
 ```
-← Empty `goals_after` array = proof complete!
+← Empty `goals_after` array = tactic closed all visible goals. Follow up with `lean_diagnostic_messages(file)` to confirm no residual errors.
 
 ---
 
@@ -94,12 +94,12 @@ lemma test_add_comm (n m : ℕ) : n + m = m + n := by
 - `file_path` (required): Absolute path to Lean file
 - `declaration_name` (optional): Filter diagnostics to a specific declaration (e.g., "myLemma"). Useful for large files with many errors.
 
-**⚠️ IMPORTANT:** Do NOT pass `severity` parameter - it will cause error `'severity'`. Severity appears IN the response, not as a filter.
+**Optional filter (v0.20+):** `severity` — filter diagnostics by severity level (1 = error, 2 = warning, 3 = info). Omit to return all diagnostics.
 
-**Correct usage:**
+**Usage examples:**
 ```python
-lean_diagnostic_messages(file_path="/path/to/file.lean")
-# NOT: lean_diagnostic_messages(file_path="/path/to/file.lean", severity=1)
+lean_diagnostic_messages(file_path="/path/to/file.lean")                    # All diagnostics
+lean_diagnostic_messages(file_path="/path/to/file.lean", severity=1)        # Errors only
 ```
 
 **Example - Errors found:**
@@ -110,7 +110,7 @@ lean_diagnostic_messages(file)
 ```
 - Line 13, columns 9-17: `add_comm` not in scope
 - Line 20, columns 30-49: Syntax error with `StrictMono`
-- Severity 1 = error, Severity 2 = warning (returned in response, not a parameter)
+- Severity 1 = error, Severity 2 = warning (also usable as a filter parameter in v0.20+)
 
 **Example - Success:**
 ```
@@ -121,7 +121,7 @@ lean_diagnostic_messages(file)
 
 **Structured output (v0.18+):** Returns `{success, failed_dependencies, diagnostics}`. Check `failed_dependencies` when imports fail (e.g., "Unknown package 'Mathlib'").
 
-**Critical:** Empty diagnostics means no errors, but doesn't mean proof complete. Always verify with `lean_goal` to confirm "no goals".
+**Critical:** Empty diagnostics alone does not confirm proof completion. Always verify with `lean_goal` to confirm no remaining goals AND `lean_diagnostic_messages` to confirm clean diagnostics. Proof complete = no remaining goals + clean diagnostics.
 
 ---
 
@@ -142,7 +142,7 @@ lean_code_actions(file, line=15)
 → Returns the resolved edit replacing simp? with simp only [Nat.add_comm]
 ```
 
-**Workflow position:** Use after `lean_diagnostic_messages`, before manual search. If diagnostics suggest a fix, `lean_code_actions` is cheaper and more reliable than searching for the fix yourself.
+**Workflow position:** Use after `lean_diagnostic_messages`, before manual search. If diagnostics suggest a fix, `lean_code_actions` is cheaper and more reliable than searching for the fix yourself. After applying the returned edit, always re-run `lean_diagnostic_messages(file)` to confirm the fix introduced no new errors, then `lean_goal(file, line)` to confirm no remaining goals.
 
 ---
 
@@ -943,7 +943,7 @@ For each step:
   lean_diagnostic_messages(file)  # Verify
 ```
 
-Repeat until "no goals"!
+Repeat until `lean_goal` shows no remaining goals and `lean_diagnostic_messages` returns clean diagnostics.
 
 ### Pattern 5: Refactoring Long Proofs
 

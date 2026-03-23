@@ -67,7 +67,8 @@ Without `tee`, piping to `head`/`grep` discards the rest. With `tee`, the full o
 1. `lean_goal(file, line)` - See what to prove
 2. `lean_multi_attempt(file, line, snippets=["simp", "ring", "exact?"])` - Test tactics
 3. `lean_diagnostic_messages(file)` - Verify no errors
-4. If diagnostics show "Try this" → `lean_code_actions(file, line)` - Resolve suggestion to edit
+4. If diagnostics show "Try this" → `lean_code_actions(file, line)` → apply edit → `lean_diagnostic_messages(file)` to re-verify
+5. `lean_goal(file, line)` - Confirm no remaining goals
 
 ## Full Workflow Pattern
 
@@ -82,7 +83,8 @@ Without `tee`, piping to `head`/`grep` discards the rest. With `tee`, the full o
 4. [Edit file with winner]
 5. lean_diagnostic_messages(file)           # Verify — check for "Try this"
 6. lean_code_actions(file, line)            # If "Try this" appeared, resolve it
-7. lean_goal(file, line)                    # Confirm no remaining goals
+7. lean_diagnostic_messages(file)           # Re-verify after applying code action
+8. lean_goal(file, line)                    # Confirm no remaining goals
 ```
 
 **Total time:** < 10 seconds (LSP) vs 30+ seconds per iteration (build-only)
