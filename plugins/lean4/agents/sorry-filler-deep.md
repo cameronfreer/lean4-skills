@@ -1,5 +1,5 @@
 ---
-name: lean4-sorry-filler-deep
+name: sorry-filler-deep
 description: Strategic resolution of stubborn sorries; may refactor across files within the header fence. Use when fast pass fails or for complex proofs.
 tools: Read, Grep, Glob, Edit, Bash, lean_goal, lean_local_search, lean_leanfinder, lean_leansearch, lean_loogle, lean_multi_attempt, lean_diagnostic_messages, lean_run_code
 model: opus
@@ -74,18 +74,18 @@ Final summary (~200-300 tokens):
 ```
 ## Sorry Filling Plan
 **Target:** Core.lean:156
-**Why it's hard:** Statement uses Set but needs Filter
+**Why it's hard:** Need Filter.Eventually lemma but it doesn't exist yet
 **Strategy:**
-1. Generalize type signature
-2. Add filter_eventually_of_set helper
+1. Extract helper lemma `filter_eventually_of_set`
+2. Add import for Filter.Eventually
 3. Prove using helper
 
 ## Phase 1 Complete
-**Actions:** Generalized signature, added import
+**Actions:** Added helper lemma, added import
 **Compile:** ✓
 ---
 ## Sorry Filled Successfully
-**Strategy:** structural refactoring
+**Strategy:** helper extraction
 **Helpers added:** 1
 ```
 
@@ -114,4 +114,4 @@ lake build                              # Project gate / final verification only
 
 ## See Also
 
-- [Extended workflows](../skills/lean4/references/agent-workflows.md#lean4-sorry-filler-deep)
+- [Extended workflows](../skills/lean4/references/agent-workflows.md#sorry-filler-deep)

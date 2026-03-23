@@ -118,9 +118,9 @@ check_agents() {
 
         local max_lines=115
         case "$agent" in
-            lean4-axiom-eliminator) max_lines=120 ;;
-            lean4-proof-golfer) max_lines=155 ;;
-            lean4-sorry-filler-deep) max_lines=125 ;;
+            axiom-eliminator) max_lines=120 ;;
+            proof-golfer) max_lines=155 ;;
+            sorry-filler-deep) max_lines=125 ;;
         esac
 
         if [[ $lines -gt $max_lines ]]; then
@@ -289,7 +289,7 @@ check_cross_refs() {
     local cmd_anchors="$KNOWN_COMMANDS"
 
     # Valid anchors for agent-workflows.md
-    local agent_anchors="lean4-sorry-filler-deep lean4-proof-repair lean4-proof-golfer lean4-axiom-eliminator"
+    local agent_anchors="sorry-filler-deep proof-repair proof-golfer axiom-eliminator"
 
     # Valid anchors for cycle-engine.md
     local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic falsification-artifacts repair-mode safety synthesis-outer-loop algorithm draft-commit-boundary header-fence session-generated-provenance statement-safety claim-queue file-assembly-contract review-router"
@@ -707,8 +707,8 @@ check_golf_policy() {
         ok "golf.md: All safety policy anchors present"
     fi
 
-    # lean4-proof-golfer.md: section heading + policy phrases
-    local agent_file="$PLUGIN_ROOT/agents/lean4-proof-golfer.md"
+    # proof-golfer.md: section heading + policy phrases
+    local agent_file="$PLUGIN_ROOT/agents/proof-golfer.md"
     local agent_missing=0
     for term in \
         "## Delegation Awareness" \
@@ -719,12 +719,12 @@ check_golf_policy() {
         "nested tactic.mode|nested.*by.*skip" \
         "no broad replace-all|broad replace"; do
         if ! grep -qiE "$term" "$agent_file"; then
-            warn "lean4-proof-golfer.md: Missing policy anchor: '$term'"
+            warn "proof-golfer.md: Missing policy anchor: '$term'"
             agent_missing=1
         fi
     done
     if [[ $agent_missing -eq 0 ]]; then
-        ok "lean4-proof-golfer.md: All agent policy anchors present"
+        ok "proof-golfer.md: All agent policy anchors present"
     fi
 
     # proof-golfing.md: bulk trigger wording must match command+agent
@@ -1407,6 +1407,119 @@ check_bare_slash_links() {
     fi
 }
 
+# Fence-aware section extractor (skips headings inside ``` code blocks).
+# Based on test_contracts.sh extract_section().
+# Usage: _extract_section_fenced FILE "## Heading"
+_extract_section_fenced() {
+    local file="$1"
+    local heading="$2"
+    local prefix
+    prefix="${heading%%[^#]*}"
+    local level="${#prefix}"
+    awk -v start="$heading" -v lvl="$level" '
+        /^```/ { in_fence = !in_fence }
+        $0 == start && !found { found=1; next }
+        found && !in_fence && /^#+/ {
+            match($0, /^#+/)
+            if (RLENGTH <= lvl) exit
+        }
+        found { print }
+    ' "$file"
+}
+
+# Check: Header-fence regression guard
+# For each agent with a header-fence constraint, verify that example blocks
+# in the agent file and its agent-workflows.md section do not demonstrate
+# statement generalization or declaration-header modifications.
+check_header_fence_examples() {
+    log ""
+    log "Checking header-fence example consistency..."
+
+    local workflows_file="$PLUGIN_ROOT/skills/lean4/references/agent-workflows.md"
+    local fence_ok=1
+
+    for agent_file in "$PLUGIN_ROOT"/agents/*.md; do
+        local agent_name
+        agent_name=$(grep -m1 '^name:' "$agent_file" | sed 's/^name: *//')
+        if [[ -z "$agent_name" ]]; then
+            continue
+        fi
+
+        # Extract constraints section (fence-aware)
+        local constraints
+        constraints=$(_extract_section_fenced "$agent_file" "## Constraints")
+        if [[ -z "$constraints" ]]; then
+            continue
+        fi
+
+        # Determine which header-fence checks apply
+        local check_generalize=0
+        local check_header_mod=0
+        if echo "$constraints" | grep -qi 'NOT generalize'; then
+            check_generalize=1
+        fi
+        if echo "$constraints" | grep -qiE 'NOT modify declaration headers|header fence'; then
+            check_header_mod=1
+        fi
+        if [[ "$check_generalize" -eq 0 ]] && [[ "$check_header_mod" -eq 0 ]]; then
+            continue
+        fi
+
+        # Extract examples from agent file (fence-aware)
+        local examples
+        examples=$(_extract_section_fenced "$agent_file" "## Example (Happy Path)")
+        if [[ -z "$examples" ]]; then
+            examples=$(_extract_section_fenced "$agent_file" "## Example")
+        fi
+
+        # Check generalization in agent examples
+        if [[ "$check_generalize" -eq 1 ]] && [[ -n "$examples" ]]; then
+            if echo "$examples" | grep -qiE 'Generalize.*(statement|signature|type)'; then
+                warn "$agent_name: Agent example demonstrates generalization despite header-fence constraint"
+                fence_ok=0
+            fi
+        fi
+
+        # Check header modification in agent examples (diff hunks changing declaration lines)
+        if [[ "$check_header_mod" -eq 1 ]] && [[ -n "$examples" ]]; then
+            if echo "$examples" | grep -qE '^\+\s*(theorem|def|lemma|instance) ' && \
+               echo "$examples" | grep -qE '^\-\s*(theorem|def|lemma|instance) '; then
+                warn "$agent_name: Agent example modifies a declaration header despite header-fence constraint"
+                fence_ok=0
+            fi
+        fi
+
+        # Check corresponding section in agent-workflows.md
+        if [[ -f "$workflows_file" ]]; then
+            local wf_section
+            wf_section=$(_extract_section_fenced "$workflows_file" "## $agent_name")
+
+            if [[ -n "$wf_section" ]]; then
+                # Check generalization
+                if [[ "$check_generalize" -eq 1 ]]; then
+                    if echo "$wf_section" | grep -qiE 'Generalize.*(statement|signature|type)'; then
+                        warn "$agent_name: agent-workflows.md example demonstrates generalization despite header-fence constraint"
+                        fence_ok=0
+                    fi
+                fi
+
+                # Check header modification in diff hunks
+                if [[ "$check_header_mod" -eq 1 ]]; then
+                    if echo "$wf_section" | grep -qE '^\+\s*(theorem|def|lemma|instance) ' && \
+                       echo "$wf_section" | grep -qE '^\-\s*(theorem|def|lemma|instance) '; then
+                        warn "$agent_name: agent-workflows.md example modifies a declaration header despite header-fence constraint"
+                        fence_ok=0
+                    fi
+                fi
+            fi
+        fi
+    done
+
+    if [[ "$fence_ok" -eq 1 ]]; then
+        ok "Header-fence examples consistent with constraints"
+    fi
+}
+
 # Main
 log "Lean4 Plugin Documentation Lint"
 log "================================"
@@ -1440,6 +1553,7 @@ check_description_alignment
 check_host_agnostic
 check_contribute_policy
 check_bare_slash_links
+check_header_fence_examples
 
 log ""
 log "================================"

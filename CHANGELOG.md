@@ -1,5 +1,17 @@
 # Changelog
 
+## v4.4.1 (March 2026)
+
+- BREAKING: Rename proof-editing agents to drop `lean4-` prefix (#67)
+  - `lean4-sorry-filler-deep` → `sorry-filler-deep`
+  - `lean4-proof-repair` → `proof-repair`
+  - `lean4-proof-golfer` → `proof-golfer`
+  - `lean4-axiom-eliminator` → `axiom-eliminator`
+  - Dispatch names change from `lean4:lean4-*` to `lean4:*`
+- Fix sorry-filler-deep examples that contradicted the header-fence contract
+- Add header-fence regression guard to `lint_docs.sh`
+- Add agent dispatch name resolution test to `test_contracts.sh`
+
 ## v4.4.0 (March 2026)
 
 Separates drafting from proving with a cleaner command surface. Existing invocations

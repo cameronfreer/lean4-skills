@@ -1,5 +1,5 @@
 ---
-name: lean4-proof-repair
+name: proof-repair
 description: Compiler-guided iterative proof repair with two-stage repair escalation (fast → strong). Use for error-driven proof fixing with small sampling budgets (K=1).
 tools: Read, Grep, Glob, Edit, Bash, lean_goal, lean_local_search, lean_leanfinder, lean_leansearch, lean_loogle, lean_multi_attempt, lean_diagnostic_messages, lean_run_code
 model: sonnet
@@ -68,6 +68,7 @@ Structured error context (JSON):
 - May NOT rewrite entire functions
 - May NOT try random tactics
 - May NOT skip mathlib search
+- May NOT modify declaration headers (header fence). If the fix requires a signature change, return no diff and let the caller escalate.
 - Use `lean_diagnostic_messages(file)` for per-edit validation before any Bash-based file gate; prefer `lean_run_code` over temporary `.lean` files for isolated scratch probes
 
 ## Example (Happy Path)
@@ -104,4 +105,4 @@ $LEAN4_SCRIPTS/smart_search.sh      # Multi-source
 
 ## See Also
 
-- [Extended workflows](../skills/lean4/references/agent-workflows.md#lean4-proof-repair)
+- [Extended workflows](../skills/lean4/references/agent-workflows.md#proof-repair)

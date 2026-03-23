@@ -171,6 +171,19 @@ Both `lib/scripts/` and `scripts/` (compat alias) resolve to the same directory.
 
 Run `/lean4:doctor` for full diagnostics.
 
+## V4.4.0 → V4.4.1
+
+**Proof-editing agents renamed** to drop the `lean4-` prefix, fixing the dispatch name stutter.
+
+| Old name | New name | Old dispatch | New dispatch |
+|----------|----------|--------------|--------------|
+| `lean4-sorry-filler-deep` | `sorry-filler-deep` | `lean4:lean4-sorry-filler-deep` | `lean4:sorry-filler-deep` |
+| `lean4-proof-repair` | `proof-repair` | `lean4:lean4-proof-repair` | `lean4:proof-repair` |
+| `lean4-proof-golfer` | `proof-golfer` | `lean4:lean4-proof-golfer` | `lean4:proof-golfer` |
+| `lean4-axiom-eliminator` | `axiom-eliminator` | `lean4:lean4-axiom-eliminator` | `lean4:axiom-eliminator` |
+
+If you have external tooling or scripts that dispatch agents by the old names, update them to the new names.
+
 ## V4.3.x → V4.4.0
 
 **Separates drafting from proving** with a cleaner command surface.

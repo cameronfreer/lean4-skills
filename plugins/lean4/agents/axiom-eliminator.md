@@ -1,5 +1,5 @@
 ---
-name: lean4-axiom-eliminator
+name: axiom-eliminator
 description: Remove nonconstructive axioms by refactoring proofs to structure (kernels, measurability, etc.). Use after checking axiom hygiene to systematically eliminate custom axioms.
 tools: Read, Grep, Glob, Edit, Bash, lean_goal, lean_local_search, lean_leanfinder, lean_leansearch, lean_loogle, lean_diagnostic_messages, lean_run_code
 model: opus
@@ -111,4 +111,4 @@ lake build
 
 ## See Also
 
-- [Extended workflows](../skills/lean4/references/agent-workflows.md#lean4-axiom-eliminator)
+- [Extended workflows](../skills/lean4/references/agent-workflows.md#axiom-eliminator)

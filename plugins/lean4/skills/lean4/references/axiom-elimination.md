@@ -262,7 +262,7 @@ Estimated total: X+Y+Z days
 
 ## Integration with Subagents
 
-**lean4-axiom-eliminator agent can:**
+**axiom-eliminator agent can:**
 - Search mathlib exhaustively for each axiom
 - Try multiple proof strategies
 - Generate elimination patches

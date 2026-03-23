@@ -415,7 +415,7 @@ lean_goal(file, line, column)  # See proof state
 lean_diagnostic_messages(file)  # Check errors
 
 # Delegate proof work with file:line context; the agent prompt handles the MCP-first details
-"Dispatch lean4-sorry-filler-deep on Foo.lean:42; use MCP tools first"
+"Dispatch sorry-filler-deep on Foo.lean:42; use MCP tools first"
 
 # Delegate batch operations to subagents
 "Dispatch Explore agent to run $LEAN4_SCRIPTS/check_axioms_inline.sh on all changed files"
