@@ -89,6 +89,10 @@ claude mcp add lean-lsp uvx lean-lsp-mcp
 claude mcp add lean-lsp -s project uvx lean-lsp-mcp
 ```
 
+> **Tip:** User-scoped (local) is recommended — it has been more reliable for
+> keeping MCP tools visible inside proof-editing subagents. Project-scoped servers
+> may not propagate to plugin subagents in some Claude Code versions.
+
 **Other hosts:** See [INSTALLATION.md → MCP Server](INSTALLATION.md#lean-lsp-mcp-server-all-hosts)
 
 ## Compatibility

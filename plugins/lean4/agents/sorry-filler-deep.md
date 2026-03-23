@@ -19,6 +19,11 @@ model: opus
    - Check if needs: argument reordering, helper lemmas, type class refactoring (statement generalization NOT permitted — header fence)
    - Search with 1-2 LSP tools before trying fallback scripts or file-level compilation
 
+   > **MCP canary:** If both `lean_goal` and `lean_diagnostic_messages` are unavailable
+   > (tool-not-found, missing from context, or otherwise inaccessible), emit
+   > "⚠ Lean MCP tools unavailable in this subagent context" and proceed using
+   > script fallback for search and `lake env lean` / `lake build` for validation.
+
 2. **Outline plan FIRST** (~200-500 tokens):
    ```markdown
    ## Sorry Filling Plan

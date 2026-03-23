@@ -18,6 +18,12 @@ model: opus
    - Use `bash $LEAN4_SCRIPTS/check_axioms_inline.sh FILE.lean` (or `.` for project-wide audit) to measure current axiom state
    - Use `bash $LEAN4_SCRIPTS/find_usages.sh axiom_name` for dependency inventory
 
+   > **MCP canary:** If `lean_diagnostic_messages` is missing from context (tool not
+   > listed), emit "⚠ Lean MCP tools unavailable in this subagent context" and fall
+   > back immediately to `$LEAN4_SCRIPTS/check_axioms_inline.sh` and `lake build` for
+   > validation. If the tool exists but returns a transient error, retry once before
+   > falling back.
+
 2. **Propose migration plan** (~500-800 tokens):
    ```markdown
    ## Axiom Elimination Plan

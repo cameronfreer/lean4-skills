@@ -1,5 +1,12 @@
 # Changelog
 
+## v4.4.3 (March 2026)
+
+- Add per-agent MCP availability canary to all proof-editing agents (#39)
+- Document upstream MCP-in-subagents limitation (anthropic/claude-code#13605)
+- Recommend user-scoped lean-lsp for subagent reliability
+- Soften axiom-eliminator "Generalize" → "Refactor to use" to reduce terminology drift
+
 ## v4.4.2 (March 2026)
 
 - Surface `lean_code_actions` across all skill, command, agent, and reference docs (#70)
