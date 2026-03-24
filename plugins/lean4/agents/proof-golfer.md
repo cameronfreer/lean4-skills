@@ -30,6 +30,8 @@ model: opus
    - 3-4 uses: Check carefully (40% worth optimizing)
    - 5+ uses: NEVER inline
 
+   > **MCP canary:** Before step 3, test `lean_diagnostic_messages(file)`. If unavailable (tool-not-found, missing from context, or inaccessible), emit "⚠ Lean MCP tools unavailable — golfing limited to syntactic patterns", skip steps 3-4 (require `lean_multi_attempt`), and reduce step 5 to max 1 hunk with `lake build` per-hunk verification (no bulk rewrites — baseline-comparison gate requires per-edit diagnostics).
+
 3. **Exact-collapse pass** (for `apply-exact-chain` anchors from step 1):
    - Mechanical (≤30 anchors/file): construct collapsed `exact` → `lean_multi_attempt` + `lean_diagnostic_messages` baseline check; accept by scoring order (per golf.md: directness → inference burden → perf → length)
    - Exploratory (when search_mode ≠ off; shared budget): candidate `exact` from chain lemmas + local hyps + dot-notation rewrites → `lean_multi_attempt`; ≤2 probes/anchor, `quick` ≤5/file 30s, `full` ≤15/file 60s. Skip: `calc`, multi-goal, blocks >7 lines, semicolon-heavy, `have`/`refine`

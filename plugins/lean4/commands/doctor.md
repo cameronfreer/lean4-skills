@@ -204,7 +204,7 @@ No changes made. Run `/lean4:doctor cleanup --apply` to remove.
 | Stale env vars | Restart session after removing old plugin |
 | Commands not found after migration | Check `/lean4:*` not `/lean4-theorem-proving:*` |
 | `rg` not found | Install via package manager — see [ripgrep](../../../INSTALLATION.md#optional-ripgrep) |
-| Lean LSP MCP tools unavailable | Check `claude mcp list` (Claude Code); if missing, `claude mcp add lean-lsp uvx lean-lsp-mcp` or see [INSTALLATION.md](../../../INSTALLATION.md#lean-lsp-mcp-server-all-hosts) |
+| Lean LSP MCP tools unavailable | Check `claude mcp list` (Claude Code); if missing, `claude mcp add --transport stdio --scope user lean-lsp -- uvx lean-lsp-mcp` or see [INSTALLATION.md](../../../INSTALLATION.md#lean-lsp-mcp-server-all-hosts) |
 
 ## Safety
 

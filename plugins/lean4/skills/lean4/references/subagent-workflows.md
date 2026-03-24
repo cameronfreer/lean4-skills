@@ -426,6 +426,21 @@ lean_diagnostic_messages(file)  # Check errors
 - Subagents: Parallel proof work or batch verification, while still using MCP for live Lean state when available
 - Best of both: Interactive + Automated
 
+### Known Limitation: MCP in Plugin Subagents
+
+Plugin-defined subagents may not reliably inherit MCP server connections in some
+Claude Code versions (upstream tracking: anthropic/claude-code#13605). When this
+occurs, each agent's LSP-first fallback gate activates and proof-editing work
+falls back per agent to scripts or host-side verification (e.g., `lake env lean`,
+`lake build`).
+
+**Workarounds:**
+- Prefer **user-scoped** MCP server (`claude mcp add --transport stdio --scope user lean-lsp -- ...`) over
+  project-scoped (`--scope project`) — user-scoped servers have been more reliable
+  for subagent visibility
+- For work that critically depends on MCP tools, run in the main conversation
+  thread rather than delegating to a subagent
+
 ## Best Practices
 
 ### Do

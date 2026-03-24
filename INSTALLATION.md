@@ -284,7 +284,7 @@ search and sub-second feedback. Works with any MCP-capable host. Setup: a few mi
 **One-time setup:** ~5 minutes. Highly recommended.
 
 Per-host MCP configuration (check each host's latest docs for current syntax):
-- **Claude Code** (run from your Lean project root): `claude mcp add lean-lsp uvx lean-lsp-mcp`
+- **Claude Code** (run from your Lean project root): `claude mcp add --transport stdio --scope user lean-lsp -- uvx lean-lsp-mcp`
 - **Codex CLI:** Check [Codex docs](https://developers.openai.com/codex/) for MCP setup
 - **Gemini CLI:** Check [Gemini CLI docs](https://github.com/google-gemini/gemini-cli) for MCP setup
 - **OpenCode:** Check [OpenCode docs](https://opencode.ai/docs/) for MCP setup

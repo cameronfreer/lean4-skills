@@ -282,7 +282,7 @@ Handoff: not needed (single-line, no statement change)
 3. **set_countable** (Core.lean:89)
    - Type: structural_refactor
    - Used by: 2 theorems
-   - Strategy: Generalize to Countable typeclass
+   - Strategy: Refactor to use Countable typeclass
    - Priority: medium
 
 4. **magic_bound** (Bounds.lean:12)
