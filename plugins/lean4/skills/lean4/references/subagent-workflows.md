@@ -435,8 +435,8 @@ falls back per agent to scripts or host-side verification (e.g., `lake env lean`
 `lake build`).
 
 **Workarounds:**
-- Prefer **user-scoped** MCP server (`claude mcp add lean-lsp ...`) over
-  project-scoped (`-s project`) — user-scoped servers have been more reliable
+- Prefer **user-scoped** MCP server (`claude mcp add --transport stdio --scope user lean-lsp -- ...`) over
+  project-scoped (`--scope project`) — user-scoped servers have been more reliable
   for subagent visibility
 - For work that critically depends on MCP tools, run in the main conversation
   thread rather than delegating to a subagent

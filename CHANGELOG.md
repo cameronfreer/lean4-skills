@@ -6,6 +6,7 @@
 - Document upstream MCP-in-subagents limitation (anthropic/claude-code#13605)
 - Recommend user-scoped lean-lsp for subagent reliability
 - Soften axiom-eliminator "Generalize" → "Refactor to use" to reduce terminology drift
+- Fix MCP scope labels and syntax: use `--scope user` for cross-project visibility, `--transport stdio`, `--` separator
 
 ## v4.4.2 (March 2026)
 

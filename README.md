@@ -82,16 +82,16 @@ The skill works standalone, but plays especially well with [lean-lsp-mcp](https:
 
 **Claude Code** (run from your Lean project root):
 ```bash
-# Local — available in all your projects
-claude mcp add lean-lsp uvx lean-lsp-mcp
+# User-scoped — available in all your projects
+claude mcp add --transport stdio --scope user lean-lsp -- uvx lean-lsp-mcp
 
-# Or project-scoped — creates .mcp.json, version-controllable with your repo
-claude mcp add lean-lsp -s project uvx lean-lsp-mcp
+# Or project-scoped — shared via .mcp.json
+claude mcp add --transport stdio --scope project lean-lsp -- uvx lean-lsp-mcp
 ```
 
-> **Tip:** User-scoped (local) is recommended — it has been more reliable for
-> keeping MCP tools visible inside proof-editing subagents. Project-scoped servers
-> may not propagate to plugin subagents in some Claude Code versions.
+> **Tip:** User-scoped (`--scope user`) is recommended — it has been more reliable
+> for keeping MCP tools visible inside proof-editing subagents. Project-scoped
+> servers may not propagate to plugin subagents in some Claude Code versions.
 
 **Other hosts:** See [INSTALLATION.md → MCP Server](INSTALLATION.md#lean-lsp-mcp-server-all-hosts)
 
