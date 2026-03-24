@@ -441,6 +441,42 @@ falls back per agent to scripts or host-side verification (e.g., `lake env lean`
 - For work that critically depends on MCP tools, run in the main conversation
   thread rather than delegating to a subagent
 
+## Multi-Branch Workflows
+
+When working across multiple branches (e.g., benchmark variants, parallel experiments),
+set up **one worktree per branch** at the start:
+
+```bash
+git worktree add ../project-branch-a branch-a
+git worktree add ../project-branch-b branch-b
+```
+
+Each worktree is a full working directory on its own branch. Agents can operate in
+different worktrees without interfering.
+
+**Rules:**
+- Keep each agent pinned to one worktree
+- **Do not use `git stash` to shuttle agent work across branches** — stash/pop cycles
+  create merge conflicts, cross-branch contamination, and silent data loss (#66)
+- **Checkpoint or commit before cleanup** — never delete a worktree until results are
+  committed on the target branch
+- **Before any branch switch** in the main checkout: run `/lean4:checkpoint` or
+  `git commit` to persist all pending work
+
+**Worktree handoff:** When an agent produces results in a worktree, import them by:
+- Committing on that worktree's branch, then merging/cherry-picking
+- Extracting a patch (`git diff > patch`) and applying it
+- Explicit file copy to the target branch
+
+Never by stashing in one worktree and popping in another.
+
+**Worktree cache:** Each worktree needs its own `.lake` cache — see
+[Cold start / fresh worktree](../SKILL.md) for setup.
+
+> **Claude Code note:** `isolation: "worktree"` runs an agent in a temporary git
+> worktree automatically. The worktree persists if the agent makes changes — commit
+> or import results before cleanup.
+
 ## Best Practices
 
 ### Do
