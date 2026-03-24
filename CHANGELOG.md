@@ -1,5 +1,11 @@
 # Changelog
 
+## v4.4.4 (March 2026)
+
+- Stop recommending `git stash` in guardrails and docs — commit or checkpoint first (#66)
+- Add multi-branch worktree workflow guidance to subagent-workflows.md (#66)
+- Fix bare-slash-link lint rule so mixed good/bad-link lines are still reported
+
 ## v4.4.3 (March 2026)
 
 - Add per-agent MCP availability canary to all proof-editing agents (#39)

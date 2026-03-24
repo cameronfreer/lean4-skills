@@ -155,7 +155,7 @@ Blocked during Lean project sessions:
 - `git push` → Use `/lean4:checkpoint`, then push manually
 - `git commit --amend` → Each change is a new commit for safe rollback
 - `gh pr create` → Review first with `/lean4:review`
-- Destructive git operations (`checkout --`, `restore`, `reset --hard`, `clean -f`) → Use `git stash push -u`
+- Destructive git operations (`checkout --`, `restore`, `reset --hard`, `clean -f`) → Commit or checkpoint first
 - Deep sorry-filling has snapshot, rollback, scope budgets, and regression gates — see [Cycle Engine](skills/lean4/references/cycle-engine.md#deep-mode)
 
 **Override environment variables:**

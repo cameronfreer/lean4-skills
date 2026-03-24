@@ -295,7 +295,7 @@ Blocked git commands (both prove and autoprove):
 - `git push` (review first)
 - `git commit --amend` (preserve history)
 - `gh pr create` (review first)
-- `git checkout --`/`git restore`/`git reset --hard`/`git clean` (use `git stash push -u` or revert commit)
+- `git checkout --`/`git restore`/`git reset --hard`/`git clean` (commit or checkpoint first)
 
 ## Synthesis Outer Loop
 
