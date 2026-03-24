@@ -1400,7 +1400,7 @@ check_bare_slash_links() {
     while IFS= read -r line; do
         warn "Bare /slash link label: $line"
         found=1
-    done < <(grep -rnE '\[/[^]]+\]\(' "$PLUGIN_ROOT" --include='*.md' | grep -v '\[`' || true)
+    done < <(grep -rnE '\[/[^]]+\]\(' "$PLUGIN_ROOT" --include='*.md' || true)
 
     if [[ $found -eq 0 ]]; then
         ok "No bare /slash link labels found"
