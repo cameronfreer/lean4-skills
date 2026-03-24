@@ -25,8 +25,7 @@ Structured error context (JSON):
 
    > **MCP canary:** If `lean_goal` and `lean_diagnostic_messages` are both unavailable
    > (tool-not-found, missing from context, or otherwise inaccessible), return no diff
-   > and signal the caller: `"MCP unavailable — cannot classify error reliably"`.
-   > Do not emit explanatory text (output remains diff-only per contract).
+   > and let the caller escalate (same mechanism as header-fence violation at step 5).
 
 2. **Apply error-specific strategy** (see table below)
 3. **Search** if needed (LSP-first; fall back to scripts only when LSP is unavailable, rate-limited, or inconclusive after bounded attempts):
