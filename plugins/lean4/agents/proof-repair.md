@@ -1,7 +1,7 @@
 ---
 name: proof-repair
 description: Compiler-guided iterative proof repair with two-stage repair escalation (fast → strong). Use for error-driven proof fixing with small sampling budgets (K=1).
-tools: Read, Grep, Glob, Edit, Bash, lean_goal, lean_local_search, lean_leanfinder, lean_leansearch, lean_loogle, lean_multi_attempt, lean_diagnostic_messages, lean_code_actions, lean_run_code
+tools: Read, Grep, Glob, Edit, Bash, mcp__lean-lsp__lean_goal, mcp__lean-lsp__lean_local_search, mcp__lean-lsp__lean_leanfinder, mcp__lean-lsp__lean_leansearch, mcp__lean-lsp__lean_loogle, mcp__lean-lsp__lean_multi_attempt, mcp__lean-lsp__lean_diagnostic_messages, mcp__lean-lsp__lean_code_actions, mcp__lean-lsp__lean_run_code
 model: sonnet
 ---
 
