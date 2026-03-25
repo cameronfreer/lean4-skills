@@ -118,7 +118,7 @@ check_agents() {
 
         local max_lines=115
         case "$agent" in
-            axiom-eliminator) max_lines=120 ;;
+            axiom-eliminator) max_lines=125 ;;
             proof-golfer) max_lines=155 ;;
             sorry-filler-deep) max_lines=125 ;;
         esac

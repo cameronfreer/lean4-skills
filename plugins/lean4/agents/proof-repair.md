@@ -75,6 +75,7 @@ Structured error context (JSON):
 - May NOT skip mathlib search
 - May NOT modify declaration headers (header fence). If the fix requires a signature change, return no diff and let the caller escalate.
 - Use `lean_diagnostic_messages(file)` for per-edit validation before any Bash-based file gate; prefer `lean_run_code` over temporary `.lean` files for isolated scratch probes
+- Follow mathlib 100-char line width — do not wrap lines at 80 when they fit within 100
 
 ## Example (Happy Path)
 

@@ -71,6 +71,7 @@ Final summary (~200-300 tokens):
 - Must validate after every phase: `lean_goal` before first edit and after material changes; `lean_diagnostic_messages` per edit batch
 - Prefer live-file MCP for target-context work; for isolated scratch experiments use `lean_run_code` (temporary `.lean` files only as last resort)
 - Engine creates path-scoped snapshot before deep and rolls back on regression or scope exceeded
+- Follow mathlib 100-char line width — do not wrap lines at 80 when they fit within 100
 - Engine enforces `--deep-scope`, `--deep-max-files`, `--deep-max-lines` — do not bypass
 - Agent must not run git snapshot/rollback commands directly; on rollback, sorry is marked stuck and agent must stop
 

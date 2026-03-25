@@ -105,6 +105,7 @@ When autoformalize stops, emit:
 - **Guardrailed git commands are blocked.** See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#safety) for the full list.
 - **Header fence.** Proof engines (inner cycle) never modify declaration headers. Statement changes are handled by the synthesis outer loop's redraft path, not by deep mode.
 - **All `guardrails.sh` rules apply.**
+- **Line width.** Follow mathlib 100-char line width — do not wrap lines at 80 when they fit within 100.
 
 ## See Also
 

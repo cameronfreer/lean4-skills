@@ -152,6 +152,7 @@ Always run `bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target> --report-only`
 - **Overwrite protection.** `--output=file` with existing target requires `--overwrite`; otherwise hard error.
 - **Never add global axioms silently.** Assumptions go as explicit theorem parameters or in `namespace Assumptions`. Always verified with `bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target> --report-only`.
 - **All `guardrails.sh` rules apply.**
+- **Line width.** Follow mathlib 100-char line width — do not wrap lines at 80 when they fit within 100.
 
 ## See Also
 

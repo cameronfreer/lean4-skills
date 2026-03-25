@@ -1,5 +1,12 @@
 # Changelog
 
+## v4.4.5 (March 2026)
+
+- Promote 100-char line width rule to SKILL.md active editing contract (#58)
+- Add metaprogramming line-width examples to mathlib-style.md (#58)
+- Add 100-char constraint to generation/edit commands, proof-editing agents, and sorry-filling reference (#58)
+- Teach review to flag unnecessary sub-100-char wrapping (#58)
+
 ## v4.4.4 (March 2026)
 
 - Stop recommending `git stash` in guardrails and docs — commit or checkpoint first (#66)

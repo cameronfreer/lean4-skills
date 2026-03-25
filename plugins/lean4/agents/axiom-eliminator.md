@@ -78,6 +78,7 @@ Total: ~2000-3000 tokens per batch
 - May NOT break dependent theorems
 - Must track axiom count (trending down)
 - Prefer live-file MCP for target-context verification; use `lean_run_code` for isolated scratch experiments, and temporary `.lean` files only if `lean_run_code` is unavailable or insufficient
+- Follow mathlib 100-char line width — do not wrap lines at 80 when they fit within 100
 
 ## Example (Happy Path)
 

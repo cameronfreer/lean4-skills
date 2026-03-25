@@ -182,6 +182,8 @@ LSP tools can sometimes show success when problems remain. After a sequence of c
 
 This catches issues that per-edit LSP may miss.
 
+- Follow mathlib 100-char line width — do not wrap lines at 80 when they fit within 100
+
 **💡 Cache after clean or in a fresh worktree**
 If you run `lake clean`, or start from a fresh clone/worktree, hydrate the cache before the first full build:
 ```bash
