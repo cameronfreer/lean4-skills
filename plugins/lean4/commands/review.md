@@ -118,7 +118,7 @@ The agent selects files based on scope, then runs these analyses (per file or di
 1. **Build Status** - `lake build` (project-wide); for scoped review (`--scope=file`), use `lean_diagnostic_messages(file)` + `lake env lean <path/to/File.lean>` (run from project root) first
 2. **Sorry Audit** - `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" <target> --format=json --report-only`
 3. **Axiom Check** - `bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target> --report-only`
-4. **Style Review** - Check mathlib conventions (naming, structure, tactics)
+4. **Style Review** - Check mathlib conventions (naming, structure, tactics, 100-char line width). Flag lines wrapped under 100 chars that fit on one line (common: `mkAppM` calls, short struct literals, single-expression tactic lines).
 5. **Golfing Opportunities** - `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/find_golfable.py" <target> --filter-false-positives`
 6. **Complexity Metrics** - Proof sizes, longest proofs, tactic patterns
 

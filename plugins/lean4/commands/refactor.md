@@ -84,6 +84,7 @@ See [proof-simplification](../skills/lean4/references/proof-simplification.md) f
 - Asks before each batch of edits
 - Reverts batch on per-batch verification failure; reverts all session batches on final gate failure
 - Compiled proofs only (refuses files with sorries or build errors)
+- Follow mathlib 100-char line width — do not wrap lines at 80 when they fit within 100
 
 ## See Also
 

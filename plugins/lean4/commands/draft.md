@@ -110,6 +110,7 @@ Output format follows `--presentation`: `informal` → prose with math notation 
 - **Overwrite protection.** `--output=file` with existing target requires `--overwrite`; otherwise hard error.
 - **Caller integration:** When `--caller=autoformalize` or `--caller=formalize`, file assembly and `draft:` commits are handled by the outer loop, not by draft.
 - **All `guardrails.sh` rules apply.**
+- **Line width.** Follow mathlib 100-char line width — do not wrap lines at 80 when they fit within 100.
 
 ## See Also
 
