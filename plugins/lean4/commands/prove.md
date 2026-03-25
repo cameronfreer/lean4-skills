@@ -181,6 +181,7 @@ See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#repair-mode) fo
 ## Safety
 
 Guardrailed git commands are blocked. See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#safety) for the full list.
+- **Line width.** Follow mathlib 100-char line width — do not wrap lines at 80 when they fit within 100.
 
 ## See Also
 

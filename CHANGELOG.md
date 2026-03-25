@@ -4,7 +4,7 @@
 
 - Promote 100-char line width rule to SKILL.md active editing contract (#58)
 - Add metaprogramming line-width examples to mathlib-style.md (#58)
-- Add 100-char constraint to all mutating commands and agents (#58)
+- Add 100-char constraint to generation/edit commands, proof-editing agents, and sorry-filling reference (#58)
 - Teach review to flag unnecessary sub-100-char wrapping (#58)
 
 ## v4.4.4 (March 2026)
