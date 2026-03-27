@@ -92,12 +92,12 @@ In the plugin directory:
 Set env vars in your shell profile so script fallbacks resolve against the installed Codex cache copy:
 
 ```bash
-export LEAN4_PLUGIN_ROOT="$HOME/.codex/plugins/cache/lean4-skills-local/lean4/local"
+export LEAN4_PLUGIN_ROOT="$HOME/.codex/plugins/cache/lean4-skills/lean4/local"
 export LEAN4_SCRIPTS="$LEAN4_PLUGIN_ROOT/lib/scripts"
 export LEAN4_REFS="$LEAN4_PLUGIN_ROOT/skills/lean4/references"
 ```
 
-If you renamed the marketplace from `lean4-skills-local`, adjust the cache path accordingly.
+If you renamed the marketplace from `lean4-skills`, adjust the cache path accordingly.
 
 ### Verify
 

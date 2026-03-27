@@ -1,7 +1,7 @@
 {
-  "name": "lean4-skills-local",
+  "name": "lean4-skills",
   "interface": {
-    "displayName": "Lean 4 Skills (Local)"
+    "displayName": "Lean 4 Skills"
   },
   "plugins": [
     {
