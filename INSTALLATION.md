@@ -72,7 +72,7 @@ chmod +x $LEAN4_SCRIPTS/*.sh $LEAN4_SCRIPTS/*.py
 ## OpenAI Codex Plugin Directory
 
 Codex installs these plugins from the repo marketplace:
-- `lean4-skills` (core Lean proving workflows)
+- `lean4` (core Lean proving workflows)
 - `lean4-contribute-codex` (optional issue-drafting workflows)
 
 From the repository root:
@@ -85,14 +85,14 @@ codex
 
 In the plugin directory:
 1. Load the local marketplace file `.agents/plugins/marketplace.json` (if not auto-detected).
-2. Install `lean4-skills`.
+2. Install `lean4`.
 3. Optionally install `lean4-contribute-codex`.
 4. Restart Codex after install/update so cached plugin copies reload.
 
 Set env vars in your shell profile so script fallbacks resolve against the installed Codex cache copy:
 
 ```bash
-export LEAN4_PLUGIN_ROOT="$HOME/.codex/plugins/cache/lean4-skills-local/lean4-skills/local"
+export LEAN4_PLUGIN_ROOT="$HOME/.codex/plugins/cache/lean4-skills-local/lean4/local"
 export LEAN4_SCRIPTS="$LEAN4_PLUGIN_ROOT/lib/scripts"
 export LEAN4_REFS="$LEAN4_PLUGIN_ROOT/skills/lean4/references"
 ```
@@ -104,7 +104,7 @@ If you renamed the marketplace from `lean4-skills-local`, adjust the cache path 
 ```bash
 ls "$LEAN4_PLUGIN_ROOT/skills/lean4/SKILL.md"
 python3 "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary --report-only
-# In Codex /plugins, confirm lean4-skills is installed
+# In Codex /plugins, confirm lean4 is installed
 # If installed, also confirm lean4-contribute-codex is available
 ```
 

@@ -35,7 +35,7 @@ class PackageConfig:
 
 
 LEAN4_SKILLS_PACKAGE = PackageConfig(
-    name="lean4-skills",
+    name="lean4",
     source_root=REPO_ROOT / "plugins" / "lean4",
     package_root=REPO_ROOT / "plugins" / "lean4-skills",
     copy_mappings=(
@@ -243,7 +243,7 @@ def _load_json(path: Path, errors: list[str]) -> dict | None:
 
 def validate_json_integrity(errors: list[str]) -> None:
     plugin_files = {
-        "lean4-skills": REPO_ROOT / "plugins" / "lean4-skills" / ".codex-plugin" / "plugin.json",
+        "lean4": REPO_ROOT / "plugins" / "lean4-skills" / ".codex-plugin" / "plugin.json",
         "lean4-contribute-codex": REPO_ROOT
         / "plugins"
         / "lean4-contribute-codex"
@@ -287,7 +287,7 @@ def validate_json_integrity(errors: list[str]) -> None:
         errors.append(f"{marketplace_path}: plugins must be an array")
         return
 
-    required = {"lean4-skills", "lean4-contribute-codex"}
+    required = {"lean4", "lean4-contribute-codex"}
     seen: set[str] = set()
     for entry in plugins:
         if not isinstance(entry, dict):
@@ -361,7 +361,7 @@ def main() -> int:
         "--package",
         action="append",
         default=[],
-        help="Limit to a package (repeatable): lean4-skills, lean4-contribute-codex",
+        help="Limit to a package (repeatable): lean4, lean4-contribute-codex",
     )
 
     check_parser = sub.add_parser("check", help="Validate sync equivalence + JSON integrity")

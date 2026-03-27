@@ -64,7 +64,7 @@ codex
 
 In the Codex plugin directory:
 - Load the repo marketplace at `.agents/plugins/marketplace.json` (if it is not auto-detected).
-- Install `lean4-skills`.
+- Install `lean4`.
 - Optionally install `lean4-contribute-codex` for issue-drafting workflows.
 
 After plugin updates, restart Codex so the cached local install reloads.

@@ -5,7 +5,7 @@
   },
   "plugins": [
     {
-      "name": "lean4-skills",
+      "name": "lean4",
       "source": {
         "source": "local",
         "path": "./plugins/lean4-skills"
