@@ -1,0 +1,32 @@
+{
+  "name": "lean4-skills-local",
+  "interface": {
+    "displayName": "Lean 4 Skills (Local)"
+  },
+  "plugins": [
+    {
+      "name": "lean4-skills",
+      "source": {
+        "source": "local",
+        "path": "./plugins/lean4-skills"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "lean4-contribute-codex",
+      "source": {
+        "source": "local",
+        "path": "./plugins/lean4-contribute-codex"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
