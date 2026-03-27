@@ -69,47 +69,43 @@ The `LEAN4_SCRIPTS` etc. variables are set by the bootstrap hook. If missing:
 chmod +x $LEAN4_SCRIPTS/*.sh $LEAN4_SCRIPTS/*.py
 ```
 
-## OpenAI Codex CLI
+## OpenAI Codex Plugin Directory
 
-Set env vars in your shell profile (replace `/path/to` with your actual clone location):
+Codex installs these plugins from the repo marketplace:
+- `lean4-skills` (core Lean proving workflows)
+- `lean4-contribute-codex` (optional issue-drafting workflows)
 
-```bash
-export LEAN4_PLUGIN_ROOT=/path/to/lean4-skills/plugins/lean4
-export LEAN4_SCRIPTS=$LEAN4_PLUGIN_ROOT/lib/scripts
-export LEAN4_REFS=$LEAN4_PLUGIN_ROOT/skills/lean4/references
-```
-
-Add to your project's `AGENTS.md` (model context — not shell env):
-
-```markdown
-## Lean 4 Workflows
-
-See /path/to/lean4-skills/plugins/lean4/skills/lean4/SKILL.md for proving workflows.
-
-Environment:
-- LEAN4_PLUGIN_ROOT=/path/to/lean4-skills/plugins/lean4
-- LEAN4_SCRIPTS=$LEAN4_PLUGIN_ROOT/lib/scripts
-- LEAN4_REFS=$LEAN4_PLUGIN_ROOT/skills/lean4/references
-```
-
-Codex also supports installing skills as directories and adding MCP servers.
-Check [current Codex docs](https://developers.openai.com/codex/skills/) for
-the exact commands — examples:
+From the repository root:
 
 ```bash
-# Skill install (check current syntax)
-# codex skill add /path/to/lean4-skills/plugins/lean4/skills/lean4
-
-# MCP setup (check current syntax)
-# codex mcp add lean-lsp -- npx lean-lsp-mcp --project /path/to/lean/project
+cd /path/to/lean4-skills
+codex
+/plugins
 ```
+
+In the plugin directory:
+1. Load the local marketplace file `.agents/plugins/marketplace.json` (if not auto-detected).
+2. Install `lean4-skills`.
+3. Optionally install `lean4-contribute-codex`.
+4. Restart Codex after install/update so cached plugin copies reload.
+
+Set env vars in your shell profile so script fallbacks resolve against the installed Codex cache copy:
+
+```bash
+export LEAN4_PLUGIN_ROOT="$HOME/.codex/plugins/cache/lean4-skills-local/lean4-skills/local"
+export LEAN4_SCRIPTS="$LEAN4_PLUGIN_ROOT/lib/scripts"
+export LEAN4_REFS="$LEAN4_PLUGIN_ROOT/skills/lean4/references"
+```
+
+If you renamed the marketplace from `lean4-skills-local`, adjust the cache path accordingly.
 
 ### Verify
 
 ```bash
-echo "$LEAN4_SCRIPTS"
+ls "$LEAN4_PLUGIN_ROOT/skills/lean4/SKILL.md"
 python3 "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary --report-only
-# If MCP configured: test lean_goal on a .lean file
+# In Codex /plugins, confirm lean4-skills is installed
+# If installed, also confirm lean4-contribute-codex is available
 ```
 
 ## Gemini CLI
