@@ -12,7 +12,7 @@
 - Adding a C/C++ dependency
 - Exposing Lean functions to a C host
 - Debugging symbol, link, or initialization issues
-- Needing by-value struct interop or stable ABI layout
+- Needing C-compatible struct layout for pointer-based interop
 - Embedding Lean in a C/C++ application (reverse FFI)
 
 ## Direction Selection
@@ -72,6 +72,7 @@ constant myFill (buf : @& ByteArray) (len : USize) : IO Unit
 
 Key points:
 - `@&` affects ABI and runtime behavior only, not Lean's logical type system
+- `@&` only applies to `@[extern]` declarations; `@[export]` parameters and return values are currently always owned
 - Use for read-only object parameters crossing FFI boundaries
 - Reduces unnecessary reference-count traffic in hot FFI paths
 - Keep extern Lean signature and foreign prototype ownership conventions aligned
@@ -79,7 +80,7 @@ Key points:
 
 ## Struct Layout
 
-Use `@[cstruct]` when you need C-compatible layout:
+Use `@[cstruct]` for C-compatible memory layout (pointer-based access from foreign code):
 
 ```lean
 @[cstruct]
@@ -88,7 +89,7 @@ structure CPoint where
   y : Int32
 ```
 
-Keep fields concrete and avoid Lean-level invariants inside the struct.
+Keep fields concrete and avoid Lean-level invariants inside the struct. Note that passing or returning C structs by value across the FFI boundary is not currently supported — use pointers.
 
 ## ByteArray-Based Buffers
 
@@ -118,7 +119,7 @@ For ObjC on macOS, compile `.m` with system clang and `-framework` flags.
 
 ## Reverse-FFI Host Initialization
 
-When embedding Lean in a C host, this initialization sequence is **mandatory** and order-sensitive:
+When embedding Lean in a C host, the common initialization sequence is:
 
 1. `lean_initialize_runtime_module()` — initialize the Lean runtime
 2. Call generated module initializer(s), e.g. `initialize_pkg_Module(...)` — initialize your Lean modules
@@ -127,6 +128,11 @@ When embedding Lean in a C host, this initialization sequence is **mandatory** a
 5. Call exported Lean functions — only safe after step 4
 
 Skipping or reordering these steps causes hard-to-debug runtime failures (missing global state, extension lookup failures, crashes).
+
+**Caveats:**
+- Some embedders need `lean_initialize()` instead of `lean_initialize_runtime_module()` — consult the official FFI docs for your use case
+- If using process/libuv functionality, call `lean_setup_args(argc, argv)` before initialization
+- Code using `Task` or non-Lean-managed threads may require additional init hooks
 
 ## Initialization Mechanisms
 

@@ -155,7 +155,7 @@ Custom compiler passes are installed via `@[cpass]` on a `PassInstaller` declara
     { p with name := `myWrappedPass })
 ```
 
-Available methods: `installBefore`, `installAfter`, `replacePass`, `installAtEnd`, `installBeforeEachOccurrence`, `installAfterEach`.
+Available methods: `installBefore`, `installAfter`, `replacePass`, `replaceEachOccurrence`, `installAtEnd`, `installBeforeEachOccurrence`, `installAfterEach`.
 
 Use pass `occurrence` explicitly when a target pass appears multiple times.
 
