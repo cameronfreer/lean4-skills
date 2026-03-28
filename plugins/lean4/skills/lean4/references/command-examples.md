@@ -4,6 +4,139 @@ Extended examples and session transcripts for Lean4 plugin commands.
 
 ---
 
+## draft
+
+### Skeleton-Only Drafting
+
+````
+User: /lean4:draft "Every continuous function on a compact set is bounded"
+
+Claude: Parsing claim and drafting skeleton...
+
+## Theorem Skeleton
+
+```lean
+theorem continuous_on_compact_bounded
+    {X : Type*} [TopologicalSpace X] [MetricSpace X]
+    {Y : Type*} [MetricSpace Y]
+    {K : Set X} (hK : IsCompact K)
+    {f : X → Y} (hf : ContinuousOn f K) :
+    IsBounded (f '' K) := by
+  sorry
+```
+
+Elaboration check (--elab-check=best-effort)... ✓ (1 sorry, no other diagnostics)
+
+What next?
+- [alternative] Different formalization (e.g., using Bornology)
+- [save to scratch] Write to scratch file
+````
+
+### Attempt Mode
+
+````
+User: /lean4:draft --mode=attempt "The sum of two continuous functions is continuous"
+
+Claude: Parsing claim and drafting skeleton...
+
+```lean
+theorem continuous_add {f g : ℝ → ℝ} (hf : Continuous f) (hg : Continuous g) :
+    Continuous (f + g) := by
+  sorry
+```
+
+Attempting proof (--mode=attempt)...
+lean_local_search("Continuous add") → found `Continuous.add`
+Trying: `exact hf.add hg`
+Diagnostics... ✓
+
+Proof found! Skeleton upgraded from sorry to verified proof.
+
+What next?
+- [show source] See the mathlib proof
+- [alternative] Different formalization
+- [save to scratch] Write to scratch file
+````
+
+---
+
+## formalize
+
+### Interactive Synthesis
+
+````
+User: /lean4:formalize "Every continuous function on a compact set is bounded"
+
+Claude: ## Phase 1: Draft
+
+Parsing claim and drafting skeleton...
+
+```lean
+theorem continuous_on_compact_bounded
+    {X : Type*} [TopologicalSpace X] [MetricSpace X]
+    {Y : Type*} [MetricSpace Y]
+    {K : Set X} (hK : IsCompact K)
+    {f : X → Y} (hf : ContinuousOn f K) :
+    IsBounded (f '' K) := by
+  sorry
+```
+
+Elaboration check... ✓
+Attempting proof (--draft-mode=attempt)...
+lean_local_search("IsCompact ContinuousOn IsBounded image") → found it
+
+## Phase 2: Prove
+
+Trying: `exact hK.image_of_continuousOn hf |>.isBounded`
+Diagnostics... ✓
+
+Proof complete (--rigor=checked: no sorry, clean diagnostics, standard axioms).
+
+What next?
+- [show source] See the mathlib proof
+- [alternative] Different formalization (e.g., using Bornology)
+- [generalize] Weaken hypotheses
+- [strengthen] Add conclusions
+- [save to scratch] Write to scratch file
+````
+
+### Axiomatic Draft
+
+````
+User: /lean4:formalize --rigor=axiomatic "The p-adic numbers are complete"
+
+Claude: Drafting formalization with explicit assumptions...
+
+```lean
+namespace Assumptions
+
+-- Assumption Ledger
+-- ┌──────────────────────────────┬────────────────────────┬───────────┬─────────────────────┐
+-- │ Assumption                   │ Justification          │ Scope     │ Introduced by       │
+-- ├──────────────────────────────┼────────────────────────┼───────────┼─────────────────────┤
+-- │ [MetricSpace (Padic p)]     │ standard p-adic metric │ instance  │ assistant-inferred  │
+-- │ hp : Fact (Nat.Prime p)     │ p must be prime        │ parameter │ user-stated         │
+-- └──────────────────────────────┴────────────────────────┴───────────┴─────────────────────┘
+
+theorem padic_complete (p : ℕ) [hp : Fact (Nat.Prime p)] :
+    CompleteSpace (Padic p) := by
+  sorry -- ⚠ proof blocked: needs Mathlib.NumberTheory.Padics.PadicIntegers
+```
+
+bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target>.lean --report-only → ✓ standard axioms only
+
+Note: Mathlib likely has this as an instance. Searching...
+lean_leanfinder("CompleteSpace Padic") → `Padic.instCompleteSpace`
+
+This is already a registered instance in mathlib. No axioms or assumptions needed.
+
+What next?
+- [show source] See how mathlib proves completeness
+- [deeper] Explore the p-adic metric construction
+````
+
+---
+
 ## prove
 
 ### Basic Usage
@@ -99,6 +232,66 @@ Building... ✓
 - `stop` - Save progress and exit
 - `skip` - Skip current sorry, try next
 - `rollback N` - Undo last N commits
+```
+
+---
+
+## autoformalize
+
+### Basic Usage
+
+```
+/lean4:autoformalize --source ./paper.pdf --claim-select=first --out=Paper.lean
+/lean4:autoformalize --source ./paper.pdf --claim-select=regex:"Theorem.*" --out=Paper.lean --rigor=checked
+```
+
+### Full Session Example
+
+```
+User: /lean4:autoformalize --source ./paper.pdf --claim-select=first --out=Paper.lean
+
+Claude: Extracting claims from ./paper.pdf...
+Found 4 claims in document order:
+  1. Theorem 2.1 (Continuity bound)
+  2. Lemma 2.3 (Monotone helper)
+  3. Theorem 3.1 (Main convergence)
+  4. Corollary 3.2 (Uniform bound)
+
+Applying --claim-select=first → queue: [Theorem 2.1]
+
+[Synthesis — Claim 1/1: Theorem 2.1]
+Drafting "Theorem 2.1"...
+  draft → temp file (declaration-only block, fully-qualified names)
+  Outer loop: append to Paper.lean with boundary marker
+  lean_diagnostic_messages(Paper.lean) → ✓
+  Committing: "draft: Theorem 2.1 continuity bound"
+
+Starting inner cycle on Paper.lean...
+[Cycle 1] Working on Paper.lean:18 - `continuity_bound`
+  Goal: ⊢ ∀ x ∈ K, ‖f x‖ ≤ C
+  lean_leanfinder("IsCompact ContinuousOn norm bound") → found candidate
+  Applying: `exact hK.isCompact.norm_le_of_continuousOn hf` ✓
+  Committing: "fill: continuity_bound - isCompact.norm_le"
+
+Sorry-free. Queue empty.
+
+## Autoformalize Summary
+
+**Reason stopped:** queue-empty (all claims attempted)
+
+| Metric | Value |
+|--------|-------|
+| Claims attempted | 1/1 |
+| Sorries before | 0 |
+| Sorries after | 0 |
+| Cycles run | 1 |
+| Stuck cycles | 0 |
+| Deep invocations | 0 |
+| Time elapsed | 3m |
+| Drafts | 1 |
+
+**Handoff recommendations:**
+- All sorries filled. Run /lean4:checkpoint to save.
 ```
 
 ---
@@ -274,326 +467,6 @@ git reset HEAD~N
 
 ---
 
-## doctor
-
-### Basic Usage
-
-```
-/lean4:doctor              # Full diagnostic
-/lean4:doctor env          # Environment only
-/lean4:doctor migrate      # Migration assistance
-/lean4:doctor cleanup      # Remove obsolete files
-```
-
-### Full Diagnostic Example
-
-```
-User: /lean4:doctor
-
-Claude: Running diagnostics...
-
-## Lean4 Doctor Report
-
-### Environment
-✓ lean 4.15.0
-✓ lake 4.15.0
-✓ python3 3.11.2
-✓ git 2.43.0
-✓ rg 14.1.0
-
-### Plugin
-✓ LEAN4_PLUGIN_ROOT=/home/user/.claude/plugins/lean4
-✓ LEAN4_SCRIPTS=/home/user/.claude/plugins/lean4/lib/scripts
-✓ Hooks executable
-✓ Scripts executable (12 files)
-
-### Project
-✓ lakefile.lean found
-✓ lean-toolchain: leanprover/lean4:v4.27.0
-✓ Build passes
-→ 3 sorries in Core.lean
-
-### Migration
-✓ Clean installation (no v3 artifacts)
-
-### Status: Ready
-
-Your environment is configured correctly.
-Run /lean4:prove to fill the 3 remaining sorries.
-```
-
-### Migration Example
-
-```
-User: /lean4:doctor migrate
-
-Claude: Checking for v3 artifacts...
-
-Found v3 installation:
-- .claude/tools/lean4/ (12 files)
-- .claude/docs/lean4/ (8 files)
-
-## Migration Steps
-
-1. Uninstall old plugins:
-   /plugin uninstall lean4-theorem-proving
-   /plugin uninstall lean4-memories
-   /plugin uninstall lean4-subagents
-
-2. Install unified plugin:
-   /plugin marketplace add cameronfreer/lean4-skills
-   /plugin install lean4
-
-3. Optional cleanup:
-   rm -rf .claude/tools/lean4 .claude/docs/lean4
-
-Proceed with migration? (yes/no)
-```
-
-### Cleanup Example
-
-```
-User: /lean4:doctor cleanup
-
-Claude: Scanning for obsolete files...
-
-Found:
-- .claude/tools/lean4/ (12 files, 45KB)
-- .claude/docs/lean4/ (8 files, 32KB)
-
-These are v3 artifacts that are no longer needed.
-Remove them? (yes/no)
-
-User: yes
-
-Claude: Removing .claude/tools/lean4/... ✓
-Removing .claude/docs/lean4/... ✓
-
-Cleanup complete. 77KB freed.
-```
-
----
-
-## golf
-
-### Basic Usage
-
-```
-/lean4:golf                     # Golf entire project
-/lean4:golf File.lean           # Golf specific file
-/lean4:golf File.lean:42        # Golf proof at specific line
-/lean4:golf --dry-run           # Show opportunities without applying
-```
-
-### Full Session Example
-
-```
-User: /lean4:golf Core.lean
-
-Claude: Verifying build...
-✓ Core.lean compiles
-
-Finding golfing opportunities...
-
-Found 6 patterns:
-- 4 instant wins (rw+exact, ext+rfl)
-- 1 safe inline (let used once)
-- 1 skip (let used 5 times)
-
-Applying optimizations...
-
-[1/5] Line 23: rw [h]; exact → rwa [h]
-  Building... ✓
-
-[2/5] Line 45: ext x; rfl → rfl
-  Building... ✓
-
-[3/5] Line 67: Inline let bound := ...
-  Checking usage... 1 reference, safe
-  Building... ✓
-
-[4/5] Line 89: simp [*]; rfl → simp [*]
-  Building... ✓
-
-[5/5] Line 112: constructor; exact; exact → exact ⟨_, _⟩
-  Building... ✓
-
-## Golf Results
-
-Optimizations applied: 5/6
-Skipped: 1 (let used 5 times)
-Total savings: 7 lines (~10%)
-Build status: ✓ passing
-```
-
-### Dry Run Example
-
-```
-User: /lean4:golf --dry-run
-
-Claude: Scanning for opportunities...
-
-## Golf Opportunities (Dry Run)
-
-**File:** Core.lean
-
-| Line | Pattern | Confidence | Savings |
-|------|---------|------------|---------|
-| 23 | rw + exact → rwa | High | 1 line |
-| 45 | Inline let (1 use) | High | 2 lines |
-| 56 | Inline let (4 uses) | Skip | - |
-| 78 | ext + rfl → rfl | High | 1 line |
-
-**Estimated savings:** 4 lines from 3 safe optimizations
-**Run without --dry-run to apply**
-```
-
-### Saturation Example
-
-```
-## Golf Results
-
-**File:** Core.lean
-**Optimizations applied:** 12
-**Build status:** ✓ passing
-
-Saturation reached after 12 optimizations.
-Remaining 3 opportunities are false positives or low-value.
-
-Success rate dropped to 15% (below 20% threshold).
-Recommend stopping further golfing on this file.
-```
-
-### Search Mode Example
-
-```
-User: /lean4:golf Core.lean --search=quick
-
-Claude: Verifying build...
-✓ Core.lean compiles
-
-Finding golfing opportunities...
-Found 4 syntactic patterns + 2 lemma replacement candidates
-
-[1/6] Line 23: rw [h]; exact → rwa [h]
-  Diagnostics... ✓
-
-[2/6] Line 30: custom_continuous_comp → Continuous.comp (mathlib)
-  LSP search: lean_local_search("continuous comp")
-  Testing replacement... ✓ (1/2 candidates passed)
-  Import: Mathlib.Topology.Basic
-  Diagnostics... ✓
-
-[3/6] Line 45: Inline let (1 use)
-  Diagnostics... ✓
-
-[4/6] Line 67: custom_bound_lemma → replacement candidate
-  LSP search: lean_leanfinder("bound monotone")
-  Testing replacement... ✗ type mismatch (0/2 passed)
-  Skipped (hand off to axiom-eliminator for deeper work)
-
-## Golf Results
-
-Optimizations applied: 3/6
-Replacements: 1 lemma (mathlib)
-Skipped: 1 (safety), 1 (needs axiom-eliminator)
-Total savings: 5 lines (~8%)
-Build status: ✓ passing
-```
-
-### Delegation Preflight Failure Example
-
-```
-User: /lean4:golf --max-delegates=3
-
-Claude: Verifying build...
-✓ Project compiles
-
-Running preflight: delegating Core.lean:23 to golfer subagent...
-
-⚠ Preflight subagent hit Edit permission prompt.
-Stopping delegation immediately — switching to direct mode.
-
-Continuing in main agent (no subagents will be launched)...
-
-[1/6] Line 23: rw [h]; exact → rwa [h]
-  Diagnostics... ✓
-
-[2/6] Line 45: ext x; rfl → rfl
-  Diagnostics... ✓
-
-[continues directly without delegation...]
-```
-
-### Bulk Rewrite Auto-Revert Example
-
-```
-User: /lean4:golf Core.lean
-
-Claude: Verifying build...
-✓ Core.lean compiles
-
-Finding golfing opportunities...
-Found 8 `:= by exact` candidates in declaration RHS positions (≥4 → bulk mode)
-
-Preview (3 of 8):
-  Line 23: `:= by exact h` → `:= h`
-  Line 67: `:= by exact rfl` → `:= rfl`
-  Line 101: `:= by exact Nat.zero_le 1` → `:= Nat.zero_le 1`
-
-Apply as batch? [yes / individual / skip]
-
-User: yes
-
-Capturing baseline diagnostics...
-Baseline: 0 diagnostics, 0 sorries
-
-Applying batch (8 replacements, Core.lean)...
-Running lean_diagnostic_messages(Core.lean)...
-
-⚠ Regression detected:
-  - 2 new diagnostics (type mismatch at lines 45, 89)
-  - Sorry count: 0 → 0 (unchanged)
-
-Restoring from pre-batch snapshot...
-✓ Core.lean restored to pre-batch state
-
-Falling back to individual edits...
-[1/8] Line 23: `:= by exact h` → `:= h`
-  Diagnostics... ✓
-[2/8] Line 45: `:= by exact rfl` — skipped (calc block context)
-[3/8] Line 89: `:= by exact (by ring)` — skipped (nested tactic-mode boundary)
-
-Applied 5/8, skipped 2 (context rules), reverted 1 (regression)
-```
-
-### Context-Ambiguous Skip Example
-
-```
-User: /lean4:golf Lemmas.lean
-
-Claude: Finding golfing opportunities...
-
-Found 5 `:= by exact` candidates
-
-[1/5] Line 12: `:= by exact h`
-  Context: declaration RHS ✓, no nested tactic boundary ✓
-  Diagnostics... ✓
-
-[2/5] Line 34: `:= by exact (by simp)`
-  Skipped: nested tactic-mode boundary in TERM
-
-[3/5] Line 56: inside `calc` block
-  Skipped: disallowed context (calc)
-
-[4/5] Line 78: uncertain elaboration context
-  Skipped: context classification uncertain — never force
-
-Applied 3/5, skipped 2 (context rules)
-```
-
----
-
 ## review
 
 ### Basic Usage
@@ -631,7 +504,7 @@ Claude: Running review on Core.lean...
 - Line 78: Proof is 38 lines - consider extracting helper lemma
 
 ### Golfing Opportunities
-- Line 23: `rw [h]; exact trivial` → `rwa [h]`
+- Line 23: `apply f; exact h` → `exact f h` (directness win)
 - Line 56: `ext x; simp` - verify if `simp` alone suffices
 
 ### Complexity Summary
@@ -812,7 +685,375 @@ lake env lean InfinitaryLogic/Scott/Sentence.lean
 6. lake build                        # project gate at checkpoint only
 ```
 
-## Learn
+
+---
+
+## refactor
+
+### Basic Usage
+
+```
+User: /lean4:refactor ForwardEuler/Main.lean
+```
+
+```markdown
+## Refactor Plan — ForwardEuler/Main.lean
+
+### Strategy Improvements
+1. `continuousOn_eulerPath` (line 104): case-splitting on endpoints
+   → Use `ContinuousOn.congr` + `Set.EqOn` (saves ~20 lines)
+
+2. `hasDerivWithinAt_eulerPath` (line 149): manual derivative via unfolding
+   → Use `HasDerivAt` chain + `congr_of_eventuallyEq` (saves ~5 lines)
+
+### Helper Extraction
+1. Floor computation from Ico membership — appears 4x (lines 89, 119, 155, 198)
+   → Extract `floor_eq_of_mem_Ico`
+
+### Estimated Impact
+- Lines before: 310
+- Lines after: ~245
+- Helpers extracted: 1
+- Mathlib lemmas newly applied: 3
+
+Apply batch 1 (3 changes)? [yes / skip / stop]
+```
+
+### Dry Run
+
+```
+User: /lean4:refactor --scope=changed --dry-run
+```
+
+Reports opportunities without editing files.
+
+---
+
+## golf
+
+### Basic Usage
+
+```
+/lean4:golf                     # Golf entire project
+/lean4:golf File.lean           # Golf specific file
+/lean4:golf File.lean:42        # Golf proof at specific line
+/lean4:golf --dry-run           # Show opportunities without applying
+```
+
+### Full Session Example
+
+```
+User: /lean4:golf Core.lean
+
+Claude: Verifying build...
+✓ Core.lean compiles
+
+Finding golfing opportunities...
+
+Found 7 patterns:
+- 3 directness wins (ext+rfl, apply+exact, constructor+exact)
+- 1 performance cleanup (simp narrowing)
+- 1 safe inline (let used once)
+- 1 skip (let used 5 times)
+- 1 skip (rwa replacement — marginal)
+
+Applying optimizations...
+
+[1/6] Line 45: ext x; rfl → rfl (directness)
+  Diagnostics... ✓
+
+[2/6] Line 66: apply f; exact h → exact f h (directness)
+  Diagnostics... ✓
+
+[3/6] Line 112: constructor; exact; exact → exact ⟨_, _⟩ (directness)
+  Diagnostics... ✓
+
+[4/6] Line 34: simp [...] → simp only [...] (performance)
+  Diagnostics... ✓
+
+[5/6] Line 67: Inline let bound := ...
+  Checking usage... 1 reference, safe
+  Diagnostics... ✓
+
+[6/6] Line 23: rw [h]; exact → rwa [h]
+  Skipped: only 1-line win, moves up tactic complexity ladder (rw+exact → rwa)
+
+## Golf Results
+
+Meaningful simplifications: 3 (directness improvements)
+Performance cleanups: 1 (simp narrowing)
+Syntax cleanups: 1 (let inline)
+Skipped: 2 (1 safety — let used 5×, 1 marginal — rwa replacement)
+Build status: ✓ passing
+Total savings: 6 lines (~9%)
+```
+
+### Dry Run Example
+
+```
+User: /lean4:golf --dry-run
+
+Claude: Scanning for opportunities...
+
+## Golf Opportunities (Dry Run)
+
+**File:** Core.lean
+
+| Line | Pattern | Benefit | Confidence | Savings |
+|------|---------|---------|------------|---------|
+| 78 | ext + rfl → rfl | Directness | High | 1 line |
+| 45 | Inline let (1 use) | Clarity | High | 2 lines |
+| 34 | simp → simp only | Performance | High | 0 lines |
+| 56 | Inline let (4 uses) | — | Skip | - |
+| 23 | rw + exact → rwa | Marginal | Skip | 1 line |
+
+**Estimated savings:** 3 lines from 3 safe optimizations (+ 1 perf-only)
+**Run without --dry-run to apply**
+```
+
+### Saturation Example
+
+```
+## Golf Results
+
+**File:** Core.lean
+**Optimizations applied:** 12
+**Build status:** ✓ passing
+
+Saturation reached after 12 optimizations.
+Remaining 3 opportunities are false positives or low-value.
+
+Success rate dropped to 15% (below 20% threshold).
+Recommend stopping further golfing on this file.
+```
+
+### Taste-Driven Golfing Example
+
+```
+User: /lean4:golf Analysis.lean
+
+Claude: Verifying build...
+✓ Analysis.lean compiles
+
+Finding golfing opportunities...
+
+Found 8 patterns (4 actionable, 4 skipped)
+
+[1/4] Line 23: apply f; exact h → exact f h (directness)
+  Diagnostics... ✓
+
+[2/4] Line 45: simp [h1, h2, h3] → simp only [h1, h2] (performance — linter flagged h3 unused)
+  Diagnostics... ✓
+
+[3/4] Line 67: rw [h]; exact trivial → rwa [h]
+  Skipped: 1-line win but moves up tactic complexity ladder (rw+exact is explicit,
+  rwa is heavier automation). Not worth surfacing.
+
+[4/4] Line 89: 3-line proof → 1 line with <;>
+  cases h with | inl => simp [ha] | inr => simp [hb]
+  Candidate: cases h <;> simp [ha, hb]
+  Skipped: branches use different simp arguments — <;> only for literally identical goals
+
+[5/4] Line 102: simpa using h_bound → exact h_bound
+  Diagnostics... ✓ (simpa does no actual simplification here — exact is more direct)
+
+[6/4] Line 115: 2-line proof kept as-is
+  have h_key := critical_step a b
+  exact h_key.trans (by ring)
+  Candidate 1-line: exact (critical_step a b).trans (by ring)
+  Skipped: named intermediate `h_key` has semantic value, 1-line form is more opaque
+
+## Golf Results
+
+Meaningful simplifications: 2 (directness improvements)
+Performance cleanups: 1 (simp narrowing)
+Skipped: 3 (1 tactic complexity, 1 non-identical <;>, 1 semantic name preserved)
+Build status: ✓ passing
+Total savings: 3 lines (~5%)
+```
+
+### Search Mode Example
+
+```
+User: /lean4:golf Core.lean --search=quick
+
+Claude: Verifying build...
+✓ Core.lean compiles
+
+Finding golfing opportunities...
+Found 4 syntactic patterns + 2 lemma replacement candidates
+
+[1/6] Line 23: apply f; exact h → exact f h (directness)
+  Diagnostics... ✓
+
+[2/6] Line 30: custom_continuous_comp → Continuous.comp (mathlib)
+  LSP search: lean_local_search("continuous comp")
+  Testing replacement... ✓ (1/2 candidates passed)
+  Import: Mathlib.Topology.Basic
+  Diagnostics... ✓
+
+[3/6] Line 45: Inline let (1 use)
+  Diagnostics... ✓
+
+[4/6] Line 67: custom_bound_lemma → replacement candidate
+  LSP search: lean_leanfinder("bound monotone")
+  Testing replacement... ✗ type mismatch (0/2 passed)
+  Skipped (hand off to axiom-eliminator for deeper work)
+
+## Golf Results
+
+Optimizations applied: 3/6
+Replacements: 1 lemma (mathlib)
+Skipped: 1 (safety), 1 (needs axiom-eliminator)
+Total savings: 5 lines (~8%)
+Build status: ✓ passing
+```
+
+### Delegation Preflight Failure Example
+
+```
+User: /lean4:golf --max-delegates=3
+
+Claude: Verifying build...
+✓ Project compiles
+
+Running preflight: delegating Core.lean:23 to golfer subagent...
+
+⚠ Preflight subagent hit Edit permission prompt.
+Stopping delegation immediately — switching to direct mode.
+
+Continuing in main agent (no subagents will be launched)...
+
+[1/6] Line 23: apply f; exact h → exact f h (directness)
+  Diagnostics... ✓
+
+[2/6] Line 45: ext x; rfl → rfl (directness)
+  Diagnostics... ✓
+
+[continues directly without delegation...]
+```
+
+### Bulk Rewrite Auto-Revert Example
+
+```
+User: /lean4:golf Core.lean
+
+Claude: Verifying build...
+✓ Core.lean compiles
+
+Finding golfing opportunities...
+Found 8 `:= by exact` candidates in declaration RHS positions (≥4 → bulk mode)
+
+Preview (3 of 8):
+  Line 23: `:= by exact h` → `:= h`
+  Line 67: `:= by exact rfl` → `:= rfl`
+  Line 101: `:= by exact Nat.zero_le 1` → `:= Nat.zero_le 1`
+
+Apply as batch? [yes / individual / skip]
+
+User: yes
+
+Capturing baseline diagnostics...
+Baseline: 0 diagnostics, 0 sorries
+
+Applying batch (8 replacements, Core.lean)...
+Running lean_diagnostic_messages(Core.lean)...
+
+⚠ Regression detected:
+  - 2 new diagnostics (type mismatch at lines 45, 89)
+  - Sorry count: 0 → 0 (unchanged)
+
+Restoring from pre-batch snapshot...
+✓ Core.lean restored to pre-batch state
+
+Falling back to individual edits...
+[1/8] Line 23: `:= by exact h` → `:= h`
+  Diagnostics... ✓
+[2/8] Line 45: `:= by exact rfl` — skipped (calc block context)
+[3/8] Line 89: `:= by exact (by ring)` — skipped (nested tactic-mode boundary)
+
+Applied 5/8, skipped 2 (context rules), reverted 1 (regression)
+```
+
+### Context-Ambiguous Skip Example
+
+```
+User: /lean4:golf Lemmas.lean
+
+Claude: Finding golfing opportunities...
+
+Found 5 `:= by exact` candidates
+
+[1/5] Line 12: `:= by exact h`
+  Context: declaration RHS ✓, no nested tactic boundary ✓
+  Diagnostics... ✓
+
+[2/5] Line 34: `:= by exact (by simp)`
+  Skipped: nested tactic-mode boundary in TERM
+
+[3/5] Line 56: inside `calc` block
+  Skipped: disallowed context (calc)
+
+[4/5] Line 78: uncertain elaboration context
+  Skipped: context classification uncertain — never force
+
+Applied 3/5, skipped 2 (context rules)
+```
+
+### Exact-Collapse Example
+
+````
+User: /lean4:golf Core.lean --search=quick
+
+Claude: Verifying build...
+✓ Core.lean compiles
+
+Finding golfing opportunities...
+Running: find_golfable.py Core.lean --patterns apply-exact-chain --filter
+Found 6 apply-exact-chain anchors
+
+[1/6] Line 34: Mechanical collapse
+  apply mul_lt_mul_of_pos_right; · exact h_bound; · exact h_pos
+  → exact mul_lt_mul_of_pos_right h_bound h_pos
+  lean_multi_attempt... ✓
+  Diagnostics baseline check... ✓ (no new diagnostics, sorry count unchanged)
+
+[2/6] Line 52: Mechanical collapse
+  apply HasDerivAt.div; · exact hf; · exact hg
+  → exact hf.div hg
+  lean_multi_attempt... ✓
+  Diagnostics baseline check... ✓
+
+[3/6] Line 71: Readability skip
+  apply f; · apply g; · apply h; · exact a; · exact b
+  Collapsed form: exact f (g (h a b)) — >2 nesting depth, marginal net win
+  Skipped (readability)
+
+[4/6] Line 89: Mechanical collapse
+  apply Continuous.comp; · exact continuous_neg; · exact hf
+  → exact continuous_neg.comp hf
+  lean_multi_attempt... ✓
+  Diagnostics baseline check... ✓
+
+[5/6] Line 103: Skipped (inside cases block)
+
+[6/6] Line 115: Exploratory probe (--search=quick)
+  apply bound_mono; · exact h_le; · exact h_pos
+  Candidate 1: exact bound_mono h_le h_pos — lean_multi_attempt ✗
+  Candidate 2: exact h_le.bound_mono h_pos — lean_multi_attempt ✓
+  Diagnostics baseline check... ✓
+
+## Golf Results
+
+Exact-collapse: Mechanical 3 applied, Exploratory 1 found.
+Skipped: 1 (readability), 1 (unsafe context)
+Total savings: 8 lines (~15%)
+Build status: ✓ passing
+````
+
+---
+
+## learn
 
 ### Repo Mode — Exploring Project Structure
 
@@ -880,45 +1121,12 @@ What next?
 - [alternative] See filter-free characterization
 ````
 
-### Formalize Mode — Autoformalization
-
-````
-User: /lean4:learn --mode=formalize "Every continuous function on a compact set is bounded"
-
-Claude: Parsing claim and drafting formalization...
-
-## Theorem Skeleton
-
-```lean
-theorem continuous_on_compact_bounded
-    {X : Type*} [TopologicalSpace X] [MetricSpace X]
-    {Y : Type*} [MetricSpace Y]
-    {K : Set X} (hK : IsCompact K)
-    {f : X → Y} (hf : ContinuousOn f K) :
-    IsBounded (f '' K) := by
-  sorry
-```
-
-Attempting proof via lean_goal + lean_multi_attempt...
-lean_local_search("IsCompact ContinuousOn IsBounded image") → found it
-Trying: `exact hK.image_of_continuousOn hf |>.isBounded`
-Diagnostics... ✓
-
-Proof complete (--rigor=checked: no sorry, clean diagnostics, standard axioms).
-
-What next?
-- [show source] See the mathlib proof
-- [alternative] Different formalization (e.g., using Bornology)
-- [generalize] Weaken hypotheses
-- [save to scratch] Write to scratch file
-````
-
 ### Game Style — Natural Numbers Track
 
 ````
 User: /lean4:learn --style=game --track=nng-like
 
-Claude: [Intent: usage (inferred) | Presentation: formal | Mode: formalize]
+Claude: [Intent: usage (inferred) | Presentation: formal]
 
 Starting Natural Numbers Game — Track: nng-like (8 levels)
 
@@ -958,7 +1166,7 @@ User: /lean4:learn --source ./papers/stone-weierstrass.pdf
 
 Claude: Reading PDF... extracting key results.
 
-[Intent: math (inferred from PDF) | Presentation: informal | Mode: formalize]
+[Intent: math (inferred from PDF) | Presentation: informal]
 
 ## Stone–Weierstrass: Main Results [unverified]
 
@@ -976,40 +1184,108 @@ Claude: **Theorem 1** says that polynomial-like function algebras are "enough" t
 
 Want to see this formalized in Lean to make it concrete?
 
-[deeper / show source / formalize]
+[deeper / show source / formalize → /lean4:formalize]
 ````
 
-### Formalize Mode — Axiomatic Draft
+---
 
-````
-User: /lean4:learn --mode=formalize --rigor=axiomatic "The p-adic numbers are complete"
+## doctor
 
-Claude: Drafting formalization with explicit assumptions...
+### Basic Usage
 
-```lean
-namespace Assumptions
-
--- Assumption Ledger
--- ┌──────────────────────────────┬────────────────────────┬───────────┬─────────────────────┐
--- │ Assumption                   │ Justification          │ Scope     │ Introduced by       │
--- ├──────────────────────────────┼────────────────────────┼───────────┼─────────────────────┤
--- │ [MetricSpace (Padic p)]     │ standard p-adic metric │ instance  │ assistant-inferred  │
--- │ hp : Fact (Nat.Prime p)     │ p must be prime        │ parameter │ user-stated         │
--- └──────────────────────────────┴────────────────────────┴───────────┴─────────────────────┘
-
-theorem padic_complete (p : ℕ) [hp : Fact (Nat.Prime p)] :
-    CompleteSpace (Padic p) := by
-  sorry -- ⚠ proof blocked: needs Mathlib.NumberTheory.Padics.PadicIntegers
+```
+/lean4:doctor              # Full diagnostic
+/lean4:doctor env          # Environment only
+/lean4:doctor migrate      # Migration assistance
+/lean4:doctor cleanup      # Remove obsolete files
 ```
 
-bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target>.lean --report-only → ✓ standard axioms only
+### Full Diagnostic Example
 
-Note: Mathlib likely has this as an instance. Searching...
-lean_leanfinder("CompleteSpace Padic") → `Padic.instCompleteSpace`
+```
+User: /lean4:doctor
 
-This is already a registered instance in mathlib. No axioms or assumptions needed.
+Claude: Running diagnostics...
 
-What next?
-- [show source] See how mathlib proves completeness
-- [deeper] Explore the p-adic metric construction
-````
+## Lean4 Doctor Report
+
+### Environment
+✓ lean 4.15.0
+✓ lake 4.15.0
+✓ python3 3.11.2
+✓ git 2.43.0
+✓ rg 14.1.0
+
+### MCP Tools
+✓ Lean LSP MCP tools available in this session (lean_goal)
+
+### Plugin
+✓ LEAN4_PLUGIN_ROOT=/home/user/.claude/plugins/lean4
+✓ LEAN4_SCRIPTS=/home/user/.claude/plugins/lean4/lib/scripts
+✓ Hooks executable
+✓ Scripts executable (12 files)
+
+### Project
+✓ lakefile.lean found
+✓ lean-toolchain: leanprover/lean4:v4.27.0
+✓ Build passes
+→ 3 sorries in Core.lean
+
+### Migration
+✓ Clean installation (no v3 artifacts)
+
+### Status: Ready
+
+Your environment is configured correctly.
+Run /lean4:prove to fill the 3 remaining sorries.
+```
+
+### Migration Example
+
+```
+User: /lean4:doctor migrate
+
+Claude: Checking for v3 artifacts...
+
+Found v3 installation:
+- .claude/tools/lean4/ (12 files)
+- .claude/docs/lean4/ (8 files)
+
+## Migration Steps
+
+1. Uninstall old plugins:
+   /plugin uninstall lean4-theorem-proving
+   /plugin uninstall lean4-memories
+   /plugin uninstall lean4-subagents
+
+2. Install unified plugin:
+   /plugin marketplace add cameronfreer/lean4-skills
+   /plugin install lean4
+
+3. Optional cleanup:
+   rm -rf .claude/tools/lean4 .claude/docs/lean4
+
+Proceed with migration? (yes/no)
+```
+
+### Cleanup Example
+
+```
+User: /lean4:doctor cleanup
+
+Claude: Scanning for obsolete files...
+
+Found:
+- .claude/tools/lean4/ (12 files, 45KB)
+- .claude/docs/lean4/ (8 files, 32KB)
+
+These are v3 artifacts that are no longer needed.
+Remove them? (yes/no)
+
+User: yes
+
+Claude: Removing .claude/tools/lean4/... ✓
+Removing .claude/docs/lean4/... ✓
+
+Cleanup complete. 77KB freed.
+```

@@ -1,4 +1,6 @@
-# Migration Guide: V3 → V4
+# Claude Code Migration: V3 → V4
+
+> This guide is specific to Claude Code's plugin system. Non-Claude hosts don't have V3 artifacts to migrate.
 
 This guide helps you upgrade from the legacy 3-plugin system (v3.x) to the unified v4 plugin.
 
@@ -23,6 +25,7 @@ This guide helps you upgrade from the legacy 3-plugin system (v3.x) to the unifi
 | `/lean4-theorem-proving:build-lean` | Use `lake build` directly |
 | `/lean4-theorem-proving:search-mathlib` | Use LSP `lean_leansearch` or scripts |
 | (no equivalent) | `/lean4:review` (NEW) |
+| (no equivalent) | `/lean4:refactor` (NEW) |
 | (no equivalent) | `/lean4:doctor` (NEW) |
 
 ### Environment Variables
@@ -92,9 +95,10 @@ Or run `/lean4:doctor cleanup` for guided removal.
 1. /lean4:prove            # Guided: asks preferences, cycle-by-cycle
 2. (prove handles fills, builds, commits per cycle)
 3. /lean4:review           # Read-only quality check
-4. /lean4:golf             # Optional optimization
-5. /lean4:checkpoint       # Verified save point
-6. git push                # Manual (safety guardrail)
+4. /lean4:refactor         # Strategy-level simplification (optional)
+5. /lean4:golf             # Tactic-level optimization (optional)
+6. /lean4:checkpoint       # Verified save point
+7. git push                # Manual (safety guardrail)
 ```
 
 Or for unattended work: `/lean4:autoprove` (autonomous with stop rules).
@@ -166,6 +170,42 @@ Both `lib/scripts/` and `scripts/` (compat alias) resolve to the same directory.
 ### Need help?
 
 Run `/lean4:doctor` for full diagnostics.
+
+## V4.4.0 → V4.4.1
+
+**Proof-editing agents renamed** to drop the `lean4-` prefix, fixing the dispatch name stutter.
+
+| Old name | New name | Old dispatch | New dispatch |
+|----------|----------|--------------|--------------|
+| `lean4-sorry-filler-deep` | `sorry-filler-deep` | `lean4:lean4-sorry-filler-deep` | `lean4:sorry-filler-deep` |
+| `lean4-proof-repair` | `proof-repair` | `lean4:lean4-proof-repair` | `lean4:proof-repair` |
+| `lean4-proof-golfer` | `proof-golfer` | `lean4:lean4-proof-golfer` | `lean4:proof-golfer` |
+| `lean4-axiom-eliminator` | `axiom-eliminator` | `lean4:lean4-axiom-eliminator` | `lean4:axiom-eliminator` |
+
+If you have external tooling or scripts that dispatch agents by the old names, update them to the new names.
+
+## V4.3.x → V4.4.0
+
+**Separates drafting from proving** with a cleaner command surface.
+
+### What Changed and Why
+
+- `draft` is the honest name for "translate informal → formal skeleton." Old `formalize` did this plus proof attempts, which muddied the separation from `prove`.
+- `formalize` now means the full pipeline: draft a skeleton and prove it. This is a superset of old behavior.
+- `autoformalize` surfaces the `autoprove --formalize=auto` workflow as a first-class command with cleaner flag names.
+- Proof engines (`prove`/`autoprove`) no longer touch declaration headers. If the statement is wrong, they recommend `redraft` instead of silently rewriting.
+
+### Migration Table
+
+| Old invocation | What to use now | Compatibility |
+|---|---|---|
+| `/lean4:formalize "claim"` | `/lean4:formalize "claim"` (superset: now also proves) or `/lean4:draft "claim"` (skeleton only) | Yes — formalize still accepts this |
+| `/lean4:formalize --rigor=axiomatic "claim"` | `/lean4:formalize --rigor=axiomatic "claim"` | Yes — rigor stays on formalize |
+| `/lean4:formalize "claim"` → save → `/lean4:prove` later | `/lean4:draft "claim"` → save → `/lean4:prove` (cleaner separation) | Yes — old formalize still works for this pattern too |
+| `/lean4:autoprove --formalize=auto --source=paper.pdf --claim-select=first --formalize-out=Paper.lean` | `/lean4:autoformalize --source=paper.pdf --claim-select=first --out=Paper.lean` | Old flags still accepted on autoprove (deprecated, functional) |
+| `/lean4:autoprove --formalize=auto --formalize-rigor=checked ...` | `/lean4:autoformalize --rigor=checked ...` | `--formalize-rigor` → `--rigor` on autoformalize |
+| `/lean4:autoprove --formalize=restage` | Old flag still works (deprecated). For interactive redrafting of existing scope, use `/lean4:formalize`. | No first-class autonomous replacement — `autoformalize` requires `--source` |
+| `/lean4:prove --deep` with statement generalization | Statement changes now require `/lean4:formalize`; prove emits `next_action = redraft` | **Behavioral narrowing** — only breaking change |
 
 ## V4.0.4 → V4.0.5
 

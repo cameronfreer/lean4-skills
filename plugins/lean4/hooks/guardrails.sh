@@ -412,11 +412,11 @@ fi
 # Allows: git checkout <branch>, git checkout -b <branch>
 # Blocks: git checkout -- <path>, git checkout .
 if seg_match git '\bcheckout\b.*\s--\s'; then
-  echo "BLOCKED (Lean guardrail): destructive git checkout. Use git stash push -u or create a revert commit." >&2
+  echo "BLOCKED (Lean guardrail): destructive git checkout. Commit or checkpoint first." >&2
   exit 2
 fi
 if seg_match git '\bcheckout\b\s+\.(\s|$)'; then
-  echo "BLOCKED (Lean guardrail): git checkout . discards changes. Use git stash push -u or create a revert commit." >&2
+  echo "BLOCKED (Lean guardrail): git checkout . discards changes. Commit or checkpoint first." >&2
   exit 2
 fi
 
@@ -429,20 +429,20 @@ for _seg in "${SEGMENTS[@]}"; do
   if echo "$_seg" | grep -qE -- '--staged\b' && ! echo "$_seg" | grep -qE -- '--worktree\b'; then
     continue  # allowed - pure unstaging
   fi
-  echo "BLOCKED (Lean guardrail): git restore discards changes. Use git stash push -u or create a revert commit." >&2
+  echo "BLOCKED (Lean guardrail): git restore discards changes. Commit or checkpoint first." >&2
   exit 2
 done
 
 # Block git reset --hard (discards commits and changes)
 if seg_match git '\breset\b.*--hard\b'; then
-  echo "BLOCKED (Lean guardrail): git reset --hard. Use git stash push -u or create a revert commit." >&2
+  echo "BLOCKED (Lean guardrail): git reset --hard. Commit or checkpoint first." >&2
   exit 2
 fi
 
 # Block git clean with -f/--force anywhere (deletes untracked files)
 # Matches: -f, -fd, -fx, -nfd, --force, etc.
 if seg_match git '\bclean\b.*(-[a-zA-Z]*f|--force)'; then
-  echo "BLOCKED (Lean guardrail): git clean deletes untracked files. Use git stash push -u instead." >&2
+  echo "BLOCKED (Lean guardrail): git clean deletes untracked files. Commit or checkpoint first." >&2
   exit 2
 fi
 

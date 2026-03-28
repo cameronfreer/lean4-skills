@@ -142,17 +142,17 @@ If any succeeds → apply diff, recompile
 
 ### 3. Agent Repair (if cascade fails)
 
-**Stage 1 (Haiku, fast):** First 6 attempts
-- Model: `haiku`, thinking OFF
+**Stage 1 (fast):** First 6 attempts
+- Approach: Quick, pattern-based fixes
 - Temperature: 0.2, K=1
 - Budget: ~2s per attempt
 - Strategy: Quick, obvious fixes
 
-**Stage 2 (Opus, precise):** After Stage 1 exhausted or complex errors
-- Model: `opus`, thinking ON
+**Stage 2 (strong, precise):** After Stage 1 exhausted or complex errors
+- Approach: Strategic reasoning with global context
 - Temperature: 0.1, K=1
 - Budget: ~10s per attempt
-- Strategy: Strategic thinking, global context
+- Strategy: Deep analysis, global context
 
 **Escalation triggers:**
 - Same error 3 times in Stage 1
@@ -482,8 +482,8 @@ theorem foo : MemLp f p μ := by  -- ✓ ASCII name
 - Only escalate to agent when needed
 
 ### Multi-Stage Escalation
-- Fast model (Haiku) for most cases
-- Strong model (Sonnet) only when needed
+- Fast model for most cases
+- Strong model only when needed
 - Cost-effective repair process
 
 ### Early Stopping
@@ -510,8 +510,8 @@ Success improves over time as structured logging enables learning from repair at
 
 **Cost optimization:**
 - Solver cascade: Free (automated tactics)
-- Stage 1 (Haiku): Low cost, handles most common cases
-- Stage 2 (Sonnet): Higher cost, reserved for complex cases
+- Stage 1 (fast): Low cost, handles most common cases
+- Stage 2 (strong): Higher cost, reserved for complex cases
 - Much more cost-effective than blind best-of-N sampling
 
 ---
@@ -700,7 +700,7 @@ Review `.repair/attempts.ndjson` to see what strategies worked. Build intuition 
 
 **Cost concerns:**
 - Solver cascade is free (use it!)
-- Stage 1 (Haiku) very low cost
+- Stage 1 (fast) very low cost
 - Early stopping prevents runaway costs
 - Much more cost-effective than blind sampling
 

@@ -84,7 +84,7 @@
 
 **Tools available:** Glob, Grep, Read, Bash
 
-**Cost:** ~Haiku-level tokens
+**Cost:** Low (lightweight model)
 
 **When to use:**
 - "Find all files using MeasurableSpace"
@@ -100,7 +100,7 @@
 
 **Tools available:** Full toolset including Task
 
-**Cost:** ~Sonnet-level tokens
+**Cost:** Moderate (full-featured model)
 
 **When to use:**
 - "Search mathlib, evaluate which lemmas apply, recommend best 3"
@@ -130,7 +130,7 @@ Task: "Optimize these 5 proofs"
 
 Task: "Find mathlib lemmas for this sorry"
 ✅ Dispatch Explore agent to run $LEAN4_SCRIPTS/smart_search.sh (simple delegation)
-✅ Use lean_local_search or lean_leansearch LSP tools directly
+✅ Use lean_local_search or lean_leanfinder LSP tools directly
 
 Task: "Fill all 15 sorries in this file"
 ✅ Use /lean4:prove or /lean4:autoprove (batch processing with testing)
@@ -367,7 +367,7 @@ to find the right mathlib lemma..."
 - Agent summary: ~50 tokens
 - Claude response: ~50 tokens
 - **Total: ~150 tokens in main conversation**
-- Agent uses Haiku/fast model (cheap)
+- Agent uses fast/lightweight model (cheap)
 - **Savings: 700 → 150 = 78% reduction**
 
 **Multiplied across a session:** 10 searches = 7000 tokens → 1500 tokens = **5500 tokens saved**
@@ -400,12 +400,13 @@ to find the right mathlib lemma..."
 
 ## Integration with MCP Server
 
-**If Lean MCP server is available:** Prefer MCP tools over scripts.
+**If Lean MCP server is available:** Prefer MCP tools over scripts, including inside specialized proof-editing subagents.
 
 **Hierarchy:**
 1. **MCP server** (best) - Direct integration, no script overhead
-2. **Subagent + scripts** (good) - Efficient delegation, batch operations
-3. **Direct script execution** (fallback) - When not using Claude Code
+2. **Subagent + MCP** (good) - Delegate proof work, but still use live Lean tools inside the subagent
+3. **Subagent + scripts** (fallback) - Batch operations or MCP unavailable
+4. **Direct script execution** (fallback) - When not using Claude Code
 
 **MCP + Subagents workflow:**
 ```
@@ -413,14 +414,68 @@ to find the right mathlib lemma..."
 lean_goal(file, line, column)  # See proof state
 lean_diagnostic_messages(file)  # Check errors
 
+# Delegate proof work with file:line context; the agent prompt handles the MCP-first details
+"Dispatch sorry-filler-deep on Foo.lean:42; use MCP tools first"
+
 # Delegate batch operations to subagents
 "Dispatch Explore agent to run $LEAN4_SCRIPTS/check_axioms_inline.sh on all changed files"
 ```
 
 **Why this combination?**
 - MCP: Real-time feedback during proof development
-- Subagents: Batch verification and analysis tasks
+- Subagents: Parallel proof work or batch verification, while still using MCP for live Lean state when available
 - Best of both: Interactive + Automated
+
+### Known Limitation: MCP in Plugin Subagents
+
+Plugin-defined subagents may not reliably inherit MCP server connections in some
+Claude Code versions (upstream tracking: anthropic/claude-code#13605). When this
+occurs, each agent's LSP-first fallback gate activates and proof-editing work
+falls back per agent to scripts or host-side verification (e.g., `lake env lean`,
+`lake build`).
+
+**Workarounds:**
+- Prefer **user-scoped** MCP server (`claude mcp add --transport stdio --scope user lean-lsp -- ...`) over
+  project-scoped (`--scope project`) — user-scoped servers have been more reliable
+  for subagent visibility
+- For work that critically depends on MCP tools, run in the main conversation
+  thread rather than delegating to a subagent
+
+## Multi-Branch Workflows
+
+When working across multiple branches (e.g., benchmark variants, parallel experiments),
+set up **one worktree per branch** at the start:
+
+```bash
+git worktree add ../project-branch-a branch-a
+git worktree add ../project-branch-b branch-b
+```
+
+Each worktree is a full working directory on its own branch. Agents can operate in
+different worktrees without interfering.
+
+**Rules:**
+- Keep each agent pinned to one worktree
+- **Do not use `git stash` to shuttle agent work across branches** — stash/pop cycles
+  create merge conflicts, cross-branch contamination, and silent data loss (#66)
+- **Checkpoint or commit before cleanup** — never delete a worktree until results are
+  committed on the target branch
+- **Before any branch switch** in the main checkout: run `/lean4:checkpoint` or
+  `git commit` to persist all pending work
+
+**Worktree handoff:** When an agent produces results in a worktree, import them by:
+- Committing on that worktree's branch, then merging/cherry-picking
+- Extracting a patch (`git diff > patch`) and applying it
+- Explicit file copy to the target branch
+
+Never by stashing in one worktree and popping in another.
+
+**Worktree cache:** Each worktree needs its own `.lake` cache — see
+[Cold start / fresh worktree](../SKILL.md) for setup.
+
+> **Claude Code note:** `isolation: "worktree"` runs an agent in a temporary git
+> worktree automatically. The worktree persists if the agent makes changes — commit
+> or import results before cleanup.
 
 ## Best Practices
 
@@ -454,13 +509,17 @@ The lean4 plugin provides these main commands:
 
 | Command | Purpose |
 |---------|---------|
+| `/lean4:draft` | Skeleton drafting from informal claims |
+| `/lean4:formalize` | Interactive synthesis (draft + guided prove) |
+| `/lean4:autoformalize` | Autonomous synthesis (draft → prove loop with claim queue) |
 | `/lean4:prove` | Guided cycle-by-cycle proving |
 | `/lean4:autoprove` | Autonomous multi-cycle proving |
 | `/lean4:checkpoint` | Verified commit with axiom check |
 | `/lean4:review` | Read-only quality review |
+| `/lean4:refactor` | Strategy-level proof simplification |
 | `/lean4:golf` | Optimize proofs |
+| `/lean4:learn` | Interactive teaching and mathlib exploration |
 | `/lean4:doctor` | Diagnostics and migration |
-| `/lean4:learn` | Interactive teaching, mathlib exploration, autoformalization |
 
 **Note:** Individual operations like "search mathlib" or "analyze sorries" are now internal workflows within `/lean4:prove` (or `/lean4:autoprove`) rather than separate commands. This simplifies the UX while preserving all functionality.
 
@@ -469,7 +528,7 @@ The lean4 plugin provides these main commands:
 For quick operations, use Lean LSP MCP tools directly:
 
 ```
-lean_leansearch("continuous function compact")  # Natural language search
+lean_leanfinder("continuous function compact")  # Semantic, goal-aware search
 lean_loogle("Continuous _ → IsCompact _")       # Type pattern search
 lean_goal(file, line)                           # Get goal at position
 lean_multi_attempt(file, line, snippets=["simp", "ring"]) # Test tactics
@@ -481,7 +540,7 @@ lean_multi_attempt(file, line, snippets=["simp", "ring"]) # Test tactics
 
 **Direct approach (preferred):**
 ```
-lean_leansearch("continuous image of compact set is compact")
+lean_leanfinder("continuous image of compact set is compact")
 → Returns: Continuous.isCompact_image
 
 lean_loogle("Continuous _ → IsCompact _ → IsCompact _")
@@ -490,6 +549,7 @@ lean_loogle("Continuous _ → IsCompact _ → IsCompact _")
 Alternatives:
 - ContinuousOn.isCompact_image (if only continuous on subset)
 - IsCompact.image (more general form)
+- lean_leansearch("continuous image of compact set is compact")  # Natural-language fallback
 "
 ```
 

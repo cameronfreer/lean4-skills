@@ -17,6 +17,7 @@ Hard-primitive scripts for Lean 4 workflows. These implement functionality that'
 | `find_instances.sh` | Find type class instances | Need instance patterns or examples |
 | `unused_declarations.sh` | Find unused theorems/defs | Code cleanup, identifying dead code |
 | `find_golfable.py` | Find proof-golfing opportunities | After proofs compile, before final commit |
+| `find_exact_candidates.py` | Find exact? replacement candidates | Optional companion for direct-proof discovery |
 | `analyze_let_usage.py` | Detect false-positive optimizations | Before inlining let bindings |
 
 ## Core Scripts
@@ -49,6 +50,9 @@ Verify theorems use only standard mathlib axioms.
 
 # Check multiple files (batch mode)
 ./check_axioms_inline.sh "src/**/*.lean"
+
+# Scan a directory (recursively, skips .lake/.git)
+./check_axioms_inline.sh src/
 
 # Report-only (exit 0 even with custom axioms)
 ./check_axioms_inline.sh MyFile.lean --report-only
@@ -154,6 +158,15 @@ Identify proof optimization opportunities.
 ./find_golfable.py MyFile.lean --filter-false-positives
 ```
 
+### find_exact_candidates.py
+
+Optional companion for direct-proof discovery when `--search` is enabled or syntactic pass stalls. Scans for short tactic proofs where `exact?` might find a one-liner.
+
+```bash
+./find_exact_candidates.py MyFile.lean
+./find_exact_candidates.py src/ --recursive --priority high
+```
+
 ### analyze_let_usage.py
 
 Analyze let binding usage to avoid bad optimizations.
@@ -191,7 +204,7 @@ Keep stderr visible when invoking scripts; suppressing stderr to `/dev/null` hid
 
 ## Reference Documentation
 
-For tactic suggestions, proof templates, and simp hygiene best practices, see:
+For tactic suggestions, proof templates, simp hygiene, and simproc guidance, see:
 - [tactic-patterns.md](../../skills/lean4/references/tactic-patterns.md)
 - [proof-templates.md](../../skills/lean4/references/proof-templates.md)
-- [simp-hygiene.md](../../skills/lean4/references/simp-hygiene.md)
+- [simp-reference.md](../../skills/lean4/references/simp-reference.md)

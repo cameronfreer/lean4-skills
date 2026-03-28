@@ -71,7 +71,7 @@
 | Pattern | Task | Key Tactic/Approach |
 |---------|------|---------------------|
 | 1. Induction | Lists/Nats | `induction` with cases |
-| 2. Divisibility | Prove n ∣ m | `cases' even_or_odd`, `use` |
+| 2. Divisibility | Prove n ∣ m | `rcases even_or_odd`, `use` |
 | 3. List Counting | Complex counting proofs | Positional splitting, complementary counting |
 
 **Common tactics:** `linarith`, `norm_num`, `omega`
@@ -659,7 +659,7 @@ lemma property_of_list (l : List α) : P l := by
 
 ```lean
 lemma dvd_example (n : ℕ) : 2 ∣ n * (n + 1) := by
-  cases' Nat.even_or_odd n with h h
+  rcases Nat.even_or_odd n with h | h
   · -- n even
     obtain ⟨k, rfl⟩ := h
     use k * (2 * k + 1); ring

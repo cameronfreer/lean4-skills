@@ -2,17 +2,22 @@
   "name": "lean4-skills",
   "owner": {
     "name": "Cameron Freer",
-    "email": "cameronfreer@gmail.com"
+    "email": "lean4skills@gmail.com"
   },
   "metadata": {
-    "description": "Lean 4 theorem proving with guided + autonomous proving, LSP-first workflows, and guardrails",
-    "version": "4.0.9"
+    "description": "Lean 4 theorem proving with guided + autonomous proving, LSP-first workflows, guardrails, and contribution helpers",
+    "version": "4.4.5"
   },
   "plugins": [
     {
       "name": "lean4",
-      "description": "Unified Lean 4 plugin (prove, autoprove, review, golf, checkpoint) — LSP-first, scripts fallback",
+      "description": "Unified Lean 4 plugin (draft, formalize, autoformalize, prove, autoprove, checkpoint, review, refactor, golf, learn, doctor) — LSP-first, scripts fallback",
       "source": "./plugins/lean4"
+    },
+    {
+      "name": "lean4-contribute",
+      "description": "Draft and submit bug reports, feature requests, and insights as GitHub issues. Commands may share Lean code snippets with GitHub — review every draft before confirming.",
+      "source": "./plugins/lean4-contribute"
     }
   ]
 }

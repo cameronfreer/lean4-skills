@@ -106,6 +106,24 @@ calc a = b := by proof1
 -- Indent continuation lines by 4 spaces (or 2 for certain contexts)
 ```
 
+**Metaprogramming (MetaM/TacticM) — same 100-char rule:**
+```lean
+-- ✓ Fits on one line (< 100 chars) — do not wrap
+proof ← mkAppM ``Filter.Tendsto.prodMk_nhds #[atoms[i]!.hyp, proof]
+let ty ← inferType e >>= whnf
+
+-- ✓ Struct literals — one line when they fit
+return { toExpr := e, proof? := some proof, fvarId := fvar.fvarId! }
+
+-- ✗ Do not wrap just to reach 80 chars
+proof ← mkAppM ``Filter.Tendsto.prodMk_nhds
+  #[atoms[i]!.hyp, proof]  -- unnecessary break
+
+-- ✓ Break when line truly exceeds 100 chars
+let result ← withLocalDeclD `h expectedType fun fvar =>
+  mkLambdaFVars #[fvar] (← mkAppM ``Eq.mpr #[proof, fvar])
+```
+
 **Check for violations:**
 ```bash
 awk 'length > 100 {print FILENAME ":" NR ": " length($0) " chars"}' **/*.lean
@@ -350,7 +368,7 @@ theorem main_theorem : ... := by
 
 - **Official Style Guide:** https://leanprover-community.github.io/contribute/style.html
 - **Naming Conventions:** https://leanprover-community.github.io/contribute/naming.html
-- **How to Contribute:** https://leanprover-community.github.io/lean3/contribute/index.html
+- **How to Contribute:** https://leanprover-community.github.io/contribute/index.html
 - **Mathlib Zulip:** https://leanprover.zulipchat.com/ (#mathlib4 channel)
 
 ## Related References

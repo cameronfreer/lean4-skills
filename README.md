@@ -1,154 +1,155 @@
-# Lean 4 Skills for Claude
+# Lean 4 Skills
 
-[![Run in Smithery](https://smithery.ai/badge/skills/cameronfreer)](https://smithery.ai/skills?ns=cameronfreer&utm_source=github&utm_medium=badge)
+Lean 4 workflow pack for AI coding agents. Gives your agent a structured
+prove/review/golf loop, mathlib search, axiom checking, and safety guardrails.
+The workflows are host-agnostic — Claude Code, Codex, Gemini CLI, Cursor, and
+others all use the same core skill; only the invocation surface differs.
 
-Claude Code plugin for Lean 4 theorem proving, interactive learning, and autoformalization.
+## Workflows
 
-## Installation
+| Workflow | Description |
+|---|---|
+| draft | Draft Lean declaration skeletons from informal claims |
+| formalize | Interactive formalization — drafting plus guided proving |
+| autoformalize | Autonomous end-to-end formalization from informal sources |
+| prove | Guided cycle-by-cycle theorem proving |
+| autoprove | Autonomous multi-cycle proving with stop rules |
+| checkpoint | Verified save point (build + axiom check + commit) |
+| review | Read-only quality review |
+| refactor | Leverage mathlib, extract helpers, simplify proof strategies |
+| golf | Improve proofs for directness, clarity, performance, and brevity |
+| learn | Interactive teaching and mathlib exploration |
+| doctor | Diagnostics and migration help |
 
-```bash
-# Add marketplace
-/plugin marketplace add cameronfreer/lean4-skills
+**Claude Code:** invoke as `/lean4:<name>`. **Other hosts:** follow the corresponding workflow in [SKILL.md](plugins/lean4/skills/lean4/SKILL.md).
 
-# Install plugin
-/plugin install lean4
-```
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `/lean4:prove` | Guided cycle-by-cycle theorem proving |
-| `/lean4:autoprove` | Autonomous multi-cycle proving with stop rules |
-| `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
-| `/lean4:review` | Read-only quality review with optional external hooks |
-| `/lean4:golf` | Optimize proofs for brevity |
-| `/lean4:learn` | Interactive teaching, mathlib exploration, and autoformalization |
-| `/lean4:doctor` | Diagnostics and migration help |
-
-## Quick Start
-
-```
-/lean4:prove               # Guided sorry filling (interactive)
-/lean4:autoprove           # Or autonomous (unattended)
-/lean4:review              # Check quality (read-only)
-/lean4:golf                # Optimize proofs
-/lean4:learn               # Interactive teaching, mathlib, formalization
-/lean4:checkpoint          # Verified commit
-git push                   # Manual, after review
-```
+Typical session: `draft` (or `formalize` / `autoformalize`) → `prove` (or `autoprove`) → `review` → `refactor` → `golf` → `checkpoint` → `git push`.
 
 ## How It Works
 
-**`/lean4:prove`** — Guided, interactive. Asks preferences at startup, prompts before each commit, pauses between cycles. Start here.
-
-**`/lean4:autoprove`** — Autonomous, unattended. No questionnaire, auto-commits, loops until done or a stop condition fires (max cycles/time/stuck).
-
-Both run the same cycle engine: **Plan → Work → Checkpoint → Review → Replan → Continue/Stop**. Each sorry gets a mathlib search, tactic attempts, and validation. By default, each successful fill is committed individually (`--commit` controls this). When stuck, both force a review + replan.
-
-**Without a command:** Editing `.lean` files activates the skill for one bounded pass — fix the immediate issue, then suggest `/lean4:prove` or `/lean4:autoprove` for more.
-
-The other commands: **`/lean4:review`** (read-only quality check), **`/lean4:checkpoint`** (build + axiom check + commit), **`/lean4:golf`** (proof optimization), **`/lean4:learn`** (interactive teaching, mathlib exploration, autoformalization), **`/lean4:doctor`** (diagnostics).
+- **`draft`** — Skeleton-only drafting from informal claims. Use when you want Lean declarations without a full prove run.
+- **`formalize`** — Interactive synthesis. Drafts a skeleton, then runs guided prove cycles with user interaction.
+- **`autoformalize`** — Autonomous synthesis. Extracts claims from a source, drafts skeletons, and proves them unattended.
+- **`prove`** — Guided proof engine for existing declarations. Asks preferences at startup, prompts before each commit, pauses between cycles.
+- **`autoprove`** — Autonomous proof engine for existing declarations. Auto-commits, loops until a stop condition fires (max cycles, max time, or stuck).
+- The proof engines share one cycle engine: **Plan → Work → Checkpoint → Review → Replan → Continue/Stop**. Each sorry gets a mathlib search, tactic attempts, and validation. `--commit` controls per-fill commit behavior. When stuck, both force a review + replan.
+- `formalize` and `autoformalize` wrap drafting around that same engine. Statement and header changes belong there — `prove` and `autoprove` keep declaration headers immutable.
+- Editing `.lean` files without a command activates the skill for one bounded pass — fix the immediate issue, then suggest the right next command: `draft` / `formalize` for statement work, `prove` / `autoprove` for proof work.
 
 See [plugin README](plugins/lean4/README.md) for the full command guide.
 
-## Recommended: Lean LSP MCP Server
+## Installation
 
-[lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) provides sub-second feedback and search (LeanSearch, Loogle, LeanFinder). **Setup:** See [INSTALLATION.md](INSTALLATION.md#lean-lsp-server)
-
-## Migrating from V3
-
-If upgrading from the 3-plugin system:
+### Claude Code (native plugin)
 
 ```bash
-# Uninstall old plugins
-/plugin uninstall lean4-theorem-proving
-/plugin uninstall lean4-memories
-/plugin uninstall lean4-subagents
-
-# Install unified plugin
+/plugin marketplace add cameronfreer/lean4-skills
 /plugin install lean4
-
-# Verify
-/lean4:doctor
 ```
 
-**Legacy access:** Pin to `@v3.4.2-legacy` or use `#legacy-marketplace` branch.
+Optionally, install the contribution helper to draft bug reports, feature requests, or shareable insights from your editor:
 
-See `/lean4:doctor migrate` for detailed migration help.
+```bash
+/plugin install lean4-contribute
+```
+
+### Other Hosts
+
+Clone (shallow) and follow the setup for your host:
+
+```bash
+git clone --depth 1 https://github.com/cameronfreer/lean4-skills.git
+```
+
+- **Codex CLI** — add to `AGENTS.md` + env vars. See [INSTALLATION.md → Codex](INSTALLATION.md#openai-codex-cli)
+- **Gemini CLI** — add to `GEMINI.md` + env vars. See [INSTALLATION.md → Gemini](INSTALLATION.md#gemini-cli)
+- **Cursor** — project rules → SKILL.md + env vars. See [INSTALLATION.md → Cursor](INSTALLATION.md#cursor)
+- **Windsurf** — project rules → SKILL.md + env vars. See [INSTALLATION.md → Windsurf](INSTALLATION.md#windsurf)
+- **OpenCode** — copy to `.opencode/skills/` + env vars. See [INSTALLATION.md → OpenCode](INSTALLATION.md#opencode)
+- **Other agents** — point agent at SKILL.md + env vars. See [INSTALLATION.md → Generic](INSTALLATION.md#any-agent-generic)
+
+## Lean LSP MCP Server (Optional, Highly Recommended)
+
+The skill works standalone, but plays especially well with [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) — faster mathlib search and **sub-second feedback** instead of 30+ second `lake build` cycles. Works with any MCP-capable host.
+
+**What you get:**
+- `lean_goal` — exact goal state at any line
+- `lean_local_search` / `lean_leanfinder` / `lean_leansearch` / `lean_loogle` — mathlib search
+- `lean_multi_attempt` — test multiple tactics in parallel
+- `lean_hammer_premise` — premise suggestions for simp/aesop/grind
+- `lean_diagnostic_messages` — per-file error/warning check without a full `lake build`
+- …and more (hover info, goal-conditioned search, state inspection, etc.)
+
+**Claude Code** (run from your Lean project root):
+```bash
+# User-scoped — available in all your projects
+claude mcp add --transport stdio --scope user lean-lsp -- uvx lean-lsp-mcp
+
+# Or project-scoped — shared via .mcp.json
+claude mcp add --transport stdio --scope project lean-lsp -- uvx lean-lsp-mcp
+```
+
+> **Tip:** User-scoped (`--scope user`) is recommended — it has been more reliable
+> for keeping MCP tools visible inside proof-editing subagents. Project-scoped
+> servers may not propagate to plugin subagents in some Claude Code versions.
+
+**Other hosts:** See [INSTALLATION.md → MCP Server](INSTALLATION.md#lean-lsp-mcp-server-all-hosts)
+
+## Compatibility
+
+| Host | Status | Workflow |
+|---|---|---|
+| Claude Code | Full native | SKILL.md + scripts + `/lean4:*` commands, hooks, guardrails, subagents |
+| Codex / Gemini / OpenCode | Documented\* | SKILL.md + scripts |
+| Cursor / Windsurf | Documented\* | Project rules → SKILL.md + scripts |
+
+\*Documented setup patterns, not CI-verified.
 
 ## Documentation
 
-- [SKILL.md](plugins/lean4/skills/lean4/SKILL.md) - Core skill reference
-- [Lean4 Borrowed Params](plugins/lean4/skills/lean4-borrowed-params/SKILL.md) - `@&` borrowed parameter ABI/ownership guidance for extern/export boundaries
-- [Lean4 Compiler Attrs](plugins/lean4/skills/lean4-compiler-attrs/SKILL.md) - `implemented_by`, `csimp`, inlining, extraction controls
-- [Lean4 Compiler Pipeline](plugins/lean4/skills/lean4-compiler-pipeline/SKILL.md) - LCNF/IR traces, compiler options, `cpass` installer workflow
-- [Lean4 FFI Interop](plugins/lean4/skills/lean4-ffi-interop/SKILL.md) - `extern`/`export` + Lake linking + reverse FFI init flow
-- [Lean4 Init Runtime](plugins/lean4/skills/lean4-init-runtime/SKILL.md) - `initialize`/`[init]`/builtin init sequencing and runtime host setup
-- [Lean4 Specialization](plugins/lean4/skills/lean4-specialization/SKILL.md) - `@[specialize]`/`@[nospecialize]` decision workflow, traces, and recursion-limit tuning
-- [Lean4 Symbol Linkage](plugins/lean4/skills/lean4-symbol-linkage/SKILL.md) - Name mangling, package prefixes, `_init_` symbols, and export override diagnostics
-- [Zulip Extract](plugins/lean4/skills/zulip-extract/SKILL.md) - Convert Zulip HTML exports to readable plain text
 - [INSTALLATION.md](INSTALLATION.md) - Setup guide
+
+**lean4 plugin**
+- [SKILL.md](plugins/lean4/skills/lean4/SKILL.md) - Core skill reference
 - [Commands](plugins/lean4/commands/) - Command documentation
-- [Advanced References](plugins/lean4/skills/lean4/references/) - grind, simprocs, metaprogramming, linters, FFI, verso-docs, profiling
+- [References](plugins/lean4/skills/lean4/references/) - cycle engine, mathlib style, proof golfing, tactic patterns, grind, metaprogramming, and more
+
+**lean4-contribute plugin** — opt-in helper for filing issues on this repo from your editor
+- [README](plugins/lean4-contribute/README.md) - Full command guide and privacy details
+- `/lean4-contribute:bug-report` — draft a bug report (plugin bugs, not Lean/mathlib issues)
+- `/lean4-contribute:feature-request` — request a workflow the plugin doesn't support yet
+- `/lean4-contribute:share-insight` — share a reusable pattern or antipattern from your session
+
+---
+
+- [CHANGELOG.md](CHANGELOG.md) - Version history
+- Migrating from v3 (Claude Code): see [MIGRATION.md](plugins/lean4/MIGRATION.md)
 
 ## Changelog
 
-**Unreleased**
-- Added `zulip-extract` skill by upstreaming Lean commit `ff2a2cd7a11c0c619bb4c120be83609e1f541c44` into plugin/global skill format
-- Added `lean4-ffi-interop` skill from Lean compiler + Lake FFI examples (`extern`/`export`, linking, reverse-FFI init)
-- Added `lean4-compiler-attrs` skill for safe use of compiler attributes (`implemented_by`, `csimp`, inlining, `never_extract`)
-- Added `lean4-init-runtime` skill for init sequencing across `initialize`/`[init]`/`builtin_initialize` and host runtime setup
-- Added `lean4-compiler-pipeline` skill for LCNF/IR phase tracing, compiler option debugging, and `cpass` installer workflow
-- Added `lean4-specialization` skill for `@[specialize]`/`@[nospecialize]` tuning, trace-driven triage, and `compiler.maxRecSpecialize` control
-- Added `lean4-borrowed-params` skill for `@&` borrowed-parameter ABI/ownership debugging across extern/export boundaries
-- Added `lean4-symbol-linkage` skill for name-mangling/export/init-symbol diagnostics in compiler and FFI linking workflows
-
-**v4.1.0** (February 2026)
-- New [`/lean4:learn`](plugins/lean4/commands/learn.md) command: interactive teaching, mathlib exploration, autoformalization
-- Two-layer architecture: Lean-backed verification (always runs) + presentation layer (informal/supporting/formal)
-- Intent classification (`--intent`), game-style tracks (`--style=game`), source handling (`--source`)
-- Verification status model with `--verify=best-effort|strict`
-
-**v4.0.9** (February 2026)
-- Integrated advanced references from PR #10 (Alok Singh): grind tactic, simprocs, metaprogramming, linters, FFI, verso-docs, profiling
-- All new content is reference-only, outside default prove/autoprove loop
-- Lint guards for scope guards, SKILL.md cross-references, stale plugin paths, and command frontmatter
-
-**v4.0.8** (February 2026)
-- Three-tier build verification policy (diagnostics → `lake env lean` → `lake build`)
-- Fixed incorrect `lake build FILE.lean` patterns across references
-- Lint check prevents `lake build` with file arguments from regressing
-
-**v4.0.7** (February 2026)
-- Custom syntax reference: notations, macros, elaborators, DSLs (from PR #5, Alok Singh)
-- DSL scaffold template with precedence-correct examples
-- Version-compat note for MetaM/TacticM API drift across toolchains
-
-**v4.0.5** (February 2026)
-- Split `/lean4:autoprover` into `/lean4:prove` (guided) and `/lean4:autoprove` (autonomous)
-- prove: asks before each cycle, startup questionnaire, interactive deep approval
-- autoprove: autonomous loop with hard stop rules, structured summary on stop
-- Shared cycle engine: plan → work → checkpoint → review → replan → continue/stop
-- Stuck definition uses exact signature hashing for precision
-- Checkpoint skips commit on empty diff
-
-**v4.0.0** (February 2026)
-- Unified into single `lean4` plugin
-- New `/lean4:autoprover` - planning-first workflow
-- New `/lean4:golf` - standalone proof optimization
-- LSP-first approach throughout
-- Safety guardrails in Lean projects (blocks push/amend/pr; one-shot bypass for collaboration ops). See [plugin README safety section](plugins/lean4/README.md#safety-guardrails).
-- Removed memory integration (didn't work reliably)
-
-**v3.4.2** (January 2026) - [Legacy branch](../../tree/legacy-marketplace)
-- Last version of 3-plugin system
-- Available via `@v3.4.2-legacy` tag
+See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ## Contributing
 
-Issues and PRs welcome at https://github.com/cameronfreer/lean4-skills
+Issues and PRs welcome at https://github.com/cameronfreer/lean4-skills.
 
-## License
+If you have the `lean4-contribute` plugin installed, your coding agent may
+suggest filing bug reports, feature requests, or sharing insights at natural
+stopping points. Drafting starts only after you opt in; submission has its own
+separate confirmation. Each draft is shown in full before anything is sent.
 
-MIT License - see [LICENSE](LICENSE)
+## License & Citation
+
+MIT licensed. See [LICENSE](LICENSE) for more information.
+
+Citing this repository is highly appreciated but not required by the license. See also [CITATION.cff](CITATION.cff).
+
+```bibtex
+@software{lean4-skills,
+  author = {Cameron Freer},
+  title = {Lean 4 {Skills}: Theorem proving skill and workflow pack for {AI} coding agents},
+  url = {https://github.com/cameronfreer/lean4-skills},
+  month = oct,
+  year = {2025}
+}
+```

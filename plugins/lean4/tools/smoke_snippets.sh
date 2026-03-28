@@ -20,7 +20,7 @@ ok() {
 
 advanced_refs=(
     "grind-tactic.md"
-    "simproc-patterns.md"
+    "simp-reference.md"
     "metaprogramming-patterns.md"
     "linter-authoring.md"
     "ffi-patterns.md"

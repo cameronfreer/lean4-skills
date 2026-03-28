@@ -1,28 +1,42 @@
 # Lean 4 Plugin
 
-Unified Lean 4 plugin for theorem proving, interactive learning, and autoformalization.
+> **Claude Code adapter.** This directory implements the native Claude Code plugin
+> (hooks, guardrails, slash commands). The underlying skill content — SKILL.md,
+> references, and scripts — is host-agnostic.
+> See the [root README](../../README.md) for setup on other hosts.
+
+Unified Lean 4 plugin for theorem proving, interactive learning, and formalization.
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `/lean4:prove` | Guided cycle-by-cycle theorem proving |
-| `/lean4:autoprove` | Autonomous multi-cycle proving with stop rules |
-| `/lean4:checkpoint` | Verified save point (build + axiom check + commit) |
-| `/lean4:review` | Read-only quality review with optional external hooks |
-| `/lean4:golf` | Optimize proofs for brevity |
-| `/lean4:doctor` | Diagnostics and migration help |
-| `/lean4:learn` | Interactive teaching, mathlib exploration, and autoformalization |
+| `/lean4:draft` | Draft Lean declaration skeletons from informal claims |
+| `/lean4:formalize` | Interactive formalization — drafting plus guided proving |
+| `/lean4:autoformalize` | Autonomous end-to-end formalization from informal sources |
+| `/lean4:prove` | Guided cycle-by-cycle theorem proving with explicit checkpoints |
+| `/lean4:autoprove` | Autonomous multi-cycle theorem proving with hard stop rules |
+| `/lean4:checkpoint` | Save progress with a safe commit checkpoint |
+| `/lean4:review` | Read-only code review of Lean proofs |
+| `/lean4:refactor` | Leverage mathlib, extract helpers, simplify proof strategies |
+| `/lean4:golf` | Improve Lean proofs for directness, clarity, performance, and brevity |
+| `/lean4:learn` | Interactive teaching and mathlib exploration |
+| `/lean4:doctor` | Diagnostics, cleanup, and migration help |
 
 ## Quick Start
 
 ```bash
+/lean4:draft               # Draft Lean skeletons from informal claims
+/lean4:formalize           # Interactive synthesis (draft + prove)
+/lean4:autoformalize       # Autonomous synthesis (source → proof)
 /lean4:prove               # Guided sorry filling (interactive)
 /lean4:autoprove           # Autonomous sorry filling (unattended)
-/lean4:review              # Check quality (read-only)
-/lean4:golf                # Optimize proofs
 /lean4:checkpoint          # Verified commit
-/lean4:learn               # Explore repo, mathlib, or formalize
+/lean4:review              # Check quality (read-only)
+/lean4:refactor            # Simplify proof strategies
+/lean4:golf                # Optimize proofs
+/lean4:learn               # Explore repo or mathlib
+/lean4:doctor              # Diagnostics and migration help
 git push                   # Manual, after review
 ```
 
@@ -30,10 +44,22 @@ git push                   # Manual, after review
 
 ### Without a Command
 
-When you edit `.lean` files in a normal conversation, the plugin activates automatically — it helps with the immediate issue (a build error, a single sorry) but does one bounded pass only. No looping, no deep escalation. At the end it suggests:
+When you edit `.lean` files in a normal conversation, the plugin activates automatically — it helps with the immediate issue (a build error, a single sorry) but does one bounded pass only. No looping, no deep escalation. At the end it suggests the right next command:
 
-> Use `/lean4:prove` for guided cycle-by-cycle help.
-> Use `/lean4:autoprove` for autonomous cycles with stop safeguards.
+> Use `/lean4:draft` or `/lean4:formalize` for statement work.
+> Use `/lean4:prove` or `/lean4:autoprove` for proof work.
+
+### `/lean4:draft` — Skeleton Drafting
+
+Drafts Lean 4 declaration skeletons from informal claims. Default `--mode=skeleton` produces sorry-stubbed statements; `--mode=attempt` adds a proof-attempt loop. No full proof engine (no cycles, no falsification) — use `/lean4:formalize` for the full pipeline.
+
+### `/lean4:formalize` — Interactive Synthesis
+
+Combines drafting and guided proving in one human-in-the-loop workflow. Drafts a skeleton, then runs prove cycles with user interaction. Owns the right to modify declaration headers (the prove phase itself cannot). Accepts `--source` to ingest papers or files.
+
+### `/lean4:autoformalize` — Autonomous Synthesis
+
+Extracts claims from a source, drafts skeletons, and proves them — all unattended. Replaces the old `autoprove --formalize=auto` workflow as a first-class command with cleaner flag names.
 
 ### `/lean4:prove` — Guided Proving
 
@@ -80,32 +106,36 @@ Plan → Work → Checkpoint → Review → Replan → Continue/Stop
 
 When stuck (same blocker seen twice), both force a review + replan regardless of settings.
 
-### `/lean4:review` — Quality Check
-
-Read-only. Does not modify files or create commits.
-
-Runs build verification, sorry audit, axiom check, style review, and golfing opportunity scan. Scopes automatically to what you're working on (`--scope=sorry`, `file`, `changed`, or `project`). Two modes:
-
-- **batch** (default) — full report with all sections
-- **stuck** — lightweight triage: top 3 blockers with next steps
-
-`prove` and `autoprove` trigger reviews automatically at configured intervals. You can also run `/lean4:review` manually at any time.
-
 ### `/lean4:checkpoint` — Verified Save Point
 
 Runs `lake build`, checks for non-standard axioms, reports sorry count, then stages and commits. One command for "I want a known-good save point."
 
 Does **not** push — that's always manual (`git push`).
 
-### `/lean4:golf` — Proof Optimization
+### `/lean4:review` — Quality Check
 
-Finds and applies safe optimizations: `rw+exact → rwa`, inline single-use `let`, `ext+rfl → rfl`, etc. Verifies with `lean_diagnostic_messages` after each change (`lake build` at final gate only) and reverts failures. Stops when the success rate drops below 20% (saturation).
+Read-only. Does not modify files or create commits.
+
+Runs build verification, sorry audit, axiom check, style review, strategy simplification opportunities, and golfing opportunity scan. Scopes automatically to what you're working on (`--scope=sorry`, `file`, `changed`, or `project`). Two modes:
+
+- **batch** (default) — full report with all sections
+- **stuck** — lightweight triage: top 3 blockers with next steps
+
+`prove` and `autoprove` trigger reviews automatically at configured intervals. You can also run `/lean4:review` manually at any time.
+
+### `/lean4:refactor` — Strategy-Level Simplification
+
+Finds better proof approaches: replaces hand-rolled arguments with mathlib lemmas, extracts repeated patterns as helpers, replaces case splits with `congr`/`EqOn` patterns. Asks before each batch of edits; reverts on verification failure. Compiled proofs only.
+
+### `/lean4:golf` — Proof Improvement
+
+Scores candidates by directness → inference burden → performance → length. Applies safe patterns: `by exact t → t`, `apply+exact → exact`, inline single-use `let`, `ext+rfl → rfl`, etc. Conditional patterns (`rw+exact → rwa`) require net score improvement. Verifies with `lean_diagnostic_messages` after each change (`lake build` at final gate only) and reverts failures. Stops when the success rate drops below 20% (saturation).
 
 Usually run after proving, either prompted at the end of a `prove` session or explicitly.
 
-### `/lean4:learn` — Interactive Teaching & Formalization
+### `/lean4:learn` — Interactive Teaching
 
-Three modes: `--mode=repo` explores your project structure, `--mode=mathlib` navigates mathlib for a topic, `--mode=formalize` turns informal math into Lean statements (optionally under assumptions with `--rigor=axiomatic`). Adapts to `--level=beginner|intermediate|expert` and supports `--style=tour|socratic|exercise`. Conversational by default; use `--output=scratch` or `--output=file` to write artifacts.
+Two modes: `--mode=repo` explores your project structure, `--mode=mathlib` navigates mathlib for a topic. Adapts to `--level=beginner|intermediate|expert` and supports `--style=tour|socratic|exercise|game`. Conversational by default; use `--output=scratch` or `--output=file` to write artifacts. For formalization, learn suggests `/lean4:formalize`.
 
 ### `/lean4:doctor` — Diagnostics
 
@@ -125,7 +155,7 @@ Blocked during Lean project sessions:
 - `git push` → Use `/lean4:checkpoint`, then push manually
 - `git commit --amend` → Each change is a new commit for safe rollback
 - `gh pr create` → Review first with `/lean4:review`
-- Destructive git operations (`checkout --`, `restore`, `reset --hard`, `clean -f`) → Use `git stash push -u`
+- Destructive git operations (`checkout --`, `restore`, `reset --hard`, `clean -f`) → Commit or checkpoint first
 - Deep sorry-filling has snapshot, rollback, scope budgets, and regression gates — see [Cycle Engine](skills/lean4/references/cycle-engine.md#deep-mode)
 
 **Override environment variables:**
@@ -220,11 +250,11 @@ plugins/lean4/
 ├── skills/zulip-extract/        # Parse Zulip HTML dumps into plain text
 ├── agents/             # 4 specialized agents
 ├── hooks/              # Bootstrap and guardrails
-├── scripts/           # Compat alias → lib/scripts
+├── scripts/            # Compat alias → lib/scripts
 └── lib/scripts/        # 12 hard-primitive scripts
 ```
 
-## Upgrading from V3
+## Upgrading from v3
 
 See [MIGRATION.md](MIGRATION.md) for upgrade guide.
 
@@ -243,4 +273,4 @@ See [MIGRATION.md](MIGRATION.md) for upgrade guide.
 - [Scripts](lib/scripts/README.md) - Script reference
 - [Custom Syntax](skills/lean4/references/lean4-custom-syntax.md) - Notations, macros, elaborators, DSLs
 - [DSL Scaffold](skills/lean4/references/scaffold-dsl.md) - Copy-paste DSL template
-- [Advanced References](skills/lean4/references/) - grind, simprocs, metaprogramming, linters, FFI, verso-docs, profiling
+- [References](skills/lean4/references/) - grind, simprocs, metaprogramming, linters, FFI, verso-docs, profiling

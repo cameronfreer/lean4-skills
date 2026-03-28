@@ -90,7 +90,10 @@ Proceed? (yes / no)
 **Flag:** Statement may be false (optional — see below)
 
 **Recommended next action:** Search for tendsto variants in Topology/Order
+**next_action:** continue
 ```
+
+**next_action classification (stuck mode):** `continue` (retryable), `deep` (needs escalation), `repair` (compiler blocker), `redraft` (statement-shape blocker), `golf` (sorry-free), `stop` (no path). Informational unless autoprove outer loop is active.
 
 **Falsification flag:** Include when analysis suggests statement may be false:
 - Decidable goal that failed `decide` or `native_decide`
@@ -106,6 +109,8 @@ Example: `**Flag:** Statement may be false (decidable goal failed decide)`
 4. Long/fragile proofs (performance risk)
 5. Falsification signals (decidable goal that failed `decide`, repeated proof failures)
 
+For strategy-level proof simplification (mathlib leverage, helper extraction, congr-lemma patterns), run `/lean4:refactor` or `/lean4:refactor --dry-run`.
+
 ## Actions
 
 The agent selects files based on scope, then runs these analyses (per file or directory):
@@ -113,7 +118,7 @@ The agent selects files based on scope, then runs these analyses (per file or di
 1. **Build Status** - `lake build` (project-wide); for scoped review (`--scope=file`), use `lean_diagnostic_messages(file)` + `lake env lean <path/to/File.lean>` (run from project root) first
 2. **Sorry Audit** - `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" <target> --format=json --report-only`
 3. **Axiom Check** - `bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target> --report-only`
-4. **Style Review** - Check mathlib conventions (naming, structure, tactics)
+4. **Style Review** - Check mathlib conventions (naming, structure, tactics, 100-char line width). Flag lines wrapped under 100 chars that fit on one line (common: `mkAppM` calls, short struct literals, single-expression tactic lines).
 5. **Golfing Opportunities** - `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/find_golfable.py" <target> --filter-false-positives`
 6. **Complexity Metrics** - Proof sizes, longest proofs, tactic patterns
 
@@ -198,7 +203,10 @@ If "yes":
 1. Enter plan mode
 2. Create plan with one task per high-priority suggestion
 3. Get user approval before execution
-4. Use `/lean4:prove` to apply fixes (review itself remains read-only)
+4. Route to the appropriate command (review itself remains read-only):
+   - Missing proofs / build blockers → `/lean4:prove`
+   - Strategy simplification opportunities → `/lean4:refactor`
+   - Tactic-level brevity cleanup → `/lean4:golf`
 
 **Note:** When `--mode=stuck` is triggered by prove/autoprove, skip this prompt—the proving command handles the follow-up with its own "Apply this plan? [yes/no]" prompt.
 
@@ -231,6 +239,8 @@ When using `--json`, output follows this structure:
   }
 }
 ```
+
+**Stuck mode only:** The `summary` object includes `"next_action": "continue"` (or other value) when `--mode=stuck`. Absent in batch mode.
 
 ## Codex Integration
 

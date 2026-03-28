@@ -22,7 +22,7 @@ For workflow patterns and quick reference, see [lean-lsp-server.md](lean-lsp-ser
 **Local tools (unlimited, instant):**
 - Direct LSP queries against your project files
 - No rate limits, < 1 second response time
-- Tools: `lean_goal`, `lean_local_search`, `lean_multi_attempt`, `lean_diagnostic_messages`, `lean_hover_info`, `lean_file_outline`, `lean_run_code`, `lean_profile_proof`, `lean_file_contents` (DEPRECATED — use Read tool)
+- Tools: `lean_goal`, `lean_local_search`, `lean_multi_attempt`, `lean_diagnostic_messages`, `lean_code_actions`, `lean_hover_info`, `lean_file_outline`, `lean_run_code`, `lean_profile_proof`, `lean_file_contents` (DEPRECATED — use Read tool)
 
 **External tools (rate limits vary per tool):**
 - Remote API calls to leansearch.net, leanfinder, loogle.lean-lang.org
@@ -80,7 +80,7 @@ lemma test_add_comm (n m : ℕ) : n + m = m + n := by
   "goals_after": []
 }
 ```
-← Empty `goals_after` array = proof complete!
+← Empty `goals_after` array = tactic closed all visible goals. Follow up with `lean_diagnostic_messages(file)` to confirm no residual errors.
 
 ---
 
@@ -94,12 +94,12 @@ lemma test_add_comm (n m : ℕ) : n + m = m + n := by
 - `file_path` (required): Absolute path to Lean file
 - `declaration_name` (optional): Filter diagnostics to a specific declaration (e.g., "myLemma"). Useful for large files with many errors.
 
-**⚠️ IMPORTANT:** Do NOT pass `severity` parameter - it will cause error `'severity'`. Severity appears IN the response, not as a filter.
+**Optional filter (v0.20+):** `severity` — filter diagnostics by severity level (1 = error, 2 = warning, 3 = info). Omit to return all diagnostics.
 
-**Correct usage:**
+**Usage examples:**
 ```python
-lean_diagnostic_messages(file_path="/path/to/file.lean")
-# NOT: lean_diagnostic_messages(file_path="/path/to/file.lean", severity=1)
+lean_diagnostic_messages(file_path="/path/to/file.lean")                    # All diagnostics
+lean_diagnostic_messages(file_path="/path/to/file.lean", severity=1)        # Errors only
 ```
 
 **Example - Errors found:**
@@ -110,7 +110,7 @@ lean_diagnostic_messages(file)
 ```
 - Line 13, columns 9-17: `add_comm` not in scope
 - Line 20, columns 30-49: Syntax error with `StrictMono`
-- Severity 1 = error, Severity 2 = warning (returned in response, not a parameter)
+- Severity 1 = error, Severity 2 = warning (also usable as a filter parameter in v0.20+)
 
 **Example - Success:**
 ```
@@ -121,7 +121,28 @@ lean_diagnostic_messages(file)
 
 **Structured output (v0.18+):** Returns `{success, failed_dependencies, diagnostics}`. Check `failed_dependencies` when imports fail (e.g., "Unknown package 'Mathlib'").
 
-**Critical:** Empty diagnostics means no errors, but doesn't mean proof complete. Always verify with `lean_goal` to confirm "no goals".
+**Critical:** Empty diagnostics alone does not confirm proof completion. Always verify with `lean_goal` to confirm no remaining goals AND `lean_diagnostic_messages` to confirm clean diagnostics. Proof complete = no remaining goals + clean diagnostics.
+
+---
+
+### `lean_code_actions` - Resolve "Try This" Suggestions
+
+**When to use:** After `lean_diagnostic_messages` reports a "Try this" suggestion, or after running `simp?`, `exact?`, `apply?`, or similar query tactics that produce suggestions.
+
+**Purpose:** Resolves LSP code actions into concrete edits. When Lean suggests a replacement (e.g., `simp?` suggests `simp only [Nat.add_comm]`), this tool returns the resolved edit so you can apply it directly instead of manually parsing the suggestion from diagnostic output.
+
+**Parameters:**
+- `file_path` (required): Absolute path to Lean file
+- `line` (required): Line number where the suggestion appears (1-indexed)
+
+**Example:**
+```
+-- After running simp? at line 15, diagnostics show "Try this: simp only [Nat.add_comm]"
+lean_code_actions(file, line=15)
+→ Returns the resolved edit replacing simp? with simp only [Nat.add_comm]
+```
+
+**Workflow position:** Use after `lean_diagnostic_messages`, before manual search. If diagnostics suggest a fix, `lean_code_actions` is cheaper and more reliable than searching for the fix yourself. After applying the returned edit, always re-run `lean_diagnostic_messages(file)` to confirm the fix introduced no new errors, then `lean_goal(file, line)` to confirm no remaining goals.
 
 ---
 
@@ -200,7 +221,7 @@ lean_multi_attempt(file, line=13, snippets=[
 ])
 
 → Output (v0.17+): Returns **structured goals** for each snippet:
-[{"snippet": "  simp [Nat.add_comm]", "goals": []},  # no goals = success!
+[{"snippet": "  simp [Nat.add_comm]", "goals": []},  # no goals — verify with lean_diagnostic_messages
  {"snippet": "  omega", "goals": []},
  {"snippet": "  apply Nat.add_comm", "goals": []}]
 ```
@@ -237,9 +258,9 @@ Chain tactics with `;` - still single line!
 - **No comments** - avoid `--` in snippets
 - **For testing only** - edit file properly after choosing
 
-**Return structure (v0.17+):** Array of result objects with structured goals (see Example 1 above). Each entry contains `snippet` and `goals` (empty array = success).
+**Return structure (v0.17+):** Array of result objects with structured goals (see Example 1 above). Each entry contains `snippet` and `goals` (empty goals array means the tactic closed all visible goals — always follow up with `lean_diagnostic_messages(file)` to confirm no residual errors).
 
-**Legacy return (pre-v0.17):** Array of strings, one per snippet: `"<snippet>:\n<goal_state_or_error>\n\n"`. Success: `"no goals"`. Failure: error message.
+**Legacy return (pre-v0.17):** Array of strings, one per snippet: `"<snippet>:\n<goal_state_or_error>\n\n"`. Tactic closed goals: `"no goals"`. Failure: error message. Always confirm with `lean_diagnostic_messages`.
 
 **Workflow:**
 1. `lean_goal` to see what you need
@@ -445,9 +466,12 @@ lean_loogle("(?a -> ?b) -> List ?a -> List ?b", num_results=5)
 **Decision tree:**
 ```
 Know exact name? → lean_local_search
-Know concept/description? → lean_leansearch
+Know concept/description or have goal text? → lean_leanfinder ✅
+Need natural-language fallback? → lean_leansearch
 Know input/output types? → lean_loogle ✅
 ```
+
+`lean_leanfinder` is the preferred semantic search: it is goal-aware and has a larger rate budget than `lean_leansearch` (10/30s vs 3/30s).
 
 **Return structure:**
 ```json
@@ -767,10 +791,10 @@ Error: Rate limit exceeded. Try again in X seconds.
 
 **Priority order:**
 1. `lean_local_search` — always first, unlimited
-2. `lean_loogle` — type patterns (unlimited in local mode; remote by default)
-3. `lean_leanfinder` — semantic, goal-aware (10/30s)
+2. `lean_leanfinder` — preferred semantic/goal-aware search (10/30s)
+3. `lean_loogle` — type patterns (unlimited in local mode; remote by default)
 4. `lean_hammer_premise` — premise suggestions (3/30s)
-5. `lean_leansearch` — natural language (3/30s)
+5. `lean_leansearch` — natural-language fallback (3/30s)
 6. `lean_state_search` — goal-conditioned (3/30s)
 
 ---
@@ -919,7 +943,7 @@ For each step:
   lean_diagnostic_messages(file)  # Verify
 ```
 
-Repeat until "no goals"!
+Repeat until `lean_goal` shows no remaining goals and `lean_diagnostic_messages` returns clean diagnostics.
 
 ### Pattern 5: Refactoring Long Proofs
 
