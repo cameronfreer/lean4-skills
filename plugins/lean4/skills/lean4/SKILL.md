@@ -240,8 +240,8 @@ ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --report-only
 
 **Custom Syntax:** [lean4-custom-syntax](references/lean4-custom-syntax.md) (read when building notations, macros, elaborators, or DSLs), [metaprogramming-patterns](references/metaprogramming-patterns.md) (MetaM/TacticM API — composable blocks, elaborators), [scaffold-dsl](references/scaffold-dsl.md) (copy-paste DSL template), [json-patterns](references/json-patterns.md) (json% syntax + ToJson)
 
-**Quality:** [linter-authoring](references/linter-authoring.md) (project-specific linter rules), [ffi-patterns](references/ffi-patterns.md) (C/ObjC bindings via Lake)
+**Quality:** [linter-authoring](references/linter-authoring.md) (project-specific linter rules), [ffi-interop](references/ffi-interop.md) (FFI, `@&`, init, symbol linkage)
 
 **Workflows:** [agent-workflows](references/agent-workflows.md), [subagent-workflows](references/subagent-workflows.md), [command-examples](references/command-examples.md), [learn-pathways](references/learn-pathways.md) (intent taxonomy, game tracks, source handling)
 
-**Internals:** [review-hook-schema](references/review-hook-schema.md)
+**Internals:** [review-hook-schema](references/review-hook-schema.md), [compiler-internals](references/compiler-internals.md) (attributes, specialization, pipeline)

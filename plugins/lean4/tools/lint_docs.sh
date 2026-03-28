@@ -236,10 +236,16 @@ check_references() {
         warn "Missing linter-authoring.md"
     fi
 
-    if [[ -f "$ref_dir/ffi-patterns.md" ]]; then
-        ok "ffi-patterns.md exists"
+    if [[ -f "$ref_dir/ffi-interop.md" ]]; then
+        ok "ffi-interop.md exists"
     else
-        warn "Missing ffi-patterns.md"
+        warn "Missing ffi-interop.md"
+    fi
+
+    if [[ -f "$ref_dir/compiler-internals.md" ]]; then
+        ok "compiler-internals.md exists"
+    else
+        warn "Missing compiler-internals.md"
     fi
 
     if [[ -f "$ref_dir/verso-docs.md" ]]; then
@@ -989,7 +995,7 @@ check_integrated_advanced_refs() {
     local _ar_file _ar_base
 
     # Each advanced reference must be linked from SKILL.md and have the scope guard
-    for _ar_base in grind-tactic.md simp-reference.md metaprogramming-patterns.md linter-authoring.md ffi-patterns.md verso-docs.md profiling-workflows.md; do
+    for _ar_base in grind-tactic.md simp-reference.md metaprogramming-patterns.md linter-authoring.md ffi-interop.md compiler-internals.md verso-docs.md profiling-workflows.md; do
         _ar_file="$ref_dir/$_ar_base"
 
         if [[ ! -f "$_ar_file" ]]; then
@@ -1079,7 +1085,8 @@ check_advanced_reference_metadata() {
         "simp-reference.md"
         "metaprogramming-patterns.md"
         "linter-authoring.md"
-        "ffi-patterns.md"
+        "ffi-interop.md"
+        "compiler-internals.md"
         "verso-docs.md"
         "profiling-workflows.md"
     )
@@ -1138,7 +1145,8 @@ check_advanced_reference_language() {
         "simp-reference.md"
         "metaprogramming-patterns.md"
         "linter-authoring.md"
-        "ffi-patterns.md"
+        "ffi-interop.md"
+        "compiler-internals.md"
         "verso-docs.md"
         "profiling-workflows.md"
     )
