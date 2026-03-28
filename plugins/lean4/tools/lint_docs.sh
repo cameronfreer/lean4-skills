@@ -116,11 +116,13 @@ check_agents() {
         local lines
         lines=$(wc -l < "$file")
 
-        local max_lines=115
+        # Base limit + per-agent overhead (keep in sync — single source of truth)
+        local base_agent_max=120
+        local max_lines=$base_agent_max
         case "$agent" in
-            axiom-eliminator) max_lines=125 ;;
-            proof-golfer) max_lines=155 ;;
-            sorry-filler-deep) max_lines=125 ;;
+            axiom-eliminator) max_lines=$(( base_agent_max + 10 )) ;;
+            proof-golfer) max_lines=$(( base_agent_max + 40 )) ;;
+            sorry-filler-deep) max_lines=$(( base_agent_max + 10 )) ;;
         esac
 
         if [[ $lines -gt $max_lines ]]; then

@@ -31,6 +31,8 @@ model: opus
    - 5+ uses: NEVER inline
 
    > **MCP canary:** Before step 3, test `lean_diagnostic_messages(file)`. If unavailable (tool-not-found, missing from context, or inaccessible), emit "⚠ Lean MCP tools unavailable — golfing limited to syntactic patterns", skip steps 3-4 (require `lean_multi_attempt`), and reduce step 5 to max 1 hunk with `lake build` per-hunk verification (no bulk rewrites — baseline-comparison gate requires per-edit diagnostics).
+   >
+   > **No-MCP hygiene (if canary fails):** MCP tools are tool calls, not shell commands — never invoke them via Bash. Stop retrying MCP for this run. Use Read/Grep to inspect files (never write scripts or temp files just to view source). Start from pre-collected context in the parent prompt.
 
 3. **Exact-collapse pass** (for `apply-exact-chain` anchors from step 1):
    - Mechanical (≤30 anchors/file): construct collapsed `exact` → `lean_multi_attempt` + `lean_diagnostic_messages` baseline check; accept by scoring order (per golf.md: directness → inference burden → perf → length)
