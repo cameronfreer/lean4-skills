@@ -404,6 +404,8 @@ to find the right mathlib lemma..."
 
 **Specialized proof-editing subagents:** Start from parent-provided pre-collected context (see [cycle-engine.md § Pre-flight Context](cycle-engine.md#pre-flight-context-for-subagent-dispatch)). Direct MCP access in the subagent is opportunistic, not assumed — if the startup canary detects MCP is unavailable, the agent commits to its fallback behavior immediately.
 
+See [SKILL.md § Operating Profiles](../SKILL.md#operating-profiles) for the full profile definitions.
+
 **Hierarchy:**
 1. **Main thread + MCP** (best) — direct LSP integration, real-time feedback
 2. **Subagent with pre-collected context** (normal for sorry-filler-deep, proof-golfer, axiom-eliminator) — parent collects MCP results, agent starts from that state; MCP in subagent is a bonus if available

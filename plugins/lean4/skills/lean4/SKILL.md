@@ -122,6 +122,44 @@ lean_code_actions(file, line)                   # Resolve "Try this" suggestions
 
 `lean_run_code` is for isolated scratch experiments, not a substitute for live proof-state inspection via `lean_goal`/`lean_multi_attempt`/`lean_diagnostic_messages`. Prefer live-file tools when the question depends on actual file context.
 
+## Capabilities
+
+| Capability | Required | Check | Fallback |
+|-----------|----------|-------|----------|
+| Lean / Lake | yes | `lean --version`, `lake --version` | none — run `/lean4:doctor` |
+| Python 3 | yes (scripts) | `$LEAN4_PYTHON_BIN` set by bootstrap | none for script-dependent operations |
+| Lean LSP MCP | no | try `lean_goal` on any `.lean` file | scripts + `lake env lean` (file-level only) |
+| `lean_run_code` | no | try calling it | `lake env lean` on temp file |
+| `lean_code_actions` | no | try calling it | manual "Try this" application |
+| Subagent dispatch | no | host-dependent | run work in main thread |
+| Slash commands | no | host-dependent | follow skill instructions directly |
+
+## Operating Profiles
+
+The skill adapts to what's available. Determine your profile by checking capabilities above, then follow the corresponding guidance.
+
+### full (all capabilities)
+
+MCP + subagents + commands. Full workflow with live goal inspection, tactic testing, and parallel subagent dispatch. Subagents get pre-collected MCP context per [cycle-engine.md § Pre-flight Context](references/cycle-engine.md#pre-flight-context-for-subagent-dispatch).
+
+### mcp_main_only (MCP available, no subagent dispatch)
+
+MCP works in the main thread. Run all proof work directly — do not delegate to subagents. All cycle-engine phases execute in-thread.
+
+### scripts_only (no MCP, no subagents)
+
+Use `$LEAN4_SCRIPTS` for search and `lake env lean` / `lake build` for validation. **Key limitations in this mode:**
+- **No live goal inspection** — `lean_goal` is unavailable; you can read the file and check compilation output, but cannot see proof state at a specific line
+- **No tactic testing** — `lean_multi_attempt` is unavailable; edits must be validated by compiling the file (`lake env lean`)
+- **No real-time diagnostics** — `lean_diagnostic_messages` is unavailable; use `lake env lean <file>` (from project root) for compilation errors, but feedback is file-level, not line-level
+- **Search is script-based** — `$LEAN4_SCRIPTS/smart_search.sh` replaces LSP search tools
+
+This mode is functional for straightforward proofs but significantly slower and less precise than MCP-backed workflows.
+
+### review_only (read-only, no edits)
+
+Read proof state and assess quality. No edits, no commits, no subagent dispatch.
+
 ## Core Primitives
 
 | Script | Purpose | Output |
@@ -198,7 +236,7 @@ Note: `exact?`/`apply?` query mathlib (slow). `grind` and `aesop` are powerful b
 
 ## Troubleshooting
 
-If LSP tools aren't responding, scripts provide fallback for all operations. If environment variables (`LEAN4_SCRIPTS`, `LEAN4_REFS`) are missing, run `/lean4:doctor` to diagnose.
+If LSP tools aren't responding, check your operating profile above. In `scripts_only` mode, `$LEAN4_SCRIPTS` provides search and `lake env lean` provides file-level compilation feedback, but live goal inspection, tactic testing, and line-level diagnostics are unavailable. If environment variables (`LEAN4_SCRIPTS`, `LEAN4_REFS`) are missing, run `/lean4:doctor` to diagnose.
 
 **Script environment check:**
 ```bash
