@@ -23,6 +23,8 @@ model: opus
    > (tool-not-found, missing from context, or otherwise inaccessible), emit
    > "⚠ Lean MCP tools unavailable in this subagent context" and proceed using
    > script fallback for search and `lake env lean` / `lake build` for validation.
+   >
+   > **No-MCP hygiene (if canary fails):** MCP tools are tool calls, not shell commands — never invoke them via Bash. Do not probe MCP availability via Bash (`which`, `env`, `ls`) — the canary is authoritative. Stop retrying MCP for this run. Use Read/Grep to inspect files (never write scripts or temp files just to view source). Temp `.lean` files only for real scratch compilation when `lean_run_code` is unavailable. Start from pre-collected context in the parent prompt.
 
 2. **Outline plan FIRST** (~200-500 tokens):
    ```markdown

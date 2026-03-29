@@ -23,6 +23,8 @@ model: opus
    > back immediately to `$LEAN4_SCRIPTS/check_axioms_inline.sh` and `lake build` for
    > validation. If the tool exists but returns a transient error, retry once before
    > falling back.
+   >
+   > **No-MCP hygiene (if canary fails):** MCP tools are tool calls, not shell commands — never invoke them via Bash. Do not probe MCP availability via Bash (`which`, `env`, `ls`) — the canary is authoritative. Stop retrying MCP for this run. Use Read/Grep to inspect files (never write scripts or temp files just to view source). Temp `.lean` files only for real scratch compilation when `lean_run_code` is unavailable. Start from pre-collected context in the parent prompt.
 
 2. **Propose migration plan** (~500-800 tokens):
    ```markdown

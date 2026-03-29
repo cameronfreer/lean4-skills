@@ -196,6 +196,8 @@ Statement changes are NOT permitted. Declaration headers are immutable (header f
 - `--deep-rollback=never` → coerced to `on-regression`
 - `--deep-regression-gate=off` → coerced to `strict`
 
+When dispatching sorry-filler-deep, include pre-collected MCP context per [cycle-engine.md § Pre-flight Context](../skills/lean4/references/cycle-engine.md#pre-flight-context-for-subagent-dispatch).
+
 See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#deep-mode) for full semantics, definitions, and prove/autoprove comparison.
 
 ### Header Fence
@@ -219,6 +221,8 @@ See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#falsification-a
 ## Repair Mode
 
 Compiler-guided repair is **escalation-only** — not the default response to a first failure. Auto-invoke only when compiler errors are the active blocker: same blocker 2x, same build error 2x, or 3+ errors in scope. Apply direct fixes first. Budgets: max 2 per error signature, max 8 total per cycle. No improvement after 2 attempts → stuck + review + replan. Interactive repair options are coerced to autonomous (auto-select next strategy).
+
+When dispatching proof-repair, include pre-collected MCP context per [cycle-engine.md § Pre-flight Context](../skills/lean4/references/cycle-engine.md#pre-flight-context-for-subagent-dispatch).
 
 See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#repair-mode) for full policy and [compilation-errors.md](../skills/lean4/references/compilation-errors.md) for error-specific fixes.
 

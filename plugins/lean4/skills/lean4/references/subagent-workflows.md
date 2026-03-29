@@ -400,46 +400,51 @@ to find the right mathlib lemma..."
 
 ## Integration with MCP Server
 
-**If Lean MCP server is available:** Prefer MCP tools over scripts, including inside specialized proof-editing subagents.
+**Main thread:** Prefer MCP tools over scripts for all interactive proof work.
+
+**Specialized proof-editing subagents:** Start from parent-provided pre-collected context (see [cycle-engine.md § Pre-flight Context](cycle-engine.md#pre-flight-context-for-subagent-dispatch)). Direct MCP access in the subagent is opportunistic, not assumed — if the startup canary detects MCP is unavailable, the agent commits to its fallback behavior immediately.
 
 **Hierarchy:**
-1. **MCP server** (best) - Direct integration, no script overhead
-2. **Subagent + MCP** (good) - Delegate proof work, but still use live Lean tools inside the subagent
-3. **Subagent + scripts** (fallback) - Batch operations or MCP unavailable
-4. **Direct script execution** (fallback) - When not using Claude Code
+1. **Main thread + MCP** (best) — direct LSP integration, real-time feedback
+2. **Subagent with pre-collected context** (normal for sorry-filler-deep, proof-golfer, axiom-eliminator) — parent collects MCP results, agent starts from that state; MCP in subagent is a bonus if available
+3. **Subagent returning to caller** (proof-repair) — if MCP canary fails, returns no diff and lets the caller escalate rather than operating in fallback mode
+4. **Subagent + scripts only** (fallback) — batch operations or when pre-collected context is insufficient
+5. **Direct script execution** (non-Claude hosts) — when not using Claude Code
 
-**MCP + Subagents workflow:**
+**Pre-collected context dispatch pattern:**
 ```
-# Use MCP for interactive proof development
-lean_goal(file, line, column)  # See proof state
-lean_diagnostic_messages(file)  # Check errors
+# Parent collects MCP context before dispatch
+lean_goal(file, line)              # Capture goal state
+lean_diagnostic_messages(file)     # Capture diagnostics
+lean_local_search("keyword")       # Search results
 
-# Delegate proof work with file:line context; the agent prompt handles the MCP-first details
-"Dispatch sorry-filler-deep on Foo.lean:42; use MCP tools first"
+# Dispatch with pre-collected context (subagent may not have MCP)
+"Dispatch sorry-filler-deep on Foo.lean:42 with pre-collected context:
+ Goal: ⊢ n + m = m + n
+ Diagnostics: sorry at line 42
+ Search: lean_local_search('Nat.add_comm') → [Nat.add_comm]"
 
 # Delegate batch operations to subagents
 "Dispatch Explore agent to run $LEAN4_SCRIPTS/check_axioms_inline.sh on all changed files"
 ```
 
-**Why this combination?**
-- MCP: Real-time feedback during proof development
-- Subagents: Parallel proof work or batch verification, while still using MCP for live Lean state when available
-- Best of both: Interactive + Automated
+**Why pre-collect context?**
+- MCP tools may not be available in subagents (see Known Limitation below)
+- Pre-collecting gives the agent a working starting state even without MCP
+- The agent can still use `lake env lean` via Bash for post-edit validation
+- See [cycle-engine.md § Pre-flight Context](cycle-engine.md#pre-flight-context-for-subagent-dispatch) for per-agent context specs
 
 ### Known Limitation: MCP in Plugin Subagents
 
-Plugin-defined subagents may not reliably inherit MCP server connections in some
-Claude Code versions (upstream tracking: anthropic/claude-code#13605). When this
-occurs, each agent's LSP-first fallback gate activates and proof-editing work
-falls back per agent to scripts or host-side verification (e.g., `lake env lean`,
-`lake build`).
+In current Claude Code versions, plugin-defined subagents may fail to inherit MCP server connections from the parent thread (upstream: anthropics/claude-code#39962). Each agent has a startup canary that detects this; the fallback behavior varies by agent (proof-repair returns no diff and lets the caller escalate; sorry-filler-deep and axiom-eliminator fall back to scripts and `lake build`; proof-golfer limits to syntactic patterns with `lake env lean` per-hunk verification).
 
-**Workarounds:**
-- Prefer **user-scoped** MCP server (`claude mcp add --transport stdio --scope user lean-lsp -- ...`) over
-  project-scoped (`--scope project`) — user-scoped servers have been more reliable
-  for subagent visibility
-- For work that critically depends on MCP tools, run in the main conversation
-  thread rather than delegating to a subagent
+**Mitigations (built into the plugin):**
+- **Pre-flight context:** The parent thread collects goal state, diagnostics, and search results before dispatch and includes them in the agent prompt. See [cycle-engine.md § Pre-flight Context](cycle-engine.md#pre-flight-context-for-subagent-dispatch).
+- **No-MCP hygiene:** Each agent's canary block enforces: no invoking MCP tool names via Bash, no retrying MCP after canary fails, use Read/Grep for file inspection (not scripts or temp files).
+
+**Additional workarounds:**
+- Prefer **user-scoped** MCP server (`claude mcp add --transport stdio --scope user lean-lsp -- ...`) over project-scoped — user-scoped servers have been more reliable
+- For work that critically depends on live MCP feedback, run in the main conversation thread rather than delegating
 
 ## Multi-Branch Workflows
 

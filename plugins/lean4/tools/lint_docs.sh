@@ -116,11 +116,13 @@ check_agents() {
         local lines
         lines=$(wc -l < "$file")
 
-        local max_lines=115
+        # Base limit + per-agent overhead (keep in sync — single source of truth)
+        local base_agent_max=120
+        local max_lines=$base_agent_max
         case "$agent" in
-            axiom-eliminator) max_lines=125 ;;
-            proof-golfer) max_lines=155 ;;
-            sorry-filler-deep) max_lines=125 ;;
+            axiom-eliminator) max_lines=$(( base_agent_max + 10 )) ;;
+            proof-golfer) max_lines=$(( base_agent_max + 40 )) ;;
+            sorry-filler-deep) max_lines=$(( base_agent_max + 10 )) ;;
         esac
 
         if [[ $lines -gt $max_lines ]]; then
@@ -298,7 +300,7 @@ check_cross_refs() {
     local agent_anchors="sorry-filler-deep proof-repair proof-golfer axiom-eliminator"
 
     # Valid anchors for cycle-engine.md
-    local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic falsification-artifacts repair-mode safety synthesis-outer-loop algorithm draft-commit-boundary header-fence session-generated-provenance statement-safety claim-queue file-assembly-contract review-router"
+    local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic falsification-artifacts repair-mode safety synthesis-outer-loop algorithm draft-commit-boundary header-fence session-generated-provenance statement-safety claim-queue file-assembly-contract review-router pre-flight-context-for-subagent-dispatch"
 
     while IFS= read -r file; do
         # Check links to command-examples.md

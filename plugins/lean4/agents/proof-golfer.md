@@ -13,6 +13,8 @@ model: opus
 
 ## Actions
 
+> **MCP canary runs before step 3** (after pure-script steps 1-2). See step 2 for details and fallback behavior.
+
 1. **Find patterns** (in policy order: directness → structural → conditional) with false-positive filtering:
    ```bash
    ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/find_golfable.py" FILE.lean --filter-false-positives
@@ -30,7 +32,9 @@ model: opus
    - 3-4 uses: Check carefully (40% worth optimizing)
    - 5+ uses: NEVER inline
 
-   > **MCP canary:** Before step 3, test `lean_diagnostic_messages(file)`. If unavailable (tool-not-found, missing from context, or inaccessible), emit "⚠ Lean MCP tools unavailable — golfing limited to syntactic patterns", skip steps 3-4 (require `lean_multi_attempt`), and reduce step 5 to max 1 hunk with `lake build` per-hunk verification (no bulk rewrites — baseline-comparison gate requires per-edit diagnostics).
+   > **MCP canary:** Before step 3, test `lean_diagnostic_messages(file)`. If unavailable (tool-not-found, missing from context, or inaccessible), emit "⚠ Lean MCP tools unavailable — golfing limited to syntactic patterns", skip steps 3-4 (require `lean_multi_attempt`), and reduce step 5 to max 1 hunk with `lake env lean <file>` (from project root) per-hunk verification; reserve `lake build` for final verification only.
+   >
+   > **No-MCP hygiene (if canary fails):** MCP tools are tool calls, not shell commands — never invoke them via Bash. Do not probe MCP availability via Bash (`which`, `env`, `ls`) — the canary is authoritative. Stop retrying MCP for this run. Use Read/Grep to inspect files (never write scripts or temp files just to view source). Start from pre-collected context in the parent prompt.
 
 3. **Exact-collapse pass** (for `apply-exact-chain` anchors from step 1):
    - Mechanical (≤30 anchors/file): construct collapsed `exact` → `lean_multi_attempt` + `lean_diagnostic_messages` baseline check; accept by scoring order (per golf.md: directness → inference burden → perf → length)
