@@ -433,12 +433,11 @@ lean_local_search("keyword")       # Search results
 
 ### Known Limitation: MCP in Plugin Subagents
 
-Plugin-defined subagents do not inherit MCP server connections from the parent thread (upstream: anthropics/claude-code#39962). Each agent has a startup canary that detects this and switches to fallback mode.
+In current Claude Code versions, plugin-defined subagents may fail to inherit MCP server connections from the parent thread (upstream: anthropics/claude-code#39962). Each agent has a startup canary that detects this; the fallback behavior varies by agent (proof-repair returns no diff and lets the caller escalate; sorry-filler-deep and axiom-eliminator fall back to scripts and `lake build`; proof-golfer limits to syntactic patterns with `lake build` per-hunk verification).
 
 **Mitigations (built into the plugin):**
 - **Pre-flight context:** The parent thread collects goal state, diagnostics, and search results before dispatch and includes them in the agent prompt. See [cycle-engine.md § Pre-flight Context](cycle-engine.md#pre-flight-context-for-subagent-dispatch).
 - **No-MCP hygiene:** Each agent's canary block enforces: no invoking MCP tool names via Bash, no retrying MCP after canary fails, use Read/Grep for file inspection (not scripts or temp files).
-- **Bash fallback:** Agents use `lake env lean <file>` (from project root) for post-edit validation when `lean_diagnostic_messages` is unavailable.
 
 **Additional workarounds:**
 - Prefer **user-scoped** MCP server (`claude mcp add --transport stdio --scope user lean-lsp -- ...`) over project-scoped — user-scoped servers have been more reliable
