@@ -400,15 +400,18 @@ to find the right mathlib lemma..."
 
 ## Integration with MCP Server
 
-**If Lean MCP server is available:** Prefer MCP tools over scripts, including inside specialized proof-editing subagents.
+**Main thread:** Prefer MCP tools over scripts for all interactive proof work.
+
+**Specialized proof-editing subagents:** Start from parent-provided pre-collected context (see [cycle-engine.md § Pre-flight Context](cycle-engine.md#pre-flight-context-for-subagent-dispatch)). Direct MCP access in the subagent is opportunistic, not assumed — if the startup canary detects MCP is unavailable, the agent commits to its fallback behavior immediately.
 
 **Hierarchy:**
-1. **MCP server** (best) - Direct integration, no script overhead
-2. **Subagent + MCP** (good) - Delegate proof work, but still use live Lean tools inside the subagent
-3. **Subagent + scripts** (fallback) - Batch operations or MCP unavailable
-4. **Direct script execution** (fallback) - When not using Claude Code
+1. **Main thread + MCP** (best) — direct LSP integration, real-time feedback
+2. **Subagent with pre-collected context** (normal for sorry-filler-deep, proof-golfer, axiom-eliminator) — parent collects MCP results, agent starts from that state; MCP in subagent is a bonus if available
+3. **Subagent returning to caller** (proof-repair) — if MCP canary fails, returns no diff and lets the caller escalate rather than operating in fallback mode
+4. **Subagent + scripts only** (fallback) — batch operations or when pre-collected context is insufficient
+5. **Direct script execution** (non-Claude hosts) — when not using Claude Code
 
-**MCP + Subagents workflow:**
+**Pre-collected context dispatch pattern:**
 ```
 # Parent collects MCP context before dispatch
 lean_goal(file, line)              # Capture goal state
@@ -433,7 +436,7 @@ lean_local_search("keyword")       # Search results
 
 ### Known Limitation: MCP in Plugin Subagents
 
-In current Claude Code versions, plugin-defined subagents may fail to inherit MCP server connections from the parent thread (upstream: anthropics/claude-code#39962). Each agent has a startup canary that detects this; the fallback behavior varies by agent (proof-repair returns no diff and lets the caller escalate; sorry-filler-deep and axiom-eliminator fall back to scripts and `lake build`; proof-golfer limits to syntactic patterns with `lake build` per-hunk verification).
+In current Claude Code versions, plugin-defined subagents may fail to inherit MCP server connections from the parent thread (upstream: anthropics/claude-code#39962). Each agent has a startup canary that detects this; the fallback behavior varies by agent (proof-repair returns no diff and lets the caller escalate; sorry-filler-deep and axiom-eliminator fall back to scripts and `lake build`; proof-golfer limits to syntactic patterns with `lake env lean` per-hunk verification).
 
 **Mitigations (built into the plugin):**
 - **Pre-flight context:** The parent thread collects goal state, diagnostics, and search results before dispatch and includes them in the agent prompt. See [cycle-engine.md § Pre-flight Context](cycle-engine.md#pre-flight-context-for-subagent-dispatch).

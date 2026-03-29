@@ -391,6 +391,27 @@ Stuck-mode review emits a `next_action` field. The outer loop dispatches:
 
 MCP tools may not be available in subagents (anthropics/claude-code#39962). Before dispatching any proof-editing agent, collect relevant MCP results and include them in the agent prompt as the agent's starting state. Pass a summarized subset — not raw dumps.
 
+### Canonical block shape
+
+Include this block (or the relevant subset) in the agent dispatch prompt:
+
+```
+## Pre-collected LSP context
+(MCP tools may be unavailable — use this as your starting state.)
+### Goal state (file:line)
+<lean_goal output>
+### Diagnostics
+<lean_diagnostic_messages output, summarized>
+### Search results
+<tool + query>: <top results>
+### Candidates tested
+<lean_multi_attempt snippets + results, if any>
+### Code actions (if collected)
+<lean_code_actions output for relevant lines, if any>
+```
+
+Omit sections with no data. The per-agent subsections below specify which parts to include.
+
 ### sorry-filler-deep
 
 Include alongside file:line and failure reason:
