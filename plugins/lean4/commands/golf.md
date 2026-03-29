@@ -156,6 +156,7 @@ When delegating to `proof-golfer` subagents:
 5. **After each batch** — diagnostics summary, changed files, `Continue? [yes/no]`
 6. **One plan message** per batch — no repeated "launching more agents" narration
 7. **Fallback contract** — if ANY subagent cannot obtain Edit/Bash permission → abort all delegation, continue direct; do NOT queue new delegates after a permission error
+8. **Pre-collected context** — include pre-collected MCP context per [cycle-engine.md § Pre-flight Context](../skills/lean4/references/cycle-engine.md#pre-flight-context-for-subagent-dispatch) in each golfer dispatch prompt
 
 ## See Also
 
