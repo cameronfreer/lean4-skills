@@ -431,6 +431,8 @@ Extend the existing structured error JSON with:
 Include alongside file path and search mode:
 - Baseline diagnostics: `lean_diagnostic_messages(file)` summary
 - Golfable patterns: `find_golfable.py` output if already run
+- Candidate collapse targets: `find_exact_candidates.py` output if already run
+- Pre-tested candidates: `lean_multi_attempt` results if any candidates were tested in the parent thread
 
 ### axiom-eliminator
 
