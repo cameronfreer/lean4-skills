@@ -107,6 +107,8 @@ See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) and [cycle-e
 
 **Staging rule:** If `--commit=never`, skip staging and committing entirely. Otherwise, stage only the files touched by this fill (`git add <edited files>`) — never `git add -A` or broad patterns. Commit: `git commit -m "fill: [theorem] - [tactic]"`.
 
+**Touched-file reporting:** At session end, report `files_touched` (files edited) and `scratch_files_created` (any `/tmp` files used for experiments).
+
 **Commit behavior** (unique to autoprove):
 Default `--commit=auto` — commits without prompting. `--commit=ask` is coerced to `auto` at startup:
 > ⚠ --commit=ask requires interactive confirmation. Using auto for unattended operation.

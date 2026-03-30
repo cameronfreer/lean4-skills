@@ -22,10 +22,14 @@ Quick reference for filling Lean 4 sorries systematically.
 5. If diagnostics show "Try this" → `lean_code_actions(file, line)` to resolve to a concrete edit → `lean_diagnostic_messages(file)` to re-verify after applying
 6. If initial searches/attempts are inconclusive: `lean_hammer_premise(file, line, col)` — premise suggestions for simp/aesop/grind (rate-limited 3/30s)
 
+**File ownership:** One writer per owned file set. A subagent owns only the files it was dispatched to work on. Do not edit files outside the owned set without escalating to the caller. Never create scratch files in the repo root.
+
 **Scratch-work preference order:**
 - Use the live file + `lean_goal` / `lean_multi_attempt` / `lean_diagnostic_messages` when the question depends on the actual file context.
 - If you need an isolated experiment, prefer `lean_run_code` over creating temporary `.lean` files.
 - Use `/tmp` scratch files only when `lean_run_code` is unavailable or insufficient and the experiment should not touch the live file.
+
+**Session-end reporting:** Report `files_touched` (files edited) and `scratch_files_created` (any `/tmp` files used for experiments). The caller uses this for staging and cleanup.
 
 Only fall back to scripts (`$LEAN4_SCRIPTS/sorry_analyzer.py`, `$LEAN4_SCRIPTS/smart_search.sh`) if:
 - LSP server unavailable

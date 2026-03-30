@@ -128,6 +128,7 @@ lean_code_actions(file, line)                   # Resolve "Try this" suggestions
 |-----------|----------|-------|----------|
 | Lean / Lake | yes | `lean --version`, `lake --version` | none — run `/lean4:doctor` |
 | Python 3 | yes (scripts) | `$LEAN4_PYTHON_BIN` set by bootstrap | none for script-dependent operations |
+| `$LEAN4_SCRIPTS` | yes (set by bootstrap) | `echo "$LEAN4_SCRIPTS"` | run `/lean4:doctor` |
 | Lean LSP MCP | no | try `lean_goal` on any `.lean` file | scripts + `lake env lean` (file-level only) |
 | `lean_run_code` | no | try calling it | `lake env lean` on temp file |
 | `lean_code_actions` | no | try calling it | manual "Try this" application |
@@ -140,11 +141,11 @@ The skill adapts to what's available. Determine your profile by checking capabil
 
 ### full (all capabilities)
 
-MCP + subagents + commands. Full workflow with live goal inspection, tactic testing, and parallel subagent dispatch. Subagents get pre-collected MCP context per [cycle-engine.md § Pre-flight Context](references/cycle-engine.md#pre-flight-context-for-subagent-dispatch).
+MCP + subagents + commands. Full workflow with live goal inspection, tactic testing, and parallel subagent dispatch. Subagents get pre-collected MCP context per [cycle-engine.md § Pre-flight Context](references/cycle-engine.md#pre-flight-context-for-subagent-dispatch). If `lean_run_code` is unavailable, use `/tmp` scratch files with `lake env lean` for isolated experiments.
 
 ### mcp_main_only (MCP available, no subagent dispatch)
 
-MCP works in the main thread. Run all proof work directly — do not delegate to subagents. All cycle-engine phases execute in-thread.
+MCP works in the main thread. Run all proof work directly — do not delegate to subagents. All cycle-engine phases execute in-thread. If `lean_run_code` is unavailable, use `/tmp` scratch files with `lake env lean` for isolated experiments.
 
 ### scripts_only (no MCP, no subagents)
 
@@ -159,6 +160,20 @@ This mode is functional for straightforward proofs but significantly slower and 
 ### review_only (read-only, no edits)
 
 Read proof state and assess quality. No edits, no commits, no subagent dispatch.
+
+## File Handling Rules
+
+**Scratch-work ladder** (in preference order):
+1. Live file + MCP tools (`lean_goal`, `lean_multi_attempt`, `lean_diagnostic_messages`)
+2. `lean_run_code` for isolated experiments
+3. `/tmp` scratch files only when `lean_run_code` is unavailable and the experiment must not touch the live file
+4. Never create scratch files in the repo root
+
+**File inspection:** Use Read and Grep to view source files. Never write Python scripts, temp files, or use `cat` pipelines just to read lines from a file you already have access to.
+
+**Staging:** Stage only files touched during the current session. Never use `git add -A` or broad glob patterns. Print the exact staged set before committing.
+
+See [sorry-filling.md](references/sorry-filling.md) for the full scratch-work preference order.
 
 ## Core Primitives
 
