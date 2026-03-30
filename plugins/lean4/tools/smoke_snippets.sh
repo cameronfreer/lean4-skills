@@ -23,7 +23,8 @@ advanced_refs=(
     "simp-reference.md"
     "metaprogramming-patterns.md"
     "linter-authoring.md"
-    "ffi-patterns.md"
+    "ffi-interop.md"
+    "compiler-internals.md"
     "verso-docs.md"
     "profiling-workflows.md"
 )

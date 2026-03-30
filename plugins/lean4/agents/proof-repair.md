@@ -26,6 +26,8 @@ Structured error context (JSON):
    > **MCP canary:** If `lean_goal` and `lean_diagnostic_messages` are both unavailable
    > (tool-not-found, missing from context, or otherwise inaccessible), return no diff
    > and let the caller escalate (same mechanism as the header-fence constraint).
+   >
+   > **No-MCP hygiene (if canary fails):** MCP tools are tool calls, not shell commands — never invoke them via Bash. Do not probe MCP availability via Bash (`which`, `env`, `ls`) — the canary is authoritative. Stop retrying MCP for this run. Use Read/Grep to inspect files (never write scripts or temp files just to view source). Start from pre-collected context in the parent prompt.
 
 2. **Apply error-specific strategy** (see table below)
 3. **Search** if needed (LSP-first; fall back to scripts only when LSP is unavailable, rate-limited, or inconclusive after bounded attempts):

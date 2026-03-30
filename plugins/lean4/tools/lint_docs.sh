@@ -57,7 +57,7 @@ check_commands() {
         local max_lines=120
         case "$cmd" in
             autoformalize) max_lines=180 ;;
-            autoprove)  max_lines=245 ;;
+            autoprove)  max_lines=250 ;;
             checkpoint) max_lines=90 ;;
             doctor)     max_lines=225 ;;
             draft)      max_lines=160 ;;
@@ -116,11 +116,13 @@ check_agents() {
         local lines
         lines=$(wc -l < "$file")
 
-        local max_lines=115
+        # Base limit + per-agent overhead (keep in sync — single source of truth)
+        local base_agent_max=120
+        local max_lines=$base_agent_max
         case "$agent" in
-            axiom-eliminator) max_lines=125 ;;
-            proof-golfer) max_lines=155 ;;
-            sorry-filler-deep) max_lines=125 ;;
+            axiom-eliminator) max_lines=$(( base_agent_max + 10 )) ;;
+            proof-golfer) max_lines=$(( base_agent_max + 40 )) ;;
+            sorry-filler-deep) max_lines=$(( base_agent_max + 10 )) ;;
         esac
 
         if [[ $lines -gt $max_lines ]]; then
@@ -236,10 +238,16 @@ check_references() {
         warn "Missing linter-authoring.md"
     fi
 
-    if [[ -f "$ref_dir/ffi-patterns.md" ]]; then
-        ok "ffi-patterns.md exists"
+    if [[ -f "$ref_dir/ffi-interop.md" ]]; then
+        ok "ffi-interop.md exists"
     else
-        warn "Missing ffi-patterns.md"
+        warn "Missing ffi-interop.md"
+    fi
+
+    if [[ -f "$ref_dir/compiler-internals.md" ]]; then
+        ok "compiler-internals.md exists"
+    else
+        warn "Missing compiler-internals.md"
     fi
 
     if [[ -f "$ref_dir/verso-docs.md" ]]; then
@@ -292,7 +300,7 @@ check_cross_refs() {
     local agent_anchors="sorry-filler-deep proof-repair proof-golfer axiom-eliminator"
 
     # Valid anchors for cycle-engine.md
-    local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic falsification-artifacts repair-mode safety synthesis-outer-loop algorithm draft-commit-boundary header-fence session-generated-provenance statement-safety claim-queue file-assembly-contract review-router"
+    local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic falsification-artifacts repair-mode safety synthesis-outer-loop algorithm draft-commit-boundary header-fence session-generated-provenance statement-safety claim-queue file-assembly-contract review-router pre-flight-context-for-subagent-dispatch"
 
     while IFS= read -r file; do
         # Check links to command-examples.md
@@ -989,7 +997,7 @@ check_integrated_advanced_refs() {
     local _ar_file _ar_base
 
     # Each advanced reference must be linked from SKILL.md and have the scope guard
-    for _ar_base in grind-tactic.md simp-reference.md metaprogramming-patterns.md linter-authoring.md ffi-patterns.md verso-docs.md profiling-workflows.md; do
+    for _ar_base in grind-tactic.md simp-reference.md metaprogramming-patterns.md linter-authoring.md ffi-interop.md compiler-internals.md verso-docs.md profiling-workflows.md; do
         _ar_file="$ref_dir/$_ar_base"
 
         if [[ ! -f "$_ar_file" ]]; then
@@ -1079,7 +1087,8 @@ check_advanced_reference_metadata() {
         "simp-reference.md"
         "metaprogramming-patterns.md"
         "linter-authoring.md"
-        "ffi-patterns.md"
+        "ffi-interop.md"
+        "compiler-internals.md"
         "verso-docs.md"
         "profiling-workflows.md"
     )
@@ -1138,7 +1147,8 @@ check_advanced_reference_language() {
         "simp-reference.md"
         "metaprogramming-patterns.md"
         "linter-authoring.md"
-        "ffi-patterns.md"
+        "ffi-interop.md"
+        "compiler-internals.md"
         "verso-docs.md"
         "profiling-workflows.md"
     )

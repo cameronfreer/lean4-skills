@@ -387,6 +387,63 @@ Stuck-mode review emits a `next_action` field. The outer loop dispatches:
 
 `next_action` is informational when the outer loop is inactive (`--formalize=never`). When active, it is the routing gate.
 
+## Pre-flight Context for Subagent Dispatch
+
+MCP tools may not be available in subagents (anthropics/claude-code#39962). Before dispatching any proof-editing agent, collect relevant MCP results and include them in the agent prompt as the agent's starting state. Pass a summarized subset — not raw dumps.
+
+### Canonical block shape
+
+Include this block (or the relevant subset) in the agent dispatch prompt:
+
+```
+## Pre-collected LSP context
+(MCP tools may be unavailable — use this as your starting state.)
+### Goal state (file:line)
+<lean_goal output>
+### Diagnostics
+<lean_diagnostic_messages output, summarized>
+### Search results
+<tool + query>: <top results>
+### Candidates tested
+<lean_multi_attempt snippets + results, if any>
+### Code actions (if collected)
+<lean_code_actions output for relevant lines, if any>
+### Owned files
+<list of files this agent is authorized to edit>
+### Allowed scratch location
+/tmp (never repo root)
+```
+
+Omit sections with no data. The per-agent subsections below specify which parts to include.
+
+### sorry-filler-deep
+
+Include alongside file:line and failure reason:
+- Goal state: `lean_goal(file, line)` output
+- Diagnostics: `lean_diagnostic_messages(file)` summary
+- Search results: tool + query + top results from prior planning phase
+- Candidates tested: `lean_multi_attempt` snippets and outcomes
+
+### proof-repair
+
+Extend the existing structured error JSON with:
+- `searchResults`: top results from any LSP searches already performed
+- `multiAttemptResults`: snippets tested and their outcomes
+
+### proof-golfer
+
+Include alongside file path and search mode:
+- Baseline diagnostics: `lean_diagnostic_messages(file)` summary
+- Golfable patterns: `find_golfable.py` output if already run
+- Candidate collapse targets: `find_exact_candidates.py` output if already run
+- Pre-tested candidates: `lean_multi_attempt` results if any candidates were tested in the parent thread
+
+### axiom-eliminator
+
+Include alongside scope and axiom list:
+- Diagnostics: `lean_diagnostic_messages(file)` on target files
+- Axiom audit: `check_axioms_inline.sh` output
+
 ## See Also
 
 - [sorry-filling.md](sorry-filling.md) — Sorry elimination tactics
