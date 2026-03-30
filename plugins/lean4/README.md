@@ -106,9 +106,9 @@ Plan → Work → Checkpoint → Review → Replan → Continue/Stop
 
 When stuck (same blocker seen twice), both force a review + replan regardless of settings.
 
-### `/lean4:checkpoint` — Verified Save Point
+### `/lean4:checkpoint` — Save Point
 
-Runs `lake build`, checks for non-standard axioms, reports sorry count, then stages and commits. One command for "I want a known-good save point."
+Compiles each touched `.lean` file, runs `lake build`, checks for non-standard axioms, reports sorry count, then stages and commits. One command for "I want a known-good save point."
 
 Does **not** push — that's always manual (`git push`).
 

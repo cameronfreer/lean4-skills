@@ -6,7 +6,7 @@ user_invocable: true
 
 # Lean4 Checkpoint
 
-Creates a verified checkpoint of your current proof progress.
+Creates a checkpoint with per-file and project-wide build verification, axiom check, and commit.
 
 ## Usage
 
@@ -23,23 +23,29 @@ Creates a verified checkpoint of your current proof progress.
 
 ## Actions
 
-1. **Verify Build** - Run `lake build` to ensure code compiles (this is a project-wide gate — runs full `lake build`, not file-level)
-2. **Check Axioms** - Verify no unwanted custom axioms:
+1. **Verify Touched Files** - For each `.lean` file touched during this session (the same set that will be staged), compile individually:
+   ```bash
+   lake env lean <path/to/File.lean>   # from project root
+   ```
+   If any file fails, stop and report the error before proceeding.
+2. **Verify Build** - Run `lake build` for the project-wide gate (catches cross-file issues not visible in per-file compilation)
+3. **Check Axioms** - Verify no unwanted custom axioms:
    ```bash
    bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" .
    ```
-3. **Count Sorries** - Report current sorry count:
+   Note: checks top-level unindented declarations in the first namespace of each file. Nested namespaces, sections, and indented declarations may not be checked (#92).
+4. **Count Sorries** - Report current sorry count:
    ```bash
    ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary
    ```
-4. **Stage and Commit** - Stage only files touched during this session, then commit:
+5. **Stage and Commit** - Stage only files touched during this session, then commit:
    ```bash
    git add <files touched during this session>
    git diff --cached --name-only   # print exact staged set
    git commit -m "checkpoint(lean4): [summary]"
    ```
    Never use `git add -A` or broad glob patterns.
-5. **Report Status** - Show what was saved
+6. **Report Status** - Show what was saved
 
 ## Output
 

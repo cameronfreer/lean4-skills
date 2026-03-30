@@ -162,7 +162,7 @@ Counterexamples: 1 (T_counterexample)
 Salvaged: 1 (T_salvaged)
 Commits: 7 new
 
-Create verified checkpoint? (build + axiom check + commit)
+Create checkpoint? (per-file + project build, axiom check, commit)
 - [yes] — run /lean4:checkpoint
 - [no] — keep commits as-is
 ```
