@@ -31,7 +31,7 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 /lean4:autoformalize       # Autonomous synthesis (source → proof)
 /lean4:prove               # Guided sorry filling (interactive)
 /lean4:autoprove           # Autonomous sorry filling (unattended)
-/lean4:checkpoint          # Verified commit
+/lean4:checkpoint          # Build-checked save point
 /lean4:review              # Check quality (read-only)
 /lean4:refactor            # Simplify proof strategies
 /lean4:golf                # Optimize proofs
@@ -106,9 +106,9 @@ Plan → Work → Checkpoint → Review → Replan → Continue/Stop
 
 When stuck (same blocker seen twice), both force a review + replan regardless of settings.
 
-### `/lean4:checkpoint` — Verified Save Point
+### `/lean4:checkpoint` — Save Point
 
-Runs `lake build`, checks for non-standard axioms, reports sorry count, then stages and commits. One command for "I want a known-good save point."
+Compiles each touched `.lean` file, runs `lake build`, checks for non-standard axioms, reports sorry count, then stages and commits.
 
 Does **not** push — that's always manual (`git push`).
 

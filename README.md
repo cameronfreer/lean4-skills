@@ -14,7 +14,7 @@ others all use the same core skill; only the invocation surface differs.
 | autoformalize | Autonomous end-to-end formalization from informal sources |
 | prove | Guided cycle-by-cycle theorem proving |
 | autoprove | Autonomous multi-cycle proving with stop rules |
-| checkpoint | Verified save point (build + axiom check + commit) |
+| checkpoint | Save point (per-file + project build, axiom check, commit) |
 | review | Read-only quality review |
 | refactor | Leverage mathlib, extract helpers, simplify proof strategies |
 | golf | Improve proofs for directness, clarity, performance, and brevity |
