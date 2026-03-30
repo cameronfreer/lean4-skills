@@ -408,6 +408,10 @@ Include this block (or the relevant subset) in the agent dispatch prompt:
 <lean_multi_attempt snippets + results, if any>
 ### Code actions (if collected)
 <lean_code_actions output for relevant lines, if any>
+### Owned files
+<list of files this agent is authorized to edit>
+### Allowed scratch location
+/tmp (never repo root)
 ```
 
 Omit sections with no data. The per-agent subsections below specify which parts to include.

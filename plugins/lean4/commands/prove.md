@@ -79,7 +79,7 @@ See [sorry-filling.md](../skills/lean4/references/sorry-filling.md) and [cycle-e
 
 **Staging rule:** If `--commit=never`, skip staging and committing entirely. Otherwise, stage only the files touched by this fill (`git add <edited files>`) — never `git add -A` or broad patterns.
 
-**Touched-file reporting:** At session end, report the list of files touched during the session.
+**Touched-file reporting:** At session end, report `files_touched` (files edited) and `scratch_files_created` (any `/tmp` files used for experiments).
 
 **Commit behavior** (unique to prove):
 Show diff and ask before each commit when `--commit=ask` (default):

@@ -34,10 +34,11 @@ Creates a verified checkpoint of your current proof progress.
    ```
 4. **Stage and Commit** - Stage only files touched during this session, then commit:
    ```bash
-   git add <files touched during this session> && git status --short
+   git add <files touched during this session>
+   git diff --cached --name-only   # print exact staged set
    git commit -m "checkpoint(lean4): [summary]"
    ```
-   Never use `git add -A` or broad glob patterns. Print the exact staged set before committing.
+   Never use `git add -A` or broad glob patterns.
 5. **Report Status** - Show what was saved
 
 ## Output
