@@ -23,7 +23,7 @@ Creates a checkpoint with per-file and project-wide build verification, axiom ch
 
 ## Actions
 
-1. **Verify Touched Files** - For each `.lean` file touched during this session (the same set that will be staged), compile individually:
+1. **Verify Touched Files** - For each existing added/modified `.lean` file in the staged set for this checkpoint, compile individually:
    ```bash
    lake env lean <path/to/File.lean>   # from project root
    ```
@@ -53,7 +53,8 @@ Creates a checkpoint with per-file and project-wide build verification, axiom ch
 ## Checkpoint Created
 
 **Commit:** [hash] - [message]
-**Build:** ✓ passing
+**Touched files compiled:** ✓ [N] files
+**Project build:** ✓ passing
 **Sorries:** [N] remaining
 **Axioms:** [status]
 

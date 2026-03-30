@@ -425,6 +425,10 @@ User: /lean4:checkpoint
 
 Claude: Creating checkpoint...
 
+Compiling touched files...
+✓ MyProject/Basic.lean compiled
+✓ MyProject/Lemmas.lean compiled
+
 Building project...
 ✓ lake build passed
 
@@ -583,7 +587,7 @@ Claude: Continuing with plan...
 Filled: 5/8 sorries
 Commits: 5 new
 
-Create verified checkpoint? (build + axiom check + commit)
+Create checkpoint? (per-file + project build, axiom check, commit)
 - [yes] — run /lean4:checkpoint
 - [no] — keep commits as-is
 

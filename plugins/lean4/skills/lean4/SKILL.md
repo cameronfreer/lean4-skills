@@ -43,7 +43,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | Draft + prove interactively | `/lean4:formalize` |
 | Filling sorries (interactive) | `/lean4:prove` |
 | Filling sorries (unattended) | `/lean4:autoprove` |
-| Save point (build + axiom check + commit) | `/lean4:checkpoint` |
+| Save point (per-file + project build, axiom check, commit) | `/lean4:checkpoint` |
 | Quality check (read-only) | `/lean4:review` |
 | Simplify proof strategies (mathlib leverage, helpers) | `/lean4:refactor` |
 | Optimizing compiled proofs | `/lean4:golf` |
@@ -88,7 +88,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
         ↓
 /lean4:golf                Improve proofs (optional)
         ↓
-/lean4:checkpoint          Create save point (build + axiom check)
+/lean4:checkpoint          Save point (per-file + project build)
 ```
 
 Use `/lean4:learn` at any point to explore repo structure or navigate mathlib. Three entry points: `/lean4:draft` for skeletons, `/lean4:formalize` for interactive synthesis (draft + guided proving), `/lean4:autoformalize` for unattended source-to-proof.
