@@ -140,17 +140,16 @@ check_agents() {
         if ! grep -q "^model:" "$file"; then
             warn "$agent.md: Missing 'model:' in frontmatter"
         fi
-        # Validate tool names against allowed set
-        local allowed_tools="Read Grep Glob Edit Bash lean_goal lean_local_search lean_leanfinder lean_leansearch lean_loogle lean_multi_attempt lean_hover_info lean_diagnostic_messages lean_code_actions lean_run_code"
+        # Validate tool names against allowed set (MCP tools must use mcp__lean-lsp__ prefix)
+        local allowed_tools="Read Grep Glob Edit Bash mcp__lean-lsp__lean_goal mcp__lean-lsp__lean_local_search mcp__lean-lsp__lean_leanfinder mcp__lean-lsp__lean_leansearch mcp__lean-lsp__lean_loogle mcp__lean-lsp__lean_multi_attempt mcp__lean-lsp__lean_hover_info mcp__lean-lsp__lean_diagnostic_messages mcp__lean-lsp__lean_code_actions mcp__lean-lsp__lean_run_code"
         local tools_line
         tools_line=$(grep "^tools:" "$file" | sed 's/^tools: *//')
         if [[ -n "$tools_line" ]]; then
             IFS=',' read -ra tool_list <<< "$tools_line"
             for tool in "${tool_list[@]}"; do
                 tool=$(echo "$tool" | xargs)  # trim whitespace
-                tool="${tool#mcp__lean-lsp__}"  # strip MCP prefix if present
                 if ! echo "$allowed_tools" | grep -qw "$tool"; then
-                    warn "$agent.md: Unknown tool '$tool' in frontmatter"
+                    warn "$agent.md: Unknown tool '$tool' in frontmatter (MCP tools must use mcp__lean-lsp__ prefix)"
                 fi
             done
         fi

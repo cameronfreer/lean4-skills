@@ -3,7 +3,7 @@
 ## v4.4.7 (March 2026)
 
 - Use fully-qualified `mcp__lean-lsp__` tool names in agent frontmatter (#81, TheDarkchip) — may improve MCP availability in subagents on some Claude Code configurations
-- Lint now accepts both short and prefixed MCP tool names in agent `tools:` frontmatter
+- Lint now enforces `mcp__lean-lsp__` prefixed MCP tool names in agent `tools:` frontmatter
 
 ## v4.4.6 (March 2026)
 
