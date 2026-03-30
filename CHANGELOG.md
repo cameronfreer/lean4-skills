@@ -1,5 +1,13 @@
 # Changelog
 
+## v4.4.6 (March 2026)
+
+- Add compiler-internals and FFI-interop reference files from PR #24 content (Alok Singh)
+- Subagent no-MCP hygiene: agents no longer invoke MCP tool names via Bash or write scripts/temp files to read source (#39, #90)
+- Pre-flight MCP context dispatch: parent thread packs goal, diagnostics, and search results into subagent prompts (#90)
+- Update subagent-workflows.md: rewrite MCP integration hierarchy, fix upstream tracking link to anthropics/claude-code#39962
+- Add capability checklist and operating profiles (`full`, `mcp_main_only`, `scripts_only`, `review_only`) to SKILL.md (#72)
+
 ## v4.4.5 (March 2026)
 
 - Promote 100-char line width rule to SKILL.md active editing contract (#58)
