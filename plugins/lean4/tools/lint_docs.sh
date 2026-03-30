@@ -148,6 +148,7 @@ check_agents() {
             IFS=',' read -ra tool_list <<< "$tools_line"
             for tool in "${tool_list[@]}"; do
                 tool=$(echo "$tool" | xargs)  # trim whitespace
+                tool="${tool#mcp__lean-lsp__}"  # strip MCP prefix if present
                 if ! echo "$allowed_tools" | grep -qw "$tool"; then
                     warn "$agent.md: Unknown tool '$tool' in frontmatter"
                 fi
