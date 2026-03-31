@@ -1,7 +1,7 @@
 ---
 name: proof-golfer
 description: Golf Lean 4 proofs after they compile; improve proofs for directness, clarity, performance, and brevity without changing semantics. Use after successful compilation to achieve 30-40% size reduction.
-tools: Read, Grep, Glob, Edit, Bash, lean_goal, lean_local_search, lean_leanfinder, lean_loogle, lean_multi_attempt, lean_diagnostic_messages
+tools: Read, Grep, Glob, Edit, Bash, mcp__lean-lsp__lean_goal, mcp__lean-lsp__lean_local_search, mcp__lean-lsp__lean_leanfinder, mcp__lean-lsp__lean_loogle, mcp__lean-lsp__lean_multi_attempt, mcp__lean-lsp__lean_diagnostic_messages
 model: opus
 ---
 

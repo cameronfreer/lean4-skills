@@ -1,7 +1,7 @@
 ---
 name: axiom-eliminator
 description: Remove nonconstructive axioms by refactoring proofs to structure (kernels, measurability, etc.). Use after checking axiom hygiene to systematically eliminate custom axioms.
-tools: Read, Grep, Glob, Edit, Bash, lean_goal, lean_local_search, lean_leanfinder, lean_leansearch, lean_loogle, lean_diagnostic_messages, lean_run_code
+tools: Read, Grep, Glob, Edit, Bash, mcp__lean-lsp__lean_goal, mcp__lean-lsp__lean_local_search, mcp__lean-lsp__lean_leanfinder, mcp__lean-lsp__lean_leansearch, mcp__lean-lsp__lean_loogle, mcp__lean-lsp__lean_diagnostic_messages, mcp__lean-lsp__lean_run_code
 model: opus
 ---
 
