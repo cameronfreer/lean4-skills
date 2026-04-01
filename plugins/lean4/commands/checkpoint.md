@@ -29,11 +29,11 @@ Creates a checkpoint with per-file and project-wide build verification, axiom ch
    ```
    If any file fails, stop and report the error before proceeding.
 2. **Verify Build** - Run `lake build` for the project-wide gate (catches cross-file issues not visible in per-file compilation)
-3. **Check Axioms** - Verify no unwanted custom axioms:
+3. **Best-effort Axiom Scan** - Scan for non-standard axioms in top-level declarations:
    ```bash
    bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" .
    ```
-   Note: checks top-level unindented declarations in the first namespace of each file. Nested namespaces, sections, and indented declarations may not be checked (#92).
+   Note: checks top-level unindented declarations in the first namespace of each file. Nested namespaces, sections, and indented declarations may not be checked. The script temporarily edits files in place while running — only use on version-controlled files, and avoid concurrent editors or watchers.
 4. **Count Sorries** - Report current sorry count:
    ```bash
    ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary
