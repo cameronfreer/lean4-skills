@@ -7,7 +7,7 @@ Hard-primitive scripts for Lean 4 workflows. These implement functionality that'
 | Script | Purpose | When to Use |
 |--------|---------|-------------|
 | `sorry_analyzer.py` | Extract and report sorries | Planning work, tracking progress |
-| `check_axioms_inline.sh` | Verify axiom usage (all declarations) | Before committing, during PR review |
+| `check_axioms_inline.sh` | Best-effort axiom scan (top-level declarations) | Before committing, during PR review |
 | `search_mathlib.sh` | Find lemmas in mathlib | Before proving something that might exist |
 | `smart_search.sh` | Multi-source search (APIs + local) | Advanced searches, natural language queries |
 | `parse_lean_errors.py` | Parse and structure Lean errors | Automated repair loops |
@@ -42,7 +42,7 @@ Extract all `sorry` statements with context and documentation.
 
 ### check_axioms_inline.sh
 
-Verify theorems use only standard mathlib axioms.
+Best-effort scan for non-standard axioms in top-level declarations.
 
 ```bash
 # Check single file
@@ -59,6 +59,10 @@ Verify theorems use only standard mathlib axioms.
 ```
 
 **Standard axioms (acceptable):** `propext`, `Quot.sound`, `Classical.choice`
+
+**Coverage limitations:** Only detects the first namespace in a file. Only captures top-level (unindented) declarations. Nested namespaces, sections, and indented declarations may be missed.
+
+**Mutation warning:** The script temporarily appends `#print axioms` commands to source files, runs Lean, then removes them. Files should be in version control, and no other process should be editing them during the scan.
 
 ### search_mathlib.sh
 

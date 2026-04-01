@@ -43,7 +43,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | Draft + prove interactively | `/lean4:formalize` |
 | Filling sorries (interactive) | `/lean4:prove` |
 | Filling sorries (unattended) | `/lean4:autoprove` |
-| Save point (per-file + project build, axiom check, commit) | `/lean4:checkpoint` |
+| Save point (per-file + project build, best-effort axiom scan, commit) | `/lean4:checkpoint` |
 | Quality check (read-only) | `/lean4:review` |
 | Simplify proof strategies (mathlib leverage, helpers) | `/lean4:refactor` |
 | Optimizing compiled proofs | `/lean4:golf` |
@@ -180,7 +180,7 @@ See [sorry-filling.md](references/sorry-filling.md) for the full scratch-work pr
 | Script | Purpose | Output |
 |--------|---------|--------|
 | `sorry_analyzer.py` | Find sorries with context | text (default), json, markdown, summary |
-| `check_axioms_inline.sh` | Check for non-standard axioms | text |
+| `check_axioms_inline.sh` | Best-effort axiom scan (top-level declarations) | text |
 | `smart_search.sh` | Multi-source mathlib search | text |
 | `find_golfable.py` | Detect optimization patterns | JSON |
 | `find_usages.sh` | Find declaration usages | text |
