@@ -1,0 +1,1604 @@
+#!/usr/bin/env bash
+# Verify documentation consistency for the Lean4 plugin
+# Usage: bash lint_docs.sh [--verbose]
+#
+# MAINTAINER-ONLY: This is a development tool for plugin maintainers,
+# not a user-facing runtime script. It lives in tools/ rather than
+# lib/scripts/ to keep it separate from the public LEAN4_SCRIPTS.
+
+set -euo pipefail
+
+VERBOSE="${1:-}"
+PLUGIN_ROOT="${LEAN4_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+ISSUES=0
+
+# Single source of truth for known commands (used by check_commands and check_cross_refs)
+KNOWN_COMMANDS="autoformalize autoprove checkpoint doctor draft formalize golf learn prove refactor review"
+
+log() {
+    echo "$1"
+}
+
+warn() {
+    echo "⚠️  $1"
+    ((ISSUES++)) || true
+}
+
+ok() {
+    echo "✓ $1"
+}
+
+# Check 1: Commands in doctor.md match actual command files
+check_commands() {
+    log ""
+    log "Checking commands..."
+
+    local cmd_dir="$PLUGIN_ROOT/commands"
+    local actual_commands
+    actual_commands=$(find "$cmd_dir" -name "*.md" -type f | xargs -I{} basename {} .md | sort)
+    local count
+    count=$(echo "$actual_commands" | wc -l | tr -d ' ')
+
+    local expected_count
+    expected_count=$(echo "$KNOWN_COMMANDS" | wc -w | tr -d ' ')
+    if [[ $count -eq $expected_count ]]; then
+        ok "Found $count command files"
+    else
+        warn "Expected $expected_count commands (from KNOWN_COMMANDS), found $count"
+    fi
+
+    # Check each command has required sections
+    for cmd in $actual_commands; do
+        local file="$cmd_dir/$cmd.md"
+        local lines
+        lines=$(wc -l < "$file")
+
+        # Per-command line limits (explicit for every command)
+        local max_lines=120
+        case "$cmd" in
+            autoformalize) max_lines=180 ;;
+            autoprove)  max_lines=245 ;;
+            checkpoint) max_lines=90 ;;
+            doctor)     max_lines=225 ;;
+            draft)      max_lines=160 ;;
+            formalize)  max_lines=180 ;;
+            golf)       max_lines=170 ;;
+            learn)      max_lines=180 ;;
+            prove)      max_lines=235 ;;
+            refactor)   max_lines=120 ;;
+            review)     max_lines=330 ;;
+        esac
+
+        if [[ $lines -gt $max_lines ]]; then
+            warn "$cmd.md: $lines lines (target: 60-$max_lines)"
+        elif [[ $lines -lt 60 ]]; then
+            warn "$cmd.md: $lines lines (too short, target: 60-$max_lines)"
+        else
+            [[ -n "$VERBOSE" ]] && ok "$cmd.md: $lines lines"
+        fi
+
+        # Check for required sections
+        if ! grep -q "^## Usage" "$file"; then
+            warn "$cmd.md: Missing '## Usage' section"
+        fi
+        if ! grep -q "^## Actions" "$file"; then
+            warn "$cmd.md: Missing '## Actions' section"
+        fi
+        if ! grep -q "^## Safety" "$file"; then
+            warn "$cmd.md: Missing '## Safety' section"
+        fi
+        if ! grep -q "^## See Also" "$file"; then
+            warn "$cmd.md: Missing '## See Also' section"
+        fi
+    done
+}
+
+# Check 2: Agent files have required sections and match template
+check_agents() {
+    log ""
+    log "Checking agents..."
+
+    local agent_dir="$PLUGIN_ROOT/agents"
+    local actual_agents
+    actual_agents=$(find "$agent_dir" -name "*.md" -type f | xargs -I{} basename {} .md | sort)
+    local count
+    count=$(echo "$actual_agents" | wc -l | tr -d ' ')
+
+    if [[ $count -eq 4 ]]; then
+        ok "Found 4 agent files"
+    else
+        warn "Expected 4 agents, found $count"
+    fi
+
+    # Check each agent
+    for agent in $actual_agents; do
+        local file="$agent_dir/$agent.md"
+        local lines
+        lines=$(wc -l < "$file")
+
+        local max_lines=115
+        case "$agent" in
+            axiom-eliminator) max_lines=125 ;;
+            proof-golfer) max_lines=155 ;;
+            sorry-filler-deep) max_lines=125 ;;
+        esac
+
+        if [[ $lines -gt $max_lines ]]; then
+            warn "$agent.md: $lines lines (target: 80-$max_lines)"
+        elif [[ $lines -lt 60 ]]; then
+            warn "$agent.md: $lines lines (too short, target: 80-$max_lines)"
+        else
+            [[ -n "$VERBOSE" ]] && ok "$agent.md: $lines lines"
+        fi
+
+        # Check for required frontmatter
+        if ! grep -q "^tools:" "$file"; then
+            warn "$agent.md: Missing 'tools:' in frontmatter"
+        fi
+        if ! grep -q "^model:" "$file"; then
+            warn "$agent.md: Missing 'model:' in frontmatter"
+        fi
+        # Validate tool names against allowed set
+        local allowed_tools="Read Grep Glob Edit Bash lean_goal lean_local_search lean_leanfinder lean_leansearch lean_loogle lean_multi_attempt lean_hover_info lean_diagnostic_messages lean_code_actions lean_run_code"
+        local tools_line
+        tools_line=$(grep "^tools:" "$file" | sed 's/^tools: *//')
+        if [[ -n "$tools_line" ]]; then
+            IFS=',' read -ra tool_list <<< "$tools_line"
+            for tool in "${tool_list[@]}"; do
+                tool=$(echo "$tool" | xargs)  # trim whitespace
+                if ! echo "$allowed_tools" | grep -qw "$tool"; then
+                    warn "$agent.md: Unknown tool '$tool' in frontmatter"
+                fi
+            done
+        fi
+
+        # Check for required sections
+        if ! grep -q "^## Inputs" "$file"; then
+            warn "$agent.md: Missing '## Inputs' section"
+        fi
+        if ! grep -q "^## Actions" "$file"; then
+            warn "$agent.md: Missing '## Actions' section"
+        fi
+        if ! grep -q "^## Output" "$file"; then
+            warn "$agent.md: Missing '## Output' section"
+        fi
+        if ! grep -q "^## Constraints" "$file"; then
+            warn "$agent.md: Missing '## Constraints' section"
+        fi
+        if ! grep -q "^## See Also" "$file"; then
+            warn "$agent.md: Missing '## See Also' section"
+        fi
+    done
+}
+
+# Check 3: Reference files exist
+check_references() {
+    log ""
+    log "Checking references..."
+
+    local ref_dir="$PLUGIN_ROOT/skills/lean4/references"
+    local ref_count
+    ref_count=$(find "$ref_dir" -name "*.md" -type f | wc -l | tr -d ' ')
+
+    # Check for required new reference files
+    if [[ -f "$ref_dir/command-examples.md" ]]; then
+        ok "command-examples.md exists"
+    else
+        warn "Missing command-examples.md"
+    fi
+
+    if [[ -f "$ref_dir/agent-workflows.md" ]]; then
+        ok "agent-workflows.md exists"
+    else
+        warn "Missing agent-workflows.md"
+    fi
+
+    if [[ -f "$ref_dir/cycle-engine.md" ]]; then
+        ok "cycle-engine.md exists"
+    else
+        warn "Missing cycle-engine.md"
+    fi
+
+    if [[ -f "$ref_dir/lean4-custom-syntax.md" ]]; then
+        ok "lean4-custom-syntax.md exists"
+    else
+        warn "Missing lean4-custom-syntax.md"
+    fi
+
+    if [[ -f "$ref_dir/scaffold-dsl.md" ]]; then
+        ok "scaffold-dsl.md exists"
+    else
+        warn "Missing scaffold-dsl.md"
+    fi
+
+    # Advanced references (v4.0.9, from PR #10)
+    if [[ -f "$ref_dir/grind-tactic.md" ]]; then
+        ok "grind-tactic.md exists"
+    else
+        warn "Missing grind-tactic.md"
+    fi
+
+    if [[ -f "$ref_dir/simp-reference.md" ]]; then
+        ok "simp-reference.md exists"
+    else
+        warn "Missing simp-reference.md"
+    fi
+
+    if [[ -f "$ref_dir/metaprogramming-patterns.md" ]]; then
+        ok "metaprogramming-patterns.md exists"
+    else
+        warn "Missing metaprogramming-patterns.md"
+    fi
+
+    if [[ -f "$ref_dir/linter-authoring.md" ]]; then
+        ok "linter-authoring.md exists"
+    else
+        warn "Missing linter-authoring.md"
+    fi
+
+    if [[ -f "$ref_dir/ffi-patterns.md" ]]; then
+        ok "ffi-patterns.md exists"
+    else
+        warn "Missing ffi-patterns.md"
+    fi
+
+    if [[ -f "$ref_dir/verso-docs.md" ]]; then
+        ok "verso-docs.md exists"
+    else
+        warn "Missing verso-docs.md"
+    fi
+
+    if [[ -f "$ref_dir/profiling-workflows.md" ]]; then
+        ok "profiling-workflows.md exists"
+    else
+        warn "Missing profiling-workflows.md"
+    fi
+
+    log "Total reference files: $ref_count"
+}
+
+# Check 4: Scripts are executable
+check_scripts() {
+    log ""
+    log "Checking scripts..."
+
+    local script_dir="$PLUGIN_ROOT/lib/scripts"
+    local non_exec=0
+
+    for script in "$script_dir"/*.sh "$script_dir"/*.py; do
+        if [[ -f "$script" ]] && [[ ! -x "$script" ]]; then
+            warn "$(basename "$script") is not executable"
+            ((non_exec++)) || true
+        fi
+    done
+
+    if [[ $non_exec -eq 0 ]]; then
+        ok "All scripts are executable"
+    fi
+}
+
+# Check 5: Cross-references are valid
+check_cross_refs() {
+    log ""
+    log "Checking cross-references..."
+
+    local all_files
+    all_files=$(find "$PLUGIN_ROOT" -name "*.md" -type f)
+
+    # Valid anchors for command-examples.md
+    local cmd_anchors="$KNOWN_COMMANDS"
+
+    # Valid anchors for agent-workflows.md
+    local agent_anchors="sorry-filler-deep proof-repair proof-golfer axiom-eliminator"
+
+    # Valid anchors for cycle-engine.md
+    local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic falsification-artifacts repair-mode safety synthesis-outer-loop algorithm draft-commit-boundary header-fence session-generated-provenance statement-safety claim-queue file-assembly-contract review-router"
+
+    while IFS= read -r file; do
+        # Check links to command-examples.md
+        if grep -q "command-examples.md#" "$file" 2>/dev/null; then
+            local anchors
+            anchors=$(grep -oE "command-examples\.md#[a-z-]+" "$file" | sed 's/.*#//' | sort -u)
+            for anchor in $anchors; do
+                if ! echo "$cmd_anchors" | grep -qw "$anchor"; then
+                    warn "$(basename "$file"): Invalid anchor #$anchor in command-examples.md link"
+                fi
+            done
+        fi
+
+        # Check links to agent-workflows.md
+        if grep -q "agent-workflows.md#" "$file" 2>/dev/null; then
+            local anchors
+            anchors=$(grep -oE "agent-workflows\.md#[a-z0-9-]+" "$file" | sed 's/.*#//' | sort -u)
+            for anchor in $anchors; do
+                if ! echo "$agent_anchors" | grep -qw "$anchor"; then
+                    warn "$(basename "$file"): Invalid anchor #$anchor in agent-workflows.md link"
+                fi
+            done
+        fi
+
+        # Check links to cycle-engine.md
+        if grep -q "cycle-engine.md#" "$file" 2>/dev/null; then
+            local anchors
+            anchors=$(grep -oE "cycle-engine\.md#[a-z-]+" "$file" | sed 's/.*#//' | sort -u)
+            for anchor in $anchors; do
+                if ! echo "$engine_anchors" | grep -qw "$anchor"; then
+                    warn "$(basename "$file"): Invalid anchor #$anchor in cycle-engine.md link"
+                fi
+            done
+        fi
+    done <<< "$all_files"
+
+    ok "Cross-references checked"
+}
+
+# Check 6: Reference file link validation
+check_reference_links() {
+    log ""
+    log "Checking reference links..."
+
+    local _rl_dir _rl_base _rl_targets _rl_target _rl_path _rl_anchor _rl_resolved _rl_found _rl_heading _rl_slug
+
+    # Check all relative markdown links across plugin .md files
+    while IFS= read -r file; do
+        _rl_dir=$(dirname "$file")
+        _rl_base=$(basename "$file")
+
+        # Extract markdown links: [text](path.md) or [text](path.md#anchor)
+        _rl_targets=$(grep -oE '\]\([a-zA-Z0-9_./-]+\.md(#[a-zA-Z0-9_-]+)?\)' "$file" 2>/dev/null | sed 's/\](\(.*\))/\1/' | sort -u || true)
+        for _rl_target in $_rl_targets; do
+            _rl_path="${_rl_target%%#*}"
+            _rl_anchor="${_rl_target#*#}"
+            [[ "$_rl_anchor" == "$_rl_target" ]] && _rl_anchor=""
+
+            # Resolve relative to file's directory
+            _rl_resolved=$(cd "$_rl_dir" && realpath "$_rl_path" 2>/dev/null || echo "")
+
+            # Check target file exists
+            if [[ -z "$_rl_resolved" || ! -f "$_rl_resolved" ]]; then
+                warn "$_rl_base: Broken link to $_rl_path"
+                continue
+            fi
+
+            # Check anchor exists as any heading level (if specified)
+            if [[ -n "$_rl_anchor" ]]; then
+                _rl_found=false
+                while IFS= read -r _rl_heading; do
+                    # Strip leading #s and space, lowercase, spaces→dashes, strip non-alnum-dash
+                    _rl_slug=$(echo "$_rl_heading" | sed 's/^#\+ //' | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g; s/[^a-z0-9-]//g')
+                    if [[ "$_rl_slug" == "$_rl_anchor" ]]; then
+                        _rl_found=true
+                        break
+                    fi
+                done < <(grep -E "^#{1,6} " "$_rl_resolved")
+                if [[ "$_rl_found" != "true" ]]; then
+                    warn "$_rl_base: Broken anchor #$_rl_anchor in $_rl_path"
+                fi
+            fi
+        done
+    done < <(find "$PLUGIN_ROOT" -name "*.md" -type f)
+
+    ok "Reference links checked"
+}
+
+# Check 7: Stale command names in runnable snippets
+check_stale_commands() {
+    log ""
+    log "Checking for stale command names..."
+
+    # Old names that should not appear outside MIGRATION.md
+    local banned_commands="autoprover"
+    local _sc_base _sc_line
+
+    while IFS= read -r file; do
+        # Skip MIGRATION.md (historical mentions OK)
+        [[ "$(basename "$file")" == "MIGRATION.md" ]] && continue
+        _sc_base=$(basename "$file")
+        for cmd in $banned_commands; do
+            if grep -qn "/lean4:$cmd" "$file" 2>/dev/null; then
+                _sc_line=$(grep -n "/lean4:$cmd" "$file" | head -1 | cut -d: -f1)
+                warn "$_sc_base:$_sc_line: Stale command /lean4:$cmd (renamed — see MIGRATION.md)"
+            fi
+        done
+    done < <(find "$PLUGIN_ROOT" -name "*.md" -type f)
+
+    ok "Stale command check done"
+}
+
+# Check 8: Bare script names in behavioral docs
+check_bare_scripts() {
+    log ""
+    log "Checking for bare script invocations..."
+
+    local _bs_base _bs_line _bs_match _bs_severity _bs_scripts _bs_pattern _bs_script
+
+    # Build script list dynamically from lib/scripts/
+    _bs_scripts=""
+    for f in "$PLUGIN_ROOT"/lib/scripts/*.py "$PLUGIN_ROOT"/lib/scripts/*.sh; do
+        [[ -f "$f" ]] && _bs_scripts="$_bs_scripts $(basename "$f")"
+    done
+    _bs_scripts=$(echo "$_bs_scripts" | xargs)  # trim
+
+    if [[ -z "$_bs_scripts" ]]; then
+        ok "No scripts found in lib/scripts/, skipping bare-script check"
+        return
+    fi
+
+    # Build grep alternation: sorry_analyzer\.py|check_axioms_inline\.sh|...
+    _bs_pattern=$(echo "$_bs_scripts" | tr ' ' '\n' | sed 's/\./\\./g' | paste -sd '|' -)
+
+    while IFS= read -r file; do
+        _bs_base=$(basename "$file")
+
+        # Skip files where bare names are expected
+        [[ "$_bs_base" == "MIGRATION.md" ]] && continue
+        [[ "$_bs_base" == "SKILL.md" ]] && continue
+        case "$file" in */lib/scripts/*) continue ;; esac
+
+        # Severity: FAIL for commands/ and agents/, note for others
+        _bs_severity="note"
+        case "$file" in */commands/*|*/agents/*) _bs_severity="fail" ;; esac
+
+        # Find lines containing any script name
+        while IFS=: read -r _bs_line _bs_match; do
+            [[ -z "$_bs_line" ]] && continue
+            # Per-script check: for each known script, test if it appears bare on this line
+            for _bs_script in $_bs_scripts; do
+                # Skip if this script isn't on this line
+                echo "$_bs_match" | grep -qF "$_bs_script" || continue
+                # Portable: strip prefixed occurrences, check if bare name remains
+                if echo "$_bs_match" | sed "s|LEAN4_SCRIPTS/$_bs_script||g" | grep -qF "$_bs_script"; then
+                    if [[ "$_bs_severity" == "fail" ]]; then
+                        warn "$_bs_base:$_bs_line: Bare script '$_bs_script' (use \$LEAN4_SCRIPTS/ prefix)"
+                    else
+                        [[ -n "$VERBOSE" ]] && log "  note: $_bs_base:$_bs_line: Bare '$_bs_script' in reference"
+                    fi
+                    break  # One warning per line is enough
+                fi
+            done
+        done < <(grep -nE "($_bs_pattern)" "$file" 2>/dev/null || true)
+    done < <(find "$PLUGIN_ROOT" -name "*.md" -type f)
+
+    ok "Bare script check done"
+}
+
+# Check 8b: Lean script invocations must not suppress stderr
+check_script_stderr_suppression() {
+    log ""
+    log "Checking Lean script stderr suppression patterns..."
+
+    local _ss_base _ss_line _ss_match
+
+    while IFS= read -r file; do
+        _ss_base=$(basename "$file")
+
+        # Skip historical docs and non-behavioral internals
+        [[ "$_ss_base" == "MIGRATION.md" ]] && continue
+        case "$file" in */lib/scripts/*|*/tools/*) continue ;; esac
+
+        while IFS=: read -r _ss_line _ss_match; do
+            [[ -z "$_ss_line" ]] && continue
+
+            # Allow explicit anti-pattern warnings.
+            if echo "$_ss_match" | grep -qiE '(Never|Do not|Wrong|Incorrect|anti.?pattern|forbidden|avoid)'; then
+                continue
+            fi
+
+            warn "$_ss_base:$_ss_line: Lean script invocation suppresses stderr (/dev/null). Keep stderr visible for real errors."
+        done < <(grep -nE '(\$LEAN4_SCRIPTS|plugins/lean4/(lib/scripts|scripts)/|(^|[[:space:]])(\./)?(lib/scripts|scripts)/[A-Za-z0-9._-]+\.(py|sh)).*(2>>?[[:space:]]*/dev/null|&>>?[[:space:]]*/dev/null|[0-9]*>>?[[:space:]]*/dev/null.*2>&1)' "$file" 2>/dev/null || true)
+    done < <(find "$PLUGIN_ROOT" -name "*.md" -type f)
+
+    ok "Lean script stderr suppression check done"
+}
+
+# Check 9: Deep-safety invariants in prove/autoprove/cycle-engine
+check_deep_safety() {
+    log ""
+    log "Checking deep-safety invariants..."
+
+    local cmd_dir="$PLUGIN_ROOT/commands"
+    local ref_dir="$PLUGIN_ROOT/skills/lean4/references"
+    local _ds_file _ds_base
+
+    # Required deep-safety flags as exact table rows in prove.md and autoprove.md
+    local deep_flags="deep-snapshot deep-rollback deep-scope deep-max-files deep-max-lines deep-regression-gate"
+
+    for cmd in prove autoprove; do
+        _ds_file="$cmd_dir/$cmd.md"
+        _ds_base="$cmd.md"
+        for flag in $deep_flags; do
+            if ! grep -q "| --$flag " "$_ds_file" 2>/dev/null; then
+                warn "$_ds_base: Missing --$flag row in input table"
+            fi
+        done
+    done
+
+    # autoprove.md must have deep-safety coercion text
+    _ds_file="$cmd_dir/autoprove.md"
+    for coercion in "deep-rollback=never" "deep-regression-gate=off"; do
+        if ! grep -q "$coercion" "$_ds_file" 2>/dev/null; then
+            warn "autoprove.md: Missing coercion for $coercion"
+        fi
+    done
+
+    # Both prove.md and autoprove.md must exclude rolled-back deep edits from checkpoint
+    for cmd in prove autoprove; do
+        _ds_file="$cmd_dir/$cmd.md"
+        _ds_base="$cmd.md"
+        if ! grep -q "rolled-back deep" "$_ds_file" 2>/dev/null; then
+            warn "$_ds_base: Missing checkpoint exclusion for rolled-back deep edits"
+        fi
+    done
+
+    # cycle-engine.md must have deep-safety sections
+    _ds_file="$ref_dir/cycle-engine.md"
+    _ds_base="cycle-engine.md"
+    for heading in "Deep Safety Definitions" "Deep Snapshot and Rollback" "Deep Scope Fence" "Deep Regression Gate" "Deep Safety Coercions"; do
+        if ! grep -q "$heading" "$_ds_file" 2>/dev/null; then
+            warn "$_ds_base: Missing section: $heading"
+        fi
+    done
+
+    # cycle-engine.md must document path-scoped snapshot and identical file set
+    if ! grep -q "path-scoped" "$_ds_file" 2>/dev/null; then
+        warn "$_ds_base: Missing path-scoped snapshot documentation"
+    fi
+    if ! grep -q "identical for baseline and comparison" "$_ds_file" 2>/dev/null; then
+        warn "$_ds_base: Missing identical file set guarantee for regression gate"
+    fi
+    if ! grep -q "rollback.*fails.*skip checkpoint" "$_ds_file" 2>/dev/null; then
+        warn "$_ds_base: Missing rollback-failure => skip checkpoint wording"
+    fi
+
+    ok "Deep-safety invariants checked"
+}
+
+# Check 10: Guardrail documentation completeness
+check_guardrail_docs() {
+    log ""
+    log "Checking guardrail documentation..."
+
+    local _gd_file _gd_base
+
+    for doc in README.md MIGRATION.md; do
+        _gd_file="$PLUGIN_ROOT/$doc"
+        _gd_base="$doc"
+
+        if [[ ! -f "$_gd_file" ]]; then
+            warn "$_gd_base: File not found"
+            continue
+        fi
+
+        if ! grep -qiE 'Lean project' "$_gd_file" 2>/dev/null; then
+            warn "$_gd_base: Missing Lean project scope statement in guardrails section"
+        fi
+        if ! grep -q 'LEAN4_GUARDRAILS_DISABLE' "$_gd_file" 2>/dev/null; then
+            warn "$_gd_base: Missing LEAN4_GUARDRAILS_DISABLE documentation"
+        fi
+        if ! grep -q 'LEAN4_GUARDRAILS_FORCE' "$_gd_file" 2>/dev/null; then
+            warn "$_gd_base: Missing LEAN4_GUARDRAILS_FORCE documentation"
+        fi
+        if ! grep -q 'LEAN4_GUARDRAILS_BYPASS' "$_gd_file" 2>/dev/null; then
+            warn "$_gd_base: Missing LEAN4_GUARDRAILS_BYPASS documentation"
+        fi
+        if ! grep -q 'LEAN4_GUARDRAILS_COLLAB_POLICY' "$_gd_file" 2>/dev/null; then
+            warn "$_gd_base: Missing LEAN4_GUARDRAILS_COLLAB_POLICY documentation"
+        fi
+        # All three mode literals must appear together on one line (anchored to
+        # avoid false-pass from unrelated uses of common words like "ask" or "block")
+        if ! grep -qE 'ask.*allow.*block' "$_gd_file" 2>/dev/null; then
+            warn "$_gd_base: Missing collaboration policy modes (ask, allow, block)"
+        fi
+        # Bypass must not be listed as bootstrap-set
+        if grep -A2 'bootstrap' "$_gd_file" 2>/dev/null | grep -q 'LEAN4_GUARDRAILS_BYPASS'; then
+            warn "$_gd_base: LEAN4_GUARDRAILS_BYPASS incorrectly listed as bootstrap-set"
+        fi
+    done
+
+    ok "Guardrail documentation checked"
+}
+
+# Check 11: Guardrail implementation invariants
+check_guardrail_impl() {
+    log ""
+    log "Checking guardrail implementation..."
+
+    local _gi_file="$PLUGIN_ROOT/hooks/guardrails.sh"
+
+    if [[ ! -f "$_gi_file" ]]; then
+        warn "guardrails.sh: File not found"
+        return
+    fi
+
+    if ! grep -q 'LEAN4_GUARDRAILS_DISABLE' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Missing LEAN4_GUARDRAILS_DISABLE support"
+    fi
+    if ! grep -q 'LEAN4_GUARDRAILS_FORCE' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Missing LEAN4_GUARDRAILS_FORCE support"
+    fi
+    if ! grep -q 'LEAN4_GUARDRAILS_BYPASS' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Missing LEAN4_GUARDRAILS_BYPASS support"
+    fi
+    # Bypass detection must use _strip_wrappers prefix diff (not raw regex)
+    if ! grep -q '_strip_wrappers.*BYPASS\|_prefix.*BYPASS\|BYPASS.*_prefix' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Bypass detection should use _strip_wrappers prefix diff"
+    fi
+    if ! grep -q 'LEAN4_GUARDRAILS_COLLAB_POLICY' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Missing LEAN4_GUARDRAILS_COLLAB_POLICY support"
+    fi
+    # Invalid policy must fall back to ask (the *) default case)
+    if ! grep -qE 'COLLAB_POLICY="ask"' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Missing invalid-policy fallback to ask"
+    fi
+    # At least 1 bypass hint in collaboration helper
+    local _gi_hint_count
+    _gi_hint_count=$(grep -c 'prefix with.*LEAN4_GUARDRAILS_BYPASS' "$_gi_file" 2>/dev/null) || _gi_hint_count=0
+    if [[ $_gi_hint_count -lt 1 ]]; then
+        warn "guardrails.sh: Missing bypass hint in collaboration policy helper"
+    fi
+    # Exactly 3 collaboration-op policy calls (push, amend, pr create)
+    # Anchored to indented call sites, excludes function definition and comments
+    local _gi_collab_count
+    _gi_collab_count=$(grep -cE '^[[:space:]]+_check_collab_op[[:space:]]' "$_gi_file" 2>/dev/null) || _gi_collab_count=0
+    if [[ $_gi_collab_count -ne 3 ]]; then
+        warn "guardrails.sh: Expected 3 _check_collab_op calls (push, amend, pr create), found $_gi_collab_count"
+    fi
+    # Bypass hint must not appear in destructive blocks (reset, clean, checkout --, restore)
+    # Check: no bypass hint line immediately after a destructive BLOCKED message
+    if grep -A1 'BLOCKED.*reset --hard\|BLOCKED.*clean\|BLOCKED.*destructive git checkout\|BLOCKED.*checkout \. \|BLOCKED.*restore' "$_gi_file" 2>/dev/null | grep -q 'LEAN4_GUARDRAILS_BYPASS'; then
+        warn "guardrails.sh: Bypass hint found in destructive block (must be collaboration-only)"
+    fi
+    # Bypass must never exit 0 directly — must defer through all destructive checks
+    if grep -E 'BYPASS.*exit 0|exit 0.*BYPASS' "$_gi_file" 2>/dev/null | grep -vq '^\s*#'; then
+        warn "guardrails.sh: Bypass must not exit 0 directly (must defer past destructive checks)"
+    fi
+    # Commands must be checked per-segment, not with raw whole-string matching
+    if ! grep -q 'seg_match\|SEGMENTS' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Missing segment-based command parsing (raw-string matching is insufficient)"
+    fi
+    if ! grep -q '_has_stderr_null_redirect' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Missing stderr-null redirection detector for Lean script invocations"
+    fi
+    if ! grep -q 'suppressed stderr on Lean script invocation' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Missing Lean script stderr-suppression block message"
+    fi
+    # Lean marker detection
+    for marker in lakefile.lean lean-toolchain lakefile.toml; do
+        if ! grep -q "$marker" "$_gi_file" 2>/dev/null; then
+            warn "guardrails.sh: Missing Lean marker detection for $marker"
+        fi
+    done
+    # Message prefix: must have qualified prefix, must not have bare "BLOCKED:" without qualifier
+    if ! grep -q 'BLOCKED (Lean guardrail):' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Missing 'BLOCKED (Lean guardrail):' message prefix"
+    fi
+    # Reject any BLOCKED that isn't followed by " (Lean guardrail)" — catches quotes, format changes
+    if grep -E 'BLOCKED[^(]' "$_gi_file" 2>/dev/null | grep -vq 'BLOCKED (Lean guardrail)' 2>/dev/null; then
+        warn "guardrails.sh: Found bare BLOCKED without '(Lean guardrail)' qualifier"
+    fi
+
+    ok "Guardrail implementation checked"
+}
+
+# Check 12: Golf safety policy terms
+check_golf_policy() {
+    log ""
+    log "Checking golf safety policy..."
+
+    # golf.md: section headings anchor the policy blocks
+    local file="$PLUGIN_ROOT/commands/golf.md"
+    local missing=0
+    for term in \
+        "### Bulk Rewrite Safety" \
+        "### Delegation Execution Policy" \
+        "Auto-revert.*sorry count increases" \
+        "Permission gate.*stop delegation immediately" \
+        "never launch additional agents after first" \
+        "\\| --max-delegates" \
+        "never inside tactic blocks or calc blocks" \
+        "context.*(uncertain|ambiguous).*skip|skip.*never force" \
+        "nested tactic.mode boundary|nested.*by.*skip"; do
+        if ! grep -qE "$term" "$file"; then
+            warn "golf.md: Missing policy anchor: '$term'"
+            missing=1
+        fi
+    done
+    if [[ $missing -eq 0 ]]; then
+        ok "golf.md: All safety policy anchors present"
+    fi
+
+    # proof-golfer.md: section heading + policy phrases
+    local agent_file="$PLUGIN_ROOT/agents/proof-golfer.md"
+    local agent_missing=0
+    for term in \
+        "## Delegation Awareness" \
+        "Auto-revert batch if sorry count" \
+        "permission denied.*stop immediately" \
+        "do NOT retry or request again" \
+        "max-delegates.*parent handles" \
+        "nested tactic.mode|nested.*by.*skip" \
+        "no broad replace-all|broad replace"; do
+        if ! grep -qiE "$term" "$agent_file"; then
+            warn "proof-golfer.md: Missing policy anchor: '$term'"
+            agent_missing=1
+        fi
+    done
+    if [[ $agent_missing -eq 0 ]]; then
+        ok "proof-golfer.md: All agent policy anchors present"
+    fi
+
+    # proof-golfing.md: bulk trigger wording must match command+agent
+    local ref_file="$PLUGIN_ROOT/skills/lean4/references/proof-golfing.md"
+    local ref_missing=0
+    for term in \
+        "≥4 whitelisted.*candidates|>=4 whitelisted.*candidates" \
+        "preview.*confirmation.*gate|user confirms.*preview"; do
+        if ! grep -qE "$term" "$ref_file"; then
+            warn "proof-golfing.md: Missing bulk-trigger anchor: '$term'"
+            ref_missing=1
+        fi
+    done
+    if [[ $ref_missing -eq 0 ]]; then
+        ok "proof-golfing.md: Bulk-trigger anchors present"
+    fi
+
+    # Golf policy consistency: check for stale unconditional rwa/simp-only/semicolon language
+    local drift=0
+
+    # No unconditional "rwa: instant win" or "rwa.*zero risk" in references
+    if grep -qiE 'rwa.*instant win|rwa.*zero risk' "$ref_file"; then
+        warn "proof-golfing.md: Stale unconditional rwa language (should be conditional per golf policy)"
+        drift=1
+    fi
+
+    local patterns_file="$PLUGIN_ROOT/skills/lean4/references/proof-golfing-patterns.md"
+    if [[ -f "$patterns_file" ]]; then
+        # Pattern 1 heading must have "Conditional" within 5 lines
+        if grep -q '^### Pattern 1:' "$patterns_file" && \
+           ! grep -A5 '^### Pattern 1:' "$patterns_file" | grep -qi 'conditional'; then
+            warn "proof-golfing-patterns.md: Pattern 1 (rwa) missing 'Conditional' marker"
+            drift=1
+        fi
+        # Pattern 2A heading must have "Conditional" within 5 lines
+        if grep -q '^### Pattern 2A:' "$patterns_file" && \
+           ! grep -A5 '^### Pattern 2A:' "$patterns_file" | grep -qi 'conditional'; then
+            warn "proof-golfing-patterns.md: Pattern 2A (simpa) missing 'Conditional' marker"
+            drift=1
+        fi
+    fi
+
+    # <;> policy must be consistent: command, agent, and references should all allow identical-goal <;>
+    for f in "$file" "$agent_file" "$ref_file"; do
+        if grep -qE '<;>.*never|never.*<;>' "$f" && ! grep -qE '<;>.*identical|identical.*<;>' "$f"; then
+            warn "$(basename "$f"): <;> policy inconsistency — bans <;> without identical-goal exception"
+            drift=1
+        fi
+    done
+
+    # Terminal simp only caveat must appear in patterns file
+    if [[ -f "$patterns_file" ]] && ! grep -qi 'terminal.*simp only' "$patterns_file"; then
+        warn "proof-golfing-patterns.md: Missing terminal simp only caveat"
+        drift=1
+    fi
+
+    # Script language drift: find_golfable.py epilog must not label let-have-exact "HIGHEST value"
+    local script_file="$PLUGIN_ROOT/lib/scripts/find_golfable.py"
+    if [[ -f "$script_file" ]] && grep -qi 'HIGHEST value' "$script_file"; then
+        warn "find_golfable.py: Stale 'HIGHEST value' label (should use policy phase order)"
+        drift=1
+    fi
+
+    # proof-golfing.md Phase 1 must not label any pattern "HIGHEST value"
+    if grep -qi 'HIGHEST value' "$ref_file"; then
+        warn "proof-golfing.md: Stale 'HIGHEST value' label in Phase 1 search order"
+        drift=1
+    fi
+
+    # No size-first acceptance language in agent or reference docs
+    for _gp_file in "$agent_file" "$ref_file"; do
+        local _gp_base
+        _gp_base=$(basename "$_gp_file")
+        if grep -qiE 'net (proof )?size decrease|net decrease' "$_gp_file"; then
+            warn "$_gp_base: Stale size-first acceptance language (should reference scoring order)"
+            drift=1
+        fi
+    done
+
+    if [[ $drift -eq 0 ]]; then
+        ok "Golf policy consistency: no stale language detected"
+    fi
+}
+
+# Check 13: Backward-compat scripts alias
+check_compat_alias() {
+    log ""
+    log "Checking compat alias..."
+
+    local _ca_link="$PLUGIN_ROOT/scripts"
+    local _ca_target
+
+    if [[ ! -L "$_ca_link" ]]; then
+        warn "scripts: Missing compat symlink (expected scripts -> lib/scripts)"
+        return
+    fi
+
+    _ca_target=$(readlink "$_ca_link")
+    if [[ "$_ca_target" != "lib/scripts" ]]; then
+        warn "scripts: Symlink points to '$_ca_target' (expected lib/scripts)"
+    else
+        [[ -n "$VERBOSE" ]] && ok "scripts -> lib/scripts symlink"
+    fi
+
+    ok "Compat alias checked"
+}
+
+# Check 14: Suspicious script path patterns in docs
+check_path_patterns() {
+    log ""
+    log "Checking for suspicious script path patterns..."
+
+    local _pp_base _pp_line _pp_match
+
+    while IFS= read -r file; do
+        _pp_base=$(basename "$file")
+
+        # Skip files where raw paths are expected
+        [[ "$_pp_base" == "MIGRATION.md" ]] && continue
+        case "$file" in */lib/scripts/*|*/tools/*) continue ;; esac
+
+        # Detect hardcoded cache paths: .claude/plugins/.../scripts/
+        while IFS=: read -r _pp_line _pp_match; do
+            [[ -z "$_pp_line" ]] && continue
+            warn "$_pp_base:$_pp_line: Hardcoded cache path (use \$LEAN4_SCRIPTS/ instead)"
+        done < <(grep -nE '\.claude/plugins/.*/scripts/' "$file" 2>/dev/null || true)
+
+        # Detect bare /scripts/*.py|.sh that aren't lib/scripts or $LEAN4_SCRIPTS
+        while IFS=: read -r _pp_line _pp_match; do
+            [[ -z "$_pp_line" ]] && continue
+            if echo "$_pp_match" | grep -qE '(lib/scripts|\$LEAN4_SCRIPTS|\$\{LEAN4_SCRIPTS)'; then
+                continue
+            fi
+            warn "$_pp_base:$_pp_line: Suspicious path pattern (use lib/scripts/ or \$LEAN4_SCRIPTS/)"
+        done < <(grep -nE '/scripts/[a-zA-Z_]+\.(py|sh)' "$file" 2>/dev/null || true)
+    done < <(find "$PLUGIN_ROOT" \( -name "*.md" -o -name "*.sh" \) -type f)
+
+    ok "Path pattern check done"
+}
+
+# Check 15: Custom syntax reference integrity
+check_custom_syntax_refs() {
+    log ""
+    log "Checking custom syntax references..."
+
+    local skill_md="$PLUGIN_ROOT/skills/lean4/SKILL.md"
+    local syntax_ref="$PLUGIN_ROOT/skills/lean4/references/lean4-custom-syntax.md"
+
+    # SKILL.md must have actual markdown link targets to both refs
+    if grep -qE '\(references/lean4-custom-syntax\.md\)' "$skill_md" 2>/dev/null; then
+        ok "SKILL.md links lean4-custom-syntax.md"
+    else
+        warn "SKILL.md missing link to references/lean4-custom-syntax.md"
+    fi
+
+    if grep -qE '\(references/scaffold-dsl\.md\)' "$skill_md" 2>/dev/null; then
+        ok "SKILL.md links scaffold-dsl.md"
+    else
+        warn "SKILL.md missing link to references/scaffold-dsl.md"
+    fi
+
+    # lean4-custom-syntax.md must contain the scope guard
+    if grep -q 'Not part of the prove/autoprove default loop' "$syntax_ref" 2>/dev/null; then
+        ok "lean4-custom-syntax.md contains scope guard"
+    else
+        warn "lean4-custom-syntax.md missing scope guard ('Not part of the prove/autoprove default loop')"
+    fi
+}
+
+# Check 16: Build verification patterns
+check_build_patterns() {
+    log ""
+    log "Checking build verification patterns..."
+
+    local _bp_base _bp_line _bp_content _bp_prev_line _bp_prev _bp_context _bp_found_root
+
+    while IFS= read -r file; do
+        _bp_base=$(basename "$file")
+
+        # Skip files where lake build is legitimately project-wide or shows anti-patterns
+        case "$_bp_base" in
+            checkpoint.md|lean-lsp-server.md|MIGRATION.md) continue ;;
+        esac
+
+        # Warn on lake build with .lean file arguments
+        # Skip lines that teach anti-patterns (Never, Do not, Wrong, Incorrect, ✗)
+        # Also check preceding line for anti-pattern context (e.g., "# ✗ Wrong" comment above code)
+        while IFS=: read -r _bp_line _bp_content; do
+            [[ -z "$_bp_line" ]] && continue
+            if echo "$_bp_content" | grep -qiE '(Never|Do not|Wrong|Incorrect|✗|anti.?pattern)'; then
+                continue
+            fi
+            _bp_prev_line=$(( _bp_line - 1 ))
+            if [[ $_bp_prev_line -gt 0 ]]; then
+                _bp_prev=$(sed -n "${_bp_prev_line}p" "$file")
+                if echo "$_bp_prev" | grep -qiE '(Never|Do not|Wrong|Incorrect|✗|anti.?pattern)'; then
+                    continue
+                fi
+            fi
+            warn "$_bp_base:$_bp_line: 'lake build' with .lean file arg (use 'lake env lean <file>')"
+        done < <(grep -nE 'lake build [A-Za-z0-9_./-]+\.lean' "$file" 2>/dev/null || true)
+
+        # Warn on lake build <file placeholder pattern
+        while IFS=: read -r _bp_line _bp_content; do
+            [[ -z "$_bp_line" ]] && continue
+            if echo "$_bp_content" | grep -qiE '(Never|Do not|Wrong|Incorrect|✗|anti.?pattern)'; then
+                continue
+            fi
+            _bp_prev_line=$(( _bp_line - 1 ))
+            if [[ $_bp_prev_line -gt 0 ]]; then
+                _bp_prev=$(sed -n "${_bp_prev_line}p" "$file")
+                if echo "$_bp_prev" | grep -qiE '(Never|Do not|Wrong|Incorrect|✗|anti.?pattern)'; then
+                    continue
+                fi
+            fi
+            warn "$_bp_base:$_bp_line: 'lake build <file' placeholder (use 'lake env lean <file>')"
+        done < <(grep -nE 'lake build <file' "$file" 2>/dev/null || true)
+
+    done < <(find "$PLUGIN_ROOT" -name "*.md" -type f)
+
+    # Anchor check: each "lake env lean" file-compilation mention must have
+    # "project root" within ±2 lines (proximity, not file-global)
+    while IFS= read -r file; do
+        _bp_base=$(basename "$file")
+
+        # Skip non-guidance files (scripts, tools, changelogs, migration)
+        case "$_bp_base" in
+            MIGRATION.md|CHANGELOG.md) continue ;;
+        esac
+        case "$file" in */lib/scripts/*|*/tools/*) continue ;; esac
+
+        # Match file-compilation usage; exclude --run via \s+[^-] regex
+        while IFS=: read -r _bp_line _bp_content; do
+            [[ -z "$_bp_line" ]] && continue
+            # Skip example/anti-pattern teaching blocks (✓ Correct, ✗ Wrong, etc.)
+            _bp_context=$(sed -n "$(( _bp_line > 2 ? _bp_line - 2 : 1 )),$(( _bp_line + 1 ))p" "$file")
+            if echo "$_bp_context" | grep -qiE '(✓|✗|Correct|Wrong|anti.?pattern|GOOD|BAD)'; then
+                continue
+            fi
+            # Check ±4 line window for "project root" (covers tables, code blocks)
+            _bp_context=$(sed -n "$(( _bp_line > 4 ? _bp_line - 4 : 1 )),$(( _bp_line + 4 ))p" "$file")
+            _bp_found_root=false
+            if echo "$_bp_context" | grep -qi 'project root'; then
+                _bp_found_root=true
+            fi
+            if [[ "$_bp_found_root" != "true" ]]; then
+                warn "$_bp_base:$_bp_line: 'lake env lean' without nearby 'project root' guidance (±4 lines)"
+            fi
+        done < <(grep -nE 'lake env lean\s+[^-]' "$file" 2>/dev/null || true)
+    done < <(find "$PLUGIN_ROOT" -name "*.md" -type f)
+
+    ok "Build pattern check done"
+}
+
+# Check 17: Integrated advanced references (v4.0.9)
+check_integrated_advanced_refs() {
+    log ""
+    log "Checking integrated advanced references..."
+
+    local skill_md="$PLUGIN_ROOT/skills/lean4/SKILL.md"
+    local ref_dir="$PLUGIN_ROOT/skills/lean4/references"
+    local _ar_file _ar_base
+
+    # Each advanced reference must be linked from SKILL.md and have the scope guard
+    for _ar_base in grind-tactic.md simp-reference.md metaprogramming-patterns.md linter-authoring.md ffi-patterns.md verso-docs.md profiling-workflows.md; do
+        _ar_file="$ref_dir/$_ar_base"
+
+        if [[ ! -f "$_ar_file" ]]; then
+            warn "$_ar_base: File not found"
+            continue
+        fi
+
+        # SKILL.md must link this reference
+        if grep -qE "\(references/$_ar_base\)" "$skill_md" 2>/dev/null; then
+            [[ -n "$VERBOSE" ]] && ok "SKILL.md links $_ar_base"
+        else
+            warn "SKILL.md missing link to references/$_ar_base"
+        fi
+
+        # Reference must have scope guard
+        if grep -q 'Not part of the prove/autoprove default loop' "$_ar_file" 2>/dev/null; then
+            [[ -n "$VERBOSE" ]] && ok "$_ar_base contains scope guard"
+        else
+            warn "$_ar_base missing scope guard ('Not part of the prove/autoprove default loop')"
+        fi
+    done
+
+    ok "Integrated advanced references checked"
+}
+
+# Check 18: No command-style frontmatter in reference files
+check_no_command_frontmatter() {
+    log ""
+    log "Checking for command frontmatter in references..."
+
+    local ref_dir="$PLUGIN_ROOT/skills/lean4/references"
+    local _cf_file _cf_base _cf_line
+
+    while IFS= read -r _cf_file; do
+        _cf_base=$(basename "$_cf_file")
+        for pattern in '^name:' '^description:' '^user_invocable:'; do
+            _cf_line=$(grep -n "$pattern" "$_cf_file" 2>/dev/null | head -1 | cut -d: -f1 || true)
+            if [[ -n "$_cf_line" ]]; then
+                warn "$_cf_base:$_cf_line: Command-style frontmatter in reference file ($(echo "$pattern" | tr -d '^'))"
+            fi
+        done
+    done < <(find "$ref_dir" -name "*.md" -type f)
+
+    ok "Command frontmatter check done"
+}
+
+# Check 19: No stale plugin paths in docs
+check_stale_plugin_paths() {
+    log ""
+    log "Checking for stale plugin paths..."
+
+    local _sp_base _sp_line _sp_match _sp_changelog_line
+
+    while IFS= read -r file; do
+        _sp_base=$(basename "$file")
+
+        # Skip MIGRATION.md (historical mentions OK) and doctor.md (detects old plugins)
+        if [[ "$_sp_base" == "MIGRATION.md" ]] || [[ "$_sp_base" == "doctor.md" ]]; then
+            continue
+        fi
+
+        while IFS=: read -r _sp_line _sp_match; do
+            [[ -z "$_sp_line" ]] && continue
+            # In README.md, skip changelog lines (lines after "## Changelog")
+            if [[ "$_sp_base" == "README.md" ]]; then
+                _sp_changelog_line=$(grep -n '^## Changelog' "$file" 2>/dev/null | head -1 | cut -d: -f1 || true)
+                if [[ -n "$_sp_changelog_line" ]] && [[ "$_sp_line" -gt "$_sp_changelog_line" ]]; then
+                    continue
+                fi
+            fi
+            warn "$_sp_base:$_sp_line: Stale plugin path (old separate-plugin reference)"
+        done < <(grep -nE 'plugins/lean4-(grind|simprocs|metaprogramming|linters|ffi|verso-docs|profiling|theorem-proving)' "$file" 2>/dev/null || true)
+    done < <(find "$PLUGIN_ROOT" -name "*.md" -type f; echo "$PLUGIN_ROOT/../../README.md")
+
+    ok "Stale plugin path check done"
+}
+
+# Check 20: Advanced references include version metadata and fresh validation date
+check_advanced_reference_metadata() {
+    log ""
+    log "Checking advanced reference metadata..."
+
+    local ref_dir="$PLUGIN_ROOT/skills/lean4/references"
+    local _am_base _am_file _am_date _am_date_epoch _am_now_epoch _am_age_days
+    local _am_refs=(
+        "grind-tactic.md"
+        "simp-reference.md"
+        "metaprogramming-patterns.md"
+        "linter-authoring.md"
+        "ffi-patterns.md"
+        "verso-docs.md"
+        "profiling-workflows.md"
+    )
+
+    _am_now_epoch=$(date +%s)
+
+    for _am_base in "${_am_refs[@]}"; do
+        _am_file="$ref_dir/$_am_base"
+        if [[ ! -f "$_am_file" ]]; then
+            warn "$_am_base: File not found"
+            continue
+        fi
+
+        if ! grep -q '^> \*\*Version metadata:\*\*' "$_am_file" 2>/dev/null; then
+            warn "$_am_base: Missing 'Version metadata' block"
+        fi
+        if ! grep -qE '^> - \*\*Verified on:\*\* .+' "$_am_file" 2>/dev/null; then
+            warn "$_am_base: Missing 'Verified on' metadata field"
+        fi
+        if ! grep -qE '^> - \*\*Last validated:\*\* [0-9]{4}-[0-9]{2}-[0-9]{2}$' "$_am_file" 2>/dev/null; then
+            warn "$_am_base: Missing or malformed 'Last validated' field (YYYY-MM-DD)"
+        fi
+        if ! grep -qE '^> - \*\*Confidence:\*\* (low|medium|high)\b' "$_am_file" 2>/dev/null; then
+            warn "$_am_base: Missing confidence field (start with low|medium|high)"
+        fi
+        if grep -q 'Legacy-tested' "$_am_file" 2>/dev/null; then
+            warn "$_am_base: Contains stale wording 'Legacy-tested' (use version metadata block)"
+        fi
+
+        _am_date=$(grep -E '^> - \*\*Last validated:\*\* [0-9]{4}-[0-9]{2}-[0-9]{2}$' "$_am_file" 2>/dev/null | head -1 | sed -E 's/^> - \*\*Last validated:\*\* ([0-9-]+)$/\1/' || true)
+        if [[ -n "$_am_date" ]]; then
+            _am_date_epoch=$(date -d "$_am_date" +%s 2>/dev/null || true)
+            if [[ -z "$_am_date_epoch" ]]; then
+                warn "$_am_base: Could not parse Last validated date '$_am_date'"
+            else
+                _am_age_days=$(( (_am_now_epoch - _am_date_epoch) / 86400 ))
+                if [[ $_am_age_days -gt 180 ]]; then
+                    warn "$_am_base: Last validated is $_am_age_days days old (refresh recommended)"
+                fi
+            fi
+        fi
+    done
+
+    ok "Advanced reference metadata check done"
+}
+
+# Check 21: Certainty wording in advanced references should avoid absolute claims
+check_advanced_reference_language() {
+    log ""
+    log "Checking advanced reference certainty wording..."
+
+    local ref_dir="$PLUGIN_ROOT/skills/lean4/references"
+    local _aw_base _aw_line _aw_match
+    local _aw_refs=(
+        "grind-tactic.md"
+        "simp-reference.md"
+        "metaprogramming-patterns.md"
+        "linter-authoring.md"
+        "ffi-patterns.md"
+        "verso-docs.md"
+        "profiling-workflows.md"
+    )
+
+    for _aw_base in "${_aw_refs[@]}"; do
+        while IFS=: read -r _aw_line _aw_match; do
+            [[ -z "$_aw_line" ]] && continue
+            warn "$_aw_base:$_aw_line: Absolute certainty marker ('Works!'/'FAILS!') in advanced reference"
+        done < <(grep -nE 'Works!|FAILS!' "$ref_dir/$_aw_base" 2>/dev/null || true)
+    done
+
+    ok "Advanced reference wording check done"
+}
+
+# Check 22: Lightweight snippet smoke tests for advanced references
+check_advanced_reference_snippets() {
+    log ""
+    log "Running advanced reference snippet smoke checks..."
+
+    local smoke_script="$PLUGIN_ROOT/tools/smoke_snippets.sh"
+
+    if [[ ! -x "$smoke_script" ]]; then
+        warn "smoke_snippets.sh missing or not executable"
+        return
+    fi
+
+    if "$smoke_script"; then
+        ok "Advanced snippet smoke checks passed"
+    else
+        warn "Advanced snippet smoke checks failed (see warnings above)"
+    fi
+}
+
+# Check 23: release metadata consistency (plugin.json ↔ marketplace.json ↔ CHANGELOG)
+check_release_metadata() {
+    log ""
+    log "Checking release metadata consistency..."
+
+    local plugin_json="$PLUGIN_ROOT/.claude-plugin/plugin.json"
+    local repo_root
+    repo_root="$(cd "$PLUGIN_ROOT" && cd ../.. && pwd)"
+    local marketplace_json="$repo_root/.claude-plugin/marketplace.json"
+    local changelog="$repo_root/CHANGELOG.md"
+
+    if [[ ! -f "$plugin_json" ]]; then
+        warn "plugin.json not found at $plugin_json"
+        return
+    fi
+    if [[ ! -f "$marketplace_json" ]]; then
+        warn "marketplace.json not found at $marketplace_json"
+        return
+    fi
+    if [[ ! -f "$changelog" ]]; then
+        warn "CHANGELOG.md not found at $changelog"
+        return
+    fi
+
+    # Extract plugin.json fields
+    local plugin_version plugin_desc
+    plugin_version=$(grep -oE '"version": *"[^"]+"' "$plugin_json" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+    plugin_desc=$(sed -n 's/.*"description": *"\([^"]*\)".*/\1/p' "$plugin_json" | head -1)
+
+    if [[ -z "$plugin_version" ]]; then
+        warn "Could not extract version from plugin.json"
+        return
+    fi
+
+    # Extract marketplace.json fields via python3
+    local market_version market_plugin_desc market_source market_plugin_count
+    market_version=$(grep -oE '"version": *"[^"]+"' "$marketplace_json" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+    market_plugin_desc=$(python3 -c "
+import json, sys
+data = json.load(open(sys.argv[1]))
+for p in data.get('plugins', []):
+    if p.get('name') == 'lean4':
+        print(p.get('description', '')); break
+" "$marketplace_json")
+    market_source=$(python3 -c "
+import json, sys
+data = json.load(open(sys.argv[1]))
+for p in data.get('plugins', []):
+    if p.get('name') == 'lean4':
+        print(p.get('source', '')); break
+" "$marketplace_json")
+    market_plugin_count=$(grep -c '"name": *"lean4"' "$marketplace_json")
+
+    # 1. Version match
+    if [[ "$plugin_version" == "$market_version" ]]; then
+        ok "marketplace version matches plugin.json ($plugin_version)"
+    else
+        warn "marketplace version ($market_version) != plugin.json ($plugin_version)"
+    fi
+
+    # 2. Plugin description match
+    if [[ "$plugin_desc" == "$market_plugin_desc" ]]; then
+        ok "marketplace plugin description matches plugin.json"
+    else
+        warn "marketplace plugin description differs from plugin.json"
+    fi
+
+    # 3. Source path
+    if [[ "$market_source" == "./plugins/lean4" ]]; then
+        ok "marketplace plugin source is ./plugins/lean4"
+    else
+        warn "unexpected marketplace plugin source: $market_source"
+    fi
+
+    # 4. Single lean4 entry
+    if [[ "$market_plugin_count" -eq 1 ]]; then
+        ok "marketplace has exactly one lean4 plugin entry"
+    else
+        warn "expected 1 lean4 plugin entry in marketplace, found $market_plugin_count"
+    fi
+
+    # 5. CHANGELOG entry
+    if grep -q "## v${plugin_version}" "$changelog"; then
+        ok "CHANGELOG v${plugin_version} entry present"
+    else
+        warn "CHANGELOG missing entry for v${plugin_version}"
+    fi
+}
+
+# Check 24: Command descriptions aligned across surfaces
+check_description_alignment() {
+    log ""
+    log "Checking command description alignment..."
+
+    local cmd_dir="$PLUGIN_ROOT/commands"
+    local skill_md="$PLUGIN_ROOT/skills/lean4/SKILL.md"
+    local plugin_readme="$PLUGIN_ROOT/README.md"
+    local repo_root
+    repo_root="$(cd "$PLUGIN_ROOT" && cd ../.. && pwd)"
+    local repo_readme="$repo_root/README.md"
+
+    local _da_cmd _da_desc _da_mismatches
+    _da_mismatches=0
+
+    for _da_cmd in $KNOWN_COMMANDS; do
+        local cmd_file="$cmd_dir/$_da_cmd.md"
+        [[ -f "$cmd_file" ]] || continue
+
+        # Extract description from frontmatter (line starting with "description:")
+        _da_desc=$(sed -n '/^---$/,/^---$/{ s/^description: *//p; }' "$cmd_file" | head -1)
+        [[ -z "$_da_desc" ]] && continue
+
+        # Check SKILL.md and plugin README table rows (should match frontmatter exactly).
+        # Root README uses abbreviated descriptions so is not checked here.
+        # We match against table rows containing the command name to avoid false positives
+        # from the same text appearing elsewhere in the file.
+        for surface in "$skill_md" "$plugin_readme"; do
+            [[ -f "$surface" ]] || continue
+            local _da_base
+            _da_base=$(basename "$surface")
+            # Extract table rows mentioning this command and check for the description
+            if ! grep -F "$_da_cmd" "$surface" | grep '|' | grep -qF "$_da_desc"; then
+                warn "$_da_base: $_da_cmd description mismatch (expected: '$_da_desc')"
+                _da_mismatches=1
+            fi
+        done
+    done
+
+    if [[ $_da_mismatches -eq 0 ]]; then
+        ok "Command descriptions aligned across all surfaces"
+    fi
+}
+
+# Check 25: Host-agnostic language in core surfaces
+# SKILL.md and commands are loaded into any host's context, so they must not
+# reference "Claude" by name.  Allowed exceptions:
+#   - doctor.md (contains .claude/ paths and `claude mcp` product commands)
+#   - .claude-plugin/ path fragments (directory name, not prose)
+check_host_agnostic() {
+    log ""
+    log "Checking host-agnostic language..."
+
+    local _ha_files _ha_fail
+    _ha_fail=0
+
+    # SKILL.md
+    local skill_md="$PLUGIN_ROOT/skills/lean4/SKILL.md"
+    if [[ -f "$skill_md" ]]; then
+        if grep -inE 'claude' "$skill_md" | grep -ivE '\.claude[-/]' | grep -q .; then
+            warn "SKILL.md mentions 'Claude' — core skill must be host-agnostic"
+            _ha_fail=1
+        fi
+    fi
+
+    # Command files (skip doctor.md — it has legitimate .claude/ paths)
+    while IFS= read -r file; do
+        local _ha_base
+        _ha_base=$(basename "$file")
+        [[ "$_ha_base" == "doctor.md" ]] && continue
+        if grep -inE 'claude' "$file" | grep -ivE '\.claude[-/]' | grep -q .; then
+            warn "$_ha_base mentions 'Claude' — commands must be host-agnostic"
+            _ha_fail=1
+        fi
+    done < <(find "$PLUGIN_ROOT/commands" -name "*.md" -type f 2>/dev/null)
+
+    if [[ $_ha_fail -eq 0 ]]; then
+        ok "Host-agnostic language checked"
+    fi
+}
+
+# Check 26: Contribute command consent policy in SKILL.md
+check_contribute_policy() {
+    log ""
+    log "Checking contribute consent policy..."
+
+    local skill_md="$PLUGIN_ROOT/skills/lean4/SKILL.md"
+    if [[ ! -f "$skill_md" ]]; then
+        return  # No SKILL.md, nothing to check
+    fi
+
+    # Extract the Contributing section (from ## Contributing to next ## heading)
+    # Uses awk state machine: robust against code blocks and heading content
+    local section
+    section=$(awk '
+        /^## Contributing/ { found=1; next }
+        found && /^## /    { exit }
+        found              { print }
+    ' "$skill_md")
+
+    if [[ -z "$section" ]]; then
+        warn "SKILL.md missing ## Contributing section"
+        return
+    fi
+
+    local _cp_fail=0
+    echo "$section" | grep -qi 'never invoke unprompted' || _cp_fail=1
+    echo "$section" | grep -qi 'explicit.*opt-in' || _cp_fail=1
+    echo "$section" | grep -qi 'once per topic' || _cp_fail=1
+    echo "$section" | grep -qi 'never mid-proof' || _cp_fail=1
+
+    if [[ $_cp_fail -eq 0 ]]; then
+        ok "SKILL.md contribute policy has required consent guardrails"
+    else
+        warn "SKILL.md contribute policy missing consent guardrail phrases (need: never invoke unprompted, explicit opt-in, once per topic, never mid-proof)"
+    fi
+
+    # Install-hint branch: must have "not installed" fallback with once-per-session limit
+    local _ih_fail=0
+    echo "$section" | grep -qi 'not installed' || _ih_fail=1
+    echo "$section" | grep -qi 'once per session' || _ih_fail=1
+
+    if [[ $_ih_fail -eq 0 ]]; then
+        ok "SKILL.md contribute policy has install-hint fallback"
+    else
+        warn "SKILL.md contribute policy missing install-hint fallback (need: not installed, once per session)"
+    fi
+}
+
+check_bare_slash_links() {
+    log ""
+    log "Checking for bare /slash link labels..."
+
+    # Markdown links like [/lean4:review](...) cause closing-tag parse errors
+    # in some hosts. The label should be backtick-wrapped: [`/lean4:review`](...)
+    local found=0
+    while IFS= read -r line; do
+        warn "Bare /slash link label: $line"
+        found=1
+    done < <(grep -rnE '\[/[^]]+\]\(' "$PLUGIN_ROOT" --include='*.md' || true)
+
+    if [[ $found -eq 0 ]]; then
+        ok "No bare /slash link labels found"
+    fi
+}
+
+# Fence-aware section extractor (skips headings inside ``` code blocks).
+# Based on test_contracts.sh extract_section().
+# Usage: _extract_section_fenced FILE "## Heading"
+_extract_section_fenced() {
+    local file="$1"
+    local heading="$2"
+    local prefix
+    prefix="${heading%%[^#]*}"
+    local level="${#prefix}"
+    awk -v start="$heading" -v lvl="$level" '
+        /^```/ { in_fence = !in_fence }
+        $0 == start && !found { found=1; next }
+        found && !in_fence && /^#+/ {
+            match($0, /^#+/)
+            if (RLENGTH <= lvl) exit
+        }
+        found { print }
+    ' "$file"
+}
+
+# Check: Header-fence regression guard
+# For each agent with a header-fence constraint, verify that example blocks
+# in the agent file and its agent-workflows.md section do not demonstrate
+# statement generalization or declaration-header modifications.
+check_header_fence_examples() {
+    log ""
+    log "Checking header-fence example consistency..."
+
+    local workflows_file="$PLUGIN_ROOT/skills/lean4/references/agent-workflows.md"
+    local fence_ok=1
+
+    for agent_file in "$PLUGIN_ROOT"/agents/*.md; do
+        local agent_name
+        agent_name=$(grep -m1 '^name:' "$agent_file" | sed 's/^name: *//')
+        if [[ -z "$agent_name" ]]; then
+            continue
+        fi
+
+        # Extract constraints section (fence-aware)
+        local constraints
+        constraints=$(_extract_section_fenced "$agent_file" "## Constraints")
+        if [[ -z "$constraints" ]]; then
+            continue
+        fi
+
+        # Determine which header-fence checks apply
+        local check_generalize=0
+        local check_header_mod=0
+        if echo "$constraints" | grep -qi 'NOT generalize'; then
+            check_generalize=1
+        fi
+        if echo "$constraints" | grep -qiE 'NOT modify declaration headers|header fence'; then
+            check_header_mod=1
+        fi
+        if [[ "$check_generalize" -eq 0 ]] && [[ "$check_header_mod" -eq 0 ]]; then
+            continue
+        fi
+
+        # Extract examples from agent file (fence-aware)
+        local examples
+        examples=$(_extract_section_fenced "$agent_file" "## Example (Happy Path)")
+        if [[ -z "$examples" ]]; then
+            examples=$(_extract_section_fenced "$agent_file" "## Example")
+        fi
+
+        # Check generalization in agent examples
+        if [[ "$check_generalize" -eq 1 ]] && [[ -n "$examples" ]]; then
+            if echo "$examples" | grep -qiE 'Generalize.*(statement|signature|type)'; then
+                warn "$agent_name: Agent example demonstrates generalization despite header-fence constraint"
+                fence_ok=0
+            fi
+        fi
+
+        # Check header modification in agent examples (diff hunks changing declaration lines)
+        if [[ "$check_header_mod" -eq 1 ]] && [[ -n "$examples" ]]; then
+            if echo "$examples" | grep -qE '^\+\s*(theorem|def|lemma|instance) ' && \
+               echo "$examples" | grep -qE '^\-\s*(theorem|def|lemma|instance) '; then
+                warn "$agent_name: Agent example modifies a declaration header despite header-fence constraint"
+                fence_ok=0
+            fi
+        fi
+
+        # Check corresponding section in agent-workflows.md
+        if [[ -f "$workflows_file" ]]; then
+            local wf_section
+            wf_section=$(_extract_section_fenced "$workflows_file" "## $agent_name")
+
+            if [[ -n "$wf_section" ]]; then
+                # Check generalization
+                if [[ "$check_generalize" -eq 1 ]]; then
+                    if echo "$wf_section" | grep -qiE 'Generalize.*(statement|signature|type)'; then
+                        warn "$agent_name: agent-workflows.md example demonstrates generalization despite header-fence constraint"
+                        fence_ok=0
+                    fi
+                fi
+
+                # Check header modification in diff hunks
+                if [[ "$check_header_mod" -eq 1 ]]; then
+                    if echo "$wf_section" | grep -qE '^\+\s*(theorem|def|lemma|instance) ' && \
+                       echo "$wf_section" | grep -qE '^\-\s*(theorem|def|lemma|instance) '; then
+                        warn "$agent_name: agent-workflows.md example modifies a declaration header despite header-fence constraint"
+                        fence_ok=0
+                    fi
+                fi
+            fi
+        fi
+    done
+
+    if [[ "$fence_ok" -eq 1 ]]; then
+        ok "Header-fence examples consistent with constraints"
+    fi
+}
+
+# Check 27: Proof-complete shortcut guard
+# Prevents docs from equating empty goals_after / "no goals" with proof completion
+# without requiring diagnostic verification.
+check_proof_complete_shortcut() {
+    log ""
+    log "Checking for proof-complete shortcut anti-patterns..."
+
+    local _pc_base _pc_line _pc_match
+
+    while IFS= read -r file; do
+        _pc_base=$(basename "$file")
+
+        # Skip historical docs and non-behavioral internals
+        [[ "$_pc_base" == "MIGRATION.md" ]] && continue
+        [[ "$_pc_base" == "CHANGELOG.md" ]] && continue
+        case "$file" in */tools/*) continue ;; esac
+
+        # Use awk to emit only lines outside ``` fences, prefixed with line number
+        while IFS=: read -r _pc_line _pc_match; do
+            [[ -z "$_pc_line" ]] && continue
+
+            # Allow explicit anti-pattern warnings / corrections
+            if echo "$_pc_match" | grep -qiE '(Never|Do not|Wrong|Incorrect|anti.?pattern|forbidden|avoid|does not confirm)'; then
+                continue
+            fi
+
+            warn "$_pc_base:$_pc_line: Equates empty goals/no-goals with proof completion without requiring diagnostic verification"
+            (( ++ISSUES ))
+        done < <(awk '
+            /^```/ { in_fence = !in_fence; next }
+            !in_fence { print NR ":" $0 }
+        ' "$file" | grep -iE '= proof complete|goals_after.*proof complete|Repeat until.*no goals' || true)
+    done < <(find "$PLUGIN_ROOT" -name "*.md" -type f)
+
+    ok "Proof-complete shortcut check done"
+}
+
+# Main
+log "Lean4 Plugin Documentation Lint"
+log "================================"
+log "(Maintainer tool - not a user-facing script)"
+
+check_commands
+check_agents
+check_references
+check_scripts
+check_cross_refs
+check_reference_links
+check_stale_commands
+check_bare_scripts
+check_script_stderr_suppression
+check_deep_safety
+check_guardrail_docs
+check_guardrail_impl
+check_golf_policy
+check_compat_alias
+check_path_patterns
+check_custom_syntax_refs
+check_build_patterns
+check_integrated_advanced_refs
+check_no_command_frontmatter
+check_stale_plugin_paths
+check_advanced_reference_metadata
+check_advanced_reference_language
+check_advanced_reference_snippets
+check_release_metadata
+check_description_alignment
+check_host_agnostic
+check_contribute_policy
+check_bare_slash_links
+check_header_fence_examples
+check_proof_complete_shortcut
+
+log ""
+log "================================"
+if [[ $ISSUES -eq 0 ]]; then
+    log "✓ All checks passed"
+    exit 0
+else
+    log "⚠️  $ISSUES issue(s) found"
+    exit 1
+fi

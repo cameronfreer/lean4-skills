@@ -1,0 +1,42 @@
+{
+  "name": "lean4-contribute-codex",
+  "version": "0.1.0",
+  "description": "Codex contribution workflow plugin for drafting and submitting lean4-skills bug reports, feature requests, and shareable insights.",
+  "author": {
+    "name": "Cameron Freer",
+    "email": "lean4skills@gmail.com",
+    "url": "https://github.com/cameronfreer"
+  },
+  "homepage": "https://github.com/cameronfreer/lean4-skills/tree/main/plugins/lean4-contribute",
+  "repository": "https://github.com/cameronfreer/lean4-skills",
+  "license": "MIT",
+  "keywords": [
+    "lean4",
+    "codex",
+    "feedback",
+    "issues",
+    "contribute"
+  ],
+  "skills": "./skills",
+  "interface": {
+    "displayName": "Lean 4 Contribute",
+    "shortDescription": "Consent-gated issue drafting workflows for lean4-skills.",
+    "longDescription": "Draft and submit lean4-skills bug reports, feature requests, and reusable insights with explicit review and submit confirmations.",
+    "developerName": "Cameron Freer",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write",
+      "Shell"
+    ],
+    "websiteURL": "https://github.com/cameronfreer/lean4-skills/tree/main/plugins/lean4-contribute",
+    "privacyPolicyURL": "https://github.com/cameronfreer/lean4-skills/tree/main/plugins/lean4-contribute#privacy-notice",
+    "termsOfServiceURL": "https://github.com/cameronfreer/lean4-skills/blob/main/LICENSE",
+    "defaultPrompt": [
+      "Draft a lean4-skills bug report from this failed workflow.",
+      "Turn this pain point into a lean4-skills feature request.",
+      "Draft a shareable insight issue from this session pattern."
+    ],
+    "brandColor": "#7C3AED"
+  }
+}
