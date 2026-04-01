@@ -7,7 +7,7 @@ Test results and validation status for Lean 4 scripts.
 | Script | Status | Notes |
 |--------|--------|-------|
 | `sorry_analyzer.py` | ✅ Production Ready | Multi-format output, interactive mode |
-| `check_axioms_inline.sh` | ✅ Production Ready | Batch mode, namespace-aware, directory support |
+| `check_axioms_inline.sh` | ✅ Production Ready | Best-effort: top-level declarations in first namespace only; batch mode, directory support |
 | `search_mathlib.sh` | ✅ Production Ready | Pattern search with ripgrep |
 | `smart_search.sh` | ✅ Production Ready | Multi-source (LeanSearch, Loogle) |
 | `parse_lean_errors.py` | ✅ Production Ready | Structured error output |
