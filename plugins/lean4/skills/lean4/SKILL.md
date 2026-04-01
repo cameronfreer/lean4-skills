@@ -180,7 +180,7 @@ See [sorry-filling.md](references/sorry-filling.md) for the full scratch-work pr
 | Script | Purpose | Output |
 |--------|---------|--------|
 | `sorry_analyzer.py` | Find sorries with context | text (default), json, markdown, summary |
-| `check_axioms_inline.sh` | Check for non-standard axioms | text |
+| `check_axioms_inline.sh` | Best-effort axiom scan (top-level declarations) | text |
 | `smart_search.sh` | Multi-source mathlib search | text |
 | `find_golfable.py` | Detect optimization patterns | JSON |
 | `find_usages.sh` | Find declaration usages | text |
