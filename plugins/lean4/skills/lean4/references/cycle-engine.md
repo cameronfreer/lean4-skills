@@ -62,6 +62,8 @@ Run `lake env lean` from the Lean project root; pass repo-relative file paths.
 
 **Never use `lake build <file basename>`** — `lake build` does not accept file path arguments. Use `lake env lean <path/to/File.lean>` for single-file compilation.
 
+**`lake build` progress counter:** Lake's `[N/M]` denominator grows as dependencies are discovered mid-build (e.g., 129 → 7808 in one observed run). The step count is not a reliable progress estimate. Set timeouts based on wall-clock experience for the current project, not step counts.
+
 ## Review Phase
 
 At configured intervals (`--review-every`), run review matching current scope:
