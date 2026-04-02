@@ -76,6 +76,7 @@ Final summary (~200-300 tokens):
 - Follow mathlib 100-char line width — do not wrap lines at 80 when they fit within 100
 - Engine enforces `--deep-scope`, `--deep-max-files`, `--deep-max-lines` — do not bypass
 - Agent must not run git snapshot/rollback commands directly; on rollback, sorry is marked stuck and agent must stop
+- **One concurrent editor per file.** Never dispatch multiple agents targeting the same file in parallel — the last agent to Edit overwrites earlier agents' completed proofs with no error. For N sorrys in one file, either use one agent or dispatch sequentially with commits between each.
 
 ## Example (Happy Path)
 

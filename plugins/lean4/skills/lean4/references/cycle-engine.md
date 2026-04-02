@@ -418,6 +418,8 @@ Include this block (or the relevant subset) in the agent dispatch prompt:
 
 Omit sections with no data. The per-agent subsections below specify which parts to include.
 
+**Exclusive file ownership:** If two candidate dispatches would edit any of the same files, serialize them or keep one in-thread. Never dispatch concurrent agents with overlapping owned-file sets.
+
 ### sorry-filler-deep
 
 Include alongside file:line and failure reason:

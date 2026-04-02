@@ -231,7 +231,7 @@ Claude: "I'm dispatching an Explore agent to run verification checks..."
 
 [Agent reports back]:
 - Sorries: 3 total (all documented with TODO comments)
-- Axioms: All 150 declarations use only standard axioms
+- Axioms: Best-effort top-level scan found no non-standard axioms in scanned declarations
 - Ready: Yes, all checks passed
 
 Claude: "Excellent! All verification checks passed. Let's commit with message:
@@ -484,6 +484,21 @@ Never by stashing in one worktree and popping in another.
 > worktree automatically. The worktree persists if the agent makes changes — commit
 > or import results before cleanup.
 
+When using `run_in_background: true` for agents that edit files, prefer `isolation: "worktree"` to prevent branch-switch or concurrent-edit conflicts.
+
+## Same-File Parallel Dispatch
+
+Never dispatch multiple proof-editing agents that edit the same file in parallel. The Edit tool uses string replacement — if two agents read the same file at dispatch time and edit different regions, the last agent to write silently overwrites the first agent's changes.
+
+**Safe patterns:**
+- One agent per file (agent owns all sorrys in that file)
+- Sequential dispatch with commits between agents
+- `isolation: "worktree"` for agents on different branches
+
+**Unsafe:**
+- Two sorry-filler agents targeting different sorrys in the same file
+- `git checkout` while a background agent is editing files (destroys work silently — use `isolation: "worktree"` for background agents that edit files)
+
 ## Best Practices
 
 ### Do
@@ -521,7 +536,7 @@ The lean4 plugin provides these main commands:
 | `/lean4:autoformalize` | Autonomous synthesis (draft → prove loop with claim queue) |
 | `/lean4:prove` | Guided cycle-by-cycle proving |
 | `/lean4:autoprove` | Autonomous multi-cycle proving |
-| `/lean4:checkpoint` | Verified commit with axiom check |
+| `/lean4:checkpoint` | Save point (per-file + project build, best-effort axiom scan, commit) |
 | `/lean4:review` | Read-only quality review |
 | `/lean4:refactor` | Strategy-level proof simplification |
 | `/lean4:golf` | Optimize proofs |

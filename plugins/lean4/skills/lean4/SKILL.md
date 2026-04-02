@@ -141,7 +141,7 @@ The skill adapts to what's available. Determine your profile by checking capabil
 
 ### full (all capabilities)
 
-MCP + subagents + commands. Full workflow with live goal inspection, tactic testing, and parallel subagent dispatch. Subagents get pre-collected MCP context per [cycle-engine.md § Pre-flight Context](references/cycle-engine.md#pre-flight-context-for-subagent-dispatch). If `lean_run_code` is unavailable, use `/tmp` scratch files with `lake env lean` for isolated experiments.
+MCP + subagents + commands. Full workflow with live goal inspection, tactic testing, and parallel subagent dispatch (requires disjoint owned-file sets per agent, or separate worktrees). Subagents get pre-collected MCP context per [cycle-engine.md § Pre-flight Context](references/cycle-engine.md#pre-flight-context-for-subagent-dispatch). If `lean_run_code` is unavailable, use `/tmp` scratch files with `lake env lean` for isolated experiments.
 
 ### mcp_main_only (MCP available, no subagent dispatch)
 
