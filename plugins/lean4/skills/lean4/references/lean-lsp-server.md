@@ -21,6 +21,7 @@
 
 2. **If the LSP server is cold or timing out, run one `lake build`.**
    The LSP server runs through `lake serve` and can be slow on first startup if the workspace has not been built yet.
+   Note: Lake's `[N/M]` denominator grows as dependencies are discovered — the counter and fraction are not reliable progress estimates.
 
 3. **After bootstrap, use LSP for normal iteration.**
    Day-to-day proof development should use LSP tools for discovery, search, and per-edit validation.
