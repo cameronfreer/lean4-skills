@@ -57,13 +57,13 @@ check_commands() {
         local max_lines=120
         case "$cmd" in
             autoformalize) max_lines=180 ;;
-            autoprove)  max_lines=250 ;;
+            autoprove)  max_lines=275 ;;
             checkpoint) max_lines=90 ;;
             doctor)     max_lines=225 ;;
             draft)      max_lines=160 ;;
             formalize)  max_lines=180 ;;
             golf)       max_lines=170 ;;
-            learn)      max_lines=180 ;;
+            learn)      max_lines=195 ;;
             prove)      max_lines=235 ;;
             refactor)   max_lines=120 ;;
             review)     max_lines=330 ;;
@@ -1530,7 +1530,53 @@ check_header_fence_examples() {
     fi
 }
 
-# Check 27: Proof-complete shortcut guard
+# Check 27: Command invocation contract coverage
+check_command_invocation_contract() {
+    log ""
+    log "Checking command invocation contract..."
+
+    local ref="$PLUGIN_ROOT/skills/lean4/references/command-invocation.md"
+    local file base
+
+    if [[ ! -f "$ref" ]]; then
+        warn "command-invocation.md: Missing shared invocation contract reference"
+        return
+    fi
+
+    if ! grep -qi 'model-parsed, not host-parsed' "$ref" 2>/dev/null; then
+        warn "command-invocation.md: Missing model-parsed vs host-parsed clarification"
+    fi
+
+    for cmd in draft formalize autoformalize prove autoprove learn; do
+        file="$PLUGIN_ROOT/commands/$cmd.md"
+        base="$cmd.md"
+        if [[ ! -f "$file" ]]; then
+            warn "$base: File not found"
+            continue
+        fi
+        if ! grep -q '^## Invocation Contract' "$file" 2>/dev/null; then
+            warn "$base: Missing Invocation Contract section"
+        fi
+    done
+
+    for file in "$PLUGIN_ROOT/README.md" "$PLUGIN_ROOT/skills/lean4/SKILL.md"; do
+        base=$(basename "$file")
+        if grep -qi 'hard stop rules' "$file" 2>/dev/null; then
+            warn "$base: Uses 'hard stop rules' wording; prefer explicit stop-budget wording"
+        fi
+    done
+
+    for file in "$PLUGIN_ROOT/commands/autoprove.md" "$PLUGIN_ROOT/commands/autoformalize.md"; do
+        base=$(basename "$file")
+        if grep -qE '^\| --max-total-runtime .*Hard stop' "$file" 2>/dev/null; then
+            warn "$base: Describes --max-total-runtime as a hard stop; it should be best-effort"
+        fi
+    done
+
+    ok "Command invocation contract checked"
+}
+
+# Check 28: Proof-complete shortcut guard
 # Prevents docs from equating empty goals_after / "no goals" with proof completion
 # without requiring diagnostic verification.
 check_proof_complete_shortcut() {
@@ -1601,6 +1647,7 @@ check_host_agnostic
 check_contribute_policy
 check_bare_slash_links
 check_header_fence_examples
+check_command_invocation_contract
 check_proof_complete_shortcut
 
 log ""

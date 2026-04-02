@@ -20,17 +20,30 @@ Interactive formalization: draft Lean skeletons from informal claims, then prove
 /lean4:formalize --output=file --out=MyTheorem.lean "..."
 ```
 
+## Invocation Contract
+
+Slash-command inputs are raw text. Before drafting or proving, parse the raw
+invocation text using this command's input table and the
+[Command Invocation Contract](../skills/lean4/references/command-invocation.md).
+
+Startup requirements:
+
+1. Emit a **Resolved Inputs** block with explicit values, defaults, coercions,
+   ignored flags, and startup validation errors.
+2. Refuse to start on startup validation errors.
+3. Validate output paths and overwrite policy before writing anything.
+
 ## Inputs
 
 | Arg | Required | Default | Description |
 |-----|----------|---------|-------------|
-| topic | no | — | Informal claim to formalize. Optional when `--source` provides it (source-led flow). At least one of `topic` or `--source` must be given; omitting both is a hard error. |
+| topic | no | — | Informal claim to formalize. Optional when `--source` provides it (source-led flow). At least one of `topic` or `--source` must be given; omitting both is a startup validation error. |
 | --rigor | no | `checked` | `checked` \| `sketch` \| `axiomatic` |
 | --verify | no | `best-effort` | `best-effort` \| `strict`. Verification strictness for key claims. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#verification-status). |
 | --level | no | `intermediate` | `beginner` \| `intermediate` \| `expert` |
 | --output | no | `chat` | `chat` \| `scratch` \| `file` |
-| --out | no | — | Output path. Required when `--output=file`; hard error if missing. |
-| --overwrite | no | `false` | Allow overwriting existing files with `--output=file`. Without flag, existing target → hard error. |
+| --out | no | — | Output path. Required when `--output=file`; startup validation error if missing. |
+| --overwrite | no | `false` | Allow overwriting existing files with `--output=file`. Without flag, existing target → startup validation error. |
 | --source | no | — | File path, URL, or PDF to seed formalization. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#source-handling). |
 | --intent | no | `math` | `auto` \| `usage` \| `math`. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-taxonomy). |
 | --presentation | no | `auto` | `informal` \| `supporting` \| `formal` \| `auto`. Controls user-facing display, not Lean backing. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#two-layer-architecture). |
@@ -45,16 +58,16 @@ Interactive formalization: draft Lean skeletons from informal claims, then prove
 
 ### Output validation
 
-- `--output=file` without `--out` → hard error
+- `--output=file` without `--out` → startup validation error
 - `--output=scratch` → `.scratch/lean4/formalize-<timestamp>.lean` (workspace-local). Auto-create `.scratch/lean4/` if missing; warn if `.scratch/` is not in `.gitignore`.
-- `--output=file` with existing target and no `--overwrite` → hard error
+- `--output=file` with existing target and no `--overwrite` → startup validation error
 
 ### Flag validation
 
-- `--intent`, `--presentation`, or `--verify` with invalid value → hard error.
+- `--intent`, `--presentation`, or `--verify` with invalid value → startup validation error.
 - `--intent=auto` inference: apply the shared [inference rules](../skills/lean4/references/learn-pathways.md#inference-rules-when---intentauto), then coerce `internals` → `usage` and `authoring` → `usage` (formalize does not define behavior for those intents).
 - `--source` + unreadable format → warn + ask for text excerpt.
-- `--claim-select` without `--source` → hard error (nothing to select from).
+- `--claim-select` without `--source` → startup validation error (nothing to select from).
 
 ### Noninteractive Claim Selection
 
@@ -149,7 +162,7 @@ Always run `bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target> --report-only`
 - **No silent mutations.** Prefer LSP tools (`lean_goal`) over file writes for compilation checks. If LSP unavailable and temp file needed for internal compilation, write only under `/tmp/lean4-formalize/`, auto-cleanup after use, warn user before writing.
 - **No commits in standalone mode.** `/formalize` never commits in standalone mode (`--commit` is accepted for prove-phase compatibility but inert — no staging, no committing). `--output=file` writes but does not stage or commit.
 - **Path restriction.** User-requested outputs (`--output=file`, `--output=scratch`) restricted to workspace root (scratch uses `.scratch/lean4/`). Reject path traversal (`../`) or absolute paths outside workspace. Internal temp files may use `/tmp/lean4-formalize/`.
-- **Overwrite protection.** `--output=file` with existing target requires `--overwrite`; otherwise hard error.
+- **Overwrite protection.** `--output=file` with existing target requires `--overwrite`; otherwise startup validation error.
 - **Never add global axioms silently.** Assumptions go as explicit theorem parameters or in `namespace Assumptions`. Always verified with `bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target> --report-only`.
 - **All `guardrails.sh` rules apply.**
 - **Line width.** Follow mathlib 100-char line width — do not wrap lines at 80 when they fit within 100.

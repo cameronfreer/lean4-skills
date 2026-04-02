@@ -1,12 +1,12 @@
 ---
 name: autoprove
-description: Autonomous multi-cycle theorem proving with hard stop rules
+description: Autonomous multi-cycle theorem proving with explicit stop budgets
 user_invocable: true
 ---
 
 # Lean4 Autoprove
 
-Autonomous multi-cycle theorem proving. Runs cycles automatically with hard stop conditions and structured summaries.
+Autonomous multi-cycle theorem proving. Runs cycles automatically with explicit stop budgets and structured summaries.
 
 ## Usage
 
@@ -16,6 +16,23 @@ Autonomous multi-cycle theorem proving. Runs cycles automatically with hard stop
 /lean4:autoprove --repair-only          # Fix build errors without filling sorries
 /lean4:autoprove --max-cycles=10        # Limit total cycles
 ```
+
+## Invocation Contract
+
+Slash-command inputs are raw text. Before Phase 1, parse the raw invocation
+text using this command's input table and the
+[Command Invocation Contract](../skills/lean4/references/command-invocation.md).
+
+Startup requirements:
+
+1. Emit a **Resolved Inputs** block with explicit values, defaults, coercions,
+   ignored flags, and startup validation errors.
+2. Refuse to start on startup validation errors.
+3. Maintain session state explicitly: `cycles_run`, `stuck_cycles`,
+   `consecutive_deep_cycles`, and `session_start_epoch`.
+4. Check `--max-total-runtime` with wall-clock time (`date +%s` or equivalent)
+   at cycle boundaries and before deep mode. It is a best-effort budget, not a
+   host-enforced kill switch.
 
 ## Inputs
 
@@ -41,9 +58,9 @@ Autonomous multi-cycle theorem proving. Runs cycles automatically with hard stop
 | --batch-size | No | 2 | Sorries to attempt per cycle |
 | --commit | No | auto | `auto` or `never` (`ask` coerced to `auto` — see note below) |
 | --golf | No | never | `prompt`, `auto`, or `never` |
-| --max-cycles | No | 20 | Hard stop: max total cycles |
-| --max-total-runtime | No | 120m | Hard stop: max total runtime |
-| --max-stuck-cycles | No | 3 | Hard stop: max consecutive stuck cycles |
+| --max-cycles | No | 20 | Session stop budget: max total cycles |
+| --max-total-runtime | No | 120m | Best-effort wall-clock session budget |
+| --max-stuck-cycles | No | 3 | Session stop budget: max consecutive stuck cycles |
 | --formalize | No | never | `never` \| `restage` \| `auto`. See Formalize Outer Loop. (deprecated: use `/lean4:autoformalize`) |
 | --source | No | — | File path, URL, or PDF for claim extraction. Required when `--formalize=auto`. (deprecated: use `/lean4:autoformalize`) |
 | --claim-select | No | — | `first` \| `named:"..."` \| `regex:"..."`. Queue-extraction filter applied once at startup. Required when `--formalize=auto`. Ignored without `--source`. (deprecated: use `/lean4:autoformalize`) |
@@ -149,12 +166,16 @@ The inner 6-phase cycle is unchanged. The outer loop reads the stuck-mode `next_
 
 ## Stop Conditions
 
+Autoprove checks these stop budgets at safe cycle boundaries. `--max-total-runtime`
+is best-effort: it is re-checked before starting new work, not enforced as a
+mid-step timeout.
+
 Autoprove stops when the **first** of these is satisfied:
 
 1. **Completion** — all sorries in scope are filled
 2. **Max stuck cycles** — `--max-stuck-cycles` consecutive stuck cycles (default: 3)
 3. **Max cycles** — `--max-cycles` total cycles reached (default: 20)
-4. **Max runtime** — `--max-total-runtime` elapsed (default: 120m)
+4. **Max runtime** — best-effort wall-clock budget reached (`--max-total-runtime`, default: 120m)
 5. **Manual user stop** — user interrupts
 6. **Queue empty** — all claims attempted; expected completion for `--formalize=auto` sessions
 

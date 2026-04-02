@@ -16,6 +16,24 @@ Autonomous end-to-end formalization: extracts claims from a source, drafts Lean 
 /lean4:autoformalize --source ./notes.md --claim-select=named:"Main Lemma" --out=Lemma.lean
 ```
 
+## Invocation Contract
+
+Slash-command inputs are raw text. Before extracting claims or drafting
+anything, parse the raw invocation text using this command's input table and
+the
+[Command Invocation Contract](../skills/lean4/references/command-invocation.md).
+
+Startup requirements:
+
+1. Emit a **Resolved Inputs** block with explicit values, defaults, coercions,
+   ignored flags, and startup validation errors.
+2. Refuse to start on startup validation errors.
+3. Maintain session state explicitly: `claims_attempted`, `cycles_run`,
+   `stuck_cycles`, and `session_start_epoch`.
+4. Check `--max-total-runtime` with wall-clock time (`date +%s` or equivalent)
+   at claim and cycle boundaries. It is a best-effort budget, not a
+   host-enforced kill switch.
+
 ## Inputs
 
 | Arg | Required | Default | Description |
@@ -27,9 +45,9 @@ Autonomous end-to-end formalization: extracts claims from a source, drafts Lean 
 | --rigor | no | `sketch` | `sketch` \| `checked`. Rigor for drafted skeletons. |
 | --draft-mode | no | `skeleton` | `skeleton` \| `attempt`. Passed to draft phase. |
 | --draft-elab-check | no | `best-effort` | `best-effort` \| `strict`. Passed to draft phase. |
-| --max-cycles | no | 20 | Hard stop: max total cycles per claim |
-| --max-total-runtime | no | 120m | Hard stop: max total runtime |
-| --max-stuck-cycles | no | 3 | Hard stop: max consecutive stuck cycles per claim |
+| --max-cycles | no | 20 | Session stop budget: max total cycles per claim |
+| --max-total-runtime | no | 120m | Best-effort wall-clock session budget |
+| --max-stuck-cycles | no | 3 | Session stop budget: max consecutive stuck cycles per claim |
 | --deep | no | stuck | `never`, `stuck`, or `always` |
 | --deep-sorry-budget | no | 2 | Max sorries per deep invocation |
 | --deep-time-budget | no | 20m | Max time per deep invocation |
@@ -64,12 +82,16 @@ Summary:
 
 ## Stop Conditions
 
+Autoformalize checks these stop budgets at safe claim and cycle boundaries.
+`--max-total-runtime` is best-effort: it is re-checked before starting new
+work, not enforced as a mid-step timeout.
+
 Autoformalize stops when the **first** of these is satisfied:
 
 1. **Queue empty** — all claims attempted (expected completion)
 2. **Max stuck cycles** — `--max-stuck-cycles` consecutive stuck cycles on current claim
 3. **Max cycles** — `--max-cycles` total cycles reached on current claim
-4. **Max runtime** — `--max-total-runtime` elapsed
+4. **Max runtime** — best-effort wall-clock budget reached (`--max-total-runtime`)
 5. **Manual user stop** — user interrupts
 
 ## Structured Summary on Stop
