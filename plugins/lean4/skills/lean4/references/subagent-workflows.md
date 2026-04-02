@@ -231,7 +231,7 @@ Claude: "I'm dispatching an Explore agent to run verification checks..."
 
 [Agent reports back]:
 - Sorries: 3 total (all documented with TODO comments)
-- Axioms: All 150 declarations use only standard axioms
+- Axioms: Best-effort top-level scan found no non-standard axioms in scanned declarations
 - Ready: Yes, all checks passed
 
 Claude: "Excellent! All verification checks passed. Let's commit with message:
@@ -536,7 +536,7 @@ The lean4 plugin provides these main commands:
 | `/lean4:autoformalize` | Autonomous synthesis (draft → prove loop with claim queue) |
 | `/lean4:prove` | Guided cycle-by-cycle proving |
 | `/lean4:autoprove` | Autonomous multi-cycle proving |
-| `/lean4:checkpoint` | Verified commit with axiom check |
+| `/lean4:checkpoint` | Save point (per-file + project build, best-effort axiom scan, commit) |
 | `/lean4:review` | Read-only quality review |
 | `/lean4:refactor` | Strategy-level proof simplification |
 | `/lean4:golf` | Optimize proofs |
