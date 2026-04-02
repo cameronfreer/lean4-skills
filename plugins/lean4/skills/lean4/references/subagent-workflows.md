@@ -484,6 +484,21 @@ Never by stashing in one worktree and popping in another.
 > worktree automatically. The worktree persists if the agent makes changes — commit
 > or import results before cleanup.
 
+When using `run_in_background: true` for agents that edit files, prefer `isolation: "worktree"` to prevent branch-switch or concurrent-edit conflicts.
+
+## Same-File Parallel Dispatch
+
+Never dispatch multiple proof-editing agents that edit the same file in parallel. The Edit tool uses string replacement — if two agents read the same file at dispatch time and edit different regions, the last agent to write silently overwrites the first agent's changes.
+
+**Safe patterns:**
+- One agent per file (agent owns all sorrys in that file)
+- Sequential dispatch with commits between agents
+- `isolation: "worktree"` for agents on different branches
+
+**Unsafe:**
+- Two sorry-filler agents targeting different sorrys in the same file
+- `git checkout` while a background agent is editing files (destroys work silently — use `isolation: "worktree"` for background agents that edit files)
+
 ## Best Practices
 
 ### Do

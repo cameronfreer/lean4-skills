@@ -24,6 +24,8 @@ Quick reference for filling Lean 4 sorries systematically.
 
 **File ownership:** One writer per owned file set. A subagent owns only the files it was dispatched to work on. Do not edit files outside the owned set without escalating to the caller. Never create scratch files in the repo root.
 
+**Parallel dispatch hazard:** File ownership is file-granular, not theorem-granular — never dispatch multiple agents to edit the same file concurrently, even if they target different sorrys. See [subagent-workflows.md § Same-File Parallel Dispatch](subagent-workflows.md#same-file-parallel-dispatch).
+
 **Scratch-work preference order:**
 - Use the live file + `lean_goal` / `lean_multi_attempt` / `lean_diagnostic_messages` when the question depends on the actual file context.
 - If you need an isolated experiment, prefer `lean_run_code` over creating temporary `.lean` files.

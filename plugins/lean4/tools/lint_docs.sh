@@ -314,10 +314,10 @@ check_cross_refs() {
             done
         fi
 
-        # Check links to agent-workflows.md
-        if grep -q "agent-workflows.md#" "$file" 2>/dev/null; then
+        # Check links to agent-workflows.md (exclude subagent-workflows.md matches)
+        if grep -q "[^b]agent-workflows.md#\|^agent-workflows.md#" "$file" 2>/dev/null; then
             local anchors
-            anchors=$(grep -oE "agent-workflows\.md#[a-z0-9-]+" "$file" | sed 's/.*#//' | sort -u)
+            anchors=$(grep -oE "[^b]agent-workflows\.md#[a-z0-9-]+" "$file" | sed 's/.*agent-workflows\.md#//' | sort -u)
             for anchor in $anchors; do
                 if ! echo "$agent_anchors" | grep -qw "$anchor"; then
                     warn "$(basename "$file"): Invalid anchor #$anchor in agent-workflows.md link"

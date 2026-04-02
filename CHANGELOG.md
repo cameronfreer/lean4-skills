@@ -1,5 +1,13 @@
 # Changelog
 
+## v4.4.8 (April 2026)
+
+- Guard against parallel same-file editing: one concurrent editor per file, file-granular ownership (#64)
+- Exclusive file ownership rule in canonical subagent dispatch block
+- `isolation: "worktree"` recommended for background file-editing agents
+- Relabel axiom checker as best-effort; surface coverage limits and mutation warning (#92)
+- Warn that `lake build` progress counter `[N/M]` has a growing denominator (#84)
+
 ## v4.4.7 (March 2026)
 
 - Use fully-qualified `mcp__lean-lsp__` tool names in agent frontmatter (#81, TheDarkchip) — may improve MCP availability in subagents on some Claude Code configurations
