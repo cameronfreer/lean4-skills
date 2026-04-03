@@ -6,6 +6,11 @@ set -euo pipefail
 # (write-to-temp, then mv). Single-writer assumption: only the main command
 # thread writes; subagents never touch the state file.
 #
+# Env-file persistence: resolves LEAN4_ENV_FILE → CLAUDE_ENV_FILE → (none).
+# CLAUDE_ENV_FILE is the Claude Code adapter input; LEAN4_ENV_FILE is the
+# host-neutral override. When neither is available, session ID is printed
+# to stdout for manual env-prefix passing.
+#
 # Subcommands:
 #   init   --max-cycles=N --max-stuck=N [--max-runtime=Xm] [--max-deep-per-cycle=N] [--max-consecutive-deep=N]
 #   tick   --stuck=yes|no
@@ -94,26 +99,37 @@ with open('$file', 'w') as f:
 }
 
 # ---------------------------------------------------------------------------
-# persist_env: same pattern as bootstrap.sh
+# persist_env: host-neutral env-file persistence
+# Resolves: LEAN4_ENV_FILE → CLAUDE_ENV_FILE → (none = stdout fallback)
 # ---------------------------------------------------------------------------
+_resolve_env_file() {
+  echo "${LEAN4_ENV_FILE:-${CLAUDE_ENV_FILE:-}}"
+}
+
 _persist_env() {
   local kv="$1"
   local var_name="${kv%%=*}"
   var_name="${var_name#export }"
-  local env_out="${CLAUDE_ENV_FILE:-}"
-  if [[ -n "$env_out" ]]; then
-    if [[ -f "$env_out" ]]; then
-      grep -v "^export ${var_name}=" "$env_out" > "${env_out}.tmp" 2>/dev/null || true
-      mv "${env_out}.tmp" "$env_out"
-    fi
-    printf '%s\n' "$kv" >> "$env_out" 2>/dev/null || true
+  local env_out
+  env_out=$(_resolve_env_file)
+  if [[ -z "$env_out" ]]; then return; fi
+  # True fallback: if the file exists but is not both readable and writable,
+  # do not touch it — rely on stdout session-id handoff instead.
+  if [[ -e "$env_out" && ( ! -r "$env_out" || ! -w "$env_out" ) ]]; then return; fi
+  if [[ -f "$env_out" ]]; then
+    grep -v "^export ${var_name}=" "$env_out" > "${env_out}.tmp" 2>/dev/null || true
+    mv "${env_out}.tmp" "$env_out"
   fi
+  printf '%s\n' "$kv" >> "$env_out" 2>/dev/null || true
 }
 
 _unpersist_env() {
   local var_name="$1"
-  local env_out="${CLAUDE_ENV_FILE:-}"
-  if [[ -n "$env_out" && -f "$env_out" ]]; then
+  local env_out
+  env_out=$(_resolve_env_file)
+  if [[ -z "$env_out" ]]; then return; fi
+  if [[ -e "$env_out" && ( ! -r "$env_out" || ! -w "$env_out" ) ]]; then return; fi
+  if [[ -f "$env_out" ]]; then
     grep -v "^export ${var_name}=" "$env_out" > "${env_out}.tmp" 2>/dev/null || true
     mv "${env_out}.tmp" "$env_out"
   fi
@@ -134,6 +150,23 @@ _state_file() {
     exit 2
   fi
   echo "$f"
+}
+
+_validate_state() {
+  # Verify state file contains valid JSON. Exit 2 with clear error if not.
+  local file="$1"
+  _detect_backend
+  if [[ "$_json_backend" == "jq" ]]; then
+    if ! jq empty "$file" 2>/dev/null; then
+      echo "error=corrupted state file: $file" >&2
+      exit 2
+    fi
+  else
+    if ! python3 -c "import json; json.load(open('$file'))" 2>/dev/null; then
+      echo "error=corrupted state file: $file" >&2
+      exit 2
+    fi
+  fi
 }
 
 _read_state() {
@@ -273,6 +306,7 @@ cmd_tick() {
 
   local file
   file=$(_state_file)
+  _validate_state "$file"
   _detect_backend
 
   local now
@@ -307,11 +341,14 @@ cmd_tick() {
         ] | join(",")
       ) as $violations |
 
-      # Format elapsed display
-      (($elapsed / 60) | floor) as $elapsed_min |
-      (if .max_runtime_seconds > 0 then
-        ((.max_runtime_seconds / 60) | floor | tostring) + "m"
-       else "unlimited" end) as $max_display |
+      # Format elapsed display — use seconds when max < 60s
+      (if .max_runtime_seconds > 0 and .max_runtime_seconds < 60 then
+        ($elapsed | tostring) + "s/" + (.max_runtime_seconds | tostring) + "s"
+       elif .max_runtime_seconds > 0 then
+        (($elapsed / 60) | floor | tostring) + "m/" + ((.max_runtime_seconds / 60) | floor | tostring) + "m"
+       else
+        (($elapsed / 60) | floor | tostring) + "m/unlimited"
+       end) as $elapsed_display |
 
       # Output key=value, then the object for saving
       {
@@ -321,7 +358,7 @@ cmd_tick() {
           "cycles=" + (.cycles | tostring) + "/" + (.max_cycles | tostring) + "\n" +
           "consecutive_stuck=" + (.consecutive_stuck | tostring) + "/" + (.max_stuck | tostring) + "\n" +
           "elapsed_seconds=" + ($elapsed | tostring) + "\n" +
-          "elapsed_display=" + ($elapsed_min | tostring) + "m/" + $max_display + "\n" +
+          "elapsed_display=" + $elapsed_display + "\n" +
           "deep_this_cycle=" + (.deep_this_cycle | tostring) + "/" + (.max_deep_per_cycle | tostring) + "\n" +
           "consecutive_deep_cycles=" + (.consecutive_deep_cycles | tostring) + "/" + (.max_consecutive_deep | tostring)
         ),
@@ -382,12 +419,14 @@ if d['consecutive_stuck'] >= d['max_stuck']:
 if d['max_runtime_seconds'] > 0 and elapsed >= d['max_runtime_seconds']:
     violations.append('max-runtime')
 
-# Format display
-elapsed_min = elapsed // 60
-if d['max_runtime_seconds'] > 0:
-    max_display = str(d['max_runtime_seconds'] // 60) + 'm'
+# Format display — use seconds when max < 60s
+mrs = d['max_runtime_seconds']
+if mrs > 0 and mrs < 60:
+    elapsed_display = f'{elapsed}s/{mrs}s'
+elif mrs > 0:
+    elapsed_display = f'{elapsed // 60}m/{mrs // 60}m'
 else:
-    max_display = 'unlimited'
+    elapsed_display = f'{elapsed // 60}m/unlimited'
 
 result = 'LIMIT_REACHED' if violations else 'ok'
 lines = ['result=' + result]
@@ -397,7 +436,7 @@ lines.extend([
     f\"cycles={d['cycles']}/{d['max_cycles']}\",
     f\"consecutive_stuck={d['consecutive_stuck']}/{d['max_stuck']}\",
     f'elapsed_seconds={elapsed}',
-    f'elapsed_display={elapsed_min}m/{max_display}',
+    f'elapsed_display={elapsed_display}',
     f\"deep_this_cycle={d['deep_this_cycle']}/{d['max_deep_per_cycle']}\",
     f\"consecutive_deep_cycles={d['consecutive_deep_cycles']}/{d['max_consecutive_deep']}\",
 ])
@@ -421,6 +460,7 @@ sys.exit(1 if violations else 0)
 cmd_can_deep() {
   local file
   file=$(_state_file)
+  _validate_state "$file"
   _detect_backend
 
   local now
@@ -491,6 +531,7 @@ sys.exit(1 if reason else 0)
 cmd_deep() {
   local file
   file=$(_state_file)
+  _validate_state "$file"
   _detect_backend
 
   if [[ "$_json_backend" == "jq" ]]; then
@@ -518,6 +559,7 @@ os.rename(tmp, '$file')
 cmd_status() {
   local file
   file=$(_state_file)
+  _validate_state "$file"
   _detect_backend
 
   local now
@@ -526,15 +568,18 @@ cmd_status() {
   if [[ "$_json_backend" == "jq" ]]; then
     jq -r --argjson now "$now" '
       ($now - .start_epoch) as $elapsed |
-      (($elapsed / 60) | floor) as $elapsed_min |
-      (if .max_runtime_seconds > 0 then
-        ((.max_runtime_seconds / 60) | floor | tostring) + "m"
-       else "unlimited" end) as $max_display |
+      (if .max_runtime_seconds > 0 and .max_runtime_seconds < 60 then
+        ($elapsed | tostring) + "s/" + (.max_runtime_seconds | tostring) + "s"
+       elif .max_runtime_seconds > 0 then
+        (($elapsed / 60) | floor | tostring) + "m/" + ((.max_runtime_seconds / 60) | floor | tostring) + "m"
+       else
+        (($elapsed / 60) | floor | tostring) + "m/unlimited"
+       end) as $elapsed_display |
       "session_id=" + .session_id,
       "cycles=" + (.cycles | tostring) + "/" + (.max_cycles | tostring),
       "consecutive_stuck=" + (.consecutive_stuck | tostring) + "/" + (.max_stuck | tostring),
       "elapsed_seconds=" + ($elapsed | tostring),
-      "elapsed_display=" + ($elapsed_min | tostring) + "m/" + $max_display,
+      "elapsed_display=" + $elapsed_display,
       "deep_this_cycle=" + (.deep_this_cycle | tostring) + "/" + (.max_deep_per_cycle | tostring),
       "consecutive_deep_cycles=" + (.consecutive_deep_cycles | tostring) + "/" + (.max_consecutive_deep | tostring)
     ' "$file" 2>/dev/null
@@ -545,17 +590,19 @@ with open('$file') as f:
     d = json.load(f)
 now = $now
 elapsed = now - d['start_epoch']
-elapsed_min = elapsed // 60
-if d['max_runtime_seconds'] > 0:
-    max_display = str(d['max_runtime_seconds'] // 60) + 'm'
+mrs = d['max_runtime_seconds']
+if mrs > 0 and mrs < 60:
+    elapsed_display = f'{elapsed}s/{mrs}s'
+elif mrs > 0:
+    elapsed_display = f'{elapsed // 60}m/{mrs // 60}m'
 else:
-    max_display = 'unlimited'
+    elapsed_display = f'{elapsed // 60}m/unlimited'
 lines = [
     f\"session_id={d['session_id']}\",
     f\"cycles={d['cycles']}/{d['max_cycles']}\",
     f\"consecutive_stuck={d['consecutive_stuck']}/{d['max_stuck']}\",
     f'elapsed_seconds={elapsed}',
-    f'elapsed_display={elapsed_min}m/{max_display}',
+    f'elapsed_display={elapsed_display}',
     f\"deep_this_cycle={d['deep_this_cycle']}/{d['max_deep_per_cycle']}\",
     f\"consecutive_deep_cycles={d['consecutive_deep_cycles']}/{d['max_consecutive_deep']}\",
 ]

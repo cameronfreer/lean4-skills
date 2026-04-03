@@ -297,22 +297,33 @@ cleanup_session
 echo ""
 echo "-- Robustness --"
 
-# Corrupted state file
+# Corrupted state file — tick
 init_session --max-cycles=5 --max-stuck=2
 FILE=$(state_file)
 echo "NOT JSON" > "$FILE"
 run tick --stuck=no
-assert_exit "corrupted state file → exit 2 or nonzero" "$LAST_EXIT"
-# Accept any nonzero exit (jq gives 1, python3 gives 2)
-if [[ "$LAST_EXIT" -ne 0 ]]; then
-  echo "  PASS: corrupted state file causes nonzero exit ($LAST_EXIT)"
-  (( ++PASS ))
-else
-  echo "  FAIL: corrupted state file should cause nonzero exit"
-  (( ++FAIL ))
-fi
+assert_exit "corrupted state file tick → exit 2" 2
+assert_contains "corrupted tick error message" "corrupted state file"
+
+# Corrupted state file — can-deep
+echo "NOT JSON" > "$FILE"
+run can-deep
+assert_exit "corrupted state file can-deep → exit 2" 2
+assert_contains "corrupted can-deep error message" "corrupted state file"
+
+# Corrupted state file — deep
+echo "NOT JSON" > "$FILE"
+run deep
+assert_exit "corrupted state file deep → exit 2" 2
+assert_contains "corrupted deep error message" "corrupted state file"
+
+# Corrupted state file — status
+echo "NOT JSON" > "$FILE"
+run status
+assert_exit "corrupted state file status → exit 2" 2
+assert_contains "corrupted status error message" "corrupted state file"
 rm -f "$FILE"
-unset LEAN4_SESSION_ID
+LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
 
 # Missing state file
 export LEAN4_SESSION_ID="lean4-session-NONEXISTENT"
@@ -341,30 +352,68 @@ assert_contains "error mentions unknown" "unknown"
 
 # =========================================================================
 echo ""
-echo "-- CLAUDE_ENV_FILE fallback --"
+echo "-- Env-file fallback (LEAN4_ENV_FILE → CLAUDE_ENV_FILE → none) --"
 
-# init with CLAUDE_ENV_FILE unset
+# init with neither env file set — stdout fallback
+LEAN4_ENV_FILE=""; export LEAN4_ENV_FILE
 CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
 LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
 run init --max-cycles=5 --max-stuck=2
-assert_exit "init without CLAUDE_ENV_FILE succeeds" 0
-# Should still print session ID
+assert_exit "init without any env file succeeds" 0
 assert_contains "init prints session ID" "lean4-session-"
 SID="$LAST_OUT"
 export LEAN4_SESSION_ID="$SID"
-# Subsequent calls work with env prefix
 run tick --stuck=no
 assert_exit "tick works with manual session ID" 0
 cleanup_session
 
-# init with CLAUDE_ENV_FILE pointing to unwritable path
+# LEAN4_ENV_FILE takes priority over CLAUDE_ENV_FILE
+LEAN4_ENVF="/tmp/lean4-test-envfile-$$"
+CLAUDE_ENVF="/tmp/lean4-test-claude-envfile-$$"
+: > "$LEAN4_ENVF"; : > "$CLAUDE_ENVF"
+LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
+export LEAN4_ENV_FILE="$LEAN4_ENVF"
+export CLAUDE_ENV_FILE="$CLAUDE_ENVF"
+run init --max-cycles=5 --max-stuck=2
+assert_exit "init with LEAN4_ENV_FILE set succeeds" 0
+if grep -q 'LEAN4_SESSION_ID' "$LEAN4_ENVF" 2>/dev/null; then
+  echo "  PASS: LEAN4_ENV_FILE used (has session ID)"
+  (( ++PASS ))
+else
+  echo "  FAIL: LEAN4_ENV_FILE not used (missing session ID)"
+  (( ++FAIL ))
+fi
+if grep -q 'LEAN4_SESSION_ID' "$CLAUDE_ENVF" 2>/dev/null; then
+  echo "  FAIL: CLAUDE_ENV_FILE was written when LEAN4_ENV_FILE was set"
+  (( ++FAIL ))
+else
+  echo "  PASS: CLAUDE_ENV_FILE untouched when LEAN4_ENV_FILE set"
+  (( ++PASS ))
+fi
+SID="$LAST_OUT"
+export LEAN4_SESSION_ID="$SID"
+run stop
+rm -f "$LEAN4_ENVF" "$CLAUDE_ENVF"
+LEAN4_ENV_FILE=""; export LEAN4_ENV_FILE
+
+# Unwritable env file — must be left untouched
 FAKE_ENV="/tmp/lean4-test-unwritable-$$"
-touch "$FAKE_ENV" && chmod 000 "$FAKE_ENV" 2>/dev/null || true
+echo "# original content" > "$FAKE_ENV"
+chmod 000 "$FAKE_ENV" 2>/dev/null || true
+FAKE_ENV_BEFORE=$(stat -c '%a %s' "$FAKE_ENV" 2>/dev/null || stat -f '%p %z' "$FAKE_ENV" 2>/dev/null)
 LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
 export CLAUDE_ENV_FILE="$FAKE_ENV"
 run init --max-cycles=5 --max-stuck=2
-assert_exit "init with unwritable CLAUDE_ENV_FILE succeeds" 0
+assert_exit "init with unwritable env file succeeds" 0
 assert_contains "init prints session ID despite unwritable env" "lean4-session-"
+FAKE_ENV_AFTER=$(stat -c '%a %s' "$FAKE_ENV" 2>/dev/null || stat -f '%p %z' "$FAKE_ENV" 2>/dev/null)
+if [[ "$FAKE_ENV_BEFORE" == "$FAKE_ENV_AFTER" ]]; then
+  echo "  PASS: unwritable env file left untouched"
+  (( ++PASS ))
+else
+  echo "  FAIL: unwritable env file was modified (before='$FAKE_ENV_BEFORE' after='$FAKE_ENV_AFTER')"
+  (( ++FAIL ))
+fi
 SID="$LAST_OUT"
 export LEAN4_SESSION_ID="$SID"
 run stop
@@ -372,11 +421,12 @@ chmod 644 "$FAKE_ENV" 2>/dev/null || true
 rm -f "$FAKE_ENV"
 LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
 
-# stop with CLAUDE_ENV_FILE unset
+# stop with no env file set
 init_session --max-cycles=5 --max-stuck=2
+LEAN4_ENV_FILE=""; export LEAN4_ENV_FILE
 CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
 run stop
-assert_exit "stop without CLAUDE_ENV_FILE succeeds" 0
+assert_exit "stop without env file succeeds" 0
 
 # =========================================================================
 echo ""
@@ -466,6 +516,13 @@ init_session --max-cycles=5 --max-stuck=2 --max-runtime=5
 FILE=$(state_file)
 RT=$(read_field "$FILE" "max_runtime_seconds")
 if [[ "$RT" == "300" ]]; then echo "  PASS: 5 → 300s"; (( ++PASS )); else echo "  FAIL: 5 → ${RT}s, expected 300"; (( ++FAIL )); fi
+cleanup_session
+
+# Sub-minute display: 30s budget should show Xs/30s, not 0m/0m
+init_session --max-cycles=5 --max-stuck=2 --max-runtime=30s
+run tick --stuck=no
+assert_contains "sub-minute display uses seconds" "/30s"
+assert_not_contains "sub-minute display does not use 0m" "0m/0m"
 cleanup_session
 
 # =========================================================================
