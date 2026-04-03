@@ -253,7 +253,7 @@ bash "$LEAN4_SCRIPTS/cycle_tracker.sh" init \
   --max-consecutive-deep=<resolved>
 ```
 
-A failed init (exit 2) is a startup validation error — do not proceed. On success, `LEAN4_SESSION_ID` is set for subsequent calls.
+A failed init (exit 2) is a startup validation error — do not proceed. On success, the session ID is printed to stdout. If a writable env file is available (`LEAN4_ENV_FILE` or `CLAUDE_ENV_FILE`), init also persists `LEAN4_SESSION_ID` there for subsequent calls; otherwise, pass it as an env prefix (`LEAN4_SESSION_ID=<id> bash ...`).
 
 ### Cycle Boundary Protocol (Phase 6)
 

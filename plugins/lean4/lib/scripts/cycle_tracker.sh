@@ -260,11 +260,23 @@ cmd_init() {
   local now
   now=$(date +%s)
 
+  # Resolve env file once at init and record it in state, so stop uses the
+  # same file even if LEAN4_ENV_FILE/CLAUDE_ENV_FILE changes between calls.
+  local resolved_env_file
+  resolved_env_file=$(_resolve_env_file)
+  # Only record if writable; otherwise empty = stdout-only fallback.
+  if [[ -n "$resolved_env_file" ]]; then
+    if [[ -e "$resolved_env_file" && ( ! -r "$resolved_env_file" || ! -w "$resolved_env_file" ) ]]; then
+      resolved_env_file=""
+    fi
+  fi
+
   local content
   content=$(cat <<ENDJSON
 {
   "session_id": "$session_id",
   "start_epoch": $now,
+  "env_file": "$resolved_env_file",
   "max_cycles": $max_cycles,
   "max_stuck": $max_stuck,
   "max_runtime_seconds": $runtime_seconds,
@@ -280,7 +292,7 @@ ENDJSON
 
   _json_create "$state_file" "$content"
 
-  # Persist session ID
+  # Persist session ID to the resolved env file
   _persist_env "export LEAN4_SESSION_ID=\"$session_id\""
 
   echo "$session_id"
@@ -341,8 +353,8 @@ cmd_tick() {
         ] | join(",")
       ) as $violations |
 
-      # Format elapsed display — use seconds when max < 60s
-      (if .max_runtime_seconds > 0 and .max_runtime_seconds < 60 then
+      # Format elapsed display — use seconds when max is not a whole number of minutes
+      (if .max_runtime_seconds > 0 and (.max_runtime_seconds % 60) != 0 then
         ($elapsed | tostring) + "s/" + (.max_runtime_seconds | tostring) + "s"
        elif .max_runtime_seconds > 0 then
         (($elapsed / 60) | floor | tostring) + "m/" + ((.max_runtime_seconds / 60) | floor | tostring) + "m"
@@ -421,7 +433,7 @@ if d['max_runtime_seconds'] > 0 and elapsed >= d['max_runtime_seconds']:
 
 # Format display — use seconds when max < 60s
 mrs = d['max_runtime_seconds']
-if mrs > 0 and mrs < 60:
+if mrs > 0 and mrs % 60 != 0:
     elapsed_display = f'{elapsed}s/{mrs}s'
 elif mrs > 0:
     elapsed_display = f'{elapsed // 60}m/{mrs // 60}m'
@@ -568,7 +580,7 @@ cmd_status() {
   if [[ "$_json_backend" == "jq" ]]; then
     jq -r --argjson now "$now" '
       ($now - .start_epoch) as $elapsed |
-      (if .max_runtime_seconds > 0 and .max_runtime_seconds < 60 then
+      (if .max_runtime_seconds > 0 and (.max_runtime_seconds % 60) != 0 then
         ($elapsed | tostring) + "s/" + (.max_runtime_seconds | tostring) + "s"
        elif .max_runtime_seconds > 0 then
         (($elapsed / 60) | floor | tostring) + "m/" + ((.max_runtime_seconds / 60) | floor | tostring) + "m"
@@ -591,7 +603,7 @@ with open('$file') as f:
 now = $now
 elapsed = now - d['start_epoch']
 mrs = d['max_runtime_seconds']
-if mrs > 0 and mrs < 60:
+if mrs > 0 and mrs % 60 != 0:
     elapsed_display = f'{elapsed}s/{mrs}s'
 elif mrs > 0:
     elapsed_display = f'{elapsed // 60}m/{mrs // 60}m'
@@ -620,10 +632,22 @@ cmd_stop() {
     return 0
   fi
   local f="/tmp/${sid}.json"
+  # Read the env file path that init recorded, so we clean up the right file
+  # even if LEAN4_ENV_FILE/CLAUDE_ENV_FILE changed since init.
+  local recorded_env=""
+  if [[ -f "$f" ]]; then
+    _detect_backend
+    recorded_env=$(_json_read "$f" ".env_file" 2>/dev/null) || recorded_env=""
+    if [[ "$recorded_env" == "null" ]]; then recorded_env=""; fi
+  fi
   rm -f "$f"
   # Also clean up any orphaned tmp files from atomic writes
   rm -f "${f}".tmp.* 2>/dev/null || true
-  _unpersist_env "LEAN4_SESSION_ID"
+  # Unpersist from the recorded env file, not the currently resolved one
+  if [[ -n "$recorded_env" && -f "$recorded_env" && -r "$recorded_env" && -w "$recorded_env" ]]; then
+    grep -v "^export LEAN4_SESSION_ID=" "$recorded_env" > "${recorded_env}.tmp" 2>/dev/null || true
+    mv "${recorded_env}.tmp" "$recorded_env"
+  fi
 }
 
 # ---------------------------------------------------------------------------

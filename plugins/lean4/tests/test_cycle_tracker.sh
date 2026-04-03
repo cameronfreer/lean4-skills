@@ -393,8 +393,50 @@ fi
 SID="$LAST_OUT"
 export LEAN4_SESSION_ID="$SID"
 run stop
+# Verify stop cleaned the right file (LEAN4_ENVF, not CLAUDE_ENVF)
+if grep -q 'LEAN4_SESSION_ID' "$LEAN4_ENVF" 2>/dev/null; then
+  echo "  FAIL: stop did not clean LEAN4_ENV_FILE"
+  (( ++FAIL ))
+else
+  echo "  PASS: stop cleaned LEAN4_ENV_FILE"
+  (( ++PASS ))
+fi
 rm -f "$LEAN4_ENVF" "$CLAUDE_ENVF"
 LEAN4_ENV_FILE=""; export LEAN4_ENV_FILE
+
+# Cross-env-file cleanup: init under CLAUDE_ENV_FILE, stop under LEAN4_ENV_FILE
+# stop must clean the file init actually wrote to (CLAUDE_ENVF), not the newly resolved one
+CLAUDE_ENVF2="/tmp/lean4-test-claude-envfile2-$$"
+LEAN4_ENVF2="/tmp/lean4-test-lean4-envfile2-$$"
+: > "$CLAUDE_ENVF2"; : > "$LEAN4_ENVF2"
+LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
+LEAN4_ENV_FILE=""; export LEAN4_ENV_FILE
+export CLAUDE_ENV_FILE="$CLAUDE_ENVF2"
+run init --max-cycles=5 --max-stuck=2
+assert_exit "cross-env init succeeds" 0
+SID="$LAST_OUT"
+export LEAN4_SESSION_ID="$SID"
+# Now switch env resolution: set LEAN4_ENV_FILE so _resolve_env_file would return it
+export LEAN4_ENV_FILE="$LEAN4_ENVF2"
+run stop
+# stop should have cleaned CLAUDE_ENVF2 (where init wrote), not LEAN4_ENVF2
+if grep -q 'LEAN4_SESSION_ID' "$CLAUDE_ENVF2" 2>/dev/null; then
+  echo "  FAIL: cross-env stop did not clean original env file (CLAUDE_ENV_FILE)"
+  (( ++FAIL ))
+else
+  echo "  PASS: cross-env stop cleaned original env file (CLAUDE_ENV_FILE)"
+  (( ++PASS ))
+fi
+if grep -q 'LEAN4_SESSION_ID' "$LEAN4_ENVF2" 2>/dev/null; then
+  echo "  FAIL: cross-env stop polluted new env file (LEAN4_ENV_FILE)"
+  (( ++FAIL ))
+else
+  echo "  PASS: cross-env stop did not pollute new env file (LEAN4_ENV_FILE)"
+  (( ++PASS ))
+fi
+rm -f "$CLAUDE_ENVF2" "$LEAN4_ENVF2"
+LEAN4_ENV_FILE=""; export LEAN4_ENV_FILE
+CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
 
 # Unwritable env file — must be left untouched
 FAKE_ENV="/tmp/lean4-test-unwritable-$$"
@@ -523,6 +565,13 @@ init_session --max-cycles=5 --max-stuck=2 --max-runtime=30s
 run tick --stuck=no
 assert_contains "sub-minute display uses seconds" "/30s"
 assert_not_contains "sub-minute display does not use 0m" "0m/0m"
+cleanup_session
+
+# Non-whole-minute display: 90s budget should show Xs/90s, not 0m/1m
+init_session --max-cycles=5 --max-stuck=2 --max-runtime=90s
+run tick --stuck=no
+assert_contains "90s budget uses seconds format" "/90s"
+assert_not_contains "90s budget does not truncate to minutes" "/1m"
 cleanup_session
 
 # =========================================================================
