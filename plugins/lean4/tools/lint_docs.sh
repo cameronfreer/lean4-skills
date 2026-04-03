@@ -300,7 +300,7 @@ check_cross_refs() {
     local agent_anchors="sorry-filler-deep proof-repair proof-golfer axiom-eliminator"
 
     # Valid anchors for cycle-engine.md
-    local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic falsification-artifacts repair-mode safety synthesis-outer-loop algorithm draft-commit-boundary header-fence session-generated-provenance statement-safety claim-queue file-assembly-contract review-router pre-flight-context-for-subagent-dispatch"
+    local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic session-tracking enforcement-levels falsification-artifacts repair-mode safety synthesis-outer-loop algorithm draft-commit-boundary header-fence session-generated-provenance statement-safety claim-queue file-assembly-contract review-router pre-flight-context-for-subagent-dispatch"
 
     while IFS= read -r file; do
         # Check links to command-examples.md

@@ -410,6 +410,57 @@ if [[ "$dispatch_ok" -eq 1 ]]; then
     ok "Check 24: All agent dispatch names resolve to valid frontmatter names"
 fi
 
+# ── Check 25: Session tracking contract ──────────────────────────────────
+# Autonomous commands must reference cycle_tracker.sh in their Invocation Contract.
+# cycle-engine.md must have the Session Tracking section and Enforcement Levels table.
+
+check25_ok=1
+
+for cmd_file in "$AUTOPROVE" "$AUTOFORMALIZE"; do
+    base=$(basename "$cmd_file")
+    if ! grep -q 'cycle_tracker\.sh' "$cmd_file" 2>/dev/null; then
+        fail "Check 25: $base missing cycle_tracker.sh reference in Invocation Contract"
+        check25_ok=0
+    fi
+done
+
+if ! grep -q '## Session Tracking' "$CYCLE_ENGINE" 2>/dev/null; then
+    fail "Check 25: cycle-engine.md missing Session Tracking section"
+    check25_ok=0
+fi
+
+if ! grep -q 'Enforcement Levels' "$CYCLE_ENGINE" 2>/dev/null; then
+    fail "Check 25: cycle-engine.md missing Enforcement Levels table"
+    check25_ok=0
+fi
+
+# No command file should describe --max-total-runtime as "Hard stop"
+for cmd_file in "$AUTOPROVE" "$AUTOFORMALIZE"; do
+    base=$(basename "$cmd_file")
+    if grep -qE '^\| --max-total-runtime .*Hard stop' "$cmd_file" 2>/dev/null; then
+        fail "Check 25: $base describes --max-total-runtime as Hard stop"
+        check25_ok=0
+    fi
+done
+
+# --deep-time-budget should include "advisory" (case-insensitive) in all 4 commands
+for cmd_file in "$AUTOPROVE" "$AUTOFORMALIZE" \
+                "$PLUGIN_ROOT/commands/prove.md" \
+                "$FORMALIZE"; do
+    base=$(basename "$cmd_file")
+    if ! grep -i 'deep-time-budget.*advisory\|advisory.*deep-time-budget' "$cmd_file" 2>/dev/null; then
+        # Check the table row specifically
+        if ! grep 'deep-time-budget' "$cmd_file" 2>/dev/null | grep -qi 'advisory'; then
+            fail "Check 25: $base --deep-time-budget not labeled as advisory"
+            check25_ok=0
+        fi
+    fi
+done
+
+if [[ "$check25_ok" -eq 1 ]]; then
+    ok "Check 25: Session tracking contract verified across all files"
+fi
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]

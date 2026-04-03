@@ -52,7 +52,7 @@ Startup requirements:
 | --draft-elab-check | no | `best-effort` | `best-effort` \| `strict`. Elaboration check for the draft phase. |
 | --deep | no | never | `never` \| `ask` \| `stuck` \| `always`. Deep mode for prove phase. |
 | --deep-sorry-budget | no | 1 | Max sorries per deep invocation |
-| --deep-time-budget | no | 10m | Max time per deep invocation |
+| --deep-time-budget | no | 10m | Advisory: scopes deep-mode subagent work. Not tracked or enforced. |
 | --commit | no | ask | `ask` \| `auto` \| `never` |
 | --golf | no | prompt | `prompt` \| `auto` \| `never` |
 

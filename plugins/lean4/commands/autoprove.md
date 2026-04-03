@@ -28,11 +28,12 @@ Startup requirements:
 1. Emit a **Resolved Inputs** block with explicit values, defaults, coercions,
    ignored flags, and startup validation errors.
 2. Refuse to start on startup validation errors.
-3. Maintain session state explicitly: `cycles_run`, `stuck_cycles`,
-   `consecutive_deep_cycles`, and `session_start_epoch`.
-4. Check `--max-total-runtime` with wall-clock time (`date +%s` or equivalent)
-   at cycle boundaries and before deep mode. It is a best-effort budget, not a
-   host-enforced kill switch.
+3. Call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" init` with resolved numeric
+   values for `--max-cycles`, `--max-stuck-cycles`, `--max-total-runtime`,
+   `--max-deep-per-cycle`, and `--max-consecutive-deep-cycles`.
+   A failed init (exit 2) is a startup validation error — do not proceed.
+4. The state file is the single source of truth for session counters.
+   Read counters from `tick`/`status` output, not from conversational memory.
 
 ## Inputs
 
@@ -46,7 +47,7 @@ Startup requirements:
 | --checkpoint | No | true | Create checkpoint commits after each cycle |
 | --deep | No | stuck | `never`, `stuck`, or `always` (`ask` coerced to `stuck` — see Deep Mode) |
 | --deep-sorry-budget | No | 2 | Max sorries per deep invocation |
-| --deep-time-budget | No | 20m | Max time per deep invocation |
+| --deep-time-budget | No | 20m | Advisory: scopes deep-mode subagent work. Not tracked or enforced by session tracker. |
 | --max-deep-per-cycle | No | 1 | Max deep invocations per cycle |
 | --max-consecutive-deep-cycles | No | 2 | Hard cap on consecutive cycles using deep mode |
 | --deep-snapshot | No | stash | V1: `stash` only |
@@ -55,7 +56,7 @@ Startup requirements:
 | --deep-max-files | No | 2 | Max files per deep invocation |
 | --deep-max-lines | No | 200 | Max added+deleted lines per deep invocation |
 | --deep-regression-gate | No | strict | `strict` or `off` (see coercion below) |
-| --batch-size | No | 2 | Sorries to attempt per cycle |
+| --batch-size | No | 2 | Sorries to attempt per cycle (advisory) |
 | --commit | No | auto | `auto` or `never` (`ask` coerced to `auto` — see note below) |
 | --golf | No | never | `prompt`, `auto`, or `never` |
 | --max-cycles | No | 20 | Session stop budget: max total cycles |
@@ -166,18 +167,20 @@ The inner 6-phase cycle is unchanged. The outer loop reads the stuck-mode `next_
 
 ## Stop Conditions
 
-Autoprove checks these stop budgets at safe cycle boundaries. `--max-total-runtime`
-is best-effort: it is re-checked before starting new work, not enforced as a
-mid-step timeout.
+Autoprove checks stop budgets at cycle boundaries via `$LEAN4_SCRIPTS/cycle_tracker.sh tick --stuck=yes|no`.
+Limits are checked at cycle boundaries only — a long-running tool call within a cycle
+will not be interrupted.
 
 Autoprove stops when the **first** of these is satisfied:
 
 1. **Completion** — all sorries in scope are filled
-2. **Max stuck cycles** — `--max-stuck-cycles` consecutive stuck cycles (default: 3)
-3. **Max cycles** — `--max-cycles` total cycles reached (default: 20)
-4. **Max runtime** — best-effort wall-clock budget reached (`--max-total-runtime`, default: 120m)
+2. **Max stuck cycles** — `--max-stuck-cycles` consecutive stuck cycles (default: 3). Session-enforced via `$LEAN4_SCRIPTS/cycle_tracker.sh`.
+3. **Max cycles** — `--max-cycles` total cycles reached (default: 20). Session-enforced via `$LEAN4_SCRIPTS/cycle_tracker.sh`.
+4. **Max runtime** — best-effort wall-clock budget reached (`--max-total-runtime`, default: 120m). Checked at cycle boundaries and deep preflight.
 5. **Manual user stop** — user interrupts
 6. **Queue empty** — all claims attempted; expected completion for `--formalize=auto` sessions
+
+See [Session Tracking](../skills/lean4/references/cycle-engine.md#session-tracking) for the cycle boundary protocol and enforcement levels.
 
 ## Structured Summary on Stop
 

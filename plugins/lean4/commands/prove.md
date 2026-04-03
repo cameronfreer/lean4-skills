@@ -43,7 +43,7 @@ Startup requirements:
 | --checkpoint | No | true | Create checkpoint commits after each cycle |
 | --deep | No | never | `never`, `ask`, `stuck`, or `always` |
 | --deep-sorry-budget | No | 1 | Max sorries per deep invocation |
-| --deep-time-budget | No | 10m | Max time per deep invocation |
+| --deep-time-budget | No | 10m | Advisory: scopes deep-mode subagent work. Not tracked or enforced. |
 | --max-deep-per-cycle | No | 1 | Max deep invocations per cycle |
 | --deep-snapshot | No | stash | V1: `stash` only |
 | --deep-rollback | No | on-regression | `on-regression`, `on-no-improvement`, `always`, or `never` |
