@@ -470,6 +470,91 @@ CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
 run stop
 assert_exit "stop without env file succeeds" 0
 
+# Env file with missing parent directory — init must not leak shell errors to stdout
+MISSING_DIR_ENV="/tmp/lean4-test-nodir-$$/subdir/env.sh"
+LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
+LEAN4_ENV_FILE=""; export LEAN4_ENV_FILE
+export CLAUDE_ENV_FILE="$MISSING_DIR_ENV"
+run init --max-cycles=5 --max-stuck=2
+assert_exit "init with missing-dir env file succeeds" 0
+# stdout must be exactly one line: the session ID, no shell errors
+LINE_COUNT=$(echo "$LAST_OUT" | wc -l | tr -d ' ')
+if [[ "$LINE_COUNT" == "1" && "$LAST_OUT" == lean4-session-* ]]; then
+  echo "  PASS: init stdout is clean (single session ID line)"
+  (( ++PASS ))
+else
+  echo "  FAIL: init stdout is polluted ($LINE_COUNT lines, content: '$LAST_OUT')"
+  (( ++FAIL ))
+fi
+SID="$LAST_OUT"
+export LEAN4_SESSION_ID="$SID"
+run stop
+LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
+CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
+
+# Env file in unwritable directory — init must not leak shell errors to stdout
+NOWRITE_DIR="/tmp/lean4-test-nowritedir-$$"
+mkdir -p "$NOWRITE_DIR" && chmod 555 "$NOWRITE_DIR" 2>/dev/null || true
+NOWRITE_ENV="$NOWRITE_DIR/env.sh"
+LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
+export CLAUDE_ENV_FILE="$NOWRITE_ENV"
+run init --max-cycles=5 --max-stuck=2
+assert_exit "init with unwritable-dir env file succeeds" 0
+LINE_COUNT=$(echo "$LAST_OUT" | wc -l | tr -d ' ')
+if [[ "$LINE_COUNT" == "1" && "$LAST_OUT" == lean4-session-* ]]; then
+  echo "  PASS: init stdout clean with unwritable dir"
+  (( ++PASS ))
+else
+  echo "  FAIL: init stdout polluted with unwritable dir ($LINE_COUNT lines, content: '$LAST_OUT')"
+  (( ++FAIL ))
+fi
+SID="$LAST_OUT"
+export LEAN4_SESSION_ID="$SID"
+run stop
+chmod 755 "$NOWRITE_DIR" 2>/dev/null || true
+rm -rf "$NOWRITE_DIR"
+LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
+CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
+
+# stop with missing state file — must still clean env file (best-effort fallback)
+FALLBACK_ENV="/tmp/lean4-test-fallback-env-$$"
+echo 'export LEAN4_SESSION_ID="lean4-session-GHOST"' > "$FALLBACK_ENV"
+export LEAN4_SESSION_ID="lean4-session-GHOST"
+export CLAUDE_ENV_FILE="$FALLBACK_ENV"
+# No state file exists for this session ID — stop must still clean env
+run stop
+assert_exit "stop with missing state file succeeds" 0
+if grep -q 'LEAN4_SESSION_ID' "$FALLBACK_ENV" 2>/dev/null; then
+  echo "  FAIL: stop with missing state leaked LEAN4_SESSION_ID in env file"
+  (( ++FAIL ))
+else
+  echo "  PASS: stop with missing state cleaned env file (best-effort)"
+  (( ++PASS ))
+fi
+rm -f "$FALLBACK_ENV"
+LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
+CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
+
+# stop with corrupted state file — must still clean env file (best-effort fallback)
+CORRUPT_ENV="/tmp/lean4-test-corrupt-env-$$"
+echo 'export LEAN4_SESSION_ID="lean4-session-CORRUPT"' > "$CORRUPT_ENV"
+CORRUPT_STATE="/tmp/lean4-session-CORRUPT.json"
+echo "NOT JSON" > "$CORRUPT_STATE"
+export LEAN4_SESSION_ID="lean4-session-CORRUPT"
+export CLAUDE_ENV_FILE="$CORRUPT_ENV"
+run stop
+assert_exit "stop with corrupted state file succeeds" 0
+if grep -q 'LEAN4_SESSION_ID' "$CORRUPT_ENV" 2>/dev/null; then
+  echo "  FAIL: stop with corrupted state leaked LEAN4_SESSION_ID in env file"
+  (( ++FAIL ))
+else
+  echo "  PASS: stop with corrupted state cleaned env file (best-effort)"
+  (( ++PASS ))
+fi
+rm -f "$CORRUPT_ENV" "$CORRUPT_STATE"
+LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
+CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
+
 # =========================================================================
 echo ""
 echo "-- Deep-mode state machine --"

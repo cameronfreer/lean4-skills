@@ -113,9 +113,14 @@ _persist_env() {
   local env_out
   env_out=$(_resolve_env_file)
   if [[ -z "$env_out" ]]; then return; fi
-  # True fallback: if the file exists but is not both readable and writable,
-  # do not touch it — rely on stdout session-id handoff instead.
+  # Guard: if the file exists, it must be readable+writable.
   if [[ -e "$env_out" && ( ! -r "$env_out" || ! -w "$env_out" ) ]]; then return; fi
+  # Guard: if the file does not exist, the parent directory must be writable.
+  if [[ ! -e "$env_out" ]]; then
+    local _pdir
+    _pdir=$(dirname "$env_out")
+    if [[ ! -d "$_pdir" || ! -w "$_pdir" ]]; then return; fi
+  fi
   if [[ -f "$env_out" ]]; then
     grep -v "^export ${var_name}=" "$env_out" > "${env_out}.tmp" 2>/dev/null || true
     mv "${env_out}.tmp" "$env_out"
@@ -264,10 +269,21 @@ cmd_init() {
   # same file even if LEAN4_ENV_FILE/CLAUDE_ENV_FILE changes between calls.
   local resolved_env_file
   resolved_env_file=$(_resolve_env_file)
-  # Only record if writable; otherwise empty = stdout-only fallback.
+  # Only record if actually writable; otherwise empty = stdout-only fallback.
   if [[ -n "$resolved_env_file" ]]; then
-    if [[ -e "$resolved_env_file" && ( ! -r "$resolved_env_file" || ! -w "$resolved_env_file" ) ]]; then
-      resolved_env_file=""
+    if [[ -e "$resolved_env_file" ]]; then
+      # Existing file: must be both readable and writable.
+      if [[ ! -r "$resolved_env_file" || ! -w "$resolved_env_file" ]]; then
+        resolved_env_file=""
+      fi
+    else
+      # File does not exist: parent directory must exist and be writable,
+      # and we must be able to create the file.
+      local parent_dir
+      parent_dir=$(dirname "$resolved_env_file")
+      if [[ ! -d "$parent_dir" || ! -w "$parent_dir" ]]; then
+        resolved_env_file=""
+      fi
     fi
   fi
 
@@ -634,16 +650,22 @@ cmd_stop() {
   local f="/tmp/${sid}.json"
   # Read the env file path that init recorded, so we clean up the right file
   # even if LEAN4_ENV_FILE/CLAUDE_ENV_FILE changed since init.
+  # Read the env file path that init recorded. If the state file is missing or
+  # corrupted, fall back to the currently resolved env file for best-effort
+  # cleanup so we don't leak stale LEAN4_SESSION_ID exports.
   local recorded_env=""
   if [[ -f "$f" ]]; then
     _detect_backend
     recorded_env=$(_json_read "$f" ".env_file" 2>/dev/null) || recorded_env=""
     if [[ "$recorded_env" == "null" ]]; then recorded_env=""; fi
   fi
+  if [[ -z "$recorded_env" ]]; then
+    recorded_env=$(_resolve_env_file)
+  fi
   rm -f "$f"
   # Also clean up any orphaned tmp files from atomic writes
   rm -f "${f}".tmp.* 2>/dev/null || true
-  # Unpersist from the recorded env file, not the currently resolved one
+  # Unpersist LEAN4_SESSION_ID from the env file
   if [[ -n "$recorded_env" && -f "$recorded_env" && -r "$recorded_env" && -w "$recorded_env" ]]; then
     grep -v "^export LEAN4_SESSION_ID=" "$recorded_env" > "${recorded_env}.tmp" 2>/dev/null || true
     mv "${recorded_env}.tmp" "$recorded_env"
