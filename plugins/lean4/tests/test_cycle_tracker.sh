@@ -561,9 +561,11 @@ else
   echo "  SKIP: could not create FIFO for testing"
 fi
 
-# Broken symlink env file — init must not leak errors to stdout
+# Broken symlink env file — must fall back cleanly, not create the target
 BROKEN_LINK="/tmp/lean4-test-broken-link-$$"
-ln -sf "/tmp/lean4-test-no-such-target-$$" "$BROKEN_LINK" 2>/dev/null || true
+BROKEN_TARGET="/tmp/lean4-test-no-such-target-$$"
+rm -f "$BROKEN_TARGET"  # ensure target does not exist
+ln -sf "$BROKEN_TARGET" "$BROKEN_LINK" 2>/dev/null || true
 if [[ -L "$BROKEN_LINK" ]]; then
   LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
   export CLAUDE_ENV_FILE="$BROKEN_LINK"
@@ -577,12 +579,29 @@ if [[ -L "$BROKEN_LINK" ]]; then
     echo "  FAIL: init stdout polluted with broken symlink ($LINE_COUNT lines, content: '$LAST_OUT')"
     (( ++FAIL ))
   fi
+  # Target file must NOT have been created
+  if [[ -e "$BROKEN_TARGET" ]]; then
+    echo "  FAIL: init created the broken symlink's target file"
+    (( ++FAIL ))
+    rm -f "$BROKEN_TARGET"
+  else
+    echo "  PASS: broken symlink target not created by init"
+    (( ++PASS ))
+  fi
+  # Link must still be broken (unchanged)
+  if [[ -L "$BROKEN_LINK" && ! -e "$BROKEN_LINK" ]]; then
+    echo "  PASS: broken symlink remains broken after init"
+    (( ++PASS ))
+  else
+    echo "  FAIL: broken symlink was modified by init"
+    (( ++FAIL ))
+  fi
   SID="$LAST_OUT"
   export LEAN4_SESSION_ID="$SID"
   run stop
   LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
   CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
-  rm -f "$BROKEN_LINK"
+  rm -f "$BROKEN_LINK" "$BROKEN_TARGET"
 else
   echo "  SKIP: could not create broken symlink for testing"
 fi

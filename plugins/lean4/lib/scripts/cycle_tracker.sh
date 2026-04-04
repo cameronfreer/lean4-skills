@@ -105,6 +105,9 @@ with open('$file', 'w') as f:
 _resolve_env_file() {
   local raw="${LEAN4_ENV_FILE:-${CLAUDE_ENV_FILE:-}}"
   if [[ -z "$raw" ]]; then echo ""; return; fi
+  # Reject broken symlinks: the link exists but its target does not.
+  # Return empty so callers fall back to stdout-only.
+  if [[ -L "$raw" && ! -e "$raw" ]]; then echo ""; return; fi
   # Resolve symlinks so we operate on the real target, not the link itself.
   # realpath is preferred; fall back to readlink -f; fall back to raw path.
   local resolved
