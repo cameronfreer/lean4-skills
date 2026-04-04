@@ -561,6 +561,68 @@ else
   echo "  SKIP: could not create FIFO for testing"
 fi
 
+# Broken symlink env file — init must not leak errors to stdout
+BROKEN_LINK="/tmp/lean4-test-broken-link-$$"
+ln -sf "/tmp/lean4-test-no-such-target-$$" "$BROKEN_LINK" 2>/dev/null || true
+if [[ -L "$BROKEN_LINK" ]]; then
+  LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
+  export CLAUDE_ENV_FILE="$BROKEN_LINK"
+  run init --max-cycles=5 --max-stuck=2
+  assert_exit "init with broken symlink env file succeeds" 0
+  LINE_COUNT=$(echo "$LAST_OUT" | wc -l | tr -d ' ')
+  if [[ "$LINE_COUNT" == "1" && "$LAST_OUT" == lean4-session-* ]]; then
+    echo "  PASS: init stdout clean with broken symlink env file"
+    (( ++PASS ))
+  else
+    echo "  FAIL: init stdout polluted with broken symlink ($LINE_COUNT lines, content: '$LAST_OUT')"
+    (( ++FAIL ))
+  fi
+  SID="$LAST_OUT"
+  export LEAN4_SESSION_ID="$SID"
+  run stop
+  LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
+  CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
+  rm -f "$BROKEN_LINK"
+else
+  echo "  SKIP: could not create broken symlink for testing"
+fi
+
+# Symlink to regular file — init must write to the real target, not destroy the link
+REAL_TARGET="/tmp/lean4-test-real-target-$$"
+LINK_PATH="/tmp/lean4-test-symlink-$$"
+: > "$REAL_TARGET"
+ln -sf "$REAL_TARGET" "$LINK_PATH" 2>/dev/null || true
+if [[ -L "$LINK_PATH" ]]; then
+  LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
+  export CLAUDE_ENV_FILE="$LINK_PATH"
+  run init --max-cycles=5 --max-stuck=2
+  assert_exit "init with symlink-to-file env file succeeds" 0
+  SID="$LAST_OUT"
+  export LEAN4_SESSION_ID="$SID"
+  # The symlink must still be a symlink (not replaced by a regular file)
+  if [[ -L "$LINK_PATH" ]]; then
+    echo "  PASS: symlink preserved after init"
+    (( ++PASS ))
+  else
+    echo "  FAIL: symlink was destroyed by init"
+    (( ++FAIL ))
+  fi
+  # The real target must contain the session ID
+  if grep -q "$SID" "$REAL_TARGET" 2>/dev/null; then
+    echo "  PASS: session ID written to real target through symlink"
+    (( ++PASS ))
+  else
+    echo "  FAIL: session ID not found in real target"
+    (( ++FAIL ))
+  fi
+  run stop
+  LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
+  CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
+  rm -f "$LINK_PATH" "$REAL_TARGET"
+else
+  echo "  SKIP: could not create symlink for testing"
+fi
+
 # stop with missing state file — must clean stale export but not clobber another session
 FALLBACK_ENV="/tmp/lean4-test-fallback-env-$$"
 cat > "$FALLBACK_ENV" <<'ENVEOF'

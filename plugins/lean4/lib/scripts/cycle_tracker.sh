@@ -103,7 +103,15 @@ with open('$file', 'w') as f:
 # Resolves: LEAN4_ENV_FILE → CLAUDE_ENV_FILE → (none = stdout fallback)
 # ---------------------------------------------------------------------------
 _resolve_env_file() {
-  echo "${LEAN4_ENV_FILE:-${CLAUDE_ENV_FILE:-}}"
+  local raw="${LEAN4_ENV_FILE:-${CLAUDE_ENV_FILE:-}}"
+  if [[ -z "$raw" ]]; then echo ""; return; fi
+  # Resolve symlinks so we operate on the real target, not the link itself.
+  # realpath is preferred; fall back to readlink -f; fall back to raw path.
+  local resolved
+  resolved=$(realpath "$raw" 2>/dev/null) \
+    || resolved=$(readlink -f "$raw" 2>/dev/null) \
+    || resolved="$raw"
+  echo "$resolved"
 }
 
 _persist_env() {
@@ -128,18 +136,6 @@ _persist_env() {
     mv "${env_out}.tmp" "$env_out"
   fi
   printf '%s\n' "$kv" >> "$env_out" 2>/dev/null || true
-}
-
-_unpersist_env() {
-  local var_name="$1"
-  local env_out
-  env_out=$(_resolve_env_file)
-  if [[ -z "$env_out" ]]; then return; fi
-  if [[ -e "$env_out" && ( ! -r "$env_out" || ! -w "$env_out" ) ]]; then return; fi
-  if [[ -f "$env_out" ]]; then
-    grep -v "^export ${var_name}=" "$env_out" > "${env_out}.tmp" 2>/dev/null || true
-    mv "${env_out}.tmp" "$env_out"
-  fi
 }
 
 # ---------------------------------------------------------------------------
