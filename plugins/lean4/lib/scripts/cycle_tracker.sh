@@ -113,10 +113,12 @@ _persist_env() {
   local env_out
   env_out=$(_resolve_env_file)
   if [[ -z "$env_out" ]]; then return; fi
-  # Guard: if the file exists, it must be readable+writable.
-  if [[ -e "$env_out" && ( ! -r "$env_out" || ! -w "$env_out" ) ]]; then return; fi
-  # Guard: if the file does not exist, the parent directory must be writable.
-  if [[ ! -e "$env_out" ]]; then
+  # Guard: if something exists at the path, it must be a regular file that is
+  # readable+writable. Directories, FIFOs, devices, etc. are rejected.
+  if [[ -e "$env_out" ]]; then
+    if [[ ! -f "$env_out" || ! -r "$env_out" || ! -w "$env_out" ]]; then return; fi
+  else
+    # File does not exist: parent directory must exist and be writable.
     local _pdir
     _pdir=$(dirname "$env_out")
     if [[ ! -d "$_pdir" || ! -w "$_pdir" ]]; then return; fi
@@ -269,16 +271,16 @@ cmd_init() {
   # same file even if LEAN4_ENV_FILE/CLAUDE_ENV_FILE changes between calls.
   local resolved_env_file
   resolved_env_file=$(_resolve_env_file)
-  # Only record if actually writable; otherwise empty = stdout-only fallback.
+  # Only record if actually writable regular file (or creatable); otherwise
+  # empty = stdout-only fallback. Directories, FIFOs, devices are rejected.
   if [[ -n "$resolved_env_file" ]]; then
     if [[ -e "$resolved_env_file" ]]; then
-      # Existing file: must be both readable and writable.
-      if [[ ! -r "$resolved_env_file" || ! -w "$resolved_env_file" ]]; then
+      # Must be a regular file that is readable+writable.
+      if [[ ! -f "$resolved_env_file" || ! -r "$resolved_env_file" || ! -w "$resolved_env_file" ]]; then
         resolved_env_file=""
       fi
     else
-      # File does not exist: parent directory must exist and be writable,
-      # and we must be able to create the file.
+      # File does not exist: parent directory must exist and be writable.
       local parent_dir
       parent_dir=$(dirname "$resolved_env_file")
       if [[ ! -d "$parent_dir" || ! -w "$parent_dir" ]]; then
@@ -665,9 +667,10 @@ cmd_stop() {
   rm -f "$f"
   # Also clean up any orphaned tmp files from atomic writes
   rm -f "${f}".tmp.* 2>/dev/null || true
-  # Unpersist LEAN4_SESSION_ID from the env file
+  # Unpersist only this session's LEAN4_SESSION_ID from the env file, not
+  # another session's. Match the exact value being stopped.
   if [[ -n "$recorded_env" && -f "$recorded_env" && -r "$recorded_env" && -w "$recorded_env" ]]; then
-    grep -v "^export LEAN4_SESSION_ID=" "$recorded_env" > "${recorded_env}.tmp" 2>/dev/null || true
+    grep -v "^export LEAN4_SESSION_ID=\"${sid}\"" "$recorded_env" > "${recorded_env}.tmp" 2>/dev/null || true
     mv "${recorded_env}.tmp" "$recorded_env"
   fi
 }

@@ -516,40 +516,104 @@ rm -rf "$NOWRITE_DIR"
 LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
 CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
 
-# stop with missing state file — must still clean env file (best-effort fallback)
+# Env file pointing to a directory — init must not leak shell errors to stdout
+LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
+export CLAUDE_ENV_FILE="/tmp"
+run init --max-cycles=5 --max-stuck=2
+assert_exit "init with directory env file succeeds" 0
+LINE_COUNT=$(echo "$LAST_OUT" | wc -l | tr -d ' ')
+if [[ "$LINE_COUNT" == "1" && "$LAST_OUT" == lean4-session-* ]]; then
+  echo "  PASS: init stdout clean with directory env file"
+  (( ++PASS ))
+else
+  echo "  FAIL: init stdout polluted with directory env file ($LINE_COUNT lines, content: '$LAST_OUT')"
+  (( ++FAIL ))
+fi
+SID="$LAST_OUT"
+export LEAN4_SESSION_ID="$SID"
+run stop
+LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
+CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
+
+# Env file pointing to a FIFO — init must not block or leak errors
+FIFO_PATH="/tmp/lean4-test-fifo-$$"
+mkfifo "$FIFO_PATH" 2>/dev/null || true
+if [[ -p "$FIFO_PATH" ]]; then
+  LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
+  export CLAUDE_ENV_FILE="$FIFO_PATH"
+  run init --max-cycles=5 --max-stuck=2
+  assert_exit "init with FIFO env file succeeds" 0
+  LINE_COUNT=$(echo "$LAST_OUT" | wc -l | tr -d ' ')
+  if [[ "$LINE_COUNT" == "1" && "$LAST_OUT" == lean4-session-* ]]; then
+    echo "  PASS: init stdout clean with FIFO env file"
+    (( ++PASS ))
+  else
+    echo "  FAIL: init stdout polluted with FIFO env file ($LINE_COUNT lines, content: '$LAST_OUT')"
+    (( ++FAIL ))
+  fi
+  SID="$LAST_OUT"
+  export LEAN4_SESSION_ID="$SID"
+  run stop
+  LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
+  CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
+  rm -f "$FIFO_PATH"
+else
+  echo "  SKIP: could not create FIFO for testing"
+fi
+
+# stop with missing state file — must clean stale export but not clobber another session
 FALLBACK_ENV="/tmp/lean4-test-fallback-env-$$"
-echo 'export LEAN4_SESSION_ID="lean4-session-GHOST"' > "$FALLBACK_ENV"
+cat > "$FALLBACK_ENV" <<'ENVEOF'
+export LEAN4_SESSION_ID="lean4-session-GHOST"
+export LEAN4_SESSION_ID="lean4-session-ACTIVE"
+ENVEOF
 export LEAN4_SESSION_ID="lean4-session-GHOST"
 export CLAUDE_ENV_FILE="$FALLBACK_ENV"
-# No state file exists for this session ID — stop must still clean env
 run stop
 assert_exit "stop with missing state file succeeds" 0
-if grep -q 'LEAN4_SESSION_ID' "$FALLBACK_ENV" 2>/dev/null; then
-  echo "  FAIL: stop with missing state leaked LEAN4_SESSION_ID in env file"
+if grep -q 'lean4-session-GHOST' "$FALLBACK_ENV" 2>/dev/null; then
+  echo "  FAIL: stop with missing state leaked stale session in env file"
   (( ++FAIL ))
 else
-  echo "  PASS: stop with missing state cleaned env file (best-effort)"
+  echo "  PASS: stop with missing state cleaned stale session (best-effort)"
   (( ++PASS ))
+fi
+if grep -q 'lean4-session-ACTIVE' "$FALLBACK_ENV" 2>/dev/null; then
+  echo "  PASS: stop with missing state preserved other session's export"
+  (( ++PASS ))
+else
+  echo "  FAIL: stop with missing state clobbered other session's export"
+  (( ++FAIL ))
 fi
 rm -f "$FALLBACK_ENV"
 LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
 CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
 
-# stop with corrupted state file — must still clean env file (best-effort fallback)
+# stop with corrupted state file — must clean stale export but not clobber another session
 CORRUPT_ENV="/tmp/lean4-test-corrupt-env-$$"
-echo 'export LEAN4_SESSION_ID="lean4-session-CORRUPT"' > "$CORRUPT_ENV"
+cat > "$CORRUPT_ENV" <<'ENVEOF'
+export LEAN4_SESSION_ID="lean4-session-CORRUPT"
+export LEAN4_SESSION_ID="lean4-session-ALIVE"
+ENVEOF
 CORRUPT_STATE="/tmp/lean4-session-CORRUPT.json"
 echo "NOT JSON" > "$CORRUPT_STATE"
 export LEAN4_SESSION_ID="lean4-session-CORRUPT"
 export CLAUDE_ENV_FILE="$CORRUPT_ENV"
 run stop
 assert_exit "stop with corrupted state file succeeds" 0
-if grep -q 'LEAN4_SESSION_ID' "$CORRUPT_ENV" 2>/dev/null; then
-  echo "  FAIL: stop with corrupted state leaked LEAN4_SESSION_ID in env file"
+if grep -q 'lean4-session-CORRUPT' "$CORRUPT_ENV" 2>/dev/null; then
+  echo "  FAIL: stop with corrupted state leaked stale session in env file"
   (( ++FAIL ))
 else
-  echo "  PASS: stop with corrupted state cleaned env file (best-effort)"
+  echo "  PASS: stop with corrupted state cleaned stale session (best-effort)"
   (( ++PASS ))
+fi
+if grep -q 'lean4-session-ALIVE' "$CORRUPT_ENV" 2>/dev/null; then
+  echo "  PASS: stop with corrupted state preserved other session's export"
+  (( ++PASS ))
+else
+  echo "  FAIL: stop with corrupted state clobbered other session's export"
+  (( ++FAIL ))
 fi
 rm -f "$CORRUPT_ENV" "$CORRUPT_STATE"
 LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
