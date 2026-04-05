@@ -21,5 +21,8 @@ __pycache__/
 # Claude Code
 .claude
 
+# Codex
+.codex
+
 # Scratch outputs (lean4:learn)
 .scratch/
