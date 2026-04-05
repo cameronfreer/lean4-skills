@@ -20,7 +20,7 @@ This reference provides detailed explanations and fixes for the most common comp
 | **"synthesized: m, inferred: inst✝"** | Instance pollution (sub-σ-algebras) | ⚡ **READ [instance-pollution.md](instance-pollution.md)** - pin ambient first! |
 | **"binder x doesn't match goal's binder ω"** | Alpha/beta-equivalence issue | Use `set F := <expr> with hF`, apply to `F`, unfold with `simpa [hF]` |
 | **Error at line N** | Actual error before line N | Check 5-10 lines before reported location |
-| **OOM kill (exit 137)** on sorry'd file | Large dependent type signatures | Isolate heavy signatures into small files; see [below](#oom-from-large-dependent-type-signatures) |
+| **OOM kill (exit 137)** on sorry'd file or LSP timeout on importers | Large dependent type signatures | Isolate heavy signatures into small files; see [below](#oom-from-large-dependent-type-signatures) |
 
 ---
 
@@ -696,7 +696,7 @@ exact (h : _)  -- Guessing
 
 ## OOM from Large Dependent Type Signatures
 
-A file with all-`sorry` proof bodies can still OOM or take tens of minutes to build if the **type signatures** are expensive to elaborate. `sorry` skips the proof, but Lean must still fully elaborate every type signature at the definition site, every call site that destructures the result, and every downstream file that transitively imports the module.
+A file with all-`sorry` proof bodies can still OOM or take tens of minutes to build if the **type signatures** are expensive to elaborate. `sorry` skips the proof, but Lean must still fully elaborate every type signature at the definition site and every call site that destructures the result; importing or downstream files can also become slow or time out.
 
 **Watch for this when:**
 - Return type has 6+ existential/conjunction components with dependent types
