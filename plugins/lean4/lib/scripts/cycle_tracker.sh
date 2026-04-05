@@ -308,7 +308,12 @@ cmd_init() {
   "cycles": 0,
   "consecutive_stuck": 0,
   "deep_this_cycle": 0,
-  "consecutive_deep_cycles": 0
+  "consecutive_deep_cycles": 0,
+  "cycles_total": 0,
+  "stuck_cycles_total": 0,
+  "deep_total": 0,
+  "claims_attempted": 0,
+  "claim_active": false
 }
 ENDJSON
   )
@@ -352,12 +357,15 @@ cmd_tick() {
   if [[ "$_json_backend" == "jq" ]]; then
     output=$(jq -r --argjson stuck_flag "$(if [[ "$stuck" == "yes" ]]; then echo 1; else echo 0; fi)" \
                     --argjson now "$now" '
-      # Update cycles
+      # Update cycles (per-claim + session total)
       .cycles += 1 |
+      .cycles_total += 1 |
 
-      # Update stuck
+      # Update stuck (per-claim consecutive + session total)
       (if $stuck_flag == 1 then .consecutive_stuck + 1 else 0 end) as $new_stuck |
       .consecutive_stuck = $new_stuck |
+      (if $stuck_flag == 1 then .stuck_cycles_total + 1 else .stuck_cycles_total end) as $new_stuck_total |
+      .stuck_cycles_total = $new_stuck_total |
 
       # Update deep
       (if .deep_this_cycle > 0 then .consecutive_deep_cycles + 1 else 0 end) as $new_consec_deep |
@@ -431,11 +439,14 @@ with open('$file') as f:
 now = $now
 stuck = bool($stuck_flag)
 
-# Update cycles
+# Update cycles (per-claim + session total)
 d['cycles'] += 1
+d['cycles_total'] += 1
 
-# Update stuck
+# Update stuck (per-claim consecutive + session total)
 d['consecutive_stuck'] = d['consecutive_stuck'] + 1 if stuck else 0
+if stuck:
+    d['stuck_cycles_total'] += 1
 
 # Update deep
 if d['deep_this_cycle'] > 0:
@@ -572,7 +583,7 @@ cmd_deep() {
   if [[ "$_json_backend" == "jq" ]]; then
     local tmp
     tmp=$(mktemp "${file}.tmp.XXXXXX")
-    jq '.deep_this_cycle += 1' "$file" > "$tmp" 2>/dev/null
+    jq '.deep_this_cycle += 1 | .deep_total += 1' "$file" > "$tmp" 2>/dev/null
     mv "$tmp" "$file"
   else
     python3 -c "
@@ -580,6 +591,99 @@ import json, tempfile, os
 with open('$file') as f:
     d = json.load(f)
 d['deep_this_cycle'] += 1
+d['deep_total'] += 1
+fd, tmp = tempfile.mkstemp(prefix=os.path.basename('$file') + '.tmp.', dir=os.path.dirname('$file'))
+with os.fdopen(fd, 'w') as f:
+    json.dump(d, f)
+os.rename(tmp, '$file')
+" 2>/dev/null
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Subcommand: start-claim
+# ---------------------------------------------------------------------------
+cmd_start_claim() {
+  local file
+  file=$(_state_file)
+  _validate_state "$file"
+  _detect_backend
+
+  # Guard: fail if a claim is already active
+  local active
+  if [[ "$_json_backend" == "jq" ]]; then
+    active=$(jq -r '.claim_active' "$file" 2>/dev/null)
+  else
+    active=$(python3 -c "import json; print(json.load(open('$file'))['claim_active'])" 2>/dev/null)
+  fi
+  if [[ "$active" == "true" ]]; then
+    echo "error=start-claim called while claim_active is already true" >&2
+    exit 2
+  fi
+
+  if [[ "$_json_backend" == "jq" ]]; then
+    local tmp
+    tmp=$(mktemp "${file}.tmp.XXXXXX")
+    jq '.claim_active = true' "$file" > "$tmp" 2>/dev/null
+    mv "$tmp" "$file"
+  else
+    python3 -c "
+import json, tempfile, os
+with open('$file') as f:
+    d = json.load(f)
+d['claim_active'] = True
+fd, tmp = tempfile.mkstemp(prefix=os.path.basename('$file') + '.tmp.', dir=os.path.dirname('$file'))
+with os.fdopen(fd, 'w') as f:
+    json.dump(d, f)
+os.rename(tmp, '$file')
+" 2>/dev/null
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Subcommand: reset-claim
+# ---------------------------------------------------------------------------
+cmd_reset_claim() {
+  local file
+  file=$(_state_file)
+  _validate_state "$file"
+  _detect_backend
+
+  # Guard: fail if no claim is active
+  local active
+  if [[ "$_json_backend" == "jq" ]]; then
+    active=$(jq -r '.claim_active' "$file" 2>/dev/null)
+  else
+    active=$(python3 -c "import json; print(json.load(open('$file'))['claim_active'])" 2>/dev/null)
+  fi
+  if [[ "$active" != "true" ]]; then
+    echo "error=reset-claim called while claim_active is false" >&2
+    exit 2
+  fi
+
+  if [[ "$_json_backend" == "jq" ]]; then
+    local tmp
+    tmp=$(mktemp "${file}.tmp.XXXXXX")
+    jq '
+      .claims_attempted += 1 |
+      .claim_active = false |
+      .cycles = 0 |
+      .consecutive_stuck = 0 |
+      .deep_this_cycle = 0 |
+      .consecutive_deep_cycles = 0
+    ' "$file" > "$tmp" 2>/dev/null
+    mv "$tmp" "$file"
+  else
+    python3 -c "
+import json, tempfile, os
+with open('$file') as f:
+    d = json.load(f)
+d['claims_attempted'] += 1
+d['claim_active'] = False
+d['cycles'] = 0
+d['consecutive_stuck'] = 0
+d['deep_this_cycle'] = 0
+d['consecutive_deep_cycles'] = 0
 fd, tmp = tempfile.mkstemp(prefix=os.path.basename('$file') + '.tmp.', dir=os.path.dirname('$file'))
 with os.fdopen(fd, 'w') as f:
     json.dump(d, f)
@@ -610,13 +714,20 @@ cmd_status() {
        else
         (($elapsed / 60) | floor | tostring) + "m/unlimited"
        end) as $elapsed_display |
+      # Session totals (live-accumulated, always current)
+      (.claims_attempted + (if .claim_active then 1 else 0 end)) as $claims_display |
       "session_id=" + .session_id,
+      "claim_active=" + (if .claim_active then "true" else "false" end),
       "cycles=" + (.cycles | tostring) + "/" + (.max_cycles | tostring),
       "consecutive_stuck=" + (.consecutive_stuck | tostring) + "/" + (.max_stuck | tostring),
       "elapsed_seconds=" + ($elapsed | tostring),
       "elapsed_display=" + $elapsed_display,
       "deep_this_cycle=" + (.deep_this_cycle | tostring) + "/" + (.max_deep_per_cycle | tostring),
-      "consecutive_deep_cycles=" + (.consecutive_deep_cycles | tostring) + "/" + (.max_consecutive_deep | tostring)
+      "consecutive_deep_cycles=" + (.consecutive_deep_cycles | tostring) + "/" + (.max_consecutive_deep | tostring),
+      "cycles_total=" + (.cycles_total | tostring),
+      "stuck_cycles_total=" + (.stuck_cycles_total | tostring),
+      "deep_total=" + (.deep_total | tostring),
+      "claims_attempted=" + ($claims_display | tostring)
     ' "$file" 2>/dev/null
   else
     python3 -c "
@@ -632,14 +743,20 @@ elif mrs > 0:
     elapsed_display = f'{elapsed // 60}m/{mrs // 60}m'
 else:
     elapsed_display = f'{elapsed // 60}m/unlimited'
+claims_display = d['claims_attempted'] + (1 if d.get('claim_active') else 0)
 lines = [
     f\"session_id={d['session_id']}\",
+    f\"claim_active={'true' if d.get('claim_active') else 'false'}\",
     f\"cycles={d['cycles']}/{d['max_cycles']}\",
     f\"consecutive_stuck={d['consecutive_stuck']}/{d['max_stuck']}\",
     f'elapsed_seconds={elapsed}',
     f'elapsed_display={elapsed_display}',
     f\"deep_this_cycle={d['deep_this_cycle']}/{d['max_deep_per_cycle']}\",
     f\"consecutive_deep_cycles={d['consecutive_deep_cycles']}/{d['max_consecutive_deep']}\",
+    f\"cycles_total={d['cycles_total']}\",
+    f\"stuck_cycles_total={d['stuck_cycles_total']}\",
+    f\"deep_total={d['deep_total']}\",
+    f'claims_attempted={claims_display}',
 ]
 print('\n'.join(lines))
 " 2>/dev/null
@@ -687,12 +804,14 @@ subcmd="${1:-}"
 shift || true
 
 case "$subcmd" in
-  init)     cmd_init "$@" ;;
-  tick)     cmd_tick "$@" ;;
-  can-deep) cmd_can_deep "$@" ;;
-  deep)     cmd_deep "$@" ;;
-  status)   cmd_status "$@" ;;
-  stop)     cmd_stop "$@" ;;
-  "")       echo "error=no subcommand specified (init|tick|can-deep|deep|status|stop)" >&2; exit 2 ;;
+  init)        cmd_init "$@" ;;
+  tick)        cmd_tick "$@" ;;
+  can-deep)    cmd_can_deep "$@" ;;
+  deep)        cmd_deep "$@" ;;
+  start-claim) cmd_start_claim "$@" ;;
+  reset-claim) cmd_reset_claim "$@" ;;
+  status)      cmd_status "$@" ;;
+  stop)        cmd_stop "$@" ;;
+  "")          echo "error=no subcommand specified (init|tick|can-deep|deep|start-claim|reset-claim|status|stop)" >&2; exit 2 ;;
   *)        echo "error=unknown subcommand: $subcmd" >&2; exit 2 ;;
 esac

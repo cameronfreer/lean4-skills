@@ -282,6 +282,18 @@ Before dispatching a deep-mode subagent:
    - `reason=max-runtime`: session budget exhausted — let the next `tick` trigger session stop
 3. If exit 0: call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" deep` to record the invocation, then dispatch
 
+### Claim Boundary Protocol (autoformalize)
+
+Autoformalize processes claims sequentially. `--max-cycles` and `--max-stuck-cycles` are per-claim; `--max-total-runtime` is per-session.
+
+**Lifecycle:** `init` → (`start-claim` → inner cycle ticks → `reset-claim`) × N-1 → `start-claim` → inner cycle ticks → `status`/`stop`
+
+- Call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" start-claim` when dequeuing each claim
+- Call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" reset-claim` when a claim completes or stops (before the next `start-claim`)
+- The final claim does not need `reset-claim` — session totals (`cycles_total`, `stuck_cycles_total`, `deep_total`) are accumulated live by `tick`/`deep`
+
+`status` always reflects the full session: `claims_attempted` includes the in-progress claim. Summary metrics (`Cycles run`, `Stuck cycles`, `Deep invocations`) come from session-total accumulators.
+
 ### On Stop
 
 Call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" status` for the structured summary counters, then `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" stop` for cleanup.
@@ -290,7 +302,7 @@ Call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" status` for the structured summary 
 
 | Level | Mechanism | Reliability | Parameters |
 |-------|-----------|-------------|------------|
-| **Startup-validated** | Fail before work starts | Guaranteed by invocation contract | enum/path/companion/numeric checks |
+| **Startup-validated** | Fail before work starts | Guaranteed when command follows invocation contract | enum/path/companion/numeric checks |
 | **Session-enforced** | `cycle_tracker.sh` at cycle boundaries | Protocol-dependent — reliable when command follows documented cycle boundary protocol | `--max-cycles`, `--max-stuck-cycles`, `--max-deep-per-cycle`, `--max-consecutive-deep-cycles` |
 | **Best-effort** | `cycle_tracker.sh tick` + `can-deep` | Checked at cycle boundaries and deep preflight — not a kill switch, cannot preempt mid-step | `--max-total-runtime` |
 | **Advisory** | Instruction to LLM/subagent | Model-mediated, not validated or tracked | `--deep-time-budget`, `--batch-size` |

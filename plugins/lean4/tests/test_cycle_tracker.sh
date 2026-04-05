@@ -753,6 +753,98 @@ cleanup_session
 
 # =========================================================================
 echo ""
+echo "-- Claim lifecycle (start-claim / reset-claim / session totals) --"
+
+# Basic lifecycle: init → start-claim → ticks → reset-claim → start-claim → ticks → status
+init_session --max-cycles=5 --max-stuck=3
+run start-claim
+assert_exit "start-claim succeeds" 0
+run status
+assert_contains "claim_active=true after start-claim" "claim_active=true"
+assert_contains "claims_attempted=1 (in-progress)" "claims_attempted=1"
+
+# Tick some cycles with stuck
+run tick --stuck=yes
+run tick --stuck=yes
+run tick --stuck=no
+run status
+assert_contains "cycles_total=3 after 3 ticks" "cycles_total=3"
+assert_contains "stuck_cycles_total=2 after 2 stuck ticks" "stuck_cycles_total=2"
+
+# Deep
+run deep
+run status
+assert_contains "deep_total=1 after 1 deep" "deep_total=1"
+
+# Reset claim
+run reset-claim
+assert_exit "reset-claim succeeds" 0
+run status
+assert_contains "claim_active=false after reset" "claim_active=false"
+assert_contains "claims_attempted=1 (completed)" "claims_attempted=1"
+assert_contains "per-claim cycles=0 after reset" "cycles=0/"
+assert_contains "per-claim consecutive_stuck=0 after reset" "consecutive_stuck=0/"
+assert_contains "cycles_total=3 preserved after reset" "cycles_total=3"
+assert_contains "stuck_cycles_total=2 preserved after reset" "stuck_cycles_total=2"
+assert_contains "deep_total=1 preserved after reset" "deep_total=1"
+
+# Second claim
+run start-claim
+run tick --stuck=no
+run tick --stuck=yes
+run deep
+run status
+assert_contains "cycles_total=5 after 2 more ticks" "cycles_total=5"
+assert_contains "stuck_cycles_total=3 after 1 more stuck" "stuck_cycles_total=3"
+assert_contains "deep_total=2 after 1 more deep" "deep_total=2"
+assert_contains "claims_attempted=2 (1 completed + 1 in-progress)" "claims_attempted=2"
+assert_contains "claim_active=true on second claim" "claim_active=true"
+assert_contains "per-claim cycles=2 on second claim" "cycles=2/"
+cleanup_session
+
+# Status right after init (no claim started)
+init_session --max-cycles=5 --max-stuck=3
+run status
+assert_contains "claims_attempted=0 after init" "claims_attempted=0"
+assert_contains "claim_active=false after init" "claim_active=false"
+cleanup_session
+
+# start-claim with zero cycles then reset-claim
+init_session --max-cycles=5 --max-stuck=3
+run start-claim
+run reset-claim
+assert_exit "reset-claim with zero cycles" 0
+run status
+assert_contains "claims_attempted=1 after zero-cycle claim" "claims_attempted=1"
+assert_contains "cycles_total=0 after zero-cycle claim" "cycles_total=0"
+cleanup_session
+
+# Invalid transition: double start-claim
+init_session --max-cycles=5 --max-stuck=3
+run start-claim
+run start-claim
+assert_exit "double start-claim → exit 2" 2
+assert_contains "error mentions claim_active" "claim_active"
+cleanup_session
+
+# Invalid transition: reset-claim without start-claim
+init_session --max-cycles=5 --max-stuck=3
+run reset-claim
+assert_exit "reset-claim without start-claim → exit 2" 2
+assert_contains "error mentions claim_active" "claim_active"
+cleanup_session
+
+# Invalid transition: double reset-claim
+init_session --max-cycles=5 --max-stuck=3
+run start-claim
+run reset-claim
+run reset-claim
+assert_exit "double reset-claim → exit 2" 2
+assert_contains "error mentions claim_active" "claim_active"
+cleanup_session
+
+# =========================================================================
+echo ""
 echo "-- Stale cleanup --"
 
 # Create a fake stale session file

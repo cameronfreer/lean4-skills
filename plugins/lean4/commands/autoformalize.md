@@ -34,6 +34,11 @@ Startup requirements:
    A failed init (exit 2) is a startup validation error — do not proceed.
 4. The state file is the single source of truth for session counters.
    Read counters from `tick`/`status` output, not from conversational memory.
+5. **Per-claim lifecycle:** `--max-cycles` and `--max-stuck-cycles` are per-claim;
+   `--max-total-runtime` is per-session. Before each claim, call `start-claim`.
+   After each claim completes or stops (before the next), call `reset-claim`.
+   The final claim does not need `reset-claim` — totals are accumulated live.
+   See [Claim Boundary Protocol](../skills/lean4/references/cycle-engine.md#claim-boundary-protocol-autoformalize).
 
 ## Inputs
 
@@ -106,16 +111,16 @@ When autoformalize stops, emit:
 
 **Reason stopped:** [queue-empty | max-stuck | max-cycles | max-runtime | user-stop]
 
-| Metric | Value |
-|--------|-------|
-| Claims attempted | N/M |
-| Sorries before | 0 |
-| Sorries after | S |
-| Cycles run | C |
-| Stuck cycles | K |
-| Deep invocations | D |
-| Time elapsed | T |
-| Drafts | F (R redrafted) |
+| Metric | Value | Source |
+|--------|-------|--------|
+| Claims attempted | N/M | `claims_attempted` from `status` (includes in-progress claim) |
+| Sorries before | 0 | |
+| Sorries after | S | |
+| Cycles run | C | `cycles_total` from `status` (session total across all claims) |
+| Stuck cycles | K | `stuck_cycles_total` from `status` (session total) |
+| Deep invocations | D | `deep_total` from `status` (session total) |
+| Time elapsed | T | `elapsed_display` from `status` |
+| Drafts | F (R redrafted) | |
 
 **Handoff recommendations:**
 - [If incomplete: "Run /lean4:formalize for guided work on remaining claims"]
