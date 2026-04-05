@@ -599,6 +599,21 @@ if [[ -L "$BROKEN_LINK" ]]; then
   SID="$LAST_OUT"
   export LEAN4_SESSION_ID="$SID"
   run stop
+  # Post-stop: target still must not exist, link still broken
+  if [[ -e "$BROKEN_TARGET" ]]; then
+    echo "  FAIL: stop created the broken symlink's target file"
+    (( ++FAIL ))
+  else
+    echo "  PASS: broken symlink target not created by stop"
+    (( ++PASS ))
+  fi
+  if [[ -L "$BROKEN_LINK" && ! -e "$BROKEN_LINK" ]]; then
+    echo "  PASS: broken symlink remains broken after stop"
+    (( ++PASS ))
+  else
+    echo "  FAIL: broken symlink was modified by stop"
+    (( ++FAIL ))
+  fi
   LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
   CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
   rm -f "$BROKEN_LINK" "$BROKEN_TARGET"

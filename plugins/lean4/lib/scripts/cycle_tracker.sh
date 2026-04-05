@@ -109,11 +109,17 @@ _resolve_env_file() {
   # Return empty so callers fall back to stdout-only.
   if [[ -L "$raw" && ! -e "$raw" ]]; then echo ""; return; fi
   # Resolve symlinks so we operate on the real target, not the link itself.
-  # realpath is preferred; fall back to readlink -f; fall back to raw path.
+  # If the path is a symlink and resolution tools are unavailable, reject it
+  # rather than operating on the link path (which would clobber the symlink).
   local resolved
   resolved=$(realpath "$raw" 2>/dev/null) \
     || resolved=$(readlink -f "$raw" 2>/dev/null) \
-    || resolved="$raw"
+    || resolved=""
+  if [[ -z "$resolved" ]]; then
+    # Resolution failed. Safe to use raw path only if it's not a symlink.
+    if [[ -L "$raw" ]]; then echo ""; return; fi
+    resolved="$raw"
+  fi
   echo "$resolved"
 }
 
