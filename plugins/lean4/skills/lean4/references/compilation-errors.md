@@ -20,6 +20,7 @@ This reference provides detailed explanations and fixes for the most common comp
 | **"synthesized: m, inferred: inst✝"** | Instance pollution (sub-σ-algebras) | ⚡ **READ [instance-pollution.md](instance-pollution.md)** - pin ambient first! |
 | **"binder x doesn't match goal's binder ω"** | Alpha/beta-equivalence issue | Use `set F := <expr> with hF`, apply to `F`, unfold with `simpa [hF]` |
 | **Error at line N** | Actual error before line N | Check 5-10 lines before reported location |
+| **OOM kill (exit 137)** on sorry'd file or LSP timeout on importers | Large dependent type signatures | Isolate heavy signatures into small files; see [below](#oom-from-large-dependent-type-signatures) |
 
 ---
 
@@ -690,6 +691,27 @@ exact (h : _)  -- Guessing
 -- Error says "has type A but expected B"
 -- Solution: Convert A to B or restructure
 ```
+
+---
+
+## OOM from Large Dependent Type Signatures
+
+A file with all-`sorry` proof bodies can still OOM or take tens of minutes to build if the **type signatures** are expensive to elaborate. `sorry` skips the proof, but Lean must still fully elaborate every type signature at the definition site and every call site that destructures the result; importing or downstream files can also become slow or time out.
+
+**Watch for this when:**
+- Return type has 6+ existential/conjunction components with dependent types
+- Types reference `List`/`Vector`/`Array` with length-indexed proof terms
+- Types contain `Fin.cast`, `by omega`, or `by simp; omega` inside binder types
+- File takes minutes to build even though all proofs are `sorry`
+
+**Symptom:** `lake build` consumes multi-GB RAM and is OOM-killed (exit code 137), or LSP times out on any file importing the module.
+
+**Fixes:**
+1. **Isolate pathological signatures** into small, rarely-recompiled files
+2. **Break dependency chains** — extract structure definitions into lightweight files so editing proof files doesn't trigger re-elaboration of heavy signatures
+3. **Sorry call sites too** — when `obtain ⟨...many binders...⟩ := heavy_thm ...` is itself expensive, sorry the caller until the callee is ready
+
+**Not a concern when:** signatures are small (3-4 binders or fewer), types don't have deeply nested proof-term dependencies, or file builds in seconds.
 
 ---
 
