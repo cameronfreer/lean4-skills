@@ -489,15 +489,6 @@ if [[ -f "$TRACKER" ]]; then
     done
 fi
 
-# cycle-engine.md Session Tracking section must use consistent flag spelling
-if grep -q '## Session Tracking' "$CYCLE_ENGINE" 2>/dev/null; then
-    if grep 'Session Tracking' -A 50 "$CYCLE_ENGINE" 2>/dev/null | grep -q 'max-stuck[^-]'; then
-        # Bare --max-stuck without -cycles suffix in the session tracking section is OK
-        # (it's the script's canonical form), but check it doesn't use the long form inconsistently
-        :
-    fi
-fi
-
 if [[ "$check25_ok" -eq 1 ]]; then
     ok "Check 25: Session tracking contract verified across all files"
 fi
