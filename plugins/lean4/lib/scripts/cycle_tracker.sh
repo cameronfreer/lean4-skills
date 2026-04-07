@@ -621,7 +621,7 @@ cmd_start_claim() {
   if [[ "$_json_backend" == "jq" ]]; then
     active=$(jq -r '.claim_active' "$file" 2>/dev/null)
   else
-    active=$(python3 -c "import json; print(json.load(open('$file'))['claim_active'])" 2>/dev/null)
+    active=$(python3 -c "import json; print(str(json.load(open('$file'))['claim_active']).lower())" 2>/dev/null)
   fi
   if [[ "$active" == "true" ]]; then
     echo "error=start-claim called while claim_active is already true" >&2
@@ -661,7 +661,7 @@ cmd_reset_claim() {
   if [[ "$_json_backend" == "jq" ]]; then
     active=$(jq -r '.claim_active' "$file" 2>/dev/null)
   else
-    active=$(python3 -c "import json; print(json.load(open('$file'))['claim_active'])" 2>/dev/null)
+    active=$(python3 -c "import json; print(str(json.load(open('$file'))['claim_active']).lower())" 2>/dev/null)
   fi
   if [[ "$active" != "true" ]]; then
     echo "error=reset-claim called while claim_active is false" >&2

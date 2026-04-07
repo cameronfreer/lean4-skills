@@ -845,6 +845,71 @@ cleanup_session
 
 # =========================================================================
 echo ""
+echo "-- Python3 fallback (no jq) --"
+
+# Force python3 backend by constructing a minimal PATH without jq
+if command -v python3 >/dev/null 2>&1; then
+  ORIG_PATH="$PATH"
+  NOJQ_DIR=$(mktemp -d)
+  # Symlink only python3, bash, and coreutils essentials — no jq
+  for cmd in python3 bash date id find mktemp mv rm stat touch grep chmod ln readlink realpath dirname basename cat wc tr sed; do
+    local_cmd=$(command -v "$cmd" 2>/dev/null || true)
+    if [[ -n "$local_cmd" ]]; then ln -sf "$local_cmd" "$NOJQ_DIR/$cmd" 2>/dev/null || true; fi
+  done
+  export PATH="$NOJQ_DIR"
+
+  if command -v jq >/dev/null 2>&1; then
+    echo "  SKIP: could not hide jq from PATH"
+  else
+    # Basic lifecycle on python3 backend
+    run init --max-cycles=5 --max-stuck=2
+    assert_exit "py3: init succeeds" 0
+    SID="$LAST_OUT"; export LEAN4_SESSION_ID="$SID"
+
+    run start-claim
+    assert_exit "py3: start-claim succeeds" 0
+
+    run tick --stuck=yes
+    assert_exit "py3: tick --stuck=yes succeeds" 0
+
+    run tick --stuck=no
+    assert_exit "py3: tick --stuck=no succeeds" 0
+
+    run status
+    assert_exit "py3: status succeeds" 0
+    assert_contains "py3: status shows claim_active=true" "claim_active=true"
+    assert_contains "py3: stuck_cycles_total=1" "stuck_cycles_total=1"
+    assert_contains "py3: cycles_total=2" "cycles_total=2"
+
+    # Double start-claim must fail
+    run start-claim
+    assert_exit "py3: double start-claim → exit 2" 2
+
+    # Reset claim
+    run reset-claim
+    assert_exit "py3: reset-claim succeeds" 0
+
+    # Double reset-claim must fail
+    run reset-claim
+    assert_exit "py3: double reset-claim → exit 2" 2
+
+    # Deep tracking
+    run start-claim
+    run deep
+    run status
+    assert_contains "py3: deep_total=1" "deep_total=1"
+
+    cleanup_session
+  fi
+
+  export PATH="$ORIG_PATH"
+  rm -rf "$NOJQ_DIR"
+else
+  echo "  SKIP: python3 not available"
+fi
+
+# =========================================================================
+echo ""
 echo "-- Stale cleanup --"
 
 # Create a fake stale session file
