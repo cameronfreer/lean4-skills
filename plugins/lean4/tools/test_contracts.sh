@@ -410,6 +410,89 @@ if [[ "$dispatch_ok" -eq 1 ]]; then
     ok "Check 24: All agent dispatch names resolve to valid frontmatter names"
 fi
 
+# ── Check 25: Session tracking contract ──────────────────────────────────
+# Autonomous commands must reference cycle_tracker.sh in their Invocation Contract.
+# cycle-engine.md must have the Session Tracking section and Enforcement Levels table.
+
+check25_ok=1
+
+for cmd_file in "$AUTOPROVE" "$AUTOFORMALIZE"; do
+    base=$(basename "$cmd_file")
+    if ! grep -q 'cycle_tracker\.sh' "$cmd_file" 2>/dev/null; then
+        fail "Check 25: $base missing cycle_tracker.sh reference in Invocation Contract"
+        check25_ok=0
+    fi
+done
+
+if ! grep -q '## Session Tracking' "$CYCLE_ENGINE" 2>/dev/null; then
+    fail "Check 25: cycle-engine.md missing Session Tracking section"
+    check25_ok=0
+fi
+
+if ! grep -q 'Enforcement Levels' "$CYCLE_ENGINE" 2>/dev/null; then
+    fail "Check 25: cycle-engine.md missing Enforcement Levels table"
+    check25_ok=0
+fi
+
+# No command file should describe --max-total-runtime as "Hard stop"
+for cmd_file in "$AUTOPROVE" "$AUTOFORMALIZE"; do
+    base=$(basename "$cmd_file")
+    if grep -qE '^\| --max-total-runtime .*Hard stop' "$cmd_file" 2>/dev/null; then
+        fail "Check 25: $base describes --max-total-runtime as Hard stop"
+        check25_ok=0
+    fi
+done
+
+# --deep-time-budget should include "advisory" (case-insensitive) in all 4 commands
+for cmd_file in "$AUTOPROVE" "$AUTOFORMALIZE" \
+                "$PLUGIN_ROOT/commands/prove.md" \
+                "$FORMALIZE"; do
+    base=$(basename "$cmd_file")
+    if ! grep -i 'deep-time-budget.*advisory\|advisory.*deep-time-budget' "$cmd_file" 2>/dev/null; then
+        # Check the table row specifically
+        if ! grep 'deep-time-budget' "$cmd_file" 2>/dev/null | grep -qi 'advisory'; then
+            fail "Check 25: $base --deep-time-budget not labeled as advisory"
+            check25_ok=0
+        fi
+    fi
+done
+
+# Flag-name consistency: autoprove init contract block must reference long user-facing flags.
+# The init contract spans multiple lines around "cycle_tracker.sh init", so extract a window.
+if grep -q "cycle_tracker.sh.*init" "$AUTOPROVE" 2>/dev/null; then
+    init_block=$(grep -A 3 "cycle_tracker.sh.*init" "$AUTOPROVE" 2>/dev/null)
+    for flag in max-stuck-cycles max-total-runtime max-consecutive-deep-cycles; do
+        if ! echo "$init_block" | grep -q "$flag"; then
+            fail "Check 25: autoprove.md init contract missing --$flag"
+            check25_ok=0
+        fi
+    done
+fi
+
+# autoformalize must NOT reference autoprove-only flag --max-consecutive-deep-cycles in init contract
+if grep -q "cycle_tracker.sh.*init" "$AUTOFORMALIZE" 2>/dev/null; then
+    af_init_block=$(grep -A 3 "cycle_tracker.sh.*init" "$AUTOFORMALIZE" 2>/dev/null)
+    if echo "$af_init_block" | grep -q "max-consecutive-deep-cycles"; then
+        fail "Check 25: autoformalize.md init contract references autoprove-only --max-consecutive-deep-cycles"
+        check25_ok=0
+    fi
+fi
+
+# cycle_tracker.sh must accept the long alias forms (grep the case statement)
+TRACKER="$PLUGIN_ROOT/lib/scripts/cycle_tracker.sh"
+if [[ -f "$TRACKER" ]]; then
+    for alias in max-stuck-cycles max-total-runtime max-consecutive-deep-cycles; do
+        if ! grep -q "\-\-${alias}=" "$TRACKER" 2>/dev/null; then
+            fail "Check 25: cycle_tracker.sh init missing alias --$alias"
+            check25_ok=0
+        fi
+    done
+fi
+
+if [[ "$check25_ok" -eq 1 ]]; then
+    ok "Check 25: Session tracking contract verified across all files"
+fi
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]

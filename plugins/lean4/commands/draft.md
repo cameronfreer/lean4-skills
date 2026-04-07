@@ -18,17 +18,30 @@ Draft Lean 4 declaration skeletons from informal mathematical claims. Produces s
 /lean4:draft --output=file --out=MyTheorem.lean "..."
 ```
 
+## Invocation Contract
+
+Slash-command inputs are raw text. Before claim acquisition, parse the raw
+invocation text using this command's input table and the
+[Command Invocation Contract](../skills/lean4/references/command-invocation.md).
+
+Startup requirements:
+
+1. Emit a **Resolved Inputs** block with explicit values, defaults, coercions,
+   ignored flags, and startup validation errors.
+2. Refuse to start on startup validation errors.
+3. Validate output paths and overwrite policy before writing anything.
+
 ## Inputs
 
 | Arg | Required | Default | Description |
 |-----|----------|---------|-------------|
-| topic | no | — | Informal claim to draft. Optional when `--source` provides it (source-led flow). At least one of `topic` or `--source` must be given; omitting both is a hard error. |
+| topic | no | — | Informal claim to draft. Optional when `--source` provides it (source-led flow). At least one of `topic` or `--source` must be given; omitting both is a startup validation error. |
 | --mode | no | `skeleton` | `skeleton` \| `attempt`. `skeleton` produces sorry-stubbed declarations only. `attempt` adds a proof-attempt loop (`lean_multi_attempt`) before finalizing. |
 | --elab-check | no | `best-effort` | `best-effort` \| `strict`. Elaboration check strictness for drafted skeletons. |
 | --level | no | `intermediate` | `beginner` \| `intermediate` \| `expert` |
 | --output | no | `chat` | `chat` \| `scratch` \| `file` |
-| --out | no | — | Output path. Required when `--output=file`; hard error if missing. |
-| --overwrite | no | `false` | Allow overwriting existing files with `--output=file`. Without flag, existing target → hard error. |
+| --out | no | — | Output path. Required when `--output=file`; startup validation error if missing. |
+| --overwrite | no | `false` | Allow overwriting existing files with `--output=file`. Without flag, existing target → startup validation error. |
 | --source | no | — | File path, URL, or PDF to seed drafting. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#source-handling). |
 | --intent | no | `math` | `auto` \| `usage` \| `math`. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-taxonomy). |
 | --presentation | no | `auto` | `informal` \| `supporting` \| `formal` \| `auto`. Controls user-facing display, not Lean backing. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#two-layer-architecture). |
@@ -36,16 +49,16 @@ Draft Lean 4 declaration skeletons from informal mathematical claims. Produces s
 
 ### Output validation
 
-- `--output=file` without `--out` → hard error
+- `--output=file` without `--out` → startup validation error
 - `--output=scratch` → `.scratch/lean4/draft-<timestamp>.lean` (workspace-local). Auto-create `.scratch/lean4/` if missing; warn if `.scratch/` is not in `.gitignore`.
-- `--output=file` with existing target and no `--overwrite` → hard error
+- `--output=file` with existing target and no `--overwrite` → startup validation error
 
 ### Flag validation
 
-- `--intent`, `--presentation`, or `--elab-check` with invalid value → hard error.
+- `--intent`, `--presentation`, or `--elab-check` with invalid value → startup validation error.
 - `--intent=auto` inference: apply the shared [inference rules](../skills/lean4/references/learn-pathways.md#inference-rules-when---intentauto), then coerce `internals` → `usage` and `authoring` → `usage` (draft does not define behavior for those intents).
 - `--source` + unreadable format → warn + ask for text excerpt.
-- `--claim-select` without `--source` → hard error (nothing to select from).
+- `--claim-select` without `--source` → startup validation error (nothing to select from).
 
 ### Noninteractive Claim Selection
 
@@ -107,7 +120,7 @@ Output format follows `--presentation`: `informal` → prose with math notation 
 - **No silent mutations.** Prefer LSP tools (`lean_goal`) over file writes for compilation checks. If LSP unavailable and temp file needed for internal compilation, write only under `/tmp/lean4-draft/`, auto-cleanup after use, warn user before writing.
 - **No commits.** `/draft` never commits. `--output=file` writes but does not stage or commit.
 - **Path restriction.** User-requested outputs (`--output=file`, `--output=scratch`) restricted to workspace root (scratch uses `.scratch/lean4/`). Reject path traversal (`../`) or absolute paths outside workspace. Internal temp files may use `/tmp/lean4-draft/`.
-- **Overwrite protection.** `--output=file` with existing target requires `--overwrite`; otherwise hard error.
+- **Overwrite protection.** `--output=file` with existing target requires `--overwrite`; otherwise startup validation error.
 - **Caller integration:** When `--caller=autoformalize` or `--caller=formalize`, file assembly and `draft:` commits are handled by the outer loop, not by draft.
 - **All `guardrails.sh` rules apply.**
 - **Line width.** Follow mathlib 100-char line width — do not wrap lines at 80 when they fit within 100.

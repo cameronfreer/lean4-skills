@@ -119,9 +119,9 @@ When stuck and user declines the plan (prove) or review flags falsification (aut
 Bounded subroutine for stubborn sorries. Allows multi-file refactoring and helper extraction.
 
 **Budget enforcement:**
-- `--deep-sorry-budget` — max sorries per deep invocation
-- `--deep-time-budget` — max time per deep invocation
-- `--max-deep-per-cycle` — max deep invocations per cycle (default: 1)
+- `--deep-sorry-budget` — max sorries per deep invocation (structural — subagent receives this as scope)
+- `--deep-time-budget` — advisory: scopes deep-mode subagent work, not wall-clock enforced
+- `--max-deep-per-cycle` — max deep invocations per cycle (session-enforced via `cycle_tracker.sh` in autoprove/autoformalize)
 
 If deep budget is exhausted with no progress → stuck.
 
@@ -233,6 +233,79 @@ If no files changed during this cycle, emit:
 > No changes this cycle — skipping checkpoint
 
 Do NOT create an empty commit. Checkpoint requires a non-empty diff.
+
+## Session Tracking
+
+> This section describes the concrete Claude Code implementation of the enforcement classes defined in [command-invocation.md](command-invocation.md). The invocation contract is host-agnostic; `cycle_tracker.sh` is one implementation that fulfills it. Other hosts may provide equivalent enforcement through different mechanisms, or may rely on model-mediated tracking alone.
+
+Autonomous commands (`autoprove`, `autoformalize`) use `$LEAN4_SCRIPTS/cycle_tracker.sh` for deterministic session counter tracking. Guided commands (`prove`, `formalize`) do not — user presence provides the control loop.
+
+### Initialization
+
+After emitting the Resolved Inputs block, call:
+
+```bash
+bash "$LEAN4_SCRIPTS/cycle_tracker.sh" init \
+  --max-cycles=<resolved> \
+  --max-stuck=<resolved> \
+  --max-runtime=<resolved> \
+  --max-deep-per-cycle=<resolved> \
+  --max-consecutive-deep=<resolved>
+```
+
+A failed init (exit 2) is a startup validation error — do not proceed. On success, the session ID is printed to stdout. If a writable env file is available (`LEAN4_ENV_FILE` or `CLAUDE_ENV_FILE`), init also persists `LEAN4_SESSION_ID` there for subsequent calls; otherwise, pass it as an env prefix (`LEAN4_SESSION_ID=<id> bash ...`).
+
+### Cycle Boundary Protocol (Phase 6)
+
+At the end of every cycle, call:
+
+```bash
+bash "$LEAN4_SCRIPTS/cycle_tracker.sh" tick --stuck=yes|no
+```
+
+This is one atomic operation that:
+1. Increments the cycle counter
+2. Updates the consecutive-stuck counter (increment if `--stuck=yes`, reset to 0 if `--stuck=no`)
+3. Updates the consecutive-deep-cycles counter (increment if deep was used this cycle, reset to 0 otherwise)
+4. Resets the per-cycle deep counter
+5. Checks all limits (max-cycles, max-stuck, max-runtime)
+
+If exit code is 1 (`LIMIT_REACHED`), stop immediately and emit the structured summary.
+
+### Deep Mode Preflight
+
+Before dispatching a deep-mode subagent:
+
+1. Call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" can-deep`
+2. If exit 1 (`denied`), handle based on the `reason` field:
+   - `reason=max-deep-per-cycle` or `reason=max-consecutive-deep`: deep denied by policy — skip deep for this sorry without marking it stuck
+   - `reason=max-runtime`: session budget exhausted — let the next `tick` trigger session stop
+3. If exit 0: call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" deep` to record the invocation, then dispatch
+
+### Claim Boundary Protocol (autoformalize)
+
+Autoformalize processes claims sequentially. `--max-cycles` and `--max-stuck-cycles` are per-claim; `--max-total-runtime` is per-session.
+
+**Lifecycle:** `init` → (`start-claim` → inner cycle ticks → `reset-claim`) × N-1 → `start-claim` → inner cycle ticks → `status`/`stop`
+
+- Call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" start-claim` when dequeuing each claim
+- Call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" reset-claim` when a claim completes or stops (before the next `start-claim`)
+- The final claim does not need `reset-claim` — session totals (`cycles_total`, `stuck_cycles_total`, `deep_total`) are accumulated live by `tick`/`deep`
+
+`status` always reflects the full session: `claims_attempted` includes the in-progress claim. Summary metrics (`Cycles run`, `Stuck cycles`, `Deep invocations`) come from session-total accumulators.
+
+### On Stop
+
+Call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" status` for the structured summary counters, then `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" stop` for cleanup.
+
+### Enforcement Levels
+
+| Level | Mechanism | Reliability | Parameters |
+|-------|-----------|-------------|------------|
+| **Startup-validated** | Fail before work starts | Guaranteed when command follows invocation contract | enum/path/companion/numeric checks |
+| **Session-enforced** | `cycle_tracker.sh` at cycle boundaries | Protocol-dependent — reliable when command follows documented cycle boundary protocol | `--max-cycles`, `--max-stuck-cycles`, `--max-deep-per-cycle`, `--max-consecutive-deep-cycles` |
+| **Best-effort** | `cycle_tracker.sh tick` + `can-deep` | Checked at cycle boundaries and deep preflight — not a kill switch, cannot preempt mid-step | `--max-total-runtime` |
+| **Advisory** | Instruction to LLM/subagent | Model-mediated, not validated or tracked | `--deep-time-budget`, `--batch-size` |
 
 ## Falsification Artifacts
 

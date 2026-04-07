@@ -15,7 +15,7 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 | `/lean4:formalize` | Interactive formalization — drafting plus guided proving |
 | `/lean4:autoformalize` | Autonomous end-to-end formalization from informal sources |
 | `/lean4:prove` | Guided cycle-by-cycle theorem proving with explicit checkpoints |
-| `/lean4:autoprove` | Autonomous multi-cycle theorem proving with hard stop rules |
+| `/lean4:autoprove` | Autonomous multi-cycle theorem proving with explicit stop budgets |
 | `/lean4:checkpoint` | Save progress with a safe commit checkpoint |
 | `/lean4:review` | Read-only code review of Lean proofs |
 | `/lean4:refactor` | Leverage mathlib, extract helpers, simplify proof strategies |
@@ -39,6 +39,11 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 /lean4:doctor              # Diagnostics and migration help
 git push                   # Manual, after review
 ```
+
+CLI-like inputs are model-parsed at command startup, not host-parsed. Commands
+must echo resolved inputs, reject invalid startup configs before doing work, and
+treat wall-clock budgets as best-effort. See the
+[Command Invocation Contract](skills/lean4/references/command-invocation.md).
 
 ## How It Works
 
@@ -85,7 +90,7 @@ No questionnaire — discovers state and starts immediately. Commits without pro
 - All sorries filled
 - 3 consecutive stuck cycles (`--max-stuck-cycles`)
 - 20 total cycles (`--max-cycles`)
-- 120 minutes elapsed (`--max-total-runtime`)
+- 120 minutes wall-clock budget reached (`--max-total-runtime`, checked between cycles)
 
 On stop, emits a structured summary (sorries before/after, cycles, time, handoff recommendations).
 

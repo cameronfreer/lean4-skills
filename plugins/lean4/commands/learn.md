@@ -23,6 +23,19 @@ Interactive teaching and mathlib exploration. Adapts to beginner, intermediate, 
 /lean4:learn --style=socratic --adaptive=off  # Socratic, no style/level drift
 ```
 
+## Invocation Contract
+
+Slash-command inputs are raw text. Before discovery begins, parse the raw
+invocation text using this command's input table and the
+[Command Invocation Contract](../skills/lean4/references/command-invocation.md).
+
+Startup requirements:
+
+1. Emit a **Resolved Inputs** block with explicit values, defaults, coercions,
+   ignored flags, and startup validation errors.
+2. Refuse to start on startup validation errors.
+3. Validate output paths and overwrite policy before writing anything.
+
 ## Inputs
 
 | Arg | Required | Default | Description |
@@ -33,8 +46,8 @@ Interactive teaching and mathlib exploration. Adapts to beginner, intermediate, 
 | --scope | no | `auto` | `auto` \| `file` \| `changed` \| `project` \| `topic` |
 | --style | no | `tour` | `tour` \| `socratic` \| `exercise` \| `game` |
 | --output | no | `chat` | `chat` \| `scratch` \| `file` |
-| --out | no | — | Output path. Required when `--output=file`; hard error if missing. |
-| --overwrite | no | `false` | Allow overwriting existing files with `--output=file`. Without flag, existing target → hard error. |
+| --out | no | — | Output path. Required when `--output=file`; startup validation error if missing. |
+| --overwrite | no | `false` | Allow overwriting existing files with `--output=file`. Without flag, existing target → startup validation error. |
 | --interactive | no | `false` | True Socratic method (withhold answers, ask questions). Valid only with `--style=socratic`; ignored with warning otherwise. |
 | --intent | no | `auto` | `auto` \| `usage` \| `internals` \| `authoring` \| `math`. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-taxonomy). |
 | --presentation | no | `auto` | `informal` \| `supporting` \| `formal` \| `auto`. Controls user-facing display, not Lean backing. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#two-layer-architecture). |
@@ -55,16 +68,16 @@ Interactive teaching and mathlib exploration. Adapts to beginner, intermediate, 
 
 ### Output validation
 
-- `--output=file` without `--out` → hard error
+- `--output=file` without `--out` → startup validation error
 - `--output=scratch` → `.scratch/lean4/learn-<timestamp>.lean` (workspace-local). Auto-create `.scratch/lean4/` if missing; warn if `.scratch/` is not in `.gitignore`.
-- `--output=file` with existing target and no `--overwrite` → hard error
+- `--output=file` with existing target and no `--overwrite` → startup validation error
 
 ### Flag validation
 
-- `--intent`, `--presentation`, or `--verify` with invalid value → hard error.
+- `--intent`, `--presentation`, or `--verify` with invalid value → startup validation error.
 - `--track` without `--style=game` → warn + ignore. `--style=game` without `--track` → prompt track picker.
 - `--source` + `--scope=file|changed|project` → warn "source overrides scope for initial discovery". Unsupported source type → warn + ask for text excerpt.
-- `--adaptive` with invalid value → hard error. `--adaptive=off` freezes the Learning Profile: the debate cannot change `style` or `level`. Within-style remediation (hint escalation, trying a counterexample instead of repeating an explanation) is unaffected — those don't modify the profile.
+- `--adaptive` with invalid value → startup validation error. `--adaptive=off` freezes the Learning Profile: the debate cannot change `style` or `level`. Within-style remediation (hint escalation, trying a counterexample instead of repeating an explanation) is unaffected — those don't modify the profile.
 
 ## Actions
 
@@ -165,7 +178,7 @@ Output format follows `--presentation`: `informal` → prose with math notation 
 - **No silent mutations.** Prefer LSP tools (`lean_goal`) over file writes for compilation checks. If LSP unavailable and temp file needed for internal compilation, write only under `/tmp/lean4-learn/`, auto-cleanup after use, warn user before writing.
 - **No commits.** `/learn` never commits. `--output=file` writes but does not stage or commit.
 - **Path restriction.** User-requested outputs (`--output=file`, `--output=scratch`) restricted to workspace root (scratch uses `.scratch/lean4/`). Reject path traversal (`../`) or absolute paths outside workspace. Internal temp files may use `/tmp/lean4-learn/`.
-- **Overwrite protection.** `--output=file` with existing target requires `--overwrite`; otherwise hard error.
+- **Overwrite protection.** `--output=file` with existing target requires `--overwrite`; otherwise startup validation error.
 - **Scope guardrails.** `--scope=project` in repo mode with >50 `.lean` files → warn with count, ask to narrow. In non-interactive contexts (e.g., LLM-invoked), default to "no" (do not proceed with large scope).
 - **All `guardrails.sh` rules apply.**
 

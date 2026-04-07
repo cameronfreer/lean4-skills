@@ -27,13 +27,18 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | `/lean4:formalize` | Interactive formalization — drafting plus guided proving |
 | `/lean4:autoformalize` | Autonomous end-to-end formalization from informal sources |
 | `/lean4:prove` | Guided cycle-by-cycle theorem proving with explicit checkpoints |
-| `/lean4:autoprove` | Autonomous multi-cycle theorem proving with hard stop rules |
+| `/lean4:autoprove` | Autonomous multi-cycle theorem proving with explicit stop budgets |
 | `/lean4:checkpoint` | Save progress with a safe commit checkpoint |
 | `/lean4:review` | Read-only code review of Lean proofs |
 | `/lean4:refactor` | Leverage mathlib, extract helpers, simplify proof strategies |
 | `/lean4:golf` | Improve Lean proofs for directness, clarity, performance, and brevity |
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
 | `/lean4:doctor` | Diagnostics, cleanup, and migration help |
+
+Slash-command inputs are raw text interpreted by the model, not host-parsed
+CLI flags. Commands with flags must parse and announce resolved inputs before
+acting; `--max-total-runtime` is a best-effort wall-clock budget, not a
+host-enforced timeout. See [command-invocation.md](references/command-invocation.md).
 
 ### Which Command?
 
@@ -94,7 +99,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 Use `/lean4:learn` at any point to explore repo structure or navigate mathlib. Three entry points: `/lean4:draft` for skeletons, `/lean4:formalize` for interactive synthesis (draft + guided proving), `/lean4:autoformalize` for unattended source-to-proof.
 
 **Notes:**
-- `/lean4:prove` asks before each cycle; `/lean4:autoprove` loops autonomously with hard stop conditions
+- `/lean4:prove` asks before each cycle; `/lean4:autoprove` loops autonomously with explicit stop budgets
 - Both trigger `/lean4:review` at configured intervals (`--review-every`)
 - When reviews run (via `--review-every`), they act as gates: review → replan → continue. In prove, replan requires user approval; in autoprove, replan auto-continues
 - Review supports `--mode=batch` (default) or `--mode=stuck` (triage); review is always read-only
@@ -199,7 +204,7 @@ If `$LEAN4_SCRIPTS` is unset or missing, run `/lean4:doctor` and stay LSP-only u
 
 `/lean4:prove` and `/lean4:autoprove` handle most tasks:
 - **prove** — guided, asks before each cycle. Ideal for interactive sessions.
-- **autoprove** — autonomous, loops with hard stop rules. Ideal for unattended runs.
+- **autoprove** — autonomous, loops with explicit stop budgets. Ideal for unattended runs.
 
 Both share the same cycle engine (plan → work → checkpoint → review → replan → continue/stop) and follow the [LSP-first protocol](references/cycle-engine.md#lsp-first-protocol): LSP tools are normative for discovery and search; script fallback only when LSP is unavailable or exhausted. Compiler-guided repair is escalation-only — not the first response to build errors. For complex proofs, they may delegate to internal workflows for deep sorry-filling (with snapshot, rollback, and scope budgets), proof repair, or axiom elimination. You don't invoke these directly.
 

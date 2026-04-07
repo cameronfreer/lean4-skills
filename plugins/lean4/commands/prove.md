@@ -17,6 +17,20 @@ Guided, cycle-by-cycle theorem proving. Asks before each cycle, supports deep es
 /lean4:prove --deep=stuck            # Enable deep escalation when stuck
 ```
 
+## Invocation Contract
+
+Slash-command inputs are raw text. Before Phase 1, parse the raw invocation
+text using this command's input table and the
+[Command Invocation Contract](../skills/lean4/references/command-invocation.md).
+
+Startup requirements:
+
+1. Emit a **Resolved Inputs** block with explicit values, defaults, coercions,
+   ignored flags, and startup validation errors.
+2. Refuse to start on startup validation errors.
+3. Persist any user-approved adjustments as session state so later cycles follow
+   the updated configuration rather than the initial prose alone.
+
 ## Inputs
 
 | Arg | Required | Default | Description |
@@ -29,7 +43,7 @@ Guided, cycle-by-cycle theorem proving. Asks before each cycle, supports deep es
 | --checkpoint | No | true | Create checkpoint commits after each cycle |
 | --deep | No | never | `never`, `ask`, `stuck`, or `always` |
 | --deep-sorry-budget | No | 1 | Max sorries per deep invocation |
-| --deep-time-budget | No | 10m | Max time per deep invocation |
+| --deep-time-budget | No | 10m | Advisory: scopes deep-mode subagent work. Not tracked or enforced. |
 | --max-deep-per-cycle | No | 1 | Max deep invocations per cycle |
 | --deep-snapshot | No | stash | V1: `stash` only |
 | --deep-rollback | No | on-regression | `on-regression`, `on-no-improvement`, `always`, or `never` |

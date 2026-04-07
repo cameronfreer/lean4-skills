@@ -1,12 +1,12 @@
 ---
 name: autoprove
-description: Autonomous multi-cycle theorem proving with hard stop rules
+description: Autonomous multi-cycle theorem proving with explicit stop budgets
 user_invocable: true
 ---
 
 # Lean4 Autoprove
 
-Autonomous multi-cycle theorem proving. Runs cycles automatically with hard stop conditions and structured summaries.
+Autonomous multi-cycle theorem proving. Runs cycles automatically with explicit stop budgets and structured summaries.
 
 ## Usage
 
@@ -16,6 +16,24 @@ Autonomous multi-cycle theorem proving. Runs cycles automatically with hard stop
 /lean4:autoprove --repair-only          # Fix build errors without filling sorries
 /lean4:autoprove --max-cycles=10        # Limit total cycles
 ```
+
+## Invocation Contract
+
+Slash-command inputs are raw text. Before Phase 1, parse the raw invocation
+text using this command's input table and the
+[Command Invocation Contract](../skills/lean4/references/command-invocation.md).
+
+Startup requirements:
+
+1. Emit a **Resolved Inputs** block with explicit values, defaults, coercions,
+   ignored flags, and startup validation errors.
+2. Refuse to start on startup validation errors.
+3. Call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" init` with resolved numeric
+   values for `--max-cycles`, `--max-stuck-cycles`, `--max-total-runtime`,
+   `--max-deep-per-cycle`, and `--max-consecutive-deep-cycles`.
+   A failed init (exit 2) is a startup validation error — do not proceed.
+4. The state file is the single source of truth for session counters.
+   Read counters from `tick`/`status` output, not from conversational memory.
 
 ## Inputs
 
@@ -29,7 +47,7 @@ Autonomous multi-cycle theorem proving. Runs cycles automatically with hard stop
 | --checkpoint | No | true | Create checkpoint commits after each cycle |
 | --deep | No | stuck | `never`, `stuck`, or `always` (`ask` coerced to `stuck` — see Deep Mode) |
 | --deep-sorry-budget | No | 2 | Max sorries per deep invocation |
-| --deep-time-budget | No | 20m | Max time per deep invocation |
+| --deep-time-budget | No | 20m | Advisory: scopes deep-mode subagent work. Not tracked or enforced by session tracker. |
 | --max-deep-per-cycle | No | 1 | Max deep invocations per cycle |
 | --max-consecutive-deep-cycles | No | 2 | Hard cap on consecutive cycles using deep mode |
 | --deep-snapshot | No | stash | V1: `stash` only |
@@ -38,12 +56,12 @@ Autonomous multi-cycle theorem proving. Runs cycles automatically with hard stop
 | --deep-max-files | No | 2 | Max files per deep invocation |
 | --deep-max-lines | No | 200 | Max added+deleted lines per deep invocation |
 | --deep-regression-gate | No | strict | `strict` or `off` (see coercion below) |
-| --batch-size | No | 2 | Sorries to attempt per cycle |
+| --batch-size | No | 2 | Sorries to attempt per cycle (advisory) |
 | --commit | No | auto | `auto` or `never` (`ask` coerced to `auto` — see note below) |
 | --golf | No | never | `prompt`, `auto`, or `never` |
-| --max-cycles | No | 20 | Hard stop: max total cycles |
-| --max-total-runtime | No | 120m | Hard stop: max total runtime |
-| --max-stuck-cycles | No | 3 | Hard stop: max consecutive stuck cycles |
+| --max-cycles | No | 20 | Session stop budget: max total cycles |
+| --max-total-runtime | No | 120m | Best-effort wall-clock session budget |
+| --max-stuck-cycles | No | 3 | Session stop budget: max consecutive stuck cycles |
 | --formalize | No | never | `never` \| `restage` \| `auto`. See Formalize Outer Loop. (deprecated: use `/lean4:autoformalize`) |
 | --source | No | — | File path, URL, or PDF for claim extraction. Required when `--formalize=auto`. (deprecated: use `/lean4:autoformalize`) |
 | --claim-select | No | — | `first` \| `named:"..."` \| `regex:"..."`. Queue-extraction filter applied once at startup. Required when `--formalize=auto`. Ignored without `--source`. (deprecated: use `/lean4:autoformalize`) |
@@ -149,14 +167,20 @@ The inner 6-phase cycle is unchanged. The outer loop reads the stuck-mode `next_
 
 ## Stop Conditions
 
+Autoprove checks stop budgets at cycle boundaries via `$LEAN4_SCRIPTS/cycle_tracker.sh tick --stuck=yes|no`.
+Limits are checked at cycle boundaries only — a long-running tool call within a cycle
+will not be interrupted.
+
 Autoprove stops when the **first** of these is satisfied:
 
 1. **Completion** — all sorries in scope are filled
-2. **Max stuck cycles** — `--max-stuck-cycles` consecutive stuck cycles (default: 3)
-3. **Max cycles** — `--max-cycles` total cycles reached (default: 20)
-4. **Max runtime** — `--max-total-runtime` elapsed (default: 120m)
+2. **Max stuck cycles** — `--max-stuck-cycles` consecutive stuck cycles (default: 3). Session-enforced via `$LEAN4_SCRIPTS/cycle_tracker.sh`.
+3. **Max cycles** — `--max-cycles` total cycles reached (default: 20). Session-enforced via `$LEAN4_SCRIPTS/cycle_tracker.sh`.
+4. **Max runtime** — best-effort wall-clock budget reached (`--max-total-runtime`, default: 120m). Checked at cycle boundaries and deep preflight.
 5. **Manual user stop** — user interrupts
 6. **Queue empty** — all claims attempted; expected completion for `--formalize=auto` sessions
+
+See [Session Tracking](../skills/lean4/references/cycle-engine.md#session-tracking) for the cycle boundary protocol and enforcement levels.
 
 ## Structured Summary on Stop
 

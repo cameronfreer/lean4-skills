@@ -101,7 +101,7 @@ Or run `/lean4:doctor cleanup` for guided removal.
 7. git push                # Manual (safety guardrail)
 ```
 
-Or for unattended work: `/lean4:autoprove` (autonomous with stop rules).
+Or for unattended work: `/lean4:autoprove` (autonomous with explicit stop budgets).
 
 ## Key Differences
 
@@ -211,7 +211,7 @@ If you have external tooling or scripts that dispatch agents by the old names, u
 
 **`/lean4:autoprover` split into two commands:**
 - `/lean4:prove` — guided, cycle-by-cycle (asks before each cycle)
-- `/lean4:autoprove` — autonomous, with hard stop rules
+- `/lean4:autoprove` — autonomous, with explicit stop budgets
 
 Both share the same cycle engine and most flags. Key differences:
 - **prove-only:** `--deep=ask` (interactive prompt), `--planning=ask`, `--commit=ask` (per-commit confirmation)
