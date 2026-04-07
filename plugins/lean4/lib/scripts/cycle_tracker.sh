@@ -13,6 +13,7 @@ set -euo pipefail
 #
 # Subcommands:
 #   init   --max-cycles=N --max-stuck=N [--max-runtime=Xm] [--max-deep-per-cycle=N] [--max-consecutive-deep=N]
+#          Aliases (long user-facing forms): --max-stuck-cycles, --max-total-runtime, --max-consecutive-deep-cycles
 #   tick   --stuck=yes|no
 #   can-deep
 #   deep
@@ -241,10 +242,10 @@ cmd_init() {
   for arg in "$@"; do
     case "$arg" in
       --max-cycles=*) max_cycles="${arg#*=}" ;;
-      --max-stuck=*) max_stuck="${arg#*=}" ;;
-      --max-runtime=*) max_runtime="${arg#*=}" ;;
+      --max-stuck=*|--max-stuck-cycles=*) max_stuck="${arg#*=}" ;;
+      --max-runtime=*|--max-total-runtime=*) max_runtime="${arg#*=}" ;;
       --max-deep-per-cycle=*) max_deep_per_cycle="${arg#*=}" ;;
-      --max-consecutive-deep=*) max_consecutive_deep="${arg#*=}" ;;
+      --max-consecutive-deep=*|--max-consecutive-deep-cycles=*) max_consecutive_deep="${arg#*=}" ;;
       *) echo "error=unknown argument: $arg" >&2; exit 2 ;;
     esac
   done

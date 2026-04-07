@@ -30,7 +30,7 @@ Startup requirements:
 2. Refuse to start on startup validation errors.
 3. Call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" init` with resolved numeric
    values for `--max-cycles`, `--max-stuck-cycles`, `--max-total-runtime`,
-   `--max-deep-per-cycle`, and `--max-consecutive-deep-cycles`.
+   and `--max-deep-per-cycle`.
    A failed init (exit 2) is a startup validation error — do not proceed.
 4. The state file is the single source of truth for session counters.
    Read counters from `tick`/`status` output, not from conversational memory.

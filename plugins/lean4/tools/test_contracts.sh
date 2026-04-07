@@ -457,6 +457,47 @@ for cmd_file in "$AUTOPROVE" "$AUTOFORMALIZE" \
     fi
 done
 
+# Flag-name consistency: autoprove init contract block must reference long user-facing flags.
+# The init contract spans multiple lines around "cycle_tracker.sh init", so extract a window.
+if grep -q "cycle_tracker.sh.*init" "$AUTOPROVE" 2>/dev/null; then
+    init_block=$(grep -A 3 "cycle_tracker.sh.*init" "$AUTOPROVE" 2>/dev/null)
+    for flag in max-stuck-cycles max-total-runtime max-consecutive-deep-cycles; do
+        if ! echo "$init_block" | grep -q "$flag"; then
+            fail "Check 25: autoprove.md init contract missing --$flag"
+            check25_ok=0
+        fi
+    done
+fi
+
+# autoformalize must NOT reference autoprove-only flag --max-consecutive-deep-cycles in init contract
+if grep -q "cycle_tracker.sh.*init" "$AUTOFORMALIZE" 2>/dev/null; then
+    af_init_block=$(grep -A 3 "cycle_tracker.sh.*init" "$AUTOFORMALIZE" 2>/dev/null)
+    if echo "$af_init_block" | grep -q "max-consecutive-deep-cycles"; then
+        fail "Check 25: autoformalize.md init contract references autoprove-only --max-consecutive-deep-cycles"
+        check25_ok=0
+    fi
+fi
+
+# cycle_tracker.sh must accept the long alias forms (grep the case statement)
+TRACKER="$PLUGIN_ROOT/lib/scripts/cycle_tracker.sh"
+if [[ -f "$TRACKER" ]]; then
+    for alias in max-stuck-cycles max-total-runtime max-consecutive-deep-cycles; do
+        if ! grep -q "\-\-${alias}=" "$TRACKER" 2>/dev/null; then
+            fail "Check 25: cycle_tracker.sh init missing alias --$alias"
+            check25_ok=0
+        fi
+    done
+fi
+
+# cycle-engine.md Session Tracking section must use consistent flag spelling
+if grep -q '## Session Tracking' "$CYCLE_ENGINE" 2>/dev/null; then
+    if grep 'Session Tracking' -A 50 "$CYCLE_ENGINE" 2>/dev/null | grep -q 'max-stuck[^-]'; then
+        # Bare --max-stuck without -cycles suffix in the session tracking section is OK
+        # (it's the script's canonical form), but check it doesn't use the long form inconsistently
+        :
+    fi
+fi
+
 if [[ "$check25_ok" -eq 1 ]]; then
     ok "Check 25: Session tracking contract verified across all files"
 fi

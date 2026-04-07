@@ -867,6 +867,59 @@ cleanup_session
 
 # =========================================================================
 echo ""
+echo "-- Init flag aliases --"
+
+# Long user-facing form: --max-stuck-cycles
+run init --max-cycles=5 --max-stuck-cycles=3
+assert_exit "--max-stuck-cycles alias accepted" 0
+SID="$LAST_OUT"; export LEAN4_SESSION_ID="$SID"
+FILE=$(state_file)
+VAL=$(read_field "$FILE" "max_stuck")
+if [[ "$VAL" == "3" ]]; then echo "  PASS: --max-stuck-cycles=3 → max_stuck=3"; (( ++PASS )); else echo "  FAIL: max_stuck=$VAL, expected 3"; (( ++FAIL )); fi
+cleanup_session
+
+# Long user-facing form: --max-total-runtime
+run init --max-cycles=5 --max-stuck=2 --max-total-runtime=60m
+assert_exit "--max-total-runtime alias accepted" 0
+SID="$LAST_OUT"; export LEAN4_SESSION_ID="$SID"
+FILE=$(state_file)
+VAL=$(read_field "$FILE" "max_runtime_seconds")
+if [[ "$VAL" == "3600" ]]; then echo "  PASS: --max-total-runtime=60m → 3600s"; (( ++PASS )); else echo "  FAIL: max_runtime_seconds=$VAL, expected 3600"; (( ++FAIL )); fi
+cleanup_session
+
+# Long user-facing form: --max-consecutive-deep-cycles
+run init --max-cycles=5 --max-stuck=2 --max-consecutive-deep-cycles=4
+assert_exit "--max-consecutive-deep-cycles alias accepted" 0
+SID="$LAST_OUT"; export LEAN4_SESSION_ID="$SID"
+FILE=$(state_file)
+VAL=$(read_field "$FILE" "max_consecutive_deep")
+if [[ "$VAL" == "4" ]]; then echo "  PASS: --max-consecutive-deep-cycles=4 → max_consecutive_deep=4"; (( ++PASS )); else echo "  FAIL: max_consecutive_deep=$VAL, expected 4"; (( ++FAIL )); fi
+cleanup_session
+
+# Mixed short/long aliases in a single init call
+run init --max-cycles=10 --max-stuck-cycles=2 --max-total-runtime=30m --max-consecutive-deep-cycles=3
+assert_exit "mixed short/long aliases accepted" 0
+SID="$LAST_OUT"; export LEAN4_SESSION_ID="$SID"
+FILE=$(state_file)
+V1=$(read_field "$FILE" "max_stuck")
+V2=$(read_field "$FILE" "max_runtime_seconds")
+V3=$(read_field "$FILE" "max_consecutive_deep")
+if [[ "$V1" == "2" && "$V2" == "1800" && "$V3" == "3" ]]; then
+  echo "  PASS: mixed aliases all parsed correctly"
+  (( ++PASS ))
+else
+  echo "  FAIL: mixed aliases: max_stuck=$V1 (exp 2), max_runtime_seconds=$V2 (exp 1800), max_consecutive_deep=$V3 (exp 3)"
+  (( ++FAIL ))
+fi
+cleanup_session
+
+# Unknown args still fail (regression guard)
+run init --max-cycles=5 --max-stuck=2 --max-bogus=7
+assert_exit "unknown --max-bogus still rejected" 2
+assert_contains "error mentions unknown" "unknown"
+
+# =========================================================================
+echo ""
 echo "-- Duration parsing --"
 
 # Minutes (default)
