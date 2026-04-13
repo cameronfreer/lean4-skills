@@ -235,8 +235,8 @@ FLAG_DEEP_SORRY_BUDGET = FlagSpec(
 FLAG_DEEP_TIME_BUDGET = FlagSpec(
     name="--deep-time-budget",
     type="duration",
-    default=10,  # 10 minutes
-    enforcement="best-effort",
+    default="10m",
+    enforcement="advisory",
     notes="Advisory: scopes deep-mode subagent work. Not tracked or enforced.",
 )
 

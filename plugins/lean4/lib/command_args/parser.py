@@ -211,19 +211,24 @@ def _validate_type(fs: FlagSpec, raw_value: object) -> tuple[object, str | None]
 
 
 def _parse_duration(flag_name: str, raw_value: object) -> tuple[object, str | None]:
-    """Parse a duration string like '10m', '2h', '120s' into minutes (int)."""
+    """Parse a duration string like '30s', '10m', '2h' into seconds (int).
+
+    Seconds are the native unit of cycle_tracker.sh, which accepts and
+    preserves second-level budgets. Storing in seconds avoids the lossy
+    floor-to-minutes bug where 30s → 0m effectively disables the cap.
+    """
     s = str(raw_value).strip().lower()
     if not s:
         return raw_value, f"{flag_name}: empty duration"
 
-    # Try pure numeric (interpreted as minutes)
+    # Try pure numeric (interpreted as seconds for consistency)
     try:
         return int(s), None
     except ValueError:
         pass
 
-    # Try suffix-based
-    suffixes = {"s": 1 / 60, "m": 1, "h": 60}
+    # Try suffix-based — all converted to seconds
+    suffixes = {"s": 1, "m": 60, "h": 3600}
     for suffix, multiplier in suffixes.items():
         if s.endswith(suffix):
             try:

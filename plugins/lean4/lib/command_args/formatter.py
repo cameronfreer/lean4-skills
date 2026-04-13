@@ -129,12 +129,21 @@ def _extract_block_lines(text: str) -> list[str]:
 
 
 def _format_value(v: object) -> str:
-    """Format a value for the block. None becomes 'None', strings are unquoted."""
+    """Format a value for the block with unambiguous type encoding.
+
+    Strings are double-quoted so they survive round-trip without being
+    reinterpreted as None, bool, or int. This makes the block a truly
+    lossless serialization: draft --source=123 stays the string "123",
+    not the integer 123.
+    """
     if v is None:
         return "None"
     if isinstance(v, bool):
         return str(v).lower()
-    return str(v)
+    if isinstance(v, int):
+        return str(v)
+    # All strings are quoted to prevent ambiguity with None/true/false/int
+    return f'"{v}"'
 
 
 def _parse_value(s: str) -> object:
@@ -145,6 +154,9 @@ def _parse_value(s: str) -> object:
         return True
     if s == "false":
         return False
+    # Quoted string — strip quotes and return as str
+    if len(s) >= 2 and s.startswith('"') and s.endswith('"'):
+        return s[1:-1]
     try:
         return int(s)
     except ValueError:

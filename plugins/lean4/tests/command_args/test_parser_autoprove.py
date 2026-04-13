@@ -121,7 +121,23 @@ class TestAutoproveTypeErrors(unittest.TestCase):
     def test_valid_duration_minutes(self):
         result = parse_invocation(SPEC, "--max-total-runtime=15m", cwd=CWD)
         self.assertEqual(result.errors, [])
-        self.assertEqual(result.options["--max-total-runtime"].value, 15)
+        self.assertEqual(result.options["--max-total-runtime"].value, 900)  # 15m = 900s
+
+    def test_valid_duration_seconds(self):
+        result = parse_invocation(SPEC, "--max-total-runtime=30s", cwd=CWD)
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.options["--max-total-runtime"].value, 30)  # 30s preserved
+
+    def test_valid_duration_90s(self):
+        """Sub-minute budgets must survive — tracker accepts and enforces seconds."""
+        result = parse_invocation(SPEC, "--max-total-runtime=90s", cwd=CWD)
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.options["--max-total-runtime"].value, 90)  # 90s preserved
+
+    def test_valid_duration_hours(self):
+        result = parse_invocation(SPEC, "--max-total-runtime=2h", cwd=CWD)
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.options["--max-total-runtime"].value, 7200)  # 2h = 7200s
 
 
 class TestAutoproveUnknownFlag(unittest.TestCase):

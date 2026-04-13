@@ -138,5 +138,64 @@ class TestFormatterRoundTrip(unittest.TestCase):
         self.assertEqual(lines[-1], "```")
 
 
+    def test_round_trip_string_that_looks_like_int(self):
+        """String '123' must not become int 123 after round-trip (lossless)."""
+        result = ParseResult(
+            command="draft",
+            raw_tail='--source=123 "x"',
+            positionals={"topic": "x"},
+            options={
+                "--source": ResolvedFlag(
+                    value="123", source="explicit",
+                    enforcement="startup-validated",
+                ),
+                "--mode": ResolvedFlag(
+                    value="skeleton", source="default",
+                    enforcement="startup-validated",
+                ),
+            },
+        )
+        block = format_validated_block(result)
+        parsed = parse_validated_block(block)
+        self.assertEqual(parsed.options["--source"].value, "123")
+        self.assertIsInstance(parsed.options["--source"].value, str)
+
+    def test_round_trip_string_none_literal(self):
+        """String 'None' (as a value) must not become Python None."""
+        result = ParseResult(
+            command="draft",
+            raw_tail='"x"',
+            positionals={"topic": "x"},
+            options={
+                "--source": ResolvedFlag(
+                    value="None", source="explicit",
+                    enforcement="startup-validated",
+                ),
+            },
+        )
+        block = format_validated_block(result)
+        parsed = parse_validated_block(block)
+        self.assertEqual(parsed.options["--source"].value, "None")
+        self.assertIsInstance(parsed.options["--source"].value, str)
+
+    def test_round_trip_string_true_literal(self):
+        """String 'true' must not become Python True."""
+        result = ParseResult(
+            command="draft",
+            raw_tail='"x"',
+            positionals={"topic": "x"},
+            options={
+                "--source": ResolvedFlag(
+                    value="true", source="explicit",
+                    enforcement="startup-validated",
+                ),
+            },
+        )
+        block = format_validated_block(result)
+        parsed = parse_validated_block(block)
+        self.assertEqual(parsed.options["--source"].value, "true")
+        self.assertIsInstance(parsed.options["--source"].value, str)
+
+
 if __name__ == "__main__":
     unittest.main()
