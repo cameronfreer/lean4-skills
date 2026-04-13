@@ -25,9 +25,12 @@ others all use the same core skill; only the invocation surface differs.
 
 Typical session: `draft` (or `formalize` / `autoformalize`) → `prove` (or `autoprove`) → `review` → `refactor` → `golf` → `checkpoint` → `git push`.
 
-CLI-like inputs are model-parsed at command startup, not host-parsed. Commands
-must announce resolved inputs, reject invalid startup configs, and treat
-wall-clock budgets as best-effort rather than host-enforced timeouts. See the
+CLI-like inputs are validated by a host-agnostic parser
+(`plugins/lean4/lib/command_args/`) for the six parameter-heavy commands. The
+Claude Code adapter pre-validates `/lean4:*` prompts via a `UserPromptSubmit`
+hook; other hosts fall back to model-parsed startup. Commands must announce
+resolved inputs, reject invalid startup configs, and treat wall-clock budgets
+as best-effort rather than host-enforced timeouts. See the
 [Command Invocation Contract](plugins/lean4/skills/lean4/references/command-invocation.md).
 
 ## How It Works

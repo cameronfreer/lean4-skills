@@ -2,6 +2,7 @@
 name: autoformalize
 description: Autonomous end-to-end formalization from informal sources
 user_invocable: true
+argument-hint: '--source=PATH --claim-select=POLICY --out=PATH [--max-cycles=N] [--commit=auto|checkpoint]'
 ---
 
 # Lean4 Autoformalize
@@ -18,10 +19,19 @@ Autonomous end-to-end formalization: extracts claims from a source, drafts Lean 
 
 ## Invocation Contract
 
-Slash-command inputs are raw text. Before extracting claims or drafting
-anything, parse the raw invocation text using this command's input table and
-the
+Interpret this command's inputs per the
 [Command Invocation Contract](../skills/lean4/references/command-invocation.md).
+
+**Primary path (hook-validated):** If a `validated-invocation` block for this
+command appears in context, treat it as the authoritative interpretation of
+parser-decidable inputs and do **not** re-parse the raw invocation text for
+those inputs. Start by reading all parser-decided fields from the block. Emit
+the final **Resolved Inputs** summary from the block values.
+See [Validated Invocation Block](../skills/lean4/references/command-invocation.md#validated-invocation-block-host-provided).
+
+**Fallback path (other hosts):** If no `validated-invocation` block is present,
+parse the raw invocation text against this command's input table before
+extracting claims or drafting anything.
 
 Startup requirements:
 
