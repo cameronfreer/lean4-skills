@@ -145,6 +145,21 @@ class TestAutoproveTypeErrors(unittest.TestCase):
         self.assertEqual(result.errors, [])
         self.assertEqual(result.options["--max-total-runtime"].value, "120m")
 
+    def test_fractional_hours_rejected(self):
+        """1.5h is rejected — tracker only accepts integer prefixes."""
+        result = parse_invocation(SPEC, "--max-total-runtime=1.5h", cwd=CWD)
+        self.assertTrue(len(result.errors) > 0)
+        self.assertIn("fractional", result.errors[0].lower())
+
+    def test_fractional_minutes_rejected(self):
+        result = parse_invocation(SPEC, "--max-total-runtime=0.5m", cwd=CWD)
+        self.assertTrue(len(result.errors) > 0)
+        self.assertIn("fractional", result.errors[0].lower())
+
+    def test_dot_prefix_rejected(self):
+        result = parse_invocation(SPEC, "--max-total-runtime=.5h", cwd=CWD)
+        self.assertTrue(len(result.errors) > 0)
+
 
 class TestAutoproveUnknownFlag(unittest.TestCase):
     """Unknown flags produce errors."""

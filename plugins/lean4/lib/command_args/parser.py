@@ -243,13 +243,20 @@ def _parse_duration(flag_name: str, raw_value: object) -> tuple[object, str | No
     except ValueError:
         pass
 
-    # Try suffix-based — validate and pass through with original suffix.
+    # Try suffix-based — validate as integer prefix + suffix to match
+    # cycle_tracker.sh's _parse_duration which requires ^[0-9]+[mshMSH]?$.
     valid_suffixes = {"s", "m", "h"}
     if s[-1] in valid_suffixes:
-        try:
-            float(s[:-1])
-            # Valid — return as-is (already has explicit suffix)
+        prefix = s[:-1]
+        if prefix.isdigit():
             return s, None
+        # Reject fractional values — tracker only accepts integers.
+        try:
+            float(prefix)
+            return raw_value, (
+                f"{flag_name}: fractional duration {raw_value!r} not supported; "
+                "use an integer with s/m/h suffix (e.g. 90s, 15m, 2h)"
+            )
         except ValueError:
             pass
 
