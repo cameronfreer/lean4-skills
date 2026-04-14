@@ -2,7 +2,7 @@
 name: prove
 description: Guided cycle-by-cycle theorem proving with explicit checkpoints
 user_invocable: true
-argument-hint: '[scope] [--planning=ask|skip|always] [--deep=never|stuck|ask] [--commit=ask|auto|checkpoint]'
+argument-hint: '[scope] [--planning=ask|on|off] [--deep=never|stuck|ask] [--commit=ask|auto|never]'
 ---
 
 # Lean4 Prove

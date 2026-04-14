@@ -2,7 +2,7 @@
 name: formalize
 description: Interactive formalization — drafting plus guided proving
 user_invocable: true
-argument-hint: '[topic] [--rigor=axiomatic|sorry-free|best-effort] [--source=PATH] [--output=chat|scratch|file]'
+argument-hint: '[topic] [--rigor=checked|sketch|axiomatic] [--source=PATH] [--output=chat|scratch|file]'
 ---
 
 # Lean4 Formalize

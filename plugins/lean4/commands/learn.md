@@ -2,7 +2,7 @@
 name: learn
 description: Interactive teaching and mathlib exploration
 user_invocable: true
-argument-hint: '[topic] [--mode=explore|guided|drill|mathlib] [--style=lecture|socratic|game] [--source=PATH]'
+argument-hint: '[topic] [--mode=auto|repo|mathlib] [--style=tour|socratic|exercise|game] [--source=PATH]'
 ---
 
 # Lean4 Learn

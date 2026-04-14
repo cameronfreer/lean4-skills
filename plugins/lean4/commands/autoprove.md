@@ -2,7 +2,7 @@
 name: autoprove
 description: Autonomous multi-cycle theorem proving with explicit stop budgets
 user_invocable: true
-argument-hint: '[scope] [--max-cycles=N] [--max-total-runtime=DURATION] [--commit=auto|checkpoint] [--deep=never|stuck]'
+argument-hint: '[scope] [--max-cycles=N] [--max-total-runtime=DURATION] [--commit=auto|never] [--deep=never|stuck]'
 ---
 
 # Lean4 Autoprove

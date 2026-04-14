@@ -58,7 +58,16 @@ def parse_invocation(spec: CommandSpec, raw_tail: str, *, cwd: str) -> ParseResu
                 continue
             canonical_name = canonical_spec.name
             if canonical_spec.type == "bool":
-                raw_flags[canonical_name] = True
+                # Bool flags: if next token looks like a bool value, consume it.
+                # This handles both --flag (presence = true) and --flag=false
+                # (expanded to --flag false by normalize_flags).
+                if i + 1 < len(tokens) and tokens[i + 1].lower() in (
+                    "true", "false", "1", "0", "yes", "no",
+                ):
+                    raw_flags[canonical_name] = tokens[i + 1]
+                    i += 1
+                else:
+                    raw_flags[canonical_name] = True
             else:
                 if i + 1 >= len(tokens):
                     result.errors.append(f"Flag {token} requires a value")

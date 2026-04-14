@@ -2,7 +2,7 @@
 name: autoformalize
 description: Autonomous end-to-end formalization from informal sources
 user_invocable: true
-argument-hint: '--source=PATH --claim-select=POLICY --out=PATH [--max-cycles=N] [--commit=auto|checkpoint]'
+argument-hint: '--source=PATH --claim-select=POLICY --out=PATH [--max-cycles=N] [--commit=auto|never]'
 ---
 
 # Lean4 Autoformalize

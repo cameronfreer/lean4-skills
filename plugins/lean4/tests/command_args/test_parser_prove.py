@@ -100,5 +100,31 @@ class TestProveNoCrossValidations(unittest.TestCase):
         self.assertEqual(result.options["--deep"].value, "stuck")
 
 
+class TestProveBooleanFlags(unittest.TestCase):
+    """Boolean flags support explicit =false negation."""
+
+    def test_repair_only_false(self):
+        """--repair-only=false must not produce a stray positional error."""
+        result = parse_invocation(SPEC, "Foo.lean --repair-only=false", cwd=CWD)
+        self.assertEqual(result.errors, [])
+        self.assertFalse(result.options["--repair-only"].value)
+
+    def test_repair_only_true(self):
+        result = parse_invocation(SPEC, "Foo.lean --repair-only=true", cwd=CWD)
+        self.assertEqual(result.errors, [])
+        self.assertTrue(result.options["--repair-only"].value)
+
+    def test_repair_only_presence(self):
+        """Bare --repair-only (no value) means true."""
+        result = parse_invocation(SPEC, "Foo.lean --repair-only", cwd=CWD)
+        self.assertEqual(result.errors, [])
+        self.assertTrue(result.options["--repair-only"].value)
+
+    def test_checkpoint_false(self):
+        result = parse_invocation(SPEC, "--checkpoint=false", cwd=CWD)
+        self.assertEqual(result.errors, [])
+        self.assertFalse(result.options["--checkpoint"].value)
+
+
 if __name__ == "__main__":
     unittest.main()
