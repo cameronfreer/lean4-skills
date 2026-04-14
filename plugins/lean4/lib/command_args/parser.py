@@ -220,30 +220,37 @@ def _validate_type(fs: FlagSpec, raw_value: object) -> tuple[object, str | None]
 
 
 def _parse_duration(flag_name: str, raw_value: object) -> tuple[object, str | None]:
-    """Parse a duration string like '30s', '10m', '2h' into seconds (int).
+    """Validate and normalize a duration string like '30s', '10m', '2h'.
 
-    Seconds are the native unit of cycle_tracker.sh, which accepts and
-    preserves second-level budgets. Storing in seconds avoids the lossy
-    floor-to-minutes bug where 30s → 0m effectively disables the cap.
+    Returns the duration as a suffix-bearing string (e.g. "900s", "15m")
+    so the downstream consumer (cycle_tracker.sh) always receives an
+    explicit unit. cycle_tracker.sh interprets bare numbers as minutes,
+    so we never emit bare integers — that avoids the ambiguity where
+    the parser means seconds but the tracker reads minutes.
+
+    Accepted input forms: '30s', '15m', '2h', bare number (= minutes,
+    normalized to '<N>m').
     """
     s = str(raw_value).strip().lower()
     if not s:
         return raw_value, f"{flag_name}: empty duration"
 
-    # Try pure numeric (interpreted as seconds for consistency)
+    # Try pure numeric — interpreted as minutes (matches tracker convention),
+    # normalized to explicit '<N>m' suffix.
     try:
-        return int(s), None
+        n = int(s)
+        return f"{n}m", None
     except ValueError:
         pass
 
-    # Try suffix-based — all converted to seconds
-    suffixes = {"s": 1, "m": 60, "h": 3600}
-    for suffix, multiplier in suffixes.items():
-        if s.endswith(suffix):
-            try:
-                num = float(s[:-1])
-                return int(num * multiplier), None
-            except ValueError:
-                pass
+    # Try suffix-based — validate and pass through with original suffix.
+    valid_suffixes = {"s", "m", "h"}
+    if s[-1] in valid_suffixes:
+        try:
+            float(s[:-1])
+            # Valid — return as-is (already has explicit suffix)
+            return s, None
+        except ValueError:
+            pass
 
     return raw_value, f"{flag_name}: invalid duration {raw_value!r}; expected e.g. '10m', '2h', '120s'"
