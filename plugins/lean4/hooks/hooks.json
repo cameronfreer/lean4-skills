@@ -5,6 +5,9 @@
       "matcher": "startup",
       "hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/bootstrap.sh", "timeout": 10}]
     }],
+    "UserPromptSubmit": [{
+      "hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/validate_user_prompt.py", "timeout": 5}]
+    }],
     "PreToolUse": [{
       "matcher": "Bash",
       "hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/guardrails.sh", "timeout": 5}]

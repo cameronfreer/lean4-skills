@@ -35,10 +35,23 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
 | `/lean4:doctor` | Diagnostics, cleanup, and migration help |
 
-Slash-command inputs are raw text interpreted by the model, not host-parsed
-CLI flags. Commands with flags must parse and announce resolved inputs before
-acting; `--max-total-runtime` is a best-effort wall-clock budget, not a
-host-enforced timeout. See [command-invocation.md](references/command-invocation.md).
+This plugin ships a host-agnostic parser (`lib/command_args/`) that covers the
+parser-decidable startup rules of the six parameter-heavy commands (`draft`,
+`learn`, `formalize`, `autoformalize`, `prove`, `autoprove`). A small set of
+documented startup rules in these commands depend on runtime context (repo-
+level search, interactive prompting) and are applied by the command after
+reading the parser's output. The other commands (`checkpoint`, `review`,
+`refactor`, `golf`, `doctor`) remain model-parsed.
+When a host adapter installs the `UserPromptSubmit` hook, the parser runs
+before the model sees a `/lean4:*` prompt matching one of the six covered
+commands, injects a `validated-invocation` block into context, and rejects
+invalid invocations at the hook level; invocations of the other commands pass
+through unchanged. Hosts without the hook fall back to model-parsed startup
+via the shared [command-invocation.md](references/command-invocation.md)
+contract.
+Commands always announce resolved inputs, reject invalid startup configs before
+doing work, and treat wall-clock budgets like `--max-total-runtime` as
+best-effort.
 
 ### Which Command?
 

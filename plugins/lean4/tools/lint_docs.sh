@@ -1543,8 +1543,11 @@ check_command_invocation_contract() {
         return
     fi
 
-    if ! grep -qi 'model-parsed, not host-parsed' "$ref" 2>/dev/null; then
-        warn "command-invocation.md: Missing model-parsed vs host-parsed clarification"
+    if ! grep -q '^## Validated Invocation Block' "$ref" 2>/dev/null; then
+        warn "command-invocation.md: Missing 'Validated Invocation Block' section"
+    fi
+    if ! grep -q '^## Adapter Implementations' "$ref" 2>/dev/null; then
+        warn "command-invocation.md: Missing 'Adapter Implementations' section"
     fi
 
     for cmd in draft formalize autoformalize prove autoprove learn; do
@@ -1556,6 +1559,12 @@ check_command_invocation_contract() {
         fi
         if ! grep -q '^## Invocation Contract' "$file" 2>/dev/null; then
             warn "$base: Missing Invocation Contract section"
+        fi
+        if ! grep -q '\*\*Primary path (hook-validated):\*\*' "$file" 2>/dev/null; then
+            warn "$base: Missing 'Primary path (hook-validated):' marker — Invocation Contract rewrite skipped?"
+        fi
+        if grep -q '^Slash-command inputs are raw text' "$file" 2>/dev/null; then
+            warn "$base: Still contains legacy 'Slash-command inputs are raw text' intro — Invocation Contract rewrite incomplete"
         fi
     done
 

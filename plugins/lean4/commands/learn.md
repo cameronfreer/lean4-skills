@@ -2,6 +2,7 @@
 name: learn
 description: Interactive teaching and mathlib exploration
 user_invocable: true
+argument-hint: '[topic] [--mode=auto|repo|mathlib] [--style=tour|socratic|exercise|game] [--source=PATH]'
 ---
 
 # Lean4 Learn
@@ -25,9 +26,22 @@ Interactive teaching and mathlib exploration. Adapts to beginner, intermediate, 
 
 ## Invocation Contract
 
-Slash-command inputs are raw text. Before discovery begins, parse the raw
-invocation text using this command's input table and the
+Interpret this command's inputs per the
 [Command Invocation Contract](../skills/lean4/references/command-invocation.md).
+
+**Primary path (hook-validated):** If a `validated-invocation` block for this
+command appears in context, treat it as the authoritative interpretation of
+parser-decidable inputs and do **not** re-parse the raw invocation text for
+those inputs. Start by reading all parser-decided fields from the block. Then,
+if this command has repo-dependent startup rules (the `--mode=mathlib` scope
+coercion depends on local-declaration resolution), apply them using runtime
+context (LSP, grep). Emit the final **Resolved Inputs** summary from the
+combined result.
+See [Validated Invocation Block](../skills/lean4/references/command-invocation.md#validated-invocation-block-host-provided).
+
+**Fallback path (other hosts):** If no `validated-invocation` block is present,
+parse the raw invocation text against this command's input table before
+discovery.
 
 Startup requirements:
 

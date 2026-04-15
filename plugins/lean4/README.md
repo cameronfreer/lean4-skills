@@ -40,10 +40,20 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 git push                   # Manual, after review
 ```
 
-CLI-like inputs are model-parsed at command startup, not host-parsed. Commands
-must echo resolved inputs, reject invalid startup configs before doing work, and
-treat wall-clock budgets as best-effort. See the
+This plugin ships a host-agnostic parser (`lib/command_args/`) that covers the
+parser-decidable startup rules of the six parameter-heavy commands. The Claude
+Code adapter pre-validates `/lean4:*` prompts via a `UserPromptSubmit` hook
+that reuses the same parser; other hosts MAY invoke it via
+`lib/scripts/parse_command_args.py` but otherwise fall back to model-parsed
+startup. Commands must announce resolved inputs, reject invalid startup configs
+before doing work, and treat wall-clock budgets as best-effort. See the
 [Command Invocation Contract](skills/lean4/references/command-invocation.md).
+
+To run the parser standalone (non-Claude hosts, scripting):
+
+    python3 plugins/lean4/lib/scripts/parse_command_args.py draft -- "topic" --mode=attempt
+
+Exits 0 on success (JSON to stdout), 2 on validation errors (error JSON to stdout).
 
 ## How It Works
 

@@ -277,6 +277,19 @@ run init --max-cycles=5 --max-stuck=2 --max-runtime=foo
 assert_exit "--max-runtime=foo rejected" 2
 assert_contains "error: duration format" "duration format"
 
+# Uppercase suffix (Bash 3.2 portability — ${suffix,,} was Bash 4+ only)
+init_session --max-cycles=5 --max-stuck=2 --max-runtime=60M
+FILE=$(state_file)
+RUNTIME=$(read_field "$FILE" "max_runtime_seconds")
+if [[ "$RUNTIME" == "3600" ]]; then
+  echo "  PASS: --max-runtime=60M → 3600 seconds (uppercase suffix)"
+  (( ++PASS ))
+else
+  echo "  FAIL: --max-runtime=60M → $RUNTIME, expected 3600"
+  (( ++FAIL ))
+fi
+cleanup_session
+
 # Valid optional omission
 init_session --max-cycles=5 --max-stuck=2
 FILE=$(state_file)
