@@ -269,10 +269,15 @@ cmd_init() {
   # Clean stale sessions (>24h, owned by current user)
   find /tmp -maxdepth 1 -name 'lean4-session-*.json' -user "$(id -u)" -mmin +1440 -delete 2>/dev/null || true
 
-  # Create state file via mktemp (no race)
+  # Create state file via mktemp (no race).
+  # BSD mktemp (macOS) requires the template to END with X's — a .json
+  # suffix after the X's is treated as a literal path, not a template.
+  # So we create without .json, then rename.
   _detect_backend
-  local state_file
-  state_file=$(mktemp /tmp/lean4-session-XXXXXX.json)
+  local state_file tmp_file
+  tmp_file=$(mktemp /tmp/lean4-session-XXXXXX)
+  state_file="${tmp_file}.json"
+  mv "$tmp_file" "$state_file"
   local session_id
   session_id=$(basename "$state_file" .json)
 
