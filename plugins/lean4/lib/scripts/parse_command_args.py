@@ -28,16 +28,27 @@ def main() -> int:
         print(__doc__, file=sys.stderr)
         return 1
 
-    # Parse CLI: <command> [--cwd PATH] -- <raw tail>
+    # Parse CLI: <command> [--cwd PATH] -- <single raw tail string>
+    # The raw tail is passed as exactly ONE shell argument after "--" so that
+    # quoting boundaries are preserved. Using multiple args after "--" would
+    # lose the original quoting (e.g. -- "Theorem 1" becomes two words).
     command_name = args[0]
     cwd = os.getcwd()
-    raw_tail_parts: list[str] = []
+    raw_tail: str | None = None
     past_separator = False
 
     i = 1
     while i < len(args):
         if past_separator:
-            raw_tail_parts.append(args[i])
+            if raw_tail is not None:
+                print(
+                    "Error: expected exactly one argument after '--' (the raw tail "
+                    "as a single string). Got multiple arguments. Wrap the tail in "
+                    "quotes: -- '\"Theorem 1\" --mode=attempt'",
+                    file=sys.stderr,
+                )
+                return 1
+            raw_tail = args[i]
         elif args[i] == "--":
             past_separator = True
         elif args[i] == "--cwd" and i + 1 < len(args):
@@ -52,7 +63,8 @@ def main() -> int:
         print("Error: missing '--' separator before raw tail", file=sys.stderr)
         return 1
 
-    raw_tail = " ".join(raw_tail_parts)
+    if raw_tail is None:
+        raw_tail = ""
 
     # Look up spec
     spec = COMMAND_SPECS.get(command_name)

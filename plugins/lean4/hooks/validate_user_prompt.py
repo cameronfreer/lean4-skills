@@ -60,8 +60,11 @@ def main() -> None:
     if not prompt.startswith("/lean4:"):
         return _passthrough()
 
-    # 3. Extract command name
-    head, _, tail = prompt.partition(" ")
+    # 3. Extract command name — split on any whitespace (space, tab, newline)
+    # so /lean4:draft<TAB>... and /lean4:draft<NEWLINE>... are handled.
+    parts = prompt.split(None, 1)
+    head = parts[0]
+    tail = parts[1] if len(parts) > 1 else ""
     name = head[len("/lean4:"):]
     if not name:
         return _passthrough()

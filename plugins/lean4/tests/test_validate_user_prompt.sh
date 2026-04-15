@@ -346,6 +346,27 @@ run_test_json_contains \
   "coerced"
 
 # ---------------------------------------------------------------------------
+# Whitespace separator regressions
+# ---------------------------------------------------------------------------
+
+echo ""
+echo "-- Whitespace separator regressions --"
+
+# Tab separator between command and tail
+run_test_json \
+  "23. Tab separator: /lean4:draft<TAB>\"x\"" \
+  "{\"prompt\":\"/lean4:draft\t\\\"x\\\"\",\"cwd\":\"/tmp\"}" \
+  ".hookSpecificOutput.hookEventName" \
+  "UserPromptSubmit"
+
+# Newline separator between command and tail
+run_test_json \
+  "24. Newline separator: /lean4:draft<NL>\"x\"" \
+  "{\"prompt\":\"/lean4:draft\n\\\"x\\\"\",\"cwd\":\"/tmp\"}" \
+  ".hookSpecificOutput.hookEventName" \
+  "UserPromptSubmit"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 
