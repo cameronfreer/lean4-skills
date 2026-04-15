@@ -185,7 +185,7 @@ if [[ "$issue_count" -ge 6 ]]; then
   echo "  PASS: Multiple checks fired ($issue_count issues)"
   ((PASS++)) || true
 else
-  echo "  FAIL: Expected ≥4 issues, got $issue_count"
+  echo "  FAIL: Expected ≥6 issues, got $issue_count"
   ((FAIL++)) || true
 fi
 rm "$TMPDIR_ROOT/lib/scripts/bad_all.sh"
