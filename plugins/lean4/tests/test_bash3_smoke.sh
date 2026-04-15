@@ -1,12 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
-# Runtime smoke test for cycle_tracker.sh under /bin/bash.
+# System /bin/bash smoke test for cycle_tracker.sh.
 #
-# On macOS, /bin/bash is 3.2. On Linux, it's typically 5.x+.
-# Either way, this test proves the tracker runs under the system's
-# default /bin/bash — catching portability issues like ${suffix,,}
-# and BSD mktemp that static lint alone cannot detect.
+# On macOS, /bin/bash is 3.2 with BSD userland — this test exercises
+# both Bash-syntax and BSD-tool portability (e.g. mktemp) on that
+# platform. On Linux, /bin/bash is typically 5.x+ with GNU userland,
+# so the test still validates Bash syntax but does NOT exercise
+# BSD-specific behavior. BSD/macOS semantics are only fully covered
+# when this test runs on macOS.
 #
 # Skips gracefully if /bin/bash doesn't exist (e.g. minimal containers).
 
