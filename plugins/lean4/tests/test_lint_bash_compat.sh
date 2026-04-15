@@ -127,7 +127,39 @@ assert_exit "declare -n detected" 1 "$exit_code"
 rm "$TMPDIR_ROOT/lib/scripts/bad_nameref.sh"
 
 # ---------------------------------------------------------------------------
-# Test 7: All constructs in one file → all caught
+# Test 7: coproc → caught
+# ---------------------------------------------------------------------------
+echo ""
+echo "-- Bash 4+ construct: coproc --"
+
+cat > "$TMPDIR_ROOT/lib/scripts/bad_coproc.sh" <<'PROBE'
+#!/bin/bash
+coproc mycoproc { cat; }
+PROBE
+
+exit_code=0
+bash "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
+assert_exit "coproc detected" 1 "$exit_code"
+rm "$TMPDIR_ROOT/lib/scripts/bad_coproc.sh"
+
+# ---------------------------------------------------------------------------
+# Test 8: ${var@Q} → caught
+# ---------------------------------------------------------------------------
+echo ""
+echo '-- Bash 4.4+ construct: ${var@Q} --'
+
+cat > "$TMPDIR_ROOT/lib/scripts/bad_at_op.sh" <<'PROBE'
+#!/bin/bash
+echo "${myvar@Q}"
+PROBE
+
+exit_code=0
+bash "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
+assert_exit '${var@Q} detected' 1 "$exit_code"
+rm "$TMPDIR_ROOT/lib/scripts/bad_at_op.sh"
+
+# ---------------------------------------------------------------------------
+# Test 9: All constructs in one file → all caught
 # ---------------------------------------------------------------------------
 echo ""
 echo "-- Combined: all constructs in one file --"
@@ -139,6 +171,8 @@ declare -A mymap
 mapfile -t lines < /dev/null
 mktemp /tmp/lean4-session-XXXXXX.json
 declare -n ref=var
+coproc mycoproc { cat; }
+echo "${myvar@Q}"
 PROBE
 
 exit_code=0
@@ -147,7 +181,7 @@ assert_exit "Combined file detected" 1 "$exit_code"
 
 # Count that multiple checks fired
 issue_count=$(echo "$output" | grep -c '⚠️' || true)
-if [[ "$issue_count" -ge 4 ]]; then
+if [[ "$issue_count" -ge 6 ]]; then
   echo "  PASS: Multiple checks fired ($issue_count issues)"
   ((PASS++)) || true
 else

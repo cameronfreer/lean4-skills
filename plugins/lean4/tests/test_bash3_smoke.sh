@@ -128,6 +128,44 @@ assert_exit "stop after no-runtime init" 0
 cleanup
 
 # ---------------------------------------------------------------------------
+# Test 8: mktemp regression — two consecutive inits yield distinct non-literal IDs
+# ---------------------------------------------------------------------------
+echo ""
+echo "-- mktemp regression (BSD portability) --"
+
+run init --max-cycles=1 --max-stuck=1
+assert_exit "first init for mktemp check" 0
+ID1="$LAST_OUT"
+export LEAN4_SESSION_ID="$ID1"
+run stop
+cleanup
+
+run init --max-cycles=1 --max-stuck=1
+assert_exit "second init for mktemp check" 0
+ID2="$LAST_OUT"
+export LEAN4_SESSION_ID="$ID2"
+SESSION_ID="$ID2"
+run stop
+cleanup
+
+# The broken BSD mktemp produced the literal "lean4-session-XXXXXX" every time.
+if [[ "$ID1" == "lean4-session-XXXXXX" ]]; then
+  echo "  FAIL: first session ID is the literal template 'lean4-session-XXXXXX' — mktemp is broken"
+  ((FAIL++)) || true
+else
+  echo "  PASS: first session ID is not the literal template ($ID1)"
+  ((PASS++)) || true
+fi
+
+if [[ "$ID1" == "$ID2" ]]; then
+  echo "  FAIL: two consecutive inits produced the same session ID ($ID1) — mktemp not generating unique names"
+  ((FAIL++)) || true
+else
+  echo "  PASS: two consecutive inits produced distinct IDs ($ID1 vs $ID2)"
+  ((PASS++)) || true
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""
