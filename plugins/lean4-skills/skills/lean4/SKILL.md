@@ -27,31 +27,13 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | `/lean4:formalize` | Interactive formalization — drafting plus guided proving |
 | `/lean4:autoformalize` | Autonomous end-to-end formalization from informal sources |
 | `/lean4:prove` | Guided cycle-by-cycle theorem proving with explicit checkpoints |
-| `/lean4:autoprove` | Autonomous multi-cycle theorem proving with explicit stop budgets |
+| `/lean4:autoprove` | Autonomous multi-cycle theorem proving with hard stop rules |
 | `/lean4:checkpoint` | Save progress with a safe commit checkpoint |
 | `/lean4:review` | Read-only code review of Lean proofs |
 | `/lean4:refactor` | Leverage mathlib, extract helpers, simplify proof strategies |
 | `/lean4:golf` | Improve Lean proofs for directness, clarity, performance, and brevity |
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
 | `/lean4:doctor` | Diagnostics, cleanup, and migration help |
-
-This plugin ships a host-agnostic parser (`lib/command_args/`) that covers the
-parser-decidable startup rules of the six parameter-heavy commands (`draft`,
-`learn`, `formalize`, `autoformalize`, `prove`, `autoprove`). A small set of
-documented startup rules in these commands depend on runtime context (repo-
-level search, interactive prompting) and are applied by the command after
-reading the parser's output. The other commands (`checkpoint`, `review`,
-`refactor`, `golf`, `doctor`) remain model-parsed.
-When a host adapter installs the `UserPromptSubmit` hook, the parser runs
-before the model sees a `/lean4:*` prompt matching one of the six covered
-commands, injects a `validated-invocation` block into context, and rejects
-invalid invocations at the hook level; invocations of the other commands pass
-through unchanged. Hosts without the hook fall back to model-parsed startup
-via the shared [command-invocation.md](references/command-invocation.md)
-contract.
-Commands always announce resolved inputs, reject invalid startup configs before
-doing work, and treat wall-clock budgets like `--max-total-runtime` as
-best-effort.
 
 ### Which Command?
 
@@ -61,7 +43,7 @@ best-effort.
 | Draft + prove interactively | `/lean4:formalize` |
 | Filling sorries (interactive) | `/lean4:prove` |
 | Filling sorries (unattended) | `/lean4:autoprove` |
-| Save point (per-file + project build, best-effort axiom scan, commit) | `/lean4:checkpoint` |
+| Verified save point | `/lean4:checkpoint` |
 | Quality check (read-only) | `/lean4:review` |
 | Simplify proof strategies (mathlib leverage, helpers) | `/lean4:refactor` |
 | Optimizing compiled proofs | `/lean4:golf` |
@@ -106,13 +88,13 @@ best-effort.
         ↓
 /lean4:golf                Improve proofs (optional)
         ↓
-/lean4:checkpoint          Save point (per-file + project build)
+/lean4:checkpoint          Create verified save point
 ```
 
 Use `/lean4:learn` at any point to explore repo structure or navigate mathlib. Three entry points: `/lean4:draft` for skeletons, `/lean4:formalize` for interactive synthesis (draft + guided proving), `/lean4:autoformalize` for unattended source-to-proof.
 
 **Notes:**
-- `/lean4:prove` asks before each cycle; `/lean4:autoprove` loops autonomously with explicit stop budgets
+- `/lean4:prove` asks before each cycle; `/lean4:autoprove` loops autonomously with hard stop conditions
 - Both trigger `/lean4:review` at configured intervals (`--review-every`)
 - When reviews run (via `--review-every`), they act as gates: review → replan → continue. In prove, replan requires user approval; in autoprove, replan auto-continues
 - Review supports `--mode=batch` (default) or `--mode=stuck` (triage); review is always read-only
@@ -140,65 +122,12 @@ lean_code_actions(file, line)                   # Resolve "Try this" suggestions
 
 `lean_run_code` is for isolated scratch experiments, not a substitute for live proof-state inspection via `lean_goal`/`lean_multi_attempt`/`lean_diagnostic_messages`. Prefer live-file tools when the question depends on actual file context.
 
-## Capabilities
-
-| Capability | Required | Check | Fallback |
-|-----------|----------|-------|----------|
-| Lean / Lake | yes | `lean --version`, `lake --version` | none — run `/lean4:doctor` |
-| Python 3 | yes (scripts) | `$LEAN4_PYTHON_BIN` set by bootstrap | none for script-dependent operations |
-| `$LEAN4_SCRIPTS` | yes (set by bootstrap) | `echo "$LEAN4_SCRIPTS"` | run `/lean4:doctor` |
-| Lean LSP MCP | no | try `lean_goal` on any `.lean` file | scripts + `lake env lean` (file-level only) |
-| `lean_run_code` | no | try calling it | `lake env lean` on temp file |
-| `lean_code_actions` | no | try calling it | manual "Try this" application |
-| Subagent dispatch | no | host-dependent | run work in main thread |
-| Slash commands | no | host-dependent | follow skill instructions directly |
-
-## Operating Profiles
-
-The skill adapts to what's available. Determine your profile by checking capabilities above, then follow the corresponding guidance.
-
-### full (all capabilities)
-
-MCP + subagents + commands. Full workflow with live goal inspection, tactic testing, and parallel subagent dispatch (requires disjoint owned-file sets per agent, or separate worktrees). Subagents get pre-collected MCP context per [cycle-engine.md § Pre-flight Context](references/cycle-engine.md#pre-flight-context-for-subagent-dispatch). If `lean_run_code` is unavailable, use `/tmp` scratch files with `lake env lean` for isolated experiments.
-
-### mcp_main_only (MCP available, no subagent dispatch)
-
-MCP works in the main thread. Run all proof work directly — do not delegate to subagents. All cycle-engine phases execute in-thread. If `lean_run_code` is unavailable, use `/tmp` scratch files with `lake env lean` for isolated experiments.
-
-### scripts_only (no MCP, no subagents)
-
-Use `$LEAN4_SCRIPTS` for search and `lake env lean` / `lake build` for validation. **Key limitations in this mode:**
-- **No live goal inspection** — `lean_goal` is unavailable; you can read the file and check compilation output, but cannot see proof state at a specific line
-- **No tactic testing** — `lean_multi_attempt` is unavailable; edits must be validated by compiling the file (`lake env lean`)
-- **No real-time diagnostics** — `lean_diagnostic_messages` is unavailable; use `lake env lean <file>` (from project root) for compilation errors, but feedback is file-level, not line-level
-- **Search is script-based** — `$LEAN4_SCRIPTS/smart_search.sh` replaces LSP search tools
-
-This mode is functional for straightforward proofs but significantly slower and less precise than MCP-backed workflows.
-
-### review_only (read-only, no edits)
-
-Read proof state and assess quality. No edits, no commits, no subagent dispatch.
-
-## File Handling Rules
-
-**Scratch-work ladder** (in preference order):
-1. Live file + MCP tools (`lean_goal`, `lean_multi_attempt`, `lean_diagnostic_messages`)
-2. `lean_run_code` for isolated experiments
-3. `/tmp` scratch files only when `lean_run_code` is unavailable and the experiment must not touch the live file
-4. Never create scratch files in the repo root
-
-**File inspection:** Use Read and Grep to view source files. Never write Python scripts, temp files, or use `cat` pipelines just to read lines from a file you already have access to.
-
-**Staging:** Stage only files touched during the current session. Never use `git add -A` or broad glob patterns. Print the exact staged set before committing.
-
-See [sorry-filling.md](references/sorry-filling.md) for the full scratch-work preference order.
-
 ## Core Primitives
 
 | Script | Purpose | Output |
 |--------|---------|--------|
 | `sorry_analyzer.py` | Find sorries with context | text (default), json, markdown, summary |
-| `check_axioms_inline.sh` | Best-effort axiom scan (top-level declarations) | text |
+| `check_axioms_inline.sh` | Check for non-standard axioms | text |
 | `smart_search.sh` | Multi-source mathlib search | text |
 | `find_golfable.py` | Detect optimization patterns | JSON |
 | `find_usages.sh` | Find declaration usages | text |
@@ -217,7 +146,7 @@ If `$LEAN4_SCRIPTS` is unset or missing, run `/lean4:doctor` and stay LSP-only u
 
 `/lean4:prove` and `/lean4:autoprove` handle most tasks:
 - **prove** — guided, asks before each cycle. Ideal for interactive sessions.
-- **autoprove** — autonomous, loops with explicit stop budgets. Ideal for unattended runs.
+- **autoprove** — autonomous, loops with hard stop rules. Ideal for unattended runs.
 
 Both share the same cycle engine (plan → work → checkpoint → review → replan → continue/stop) and follow the [LSP-first protocol](references/cycle-engine.md#lsp-first-protocol): LSP tools are normative for discovery and search; script fallback only when LSP is unavailable or exhausted. Compiler-guided repair is escalation-only — not the first response to build errors. For complex proofs, they may delegate to internal workflows for deep sorry-filling (with snapshot, rollback, and scope budgets), proof repair, or axiom elimination. You don't invoke these directly.
 
@@ -269,7 +198,7 @@ Note: `exact?`/`apply?` query mathlib (slow). `grind` and `aesop` are powerful b
 
 ## Troubleshooting
 
-If LSP tools aren't responding, check your operating profile above. In `scripts_only` mode, `$LEAN4_SCRIPTS` provides search and `lake env lean` provides file-level compilation feedback, but live goal inspection, tactic testing, and line-level diagnostics are unavailable. If environment variables (`LEAN4_SCRIPTS`, `LEAN4_REFS`) are missing, run `/lean4:doctor` to diagnose.
+If LSP tools aren't responding, scripts provide fallback for all operations. If environment variables (`LEAN4_SCRIPTS`, `LEAN4_REFS`) are missing, run `/lean4:doctor` to diagnose.
 
 **Script environment check:**
 ```bash
@@ -311,8 +240,8 @@ ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --report-only
 
 **Custom Syntax:** [lean4-custom-syntax](references/lean4-custom-syntax.md) (read when building notations, macros, elaborators, or DSLs), [metaprogramming-patterns](references/metaprogramming-patterns.md) (MetaM/TacticM API — composable blocks, elaborators), [scaffold-dsl](references/scaffold-dsl.md) (copy-paste DSL template), [json-patterns](references/json-patterns.md) (json% syntax + ToJson)
 
-**Quality:** [linter-authoring](references/linter-authoring.md) (project-specific linter rules), [ffi-interop](references/ffi-interop.md) (FFI, `@&`, init, symbol linkage)
+**Quality:** [linter-authoring](references/linter-authoring.md) (project-specific linter rules), [ffi-patterns](references/ffi-patterns.md) (C/ObjC bindings via Lake)
 
 **Workflows:** [agent-workflows](references/agent-workflows.md), [subagent-workflows](references/subagent-workflows.md), [command-examples](references/command-examples.md), [learn-pathways](references/learn-pathways.md) (intent taxonomy, game tracks, source handling)
 
-**Internals:** [review-hook-schema](references/review-hook-schema.md), [compiler-internals](references/compiler-internals.md) (attributes, specialization, pipeline)
+**Internals:** [review-hook-schema](references/review-hook-schema.md)

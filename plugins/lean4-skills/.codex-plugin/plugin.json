@@ -1,0 +1,42 @@
+{
+  "name": "lean4",
+  "version": "4.4.5",
+  "description": "Lean 4 proving workflows for Codex with draft/formalize/prove engines, LSP-first tactics, review loops, and script fallbacks.",
+  "author": {
+    "name": "Cameron Freer",
+    "email": "lean4skills@gmail.com",
+    "url": "https://github.com/cameronfreer"
+  },
+  "homepage": "https://github.com/cameronfreer/lean4-skills",
+  "repository": "https://github.com/cameronfreer/lean4-skills",
+  "license": "MIT",
+  "keywords": [
+    "lean4",
+    "mathlib",
+    "theorem-proving",
+    "codex",
+    "formalization"
+  ],
+  "skills": "./skills",
+  "interface": {
+    "displayName": "Lean 4 Skills",
+    "shortDescription": "Structured Lean 4 proving workflows for Codex.",
+    "longDescription": "Unified Lean 4 workflow pack for Codex: draft/formalize/prove/autoprove, quality review, refactor, golf, and diagnostics with LSP-first guidance.",
+    "developerName": "Cameron Freer",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write",
+      "Shell"
+    ],
+    "websiteURL": "https://github.com/cameronfreer/lean4-skills",
+    "privacyPolicyURL": "https://github.com/cameronfreer/lean4-skills#readme",
+    "termsOfServiceURL": "https://github.com/cameronfreer/lean4-skills/blob/main/LICENSE",
+    "defaultPrompt": [
+      "Use lean4 to prove this theorem in cycles with checkpoints.",
+      "Run a Lean proof review and list concrete refactors.",
+      "Diagnose Lean build errors and suggest minimal fixes."
+    ],
+    "brandColor": "#0F766E"
+  }
+}
