@@ -225,7 +225,7 @@ _parse_duration() {
   fi
   local num="${val%%[mshMSH]}"
   local suffix="${val##*[0-9]}"
-  suffix="${suffix,,}"  # lowercase
+  suffix="$(printf '%s' "$suffix" | tr '[:upper:]' '[:lower:]')"  # portable lowercase
   case "$suffix" in
     s) echo "$num" ;;
     h) echo $(( num * 3600 )) ;;
