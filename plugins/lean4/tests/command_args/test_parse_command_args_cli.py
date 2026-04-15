@@ -84,6 +84,18 @@ class TestStandaloneCLI(unittest.TestCase):
                 msg=f"Expected overwrite error, got: {data['errors']}"
             )
 
+    def test_multi_arg_after_separator_rejected(self):
+        """Multiple args after -- are rejected (quoting boundaries would be lost)."""
+        r = self._run(["draft", "--", '"Theorem 1"', "--mode=attempt"])
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("exactly one argument", r.stderr.lower())
+
+    def test_unquoted_multi_word_rejected(self):
+        """Common mistake: draft -- Theorem 1 (two args, not one quoted string)."""
+        r = self._run(["draft", "--", "Theorem", "1"])
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("exactly one argument", r.stderr.lower())
+
     def test_json_output_is_valid(self):
         r = self._run(["prove", "--", "Foo.lean"])
         self.assertEqual(r.returncode, 0, msg=r.stderr)
