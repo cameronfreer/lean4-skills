@@ -1,5 +1,12 @@
 # Changelog
 
+## v4.4.9 (April 2026)
+
+- Add shared slash-command parser and `UserPromptSubmit` hook for pre-validation of the six parameter-heavy commands (#103, #106) — Phase 3 of the command invocation fix
+- Honest invocation contract + `cycle_tracker.sh` session tracker for explicit stop budgets (#105) — Phase 1–2 of the command invocation fix
+- Warn about OOM from large dependent type signatures (#104)
+- Fix Bash 3.2 compatibility: replace `${suffix,,}` with portable `tr` lowercase in `cycle_tracker.sh` (macOS stock bash)
+
 ## v4.4.8 (April 2026)
 
 - Document one-concurrent-editor-per-file rule for proof agents (#64)
