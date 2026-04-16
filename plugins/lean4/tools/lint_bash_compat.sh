@@ -54,43 +54,52 @@ echo "Scanning ${#SHELL_FILES[@]} shell scripts for Bash 4+ constructs..."
 echo ""
 
 # ---------------------------------------------------------------------------
-# Check 1: ${var,,} and ${var^^} — case-modifier syntax (Bash 4.0+)
+# Check 1: case-modifier syntax ${var,,}, ${var,}, ${var^^}, ${var^} (Bash 4.0+)
+#
+# This check is intentionally a HEURISTIC, not a full Bash parameter-expansion
+# parser. The regex excludes all parameter-expansion operators that can
+# legitimately contain , or ^ before a closing } (substitution /, prefix-
+# removal #, suffix-removal %, colon forms :-/:=/:+/:?, non-colon forms
+# -/=/?/+). It catches all common case-modifier forms but has one known
+# false-negative: case-modifiers on arithmetic subscripts like ${arr[i-1],,}
+# or ${arr[i+1]^} do not match because the - and + are excluded. This is an
+# accepted trade-off; the alternative is building a full Bash parser.
 # ---------------------------------------------------------------------------
-echo "-- Check 1: case-modifier syntax (\${var,,} / \${var^^}) --"
+echo "-- Check 1: case-modifier syntax (\${var,,} / \${var,} / \${var^^} / \${var^}) --"
 found=0
 for f in "${SHELL_FILES[@]}"; do
   while IFS= read -r match; do
     warn "$match"
     found=1
-  done < <(grep -n '\${[^}]*,,\}\|\${[^}]*\^\^}' "$f" 2>/dev/null | sed "s|^|$(basename "$f"):|")
+  done < <(grep -En '\$\{[^}/#%:=?+-]*((\^\^?)|(,,?))[^}]*\}' "$f" 2>/dev/null | sed "s|^|$(basename "$f"):|")
 done
 [[ $found -eq 0 ]] && ok "No case-modifier syntax found"
 
 # ---------------------------------------------------------------------------
-# Check 2: declare -A (associative arrays, Bash 4.0+)
+# Check 2: associative arrays (declare|local|typeset -...A..., Bash 4.0+)
 # ---------------------------------------------------------------------------
 echo ""
-echo "-- Check 2: associative arrays (declare -A) --"
+echo "-- Check 2: associative arrays (declare -A / local -A / typeset -A) --"
 found=0
 for f in "${SHELL_FILES[@]}"; do
   while IFS= read -r match; do
     warn "$match"
     found=1
-  done < <(grep -n 'declare[[:space:]]\{1,\}-A\b' "$f" 2>/dev/null | sed "s|^|$(basename "$f"):|")
+  done < <(grep -En '(declare|local|typeset)[[:space:]]+[-+][[:alpha:]]*A' "$f" 2>/dev/null | sed "s|^|$(basename "$f"):|")
 done
 [[ $found -eq 0 ]] && ok "No associative arrays found"
 
 # ---------------------------------------------------------------------------
-# Check 3: declare -n (namerefs, Bash 4.3+)
+# Check 3: namerefs (declare|local|typeset -...n..., Bash 4.3+)
 # ---------------------------------------------------------------------------
 echo ""
-echo "-- Check 3: namerefs (declare -n) --"
+echo "-- Check 3: namerefs (declare -n / local -n / typeset -n) --"
 found=0
 for f in "${SHELL_FILES[@]}"; do
   while IFS= read -r match; do
     warn "$match"
     found=1
-  done < <(grep -n 'declare[[:space:]]\{1,\}-n\b' "$f" 2>/dev/null | sed "s|^|$(basename "$f"):|")
+  done < <(grep -En '(declare|local|typeset)[[:space:]]+[-+][[:alpha:]]*n' "$f" 2>/dev/null | sed "s|^|$(basename "$f"):|")
 done
 [[ $found -eq 0 ]] && ok "No namerefs found"
 

@@ -1,0 +1,24 @@
+name: bash3-compat
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  macos-bash3:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify /bin/bash is Bash 3.2 (macOS default)
+        run: /bin/bash --version
+
+      - name: Static lint — Bash 4+ / BSD-incompat constructs
+        run: /bin/bash plugins/lean4/tools/lint_bash_compat.sh
+
+      - name: Self-test — lint catches all advertised constructs
+        run: /bin/bash plugins/lean4/tests/test_lint_bash_compat.sh
+
+      - name: Runtime smoke — cycle_tracker.sh under /bin/bash
+        run: /bin/bash plugins/lean4/tests/test_bash3_smoke.sh
