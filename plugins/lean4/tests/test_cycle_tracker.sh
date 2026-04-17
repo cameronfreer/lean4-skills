@@ -3,6 +3,11 @@ set -euo pipefail
 
 # Comprehensive tests for cycle_tracker.sh
 
+# Resolve TMPDIR once (matches cycle_tracker.sh): honor caller's TMPDIR,
+# fall back to /tmp. Export so the tracker subprocess sees the same value.
+: "${TMPDIR:=/tmp}"
+export TMPDIR
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRACKER="$SCRIPT_DIR/../lib/scripts/cycle_tracker.sh"
 
@@ -74,7 +79,7 @@ cleanup_session() {
 
 # Helper: get state file path
 state_file() {
-  echo "/tmp/${LEAN4_SESSION_ID:-}.json"
+  echo "$TMPDIR/${LEAN4_SESSION_ID:-}.json"
 }
 
 # Helper: read a field from state file using jq or python3
@@ -381,8 +386,8 @@ assert_exit "tick works with manual session ID" 0
 cleanup_session
 
 # LEAN4_ENV_FILE takes priority over CLAUDE_ENV_FILE
-LEAN4_ENVF="/tmp/lean4-test-envfile-$$"
-CLAUDE_ENVF="/tmp/lean4-test-claude-envfile-$$"
+LEAN4_ENVF="$TMPDIR/lean4-test-envfile-$$"
+CLAUDE_ENVF="$TMPDIR/lean4-test-claude-envfile-$$"
 : > "$LEAN4_ENVF"; : > "$CLAUDE_ENVF"
 LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
 export LEAN4_ENV_FILE="$LEAN4_ENVF"
@@ -419,8 +424,8 @@ LEAN4_ENV_FILE=""; export LEAN4_ENV_FILE
 
 # Cross-env-file cleanup: init under CLAUDE_ENV_FILE, stop under LEAN4_ENV_FILE
 # stop must clean the file init actually wrote to (CLAUDE_ENVF), not the newly resolved one
-CLAUDE_ENVF2="/tmp/lean4-test-claude-envfile2-$$"
-LEAN4_ENVF2="/tmp/lean4-test-lean4-envfile2-$$"
+CLAUDE_ENVF2="$TMPDIR/lean4-test-claude-envfile2-$$"
+LEAN4_ENVF2="$TMPDIR/lean4-test-lean4-envfile2-$$"
 : > "$CLAUDE_ENVF2"; : > "$LEAN4_ENVF2"
 LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
 LEAN4_ENV_FILE=""; export LEAN4_ENV_FILE
@@ -452,7 +457,7 @@ LEAN4_ENV_FILE=""; export LEAN4_ENV_FILE
 CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
 
 # Unwritable env file — must be left untouched
-FAKE_ENV="/tmp/lean4-test-unwritable-$$"
+FAKE_ENV="$TMPDIR/lean4-test-unwritable-$$"
 echo "# original content" > "$FAKE_ENV"
 chmod 000 "$FAKE_ENV" 2>/dev/null || true
 FAKE_ENV_BEFORE=$(stat -c '%a %s' "$FAKE_ENV" 2>/dev/null || stat -f '%p %z' "$FAKE_ENV" 2>/dev/null)
@@ -484,7 +489,7 @@ run stop
 assert_exit "stop without env file succeeds" 0
 
 # Env file with missing parent directory — init must not leak shell errors to stdout
-MISSING_DIR_ENV="/tmp/lean4-test-nodir-$$/subdir/env.sh"
+MISSING_DIR_ENV="$TMPDIR/lean4-test-nodir-$$/subdir/env.sh"
 LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
 LEAN4_ENV_FILE=""; export LEAN4_ENV_FILE
 export CLAUDE_ENV_FILE="$MISSING_DIR_ENV"
@@ -506,7 +511,7 @@ LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
 CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
 
 # Env file in unwritable directory — init must not leak shell errors to stdout
-NOWRITE_DIR="/tmp/lean4-test-nowritedir-$$"
+NOWRITE_DIR="$TMPDIR/lean4-test-nowritedir-$$"
 mkdir -p "$NOWRITE_DIR" && chmod 555 "$NOWRITE_DIR" 2>/dev/null || true
 NOWRITE_ENV="$NOWRITE_DIR/env.sh"
 LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
@@ -531,7 +536,7 @@ CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
 
 # Env file pointing to a directory — init must not leak shell errors to stdout
 LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
-export CLAUDE_ENV_FILE="/tmp"
+export CLAUDE_ENV_FILE="$TMPDIR"
 run init --max-cycles=5 --max-stuck=2
 assert_exit "init with directory env file succeeds" 0
 LINE_COUNT=$(echo "$LAST_OUT" | wc -l | tr -d ' ')
@@ -549,7 +554,7 @@ LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
 CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
 
 # Env file pointing to a FIFO — init must not block or leak errors
-FIFO_PATH="/tmp/lean4-test-fifo-$$"
+FIFO_PATH="$TMPDIR/lean4-test-fifo-$$"
 mkfifo "$FIFO_PATH" 2>/dev/null || true
 if [[ -p "$FIFO_PATH" ]]; then
   LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
@@ -575,8 +580,8 @@ else
 fi
 
 # Broken symlink env file — must fall back cleanly, not create the target
-BROKEN_LINK="/tmp/lean4-test-broken-link-$$"
-BROKEN_TARGET="/tmp/lean4-test-no-such-target-$$"
+BROKEN_LINK="$TMPDIR/lean4-test-broken-link-$$"
+BROKEN_TARGET="$TMPDIR/lean4-test-no-such-target-$$"
 rm -f "$BROKEN_TARGET"  # ensure target does not exist
 ln -sf "$BROKEN_TARGET" "$BROKEN_LINK" 2>/dev/null || true
 if [[ -L "$BROKEN_LINK" ]]; then
@@ -635,8 +640,8 @@ else
 fi
 
 # Symlink to regular file — init must write to the real target, not destroy the link
-REAL_TARGET="/tmp/lean4-test-real-target-$$"
-LINK_PATH="/tmp/lean4-test-symlink-$$"
+REAL_TARGET="$TMPDIR/lean4-test-real-target-$$"
+LINK_PATH="$TMPDIR/lean4-test-symlink-$$"
 : > "$REAL_TARGET"
 ln -sf "$REAL_TARGET" "$LINK_PATH" 2>/dev/null || true
 if [[ -L "$LINK_PATH" ]]; then
@@ -671,7 +676,7 @@ else
 fi
 
 # stop with missing state file — must clean stale export but not clobber another session
-FALLBACK_ENV="/tmp/lean4-test-fallback-env-$$"
+FALLBACK_ENV="$TMPDIR/lean4-test-fallback-env-$$"
 cat > "$FALLBACK_ENV" <<'ENVEOF'
 export LEAN4_SESSION_ID="lean4-session-GHOST"
 export LEAN4_SESSION_ID="lean4-session-ACTIVE"
@@ -699,12 +704,12 @@ LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
 CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
 
 # stop with corrupted state file — must clean stale export but not clobber another session
-CORRUPT_ENV="/tmp/lean4-test-corrupt-env-$$"
+CORRUPT_ENV="$TMPDIR/lean4-test-corrupt-env-$$"
 cat > "$CORRUPT_ENV" <<'ENVEOF'
 export LEAN4_SESSION_ID="lean4-session-CORRUPT"
 export LEAN4_SESSION_ID="lean4-session-ALIVE"
 ENVEOF
-CORRUPT_STATE="/tmp/lean4-session-CORRUPT.json"
+CORRUPT_STATE="$TMPDIR/lean4-session-CORRUPT.json"
 echo "NOT JSON" > "$CORRUPT_STATE"
 export LEAN4_SESSION_ID="lean4-session-CORRUPT"
 export CLAUDE_ENV_FILE="$CORRUPT_ENV"
@@ -926,7 +931,7 @@ echo ""
 echo "-- Stale cleanup --"
 
 # Create a fake stale session file
-STALE_FILE="/tmp/lean4-session-STALEFAKE.json"
+STALE_FILE="$TMPDIR/lean4-session-STALEFAKE.json"
 echo '{"session_id":"lean4-session-STALEFAKE"}' > "$STALE_FILE"
 # Set mtime to 25 hours ago
 touch -t "$(date -d '25 hours ago' +%Y%m%d%H%M.%S)" "$STALE_FILE" 2>/dev/null || \

@@ -12,6 +12,11 @@ set -euo pipefail
 #
 # Skips gracefully if /bin/bash doesn't exist (e.g. minimal containers).
 
+# Resolve TMPDIR once (matches cycle_tracker.sh): honor caller's TMPDIR,
+# fall back to /tmp. Export so the tracker subprocess sees the same value.
+: "${TMPDIR:=/tmp}"
+export TMPDIR
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRACKER="$SCRIPT_DIR/../lib/scripts/cycle_tracker.sh"
 
@@ -50,7 +55,7 @@ assert_exit() {
 cleanup() {
   if [[ -n "${SESSION_ID:-}" ]]; then
     /bin/bash "$TRACKER" stop 2>/dev/null || true
-    rm -f "/tmp/${SESSION_ID}.json" 2>/dev/null || true
+    rm -f "$TMPDIR/${SESSION_ID}.json" 2>/dev/null || true
   fi
   unset LEAN4_SESSION_ID
 }
