@@ -157,7 +157,7 @@ _state_file() {
     echo "error=LEAN4_SESSION_ID is not set" >&2
     exit 2
   fi
-  local f="/tmp/${sid}.json"
+  local f="${TMPDIR:-/tmp}/${sid}.json"
   if [[ ! -f "$f" ]]; then
     echo "error=state file not found: $f" >&2
     exit 2
@@ -267,7 +267,7 @@ cmd_init() {
   runtime_seconds=$(_parse_duration "$max_runtime")
 
   # Clean stale sessions (>24h, owned by current user)
-  find /tmp -maxdepth 1 -name 'lean4-session-*.json' -user "$(id -u)" -mmin +1440 -delete 2>/dev/null || true
+  find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'lean4-session-*.json' -user "$(id -u)" -mmin +1440 -delete 2>/dev/null || true
 
   # Create state file via mktemp (no race).
   # BSD mktemp (macOS) requires the template to END with X's — a .json
@@ -275,7 +275,7 @@ cmd_init() {
   # So we create without .json, then rename.
   _detect_backend
   local state_file tmp_file
-  tmp_file=$(mktemp /tmp/lean4-session-XXXXXX)
+  tmp_file=$(mktemp "${TMPDIR:-/tmp}/lean4-session-XXXXXX")
   state_file="${tmp_file}.json"
   mv "$tmp_file" "$state_file"
   local session_id
@@ -783,7 +783,7 @@ cmd_stop() {
   if [[ -z "$sid" ]]; then
     return 0
   fi
-  local f="/tmp/${sid}.json"
+  local f="${TMPDIR:-/tmp}/${sid}.json"
   # Read the env file path that init recorded, so we clean up the right file
   # even if LEAN4_ENV_FILE/CLAUDE_ENV_FILE changed since init.
   # Read the env file path that init recorded. If the state file is missing or
