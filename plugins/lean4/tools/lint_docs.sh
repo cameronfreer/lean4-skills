@@ -1660,6 +1660,14 @@ check_command_invocation_contract
 check_proof_complete_shortcut
 
 log ""
+log "Checking Bash 3.2 compatibility..."
+if bash "$PLUGIN_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1; then
+    ok "All shell scripts are Bash 3.2 compatible"
+else
+    warn "Bash 3.2 compatibility lint failed — run: bash plugins/lean4/tools/lint_bash_compat.sh"
+fi
+
+log ""
 log "================================"
 if [[ $ISSUES -eq 0 ]]; then
     log "✓ All checks passed"
