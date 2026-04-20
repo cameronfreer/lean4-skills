@@ -55,7 +55,7 @@ assert_exit() {
 cleanup() {
   if [[ -n "${SESSION_ID:-}" ]]; then
     /bin/bash "$TRACKER" stop 2>/dev/null || true
-    rm -f "$TMPDIR/${SESSION_ID}.json" 2>/dev/null || true
+    rm -f "${LEAN4_SESSION_DIR:-$TMPDIR}/${SESSION_ID}.json" 2>/dev/null || true
   fi
   unset LEAN4_SESSION_ID
 }

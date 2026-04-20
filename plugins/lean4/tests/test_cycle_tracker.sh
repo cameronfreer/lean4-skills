@@ -79,7 +79,11 @@ cleanup_session() {
 
 # Helper: get state file path
 state_file() {
-  echo "$TMPDIR/${LEAN4_SESSION_ID:-}.json"
+  # Mirror cycle_tracker.sh's resolution: persisted LEAN4_SESSION_DIR wins
+  # over ambient TMPDIR. Tests that run under a non-default TMPDIR must
+  # agree with the tracker's own lookup rule.
+  local dir="${LEAN4_SESSION_DIR:-$TMPDIR}"
+  echo "${dir}/${LEAN4_SESSION_ID:-}.json"
 }
 
 # Helper: read a field from state file using jq or python3
@@ -1046,6 +1050,107 @@ run tick --stuck=no
 assert_contains "90s budget uses seconds format" "/90s"
 assert_not_contains "90s budget does not truncate to minutes" "/1m"
 cleanup_session
+
+# =========================================================================
+echo ""
+echo "-- Cross-invocation TMPDIR robustness --"
+
+# The tracker persists LEAN4_SESSION_DIR alongside LEAN4_SESSION_ID at init
+# so later invocations (tick, status, stop) can find the same state file
+# even if ambient TMPDIR changes. This test proves the persistence works:
+#   1. init under a custom TMPDIR, capturing env exports in an env file
+#   2. source the env file so LEAN4_SESSION_ID and LEAN4_SESSION_DIR are set
+#   3. run tick/status/stop under a DIFFERENT ambient TMPDIR
+#   4. verify all operations succeed — proving they used the persisted dir,
+#      not the (now wrong) ambient TMPDIR
+
+CROSS_TMPDIR=$(mktemp -d)
+CROSS_ENVF="${TMPDIR:-/tmp}/lean4-test-cross-tmpdir-envfile-$$"
+: > "$CROSS_ENVF"
+
+# Step 1: init with TMPDIR=$CROSS_TMPDIR, persist to CROSS_ENVF
+INIT_SID=$(TMPDIR="$CROSS_TMPDIR" CLAUDE_ENV_FILE="$CROSS_ENVF" \
+  bash "$TRACKER" init --max-cycles=3 --max-stuck=2 2>&1)
+
+if [[ -n "$INIT_SID" && -f "$CROSS_TMPDIR/${INIT_SID}.json" ]]; then
+  echo "  PASS: init under custom TMPDIR wrote state file there"
+  (( ++PASS ))
+else
+  echo "  FAIL: init under custom TMPDIR did not write expected state file"
+  echo "        INIT_SID=$INIT_SID  CROSS_TMPDIR=$CROSS_TMPDIR"
+  (( ++FAIL ))
+fi
+
+# Step 2: confirm env file got both persisted vars
+if grep -q "^export LEAN4_SESSION_ID=\"$INIT_SID\"" "$CROSS_ENVF" \
+   && grep -q "^export LEAN4_SESSION_DIR=\"$CROSS_TMPDIR\"" "$CROSS_ENVF"; then
+  echo "  PASS: init persisted both LEAN4_SESSION_ID and LEAN4_SESSION_DIR"
+  (( ++PASS ))
+else
+  echo "  FAIL: init did not persist LEAN4_SESSION_DIR correctly"
+  echo "        env file contents:"
+  sed 's/^/          /' "$CROSS_ENVF"
+  (( ++FAIL ))
+fi
+
+# Step 3: source the env file (simulates Claude Code replaying persisted env)
+# shellcheck disable=SC1090
+source "$CROSS_ENVF"
+
+# Step 4: tick/status/stop with TMPDIR explicitly set to something ELSE.
+# If the tracker used ambient TMPDIR, it would look in the wrong place and fail.
+TMPDIR="/tmp" bash "$TRACKER" tick --stuck=no >/dev/null 2>&1
+TICK_EXIT=$?
+if [[ "$TICK_EXIT" -eq 0 ]]; then
+  echo "  PASS: tick under different ambient TMPDIR (used persisted LEAN4_SESSION_DIR)"
+  (( ++PASS ))
+else
+  echo "  FAIL: tick under different ambient TMPDIR (exit $TICK_EXIT)"
+  (( ++FAIL ))
+fi
+
+TMPDIR="/tmp" bash "$TRACKER" status >/dev/null 2>&1
+STATUS_EXIT=$?
+if [[ "$STATUS_EXIT" -eq 0 ]]; then
+  echo "  PASS: status under different ambient TMPDIR"
+  (( ++PASS ))
+else
+  echo "  FAIL: status under different ambient TMPDIR (exit $STATUS_EXIT)"
+  (( ++FAIL ))
+fi
+
+TMPDIR="/tmp" CLAUDE_ENV_FILE="$CROSS_ENVF" bash "$TRACKER" stop >/dev/null 2>&1
+STOP_EXIT=$?
+if [[ "$STOP_EXIT" -eq 0 ]]; then
+  echo "  PASS: stop under different ambient TMPDIR"
+  (( ++PASS ))
+else
+  echo "  FAIL: stop under different ambient TMPDIR (exit $STOP_EXIT)"
+  (( ++FAIL ))
+fi
+
+# Verify stop actually deleted the state file from its real location
+if [[ ! -f "$CROSS_TMPDIR/${INIT_SID}.json" ]]; then
+  echo "  PASS: stop cleaned up state file in persisted dir (not ambient TMPDIR)"
+  (( ++PASS ))
+else
+  echo "  FAIL: state file still exists at $CROSS_TMPDIR/${INIT_SID}.json after stop"
+  (( ++FAIL ))
+fi
+
+# Verify stop also unpersisted both env vars
+if ! grep -q "LEAN4_SESSION_ID\|LEAN4_SESSION_DIR" "$CROSS_ENVF" 2>/dev/null; then
+  echo "  PASS: stop unpersisted both LEAN4_SESSION_ID and LEAN4_SESSION_DIR"
+  (( ++PASS ))
+else
+  echo "  FAIL: stop left stale exports in env file"
+  sed 's/^/          /' "$CROSS_ENVF"
+  (( ++FAIL ))
+fi
+
+# Cleanup
+unset LEAN4_SESSION_ID LEAN4_SESSION_DIR CLAUDE_ENV_FILE
+rm -rf "$CROSS_TMPDIR" "$CROSS_ENVF"
 
 # =========================================================================
 echo ""
