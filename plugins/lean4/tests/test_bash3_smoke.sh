@@ -32,12 +32,28 @@ BASH_VER=$(/bin/bash -c 'echo $BASH_VERSION')
 echo "Running cycle_tracker.sh smoke tests under /bin/bash ($BASH_VER)"
 echo ""
 
-# Helper: run tracker under /bin/bash
+# Helper: run tracker under /bin/bash.
+#   LAST_STDOUT — stdout only (init prints the session id here).
+#   LAST_OUT    — merged, used by existing failure diagnostics.
+#   LAST_EXIT   — exit code.
+# Split-stream capture so init's stderr hint (LEAN4_SESSION_DIR=<dir> when
+# no env file resolves) does not pollute the session-id capture.
 LAST_OUT=""
+LAST_STDOUT=""
 LAST_EXIT=0
 run() {
+  local _stderr_file
+  _stderr_file=$(mktemp)
   LAST_EXIT=0
-  LAST_OUT=$(/bin/bash "$TRACKER" "$@" 2>&1) || LAST_EXIT=$?
+  LAST_STDOUT=$(/bin/bash "$TRACKER" "$@" 2>"$_stderr_file") || LAST_EXIT=$?
+  local _stderr
+  _stderr=$(cat "$_stderr_file")
+  rm -f "$_stderr_file"
+  if [[ -n "$_stderr" ]]; then
+    LAST_OUT="${LAST_STDOUT}"$'\n'"${_stderr}"
+  else
+    LAST_OUT="$LAST_STDOUT"
+  fi
 }
 
 assert_exit() {
@@ -68,7 +84,7 @@ echo "-- init + basic lifecycle --"
 
 run init --max-cycles=3 --max-stuck=2 --max-runtime=60m
 assert_exit "init with --max-runtime=60m" 0
-SESSION_ID="$LAST_OUT"
+SESSION_ID="$LAST_STDOUT"
 export LEAN4_SESSION_ID="$SESSION_ID"
 
 # ---------------------------------------------------------------------------
@@ -98,7 +114,7 @@ echo "-- second-based duration --"
 
 run init --max-cycles=3 --max-stuck=2 --max-runtime=30s
 assert_exit "init with --max-runtime=30s" 0
-SESSION_ID="$LAST_OUT"
+SESSION_ID="$LAST_STDOUT"
 export LEAN4_SESSION_ID="$SESSION_ID"
 run stop
 assert_exit "stop after 30s init" 0
@@ -112,7 +128,7 @@ echo "-- uppercase suffix --"
 
 run init --max-cycles=3 --max-stuck=2 --max-runtime=60M
 assert_exit "init with --max-runtime=60M (uppercase)" 0
-SESSION_ID="$LAST_OUT"
+SESSION_ID="$LAST_STDOUT"
 export LEAN4_SESSION_ID="$SESSION_ID"
 run stop
 assert_exit "stop after 60M init" 0
@@ -126,7 +142,7 @@ echo "-- optional runtime omission --"
 
 run init --max-cycles=3 --max-stuck=2
 assert_exit "init without --max-runtime" 0
-SESSION_ID="$LAST_OUT"
+SESSION_ID="$LAST_STDOUT"
 export LEAN4_SESSION_ID="$SESSION_ID"
 run stop
 assert_exit "stop after no-runtime init" 0
@@ -140,14 +156,14 @@ echo "-- mktemp regression (BSD portability) --"
 
 run init --max-cycles=1 --max-stuck=1
 assert_exit "first init for mktemp check" 0
-ID1="$LAST_OUT"
+ID1="$LAST_STDOUT"
 export LEAN4_SESSION_ID="$ID1"
 run stop
 cleanup
 
 run init --max-cycles=1 --max-stuck=1
 assert_exit "second init for mktemp check" 0
-ID2="$LAST_OUT"
+ID2="$LAST_STDOUT"
 export LEAN4_SESSION_ID="$ID2"
 SESSION_ID="$ID2"
 run stop

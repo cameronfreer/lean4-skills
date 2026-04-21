@@ -8,17 +8,26 @@ set -euo pipefail
 export TMPDIR
 
 # Session cycle/time tracker for autonomous commands (autoprove, autoformalize).
-# State is stored in a JSON file under $TMPDIR. All mutations are atomic
-# (write-to-temp, then mv). Single-writer assumption: only the main command
-# thread writes; subagents never touch the state file.
+# State is stored in a JSON file. The directory is resolved at each call as
+# LEAN4_SESSION_DIR (persisted by init) falling back to $TMPDIR. LEAN4_SESSION_DIR
+# wins so later invocations (tick, status, stop) find the state file init
+# created even when the ambient TMPDIR differs between calls (e.g. Claude Code
+# sets TMPDIR=/tmp/claude in sandbox mode; a plain shell does not). All
+# mutations are atomic (write-to-temp, then mv). Single-writer assumption:
+# only the main command thread writes; subagents never touch the state file.
 #
 # Env-file persistence: resolves LEAN4_ENV_FILE → CLAUDE_ENV_FILE → (none).
 # CLAUDE_ENV_FILE is the Claude Code adapter input; LEAN4_ENV_FILE is the
 # host-neutral override. When an env file resolves, init persists both
-# LEAN4_SESSION_ID and LEAN4_SESSION_DIR so subsequent invocations find
-# the state file even if ambient TMPDIR differs. When no env file is
-# available, init prints the session id on stdout and emits a
-# "LEAN4_SESSION_DIR=<dir>" hint on stderr for manual env-prefix passing.
+# LEAN4_SESSION_ID and LEAN4_SESSION_DIR to it; subsequent invocations that
+# source the env file inherit both and work regardless of ambient TMPDIR.
+#
+# When NO env file is available, init prints the session ID to stdout and
+# prints the session directory to stderr as a hint. For manual cross-TMPDIR
+# reuse the caller MUST pass BOTH vars (or preserve TMPDIR from init):
+#   SID=$(cycle_tracker.sh init ...)            # stdout: just the sid
+#   # stderr hint shows: LEAN4_SESSION_DIR=<dir>
+#   LEAN4_SESSION_ID=$SID LEAN4_SESSION_DIR=<dir> cycle_tracker.sh tick ...
 #
 # Subcommands:
 #   init   --max-cycles=N --max-stuck=N [--max-runtime=Xm] [--max-deep-per-cycle=N] [--max-consecutive-deep=N]
@@ -356,6 +365,17 @@ ENDJSON
   # for Claude Code (where init runs under TMPDIR=/tmp/claude) vs. a plain shell.
   _persist_env "export LEAN4_SESSION_ID=\"$session_id\""
   _persist_env "export LEAN4_SESSION_DIR=\"$(dirname "$state_file")\""
+
+  # Stdout-only fallback: no env file resolved → _persist_env was a no-op,
+  # so manual callers won't automatically inherit LEAN4_SESSION_DIR. Surface
+  # it on stderr as a hint so they can preserve it across invocations when
+  # their TMPDIR changes. Stdout remains just the session id for backward
+  # compatibility with callers that do SID=$(cycle_tracker.sh init ...).
+  if [[ -z "$resolved_env_file" ]]; then
+    local state_dir
+    state_dir=$(dirname "$state_file")
+    echo "LEAN4_SESSION_DIR=$state_dir" >&2
+  fi
 
   echo "$session_id"
 }

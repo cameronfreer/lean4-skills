@@ -14,12 +14,29 @@ TRACKER="$SCRIPT_DIR/../lib/scripts/cycle_tracker.sh"
 PASS=0
 FAIL=0
 
-# Helper: run tracker, capture exit code. Sets LAST_OUT and LAST_EXIT.
+# Helper: run tracker, capture exit code and both stdout/stderr.
+#   LAST_STDOUT  — stdout only (use for extracting the session id from init)
+#   LAST_STDERR  — stderr only (use to check error/diagnostic lines)
+#   LAST_OUT     — merged, preserved for existing assert_contains callers
+#   LAST_EXIT    — exit code
 LAST_OUT=""
+LAST_STDOUT=""
+LAST_STDERR=""
 LAST_EXIT=0
 run() {
+  local _stderr_file
+  _stderr_file=$(mktemp)
   LAST_EXIT=0
-  LAST_OUT=$(bash "$TRACKER" "$@" 2>&1) || LAST_EXIT=$?
+  LAST_STDOUT=$(bash "$TRACKER" "$@" 2>"$_stderr_file") || LAST_EXIT=$?
+  LAST_STDERR=$(cat "$_stderr_file")
+  rm -f "$_stderr_file"
+  # Merge for backward compat with existing assert_contains callers that
+  # expect both streams in LAST_OUT.
+  if [[ -n "$LAST_STDERR" ]]; then
+    LAST_OUT="${LAST_STDOUT}"$'\n'"${LAST_STDERR}"
+  else
+    LAST_OUT="$LAST_STDOUT"
+  fi
 }
 
 # Assert exit code. $1=description $2=expected exit code
@@ -63,8 +80,12 @@ assert_not_contains() {
 
 # Helper: init a session and export the ID. Args passed to init.
 # Sets LEAN4_SESSION_ID in the caller's environment.
+# stderr is intentionally discarded: init may emit a LEAN4_SESSION_DIR=<dir>
+# hint on stderr when no env file is configured (see top-of-script comment).
+# Capturing stderr into the sid capture would pollute it; callers that need
+# to see init errors should run the tracker directly.
 init_session() {
-  LEAN4_SESSION_ID=$(bash "$TRACKER" init "$@" 2>&1)
+  LEAN4_SESSION_ID=$(bash "$TRACKER" init "$@" 2>/dev/null)
   export LEAN4_SESSION_ID
 }
 
@@ -383,7 +404,7 @@ LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
 run init --max-cycles=5 --max-stuck=2
 assert_exit "init without any env file succeeds" 0
 assert_contains "init prints session ID" "lean4-session-"
-SID="$LAST_OUT"
+SID="$LAST_STDOUT"
 export LEAN4_SESSION_ID="$SID"
 run tick --stuck=no
 assert_exit "tick works with manual session ID" 0
@@ -412,7 +433,7 @@ else
   echo "  PASS: CLAUDE_ENV_FILE untouched when LEAN4_ENV_FILE set"
   (( ++PASS ))
 fi
-SID="$LAST_OUT"
+SID="$LAST_STDOUT"
 export LEAN4_SESSION_ID="$SID"
 run stop
 # Verify stop cleaned the right file (LEAN4_ENVF, not CLAUDE_ENVF)
@@ -436,7 +457,7 @@ LEAN4_ENV_FILE=""; export LEAN4_ENV_FILE
 export CLAUDE_ENV_FILE="$CLAUDE_ENVF2"
 run init --max-cycles=5 --max-stuck=2
 assert_exit "cross-env init succeeds" 0
-SID="$LAST_OUT"
+SID="$LAST_STDOUT"
 export LEAN4_SESSION_ID="$SID"
 # Now switch env resolution: set LEAN4_ENV_FILE so _resolve_env_file would return it
 export LEAN4_ENV_FILE="$LEAN4_ENVF2"
@@ -478,7 +499,7 @@ else
   echo "  FAIL: unwritable env file was modified (before='$FAKE_ENV_BEFORE' after='$FAKE_ENV_AFTER')"
   (( ++FAIL ))
 fi
-SID="$LAST_OUT"
+SID="$LAST_STDOUT"
 export LEAN4_SESSION_ID="$SID"
 run stop
 chmod 644 "$FAKE_ENV" 2>/dev/null || true
@@ -500,15 +521,15 @@ export CLAUDE_ENV_FILE="$MISSING_DIR_ENV"
 run init --max-cycles=5 --max-stuck=2
 assert_exit "init with missing-dir env file succeeds" 0
 # stdout must be exactly one line: the session ID, no shell errors
-LINE_COUNT=$(echo "$LAST_OUT" | wc -l | tr -d ' ')
-if [[ "$LINE_COUNT" == "1" && "$LAST_OUT" == lean4-session-* ]]; then
+LINE_COUNT=$(echo "$LAST_STDOUT" | wc -l | tr -d ' ')
+if [[ "$LINE_COUNT" == "1" && "$LAST_STDOUT" == lean4-session-* ]]; then
   echo "  PASS: init stdout is clean (single session ID line)"
   (( ++PASS ))
 else
-  echo "  FAIL: init stdout is polluted ($LINE_COUNT lines, content: '$LAST_OUT')"
+  echo "  FAIL: init stdout is polluted ($LINE_COUNT lines, content: '$LAST_STDOUT')"
   (( ++FAIL ))
 fi
-SID="$LAST_OUT"
+SID="$LAST_STDOUT"
 export LEAN4_SESSION_ID="$SID"
 run stop
 LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
@@ -522,15 +543,15 @@ LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
 export CLAUDE_ENV_FILE="$NOWRITE_ENV"
 run init --max-cycles=5 --max-stuck=2
 assert_exit "init with unwritable-dir env file succeeds" 0
-LINE_COUNT=$(echo "$LAST_OUT" | wc -l | tr -d ' ')
-if [[ "$LINE_COUNT" == "1" && "$LAST_OUT" == lean4-session-* ]]; then
+LINE_COUNT=$(echo "$LAST_STDOUT" | wc -l | tr -d ' ')
+if [[ "$LINE_COUNT" == "1" && "$LAST_STDOUT" == lean4-session-* ]]; then
   echo "  PASS: init stdout clean with unwritable dir"
   (( ++PASS ))
 else
-  echo "  FAIL: init stdout polluted with unwritable dir ($LINE_COUNT lines, content: '$LAST_OUT')"
+  echo "  FAIL: init stdout polluted with unwritable dir ($LINE_COUNT lines, content: '$LAST_STDOUT')"
   (( ++FAIL ))
 fi
-SID="$LAST_OUT"
+SID="$LAST_STDOUT"
 export LEAN4_SESSION_ID="$SID"
 run stop
 chmod 755 "$NOWRITE_DIR" 2>/dev/null || true
@@ -543,15 +564,15 @@ LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
 export CLAUDE_ENV_FILE="$TMPDIR"
 run init --max-cycles=5 --max-stuck=2
 assert_exit "init with directory env file succeeds" 0
-LINE_COUNT=$(echo "$LAST_OUT" | wc -l | tr -d ' ')
-if [[ "$LINE_COUNT" == "1" && "$LAST_OUT" == lean4-session-* ]]; then
+LINE_COUNT=$(echo "$LAST_STDOUT" | wc -l | tr -d ' ')
+if [[ "$LINE_COUNT" == "1" && "$LAST_STDOUT" == lean4-session-* ]]; then
   echo "  PASS: init stdout clean with directory env file"
   (( ++PASS ))
 else
-  echo "  FAIL: init stdout polluted with directory env file ($LINE_COUNT lines, content: '$LAST_OUT')"
+  echo "  FAIL: init stdout polluted with directory env file ($LINE_COUNT lines, content: '$LAST_STDOUT')"
   (( ++FAIL ))
 fi
-SID="$LAST_OUT"
+SID="$LAST_STDOUT"
 export LEAN4_SESSION_ID="$SID"
 run stop
 LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
@@ -565,15 +586,15 @@ if [[ -p "$FIFO_PATH" ]]; then
   export CLAUDE_ENV_FILE="$FIFO_PATH"
   run init --max-cycles=5 --max-stuck=2
   assert_exit "init with FIFO env file succeeds" 0
-  LINE_COUNT=$(echo "$LAST_OUT" | wc -l | tr -d ' ')
-  if [[ "$LINE_COUNT" == "1" && "$LAST_OUT" == lean4-session-* ]]; then
+  LINE_COUNT=$(echo "$LAST_STDOUT" | wc -l | tr -d ' ')
+  if [[ "$LINE_COUNT" == "1" && "$LAST_STDOUT" == lean4-session-* ]]; then
     echo "  PASS: init stdout clean with FIFO env file"
     (( ++PASS ))
   else
-    echo "  FAIL: init stdout polluted with FIFO env file ($LINE_COUNT lines, content: '$LAST_OUT')"
+    echo "  FAIL: init stdout polluted with FIFO env file ($LINE_COUNT lines, content: '$LAST_STDOUT')"
     (( ++FAIL ))
   fi
-  SID="$LAST_OUT"
+  SID="$LAST_STDOUT"
   export LEAN4_SESSION_ID="$SID"
   run stop
   LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
@@ -593,12 +614,12 @@ if [[ -L "$BROKEN_LINK" ]]; then
   export CLAUDE_ENV_FILE="$BROKEN_LINK"
   run init --max-cycles=5 --max-stuck=2
   assert_exit "init with broken symlink env file succeeds" 0
-  LINE_COUNT=$(echo "$LAST_OUT" | wc -l | tr -d ' ')
-  if [[ "$LINE_COUNT" == "1" && "$LAST_OUT" == lean4-session-* ]]; then
+  LINE_COUNT=$(echo "$LAST_STDOUT" | wc -l | tr -d ' ')
+  if [[ "$LINE_COUNT" == "1" && "$LAST_STDOUT" == lean4-session-* ]]; then
     echo "  PASS: init stdout clean with broken symlink env file"
     (( ++PASS ))
   else
-    echo "  FAIL: init stdout polluted with broken symlink ($LINE_COUNT lines, content: '$LAST_OUT')"
+    echo "  FAIL: init stdout polluted with broken symlink ($LINE_COUNT lines, content: '$LAST_STDOUT')"
     (( ++FAIL ))
   fi
   # Target file must NOT have been created
@@ -618,7 +639,7 @@ if [[ -L "$BROKEN_LINK" ]]; then
     echo "  FAIL: broken symlink was modified by init"
     (( ++FAIL ))
   fi
-  SID="$LAST_OUT"
+  SID="$LAST_STDOUT"
   export LEAN4_SESSION_ID="$SID"
   run stop
   # Post-stop: target still must not exist, link still broken
@@ -653,7 +674,7 @@ if [[ -L "$LINK_PATH" ]]; then
   export CLAUDE_ENV_FILE="$LINK_PATH"
   run init --max-cycles=5 --max-stuck=2
   assert_exit "init with symlink-to-file env file succeeds" 0
-  SID="$LAST_OUT"
+  SID="$LAST_STDOUT"
   export LEAN4_SESSION_ID="$SID"
   # The symlink must still be a symlink (not replaced by a regular file)
   if [[ -L "$LINK_PATH" ]]; then
@@ -886,7 +907,7 @@ if command -v python3 >/dev/null 2>&1; then
     # Basic lifecycle on python3 backend
     run init --max-cycles=5 --max-stuck=2
     assert_exit "py3: init succeeds" 0
-    SID="$LAST_OUT"; export LEAN4_SESSION_ID="$SID"
+    SID="$LAST_STDOUT"; export LEAN4_SESSION_ID="$SID"
 
     run start-claim
     assert_exit "py3: start-claim succeeds" 0
@@ -959,7 +980,7 @@ echo "-- Init flag aliases --"
 # Long user-facing form: --max-stuck-cycles
 run init --max-cycles=5 --max-stuck-cycles=3
 assert_exit "--max-stuck-cycles alias accepted" 0
-SID="$LAST_OUT"; export LEAN4_SESSION_ID="$SID"
+SID="$LAST_STDOUT"; export LEAN4_SESSION_ID="$SID"
 FILE=$(state_file)
 VAL=$(read_field "$FILE" "max_stuck")
 if [[ "$VAL" == "3" ]]; then echo "  PASS: --max-stuck-cycles=3 → max_stuck=3"; (( ++PASS )); else echo "  FAIL: max_stuck=$VAL, expected 3"; (( ++FAIL )); fi
@@ -968,7 +989,7 @@ cleanup_session
 # Long user-facing form: --max-total-runtime
 run init --max-cycles=5 --max-stuck=2 --max-total-runtime=60m
 assert_exit "--max-total-runtime alias accepted" 0
-SID="$LAST_OUT"; export LEAN4_SESSION_ID="$SID"
+SID="$LAST_STDOUT"; export LEAN4_SESSION_ID="$SID"
 FILE=$(state_file)
 VAL=$(read_field "$FILE" "max_runtime_seconds")
 if [[ "$VAL" == "3600" ]]; then echo "  PASS: --max-total-runtime=60m → 3600s"; (( ++PASS )); else echo "  FAIL: max_runtime_seconds=$VAL, expected 3600"; (( ++FAIL )); fi
@@ -977,7 +998,7 @@ cleanup_session
 # Long user-facing form: --max-consecutive-deep-cycles
 run init --max-cycles=5 --max-stuck=2 --max-consecutive-deep-cycles=4
 assert_exit "--max-consecutive-deep-cycles alias accepted" 0
-SID="$LAST_OUT"; export LEAN4_SESSION_ID="$SID"
+SID="$LAST_STDOUT"; export LEAN4_SESSION_ID="$SID"
 FILE=$(state_file)
 VAL=$(read_field "$FILE" "max_consecutive_deep")
 if [[ "$VAL" == "4" ]]; then echo "  PASS: --max-consecutive-deep-cycles=4 → max_consecutive_deep=4"; (( ++PASS )); else echo "  FAIL: max_consecutive_deep=$VAL, expected 4"; (( ++FAIL )); fi
@@ -986,7 +1007,7 @@ cleanup_session
 # Mixed short/long aliases in a single init call
 run init --max-cycles=10 --max-stuck-cycles=2 --max-total-runtime=30m --max-consecutive-deep-cycles=3
 assert_exit "mixed short/long aliases accepted" 0
-SID="$LAST_OUT"; export LEAN4_SESSION_ID="$SID"
+SID="$LAST_STDOUT"; export LEAN4_SESSION_ID="$SID"
 FILE=$(state_file)
 V1=$(read_field "$FILE" "max_stuck")
 V2=$(read_field "$FILE" "max_runtime_seconds")
@@ -1151,6 +1172,87 @@ fi
 # Cleanup
 unset LEAN4_SESSION_ID LEAN4_SESSION_DIR CLAUDE_ENV_FILE
 rm -rf "$CROSS_TMPDIR" "$CROSS_ENVF"
+
+# =========================================================================
+echo ""
+echo "-- Stdout-only cross-TMPDIR reuse (no env file) --"
+
+# When no env file is configured, init persists nothing — the caller gets
+# the session id on stdout and the session dir on stderr. This test proves:
+#   1. stdout contains ONLY the sid (backward-compat — no extra lines)
+#   2. stderr contains a machine-parseable LEAN4_SESSION_DIR=<dir> hint
+#   3. a caller who passes BOTH vars can run tick/status/stop even with
+#      a different ambient TMPDIR
+# Without (3), stdout-only manual reuse breaks across TMPDIR changes —
+# exactly the residual gap that motivated this work.
+
+STDOUT_TMPDIR=$(mktemp -d)
+STDOUT_OUT=$(mktemp)
+STDOUT_ERR=$(mktemp)
+
+# Step 1+2: init with no env file at all, capture stdout and stderr separately
+unset CLAUDE_ENV_FILE LEAN4_ENV_FILE
+TMPDIR="$STDOUT_TMPDIR" bash "$TRACKER" init --max-cycles=3 --max-stuck=2 \
+  >"$STDOUT_OUT" 2>"$STDOUT_ERR" || true
+
+STDOUT_SID=$(cat "$STDOUT_OUT")
+STDOUT_STDERR=$(cat "$STDOUT_ERR")
+
+# Stdout must be exactly one line containing the sid — no extra output
+STDOUT_LINES=$(wc -l < "$STDOUT_OUT" | tr -d ' ')
+if [[ "$STDOUT_LINES" == "1" && -n "$STDOUT_SID" ]]; then
+  echo "  PASS: stdout contains only the session id (backward compat)"
+  (( ++PASS ))
+else
+  echo "  FAIL: stdout had $STDOUT_LINES lines or empty sid (expected 1 line with sid)"
+  echo "        stdout: $(cat "$STDOUT_OUT")"
+  (( ++FAIL ))
+fi
+
+# Stderr must contain the LEAN4_SESSION_DIR hint pointing at our custom TMPDIR
+if [[ "$STDOUT_STDERR" == *"LEAN4_SESSION_DIR=$STDOUT_TMPDIR"* ]]; then
+  echo "  PASS: stderr surfaces LEAN4_SESSION_DIR=<dir> for manual reuse"
+  (( ++PASS ))
+else
+  echo "  FAIL: stderr missing LEAN4_SESSION_DIR=$STDOUT_TMPDIR hint"
+  echo "        stderr: $STDOUT_STDERR"
+  (( ++FAIL ))
+fi
+
+# Step 3: caller preserves both vars, runs under a different ambient TMPDIR
+LEAN4_SESSION_ID="$STDOUT_SID" LEAN4_SESSION_DIR="$STDOUT_TMPDIR" TMPDIR="/tmp" \
+  bash "$TRACKER" tick --stuck=no >/dev/null 2>&1
+if [[ "$?" -eq 0 ]]; then
+  echo "  PASS: stdout-only caller can tick cross-TMPDIR by passing both vars"
+  (( ++PASS ))
+else
+  echo "  FAIL: tick failed with explicit LEAN4_SESSION_DIR under different TMPDIR"
+  (( ++FAIL ))
+fi
+
+LEAN4_SESSION_ID="$STDOUT_SID" LEAN4_SESSION_DIR="$STDOUT_TMPDIR" TMPDIR="/tmp" \
+  bash "$TRACKER" status >/dev/null 2>&1
+if [[ "$?" -eq 0 ]]; then
+  echo "  PASS: stdout-only caller can status cross-TMPDIR by passing both vars"
+  (( ++PASS ))
+else
+  echo "  FAIL: status failed with explicit LEAN4_SESSION_DIR under different TMPDIR"
+  (( ++FAIL ))
+fi
+
+LEAN4_SESSION_ID="$STDOUT_SID" LEAN4_SESSION_DIR="$STDOUT_TMPDIR" TMPDIR="/tmp" \
+  bash "$TRACKER" stop >/dev/null 2>&1
+if [[ "$?" -eq 0 && ! -f "$STDOUT_TMPDIR/${STDOUT_SID}.json" ]]; then
+  echo "  PASS: stdout-only caller can stop cross-TMPDIR by passing both vars"
+  (( ++PASS ))
+else
+  echo "  FAIL: stop failed or left state file behind"
+  (( ++FAIL ))
+fi
+
+# Cleanup
+rm -rf "$STDOUT_TMPDIR" "$STDOUT_OUT" "$STDOUT_ERR"
+unset LEAN4_SESSION_ID LEAN4_SESSION_DIR
 
 # =========================================================================
 echo ""
