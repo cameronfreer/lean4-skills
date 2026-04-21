@@ -846,13 +846,34 @@ cmd_stop() {
   rm -f "$f"
   # Also clean up any orphaned tmp files from atomic writes
   rm -f "${f}".tmp.* 2>/dev/null || true
-  # Unpersist only this session's LEAN4_SESSION_ID and LEAN4_SESSION_DIR from
-  # the env file, not another session's. Match the exact session id. Both
-  # variables are paired at init, so we clean them up together at stop.
+  # Unpersist this session's LEAN4_SESSION_ID and (conditionally)
+  # LEAN4_SESSION_DIR. A later init under the same env file may have
+  # overwritten both lines with a newer session's values. If two sessions
+  # share the same TMPDIR, the newer session's DIR string is identical to
+  # ours — removing it by value would clobber the newer session's
+  # persistence (weakening cross-TMPDIR robustness) even though its ID stays.
+  # So only remove the DIR line when the env file's current ID still matches
+  # ours (or no ID line remains). Uses `grep -F -x` (fixed strings,
+  # whole-line) so regex metacharacters in ${sid}/${dir} — e.g. '.' in a
+  # BSD mktemp path — can't cause over- or under-matches.
   if [[ -n "$recorded_env" && -f "$recorded_env" && -r "$recorded_env" && -w "$recorded_env" ]]; then
-    grep -v "^export LEAN4_SESSION_ID=\"${sid}\"" "$recorded_env" \
-      | grep -v "^export LEAN4_SESSION_DIR=\"${dir}\"" \
-      > "${recorded_env}.tmp" 2>/dev/null || true
+    local current_id_line current_id
+    current_id_line=$(grep '^export LEAN4_SESSION_ID=' "$recorded_env" 2>/dev/null | tail -n1)
+    current_id="${current_id_line#export LEAN4_SESSION_ID=\"}"
+    current_id="${current_id%\"}"
+    local id_line="export LEAN4_SESSION_ID=\"${sid}\""
+    local dir_line="export LEAN4_SESSION_DIR=\"${dir}\""
+    if [[ -z "$current_id" || "$current_id" == "$sid" ]]; then
+      grep -v -F -x "$id_line" "$recorded_env" \
+        | grep -v -F -x "$dir_line" \
+        > "${recorded_env}.tmp" 2>/dev/null || true
+    else
+      # Newer session supersedes us; only remove any lingering stale ID line
+      # that matches our sid. Leave LEAN4_SESSION_DIR alone — it belongs to
+      # the active session now.
+      grep -v -F -x "$id_line" "$recorded_env" \
+        > "${recorded_env}.tmp" 2>/dev/null || true
+    fi
     mv "${recorded_env}.tmp" "$recorded_env"
   fi
 }

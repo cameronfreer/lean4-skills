@@ -1256,5 +1256,86 @@ unset LEAN4_SESSION_ID LEAN4_SESSION_DIR
 
 # =========================================================================
 echo ""
+echo "-- Superseded-session env-file cleanup --"
+
+# Two sessions share the same env file and the same TMPDIR. When session B
+# supersedes A (same dir string), stopping A must NOT remove B's persisted
+# LEAN4_SESSION_DIR line — doing so would weaken cross-TMPDIR robustness for
+# the still-active B. Regression: the old cleanup matched LEAN4_SESSION_DIR
+# by value, which was identical across both sessions.
+
+SUPERSEDE_TMPDIR=$(mktemp -d)
+SUPERSEDE_ENVF="${TMPDIR:-/tmp}/lean4-test-supersede-envfile-$$"
+: > "$SUPERSEDE_ENVF"
+LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
+LEAN4_SESSION_DIR=""; export LEAN4_SESSION_DIR
+CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
+export LEAN4_ENV_FILE="$SUPERSEDE_ENVF"
+
+SID_A=$(TMPDIR="$SUPERSEDE_TMPDIR" bash "$TRACKER" init --max-cycles=5 --max-stuck=2 2>/dev/null)
+SID_B=$(TMPDIR="$SUPERSEDE_TMPDIR" bash "$TRACKER" init --max-cycles=5 --max-stuck=2 2>/dev/null)
+
+if [[ -n "$SID_A" && -n "$SID_B" && "$SID_A" != "$SID_B" ]]; then
+  echo "  PASS: two sessions got distinct ids ($SID_A vs $SID_B)"
+  (( ++PASS ))
+else
+  echo "  FAIL: could not init two distinct sessions (A=$SID_A B=$SID_B)"
+  (( ++FAIL ))
+fi
+
+# Stop A explicitly (export its vars, not B's).
+LEAN4_SESSION_ID="$SID_A" LEAN4_SESSION_DIR="$SUPERSEDE_TMPDIR" \
+  bash "$TRACKER" stop >/dev/null 2>&1
+
+if grep -qxF "export LEAN4_SESSION_ID=\"$SID_B\"" "$SUPERSEDE_ENVF"; then
+  echo "  PASS: stop A preserved B's LEAN4_SESSION_ID"
+  (( ++PASS ))
+else
+  echo "  FAIL: stop A removed B's LEAN4_SESSION_ID"
+  echo "        env file contents:"
+  sed 's/^/          /' "$SUPERSEDE_ENVF"
+  (( ++FAIL ))
+fi
+
+if grep -qxF "export LEAN4_SESSION_DIR=\"$SUPERSEDE_TMPDIR\"" "$SUPERSEDE_ENVF"; then
+  echo "  PASS: stop A preserved B's LEAN4_SESSION_DIR (superseded-session regression)"
+  (( ++PASS ))
+else
+  echo "  FAIL: stop A clobbered B's LEAN4_SESSION_DIR"
+  echo "        env file contents:"
+  sed 's/^/          /' "$SUPERSEDE_ENVF"
+  (( ++FAIL ))
+fi
+
+# A's state file should be gone; B's should still exist.
+if [[ ! -f "$SUPERSEDE_TMPDIR/${SID_A}.json" && -f "$SUPERSEDE_TMPDIR/${SID_B}.json" ]]; then
+  echo "  PASS: stop A removed A's state file and left B's intact"
+  (( ++PASS ))
+else
+  echo "  FAIL: unexpected state-file layout after stop A"
+  ls "$SUPERSEDE_TMPDIR/" | sed 's/^/          /'
+  (( ++FAIL ))
+fi
+
+# Now stop B and verify both vars are gone.
+LEAN4_SESSION_ID="$SID_B" LEAN4_SESSION_DIR="$SUPERSEDE_TMPDIR" \
+  bash "$TRACKER" stop >/dev/null 2>&1
+
+if ! grep -q '^export LEAN4_SESSION_ID=' "$SUPERSEDE_ENVF" \
+   && ! grep -q '^export LEAN4_SESSION_DIR=' "$SUPERSEDE_ENVF"; then
+  echo "  PASS: stop B unpersisted both LEAN4_SESSION_ID and LEAN4_SESSION_DIR"
+  (( ++PASS ))
+else
+  echo "  FAIL: stop B left stale exports in env file"
+  sed 's/^/          /' "$SUPERSEDE_ENVF"
+  (( ++FAIL ))
+fi
+
+# Cleanup
+rm -rf "$SUPERSEDE_TMPDIR" "$SUPERSEDE_ENVF"
+unset LEAN4_SESSION_ID LEAN4_SESSION_DIR LEAN4_ENV_FILE
+
+# =========================================================================
+echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]
