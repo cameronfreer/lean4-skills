@@ -1335,6 +1335,40 @@ fi
 rm -rf "$SUPERSEDE_TMPDIR" "$SUPERSEDE_ENVF"
 unset LEAN4_SESSION_ID LEAN4_SESSION_DIR LEAN4_ENV_FILE
 
+# -------------------------------------------------------------------------
+# Env file with only a LEAN4_SESSION_DIR line (no LEAN4_SESSION_ID line) —
+# stop must exit 0 and clean the DIR line. Without the `|| true` guard on
+# the "find current ID" grep pipeline, `set -euo pipefail` aborts stop
+# before the empty-current_id branch runs.
+NOIDENV="${TMPDIR:-/tmp}/lean4-test-noid-envfile-$$"
+NOIDDIR=$(mktemp -d)
+printf 'export LEAN4_SESSION_DIR="%s"\n' "$NOIDDIR" > "$NOIDENV"
+NOID_SID="lean4-session-NOIDTEST"
+printf '{"session_id":"%s","env_file":"%s"}' "$NOID_SID" "$NOIDENV" > "$NOIDDIR/$NOID_SID.json"
+LEAN4_SESSION_ID=""; export LEAN4_SESSION_ID
+LEAN4_SESSION_DIR=""; export LEAN4_SESSION_DIR
+CLAUDE_ENV_FILE=""; export CLAUDE_ENV_FILE
+LEAN4_ENV_FILE=""; export LEAN4_ENV_FILE
+LEAN4_SESSION_ID="$NOID_SID" LEAN4_SESSION_DIR="$NOIDDIR" \
+  bash "$TRACKER" stop >/dev/null 2>&1
+NOID_RC=$?
+if [[ "$NOID_RC" -eq 0 ]]; then
+  echo "  PASS: stop with only DIR line (no ID line) exits 0"
+  (( ++PASS ))
+else
+  echo "  FAIL: stop with only DIR line exited $NOID_RC (pipefail regression?)"
+  (( ++FAIL ))
+fi
+if ! grep -q '^export LEAN4_SESSION_DIR=' "$NOIDENV" 2>/dev/null; then
+  echo "  PASS: stop with only DIR line cleaned the DIR line"
+  (( ++PASS ))
+else
+  echo "  FAIL: stop with only DIR line left the DIR line behind"
+  sed 's/^/          /' "$NOIDENV"
+  (( ++FAIL ))
+fi
+rm -rf "$NOIDDIR" "$NOIDENV"
+
 # =========================================================================
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="

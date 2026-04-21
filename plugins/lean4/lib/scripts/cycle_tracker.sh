@@ -858,7 +858,11 @@ cmd_stop() {
   # BSD mktemp path — can't cause over- or under-matches.
   if [[ -n "$recorded_env" && -f "$recorded_env" && -r "$recorded_env" && -w "$recorded_env" ]]; then
     local current_id_line current_id
-    current_id_line=$(grep '^export LEAN4_SESSION_ID=' "$recorded_env" 2>/dev/null | tail -n1)
+    # `|| true` because grep exits 1 when no match, which combined with
+    # pipefail would abort stop before the empty-current_id branch runs —
+    # the same env file may legitimately have no LEAN4_SESSION_ID line
+    # (e.g. only a stale DIR line after an interrupted prior cleanup).
+    current_id_line=$(grep '^export LEAN4_SESSION_ID=' "$recorded_env" 2>/dev/null | tail -n1 || true)
     current_id="${current_id_line#export LEAN4_SESSION_ID=\"}"
     current_id="${current_id%\"}"
     local id_line="export LEAN4_SESSION_ID=\"${sid}\""
