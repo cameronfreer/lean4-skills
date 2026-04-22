@@ -26,13 +26,121 @@ LSP tools are the normative first-pass for all discovery, search, and validation
 2. Up to 3 LSP search tools (time-boxed ~30s total): `lean_local_search`, preferably `lean_leanfinder` for semantic/goal-aware search (`lean_leansearch` for natural-language fallback, `lean_hammer_premise` for premise suggestions), and `lean_loogle` for type-pattern gaps
 3. Record top candidate lemmas and intended next attempts in the plan
 4. **Trivial-goal shortcut:** If the goal is obviously solvable (`rfl`, `simp`, `exact` with a known lemma), skip extended search — proceed directly to work phase
+5. **Difficulty rating:** Score each sorry 1–10 using the rubric in [debate-patterns.md](debate-patterns.md#difficulty-scoring-rubric). If score ≥ 7 and `--debate != off`, run the three-advisor debate and record the winning strategy + confidence score before proceeding to the Work phase. See [debate-patterns.md](debate-patterns.md) for full rubric, advisor roles, and format.
 
 **Work phase (per sorry):**
+
+If this sorry has a debate result (see Debate Gate below), execute `judge.execution_plan` instead of generic candidate generation. If `judge.winner == "escalate-to-deep"`, skip Work and enter Deep Mode immediately.
+
+Standard path (difficulty ≤ 6, `--debate=off`, or confident=true from self-assessment):
 1. Refresh `lean_goal(file, line)` at start
 2. Run up to 2 LSP search tools before any script fallback (skip if trivial goal or prior planning search was conclusive)
 3. Generate 2-3 candidate proof snippets from search results. When `lean_hammer_premise` returns premises, generate `simp only [p1, p2]` and `grind [p1, p2]` candidates.
 4. Test with `lean_multi_attempt(file, line, snippets=[...])`
 5. Prefer shortest passing candidate; only then edit/commit
+
+## Debate Gate
+
+Run this procedure for every sorry in the Plan phase, after `lean_goal` and LSP search complete. This is not optional when `--debate != off` and the sorry scores ≥ 7.
+
+### Step 1: Score difficulty
+
+Score the sorry 1–10 using the rubric in [debate-patterns.md](debate-patterns.md#difficulty-scoring-rubric). If score ≤ 6, skip the rest of this section and proceed to Work with standard candidate generation.
+
+Trivial shortcut: if the goal is obviously `rfl`/`simp`/`exact`, score = 1, skip.
+Thin-data skip: if LSP returned < 2 results total, skip debate, go to standard Work (or Deep Mode if available).
+
+### Step 2: Self-assess confidence
+
+Ask yourself: **"Am I 100% confident in a single proof strategy right now — no doubt, no alternatives I'm uncertain between?"**
+
+- If **yes**: proceed directly to Work with that strategy. Do not spawn any agents.
+- If **no**: continue to Step 3.
+
+The bar is genuinely 100%. Any specific doubt — an edge case, an elaboration risk, two plausible approaches — means no.
+
+### Step 3: Run the debate loop
+
+Execute this loop. Do not skip steps. Do not wait for user input between rounds.
+
+```
+debate_history = []
+round = 1
+max_rounds = (value of --debate-max-rounds, default 5)
+
+LOOP:
+  // Spawn Mathematician and Tactician IN PARALLEL
+  mathematician_output = Agent(
+    subagent_type = "lean4:lean4-debate-mathematician",
+    prompt = {sorry context} + {round, debate_history}
+  )
+  tactician_output = Agent(
+    subagent_type = "lean4:lean4-debate-tactician",
+    prompt = {sorry context} + {round, debate_history}
+  )
+
+  // Append both to history, then spawn Skeptic
+  debate_history.append(mathematician_output, tactician_output)
+  skeptic_output = Agent(
+    subagent_type = "lean4:lean4-debate-skeptic",
+    prompt = {sorry context} + {round, debate_history}
+  )
+
+  // Append Skeptic, then spawn Judge
+  debate_history.append(skeptic_output)
+  judge_output = Agent(
+    subagent_type = "lean4:lean4-debate-judge",
+    prompt = {sorry_id, difficulty_score, max_rounds, current_round=round, debate_history}
+  )
+
+  IF judge_output.verdict == "resolved":
+    BREAK
+
+  IF round == max_rounds:
+    // Judge already forced resolution above — this shouldn't be reached
+    BREAK
+
+  round += 1
+  // Add judge's next_round_prompt to context for next round
+  // (append to debate_history so agents see the Judge's crux question)
+  debate_history.append(judge_output)
+  CONTINUE LOOP
+```
+
+The "sorry context" passed to each agent each round is:
+```json
+{
+  "sorry_id": "file:line",
+  "goal": "<lean_goal output>",
+  "local_hypotheses": ["h : T"],
+  "lsp_search_results": { "leanfinder": [...], "leansearch": [...], "loogle": [...] },
+  "prior_failures": [...],
+  "difficulty_score": N,
+  "round": <current round>,
+  "debate_history": <all prior outputs>
+}
+```
+
+### Step 4: Emit result and proceed
+
+Emit to user (prove mode) or log (autoprove mode):
+```
+*Debate (difficulty N/10, R rounds): [judge_output.debate_summary]*
+```
+
+If `--debate=ask` (prove mode), prompt:
+```
+Proceed with this strategy? [yes / override / skip-debate]
+```
+On `override`: user provides alternate strategy inline, use that instead.
+On `skip-debate`: fall back to standard 2-3 candidate generation.
+On `yes` or autoprove: proceed to Work using `judge_output.execution_plan`.
+
+If `judge_output.winner == "escalate-to-deep"`: skip Work, enter Deep Mode immediately.
+Use `judge_output.stuck_threshold` as the attempt limit for this sorry (overrides default of 3).
+If `judge_output.preflight_falsification == true`: run falsification pass before any proof attempt.
+
+---
 
 **Fallback gate:** Script fallback (`$LEAN4_SCRIPTS/smart_search.sh`, `$LEAN4_SCRIPTS/search_mathlib.sh`) and repair agents are permitted when:
 - LSP search budget is exhausted (at least 2 searches returning empty/inconclusive), OR
@@ -96,6 +204,7 @@ A sorry or repair target is **stuck** when any of these hold:
 - LSP queries attempted (tool name + query text)
 - Top candidate lemmas returned (if any)
 - `lean_multi_attempt` outcomes (snippets tested, pass/fail for each)
+- If a debate was run: full debate block (all three advisor proposals, winner, confidence) and which part of the winning strategy failed
 
 **Important:** Stuck-triggered replan is mandatory even if `--planning=off`. It is a safety mechanism, not optional planning.
 
@@ -287,3 +396,4 @@ Blocked git commands (both prove and autoprove):
 - [sorry-filling.md](sorry-filling.md) — Sorry elimination tactics
 - [compilation-errors.md](compilation-errors.md) — Error-by-error repair guidance
 - [command-examples.md](command-examples.md) — Usage examples
+- [debate-patterns.md](debate-patterns.md) — Difficulty scoring rubric, three-advisor debate format, and budget rules

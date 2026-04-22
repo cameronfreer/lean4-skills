@@ -40,6 +40,8 @@ Guided, cycle-by-cycle theorem proving. Asks before each cycle, supports deep es
 | --batch-size | No | 1 | Sorries to attempt per cycle |
 | --commit | No | ask | `ask` (prompt before each commit), `auto`, or `never` |
 | --golf | No | prompt | `prompt`, `auto`, or `never` |
+| --debate | No | ask | `ask` (show debate, user may override winner), `auto` (run silently), or `off` (disable) |
+| --debate-threshold | No | 7 | Minimum difficulty score (1–10) to trigger debate |
 
 ## Startup Behavior
 
@@ -65,7 +67,7 @@ Each cycle has 6 phases — see [cycle-engine.md](../skills/lean4/references/cyc
 
 ### Phase 1: Plan
 
-See [cycle-engine: LSP-First Protocol](../skills/lean4/references/cycle-engine.md#lsp-first-protocol). Discover sorries via LSP, search with up to 3 tools (~30s), show plan and get confirmation.
+See [cycle-engine: LSP-First Protocol](../skills/lean4/references/cycle-engine.md#lsp-first-protocol). Discover sorries via LSP, search with up to 3 tools (~30s), rate each sorry's difficulty (1–10), show plan and get confirmation. For sorries rated ≥ `--debate-threshold`, a strategy debate runs before execution (see [debate-patterns.md](../skills/lean4/references/debate-patterns.md)).
 
 ### Phase 2: Work (Per Sorry)
 
@@ -185,4 +187,5 @@ Guardrailed git commands are blocked. See [cycle-engine.md](../skills/lean4/refe
 - `/lean4:review` - Quality check (read-only)
 - `/lean4:golf` - Optimize proofs
 - [Cycle Engine](../skills/lean4/references/cycle-engine.md) - Shared prove/autoprove mechanics
+- [Debate Patterns](../skills/lean4/references/debate-patterns.md) - Difficulty scoring and three-advisor debate
 - [Examples](../skills/lean4/references/command-examples.md#prove)

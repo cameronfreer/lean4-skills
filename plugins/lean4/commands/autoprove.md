@@ -41,6 +41,8 @@ Autonomous multi-cycle theorem proving. Runs cycles automatically with hard stop
 | --batch-size | No | 2 | Sorries to attempt per cycle |
 | --commit | No | auto | `auto` or `never` (`ask` coerced to `auto` — see note below) |
 | --golf | No | never | `prompt`, `auto`, or `never` |
+| --debate | No | auto | `auto` (run silently, log result) or `off` (disable). Note: `ask` coerced to `auto` — no interactive prompting in autoprove. |
+| --debate-threshold | No | 7 | Minimum difficulty score (1–10) to trigger debate |
 | --max-cycles | No | 20 | Hard stop: max total cycles |
 | --max-total-runtime | No | 120m | Hard stop: max total runtime |
 | --max-stuck-cycles | No | 3 | Hard stop: max consecutive stuck cycles |
@@ -76,7 +78,7 @@ Each cycle has 6 phases — see [cycle-engine.md](../skills/lean4/references/cyc
 
 ### Phase 1: Plan
 
-See [cycle-engine: LSP-First Protocol](../skills/lean4/references/cycle-engine.md#lsp-first-protocol). Discover sorries via LSP, search with up to 3 tools (~30s), identify sorries, set order.
+See [cycle-engine: LSP-First Protocol](../skills/lean4/references/cycle-engine.md#lsp-first-protocol). Discover sorries via LSP, search with up to 3 tools (~30s), rate each sorry's difficulty (1–10), set order. For sorries rated ≥ `--debate-threshold`, a strategy debate runs automatically before execution and is logged (see [debate-patterns.md](../skills/lean4/references/debate-patterns.md)).
 
 ### Phase 2: Work (Per Sorry)
 
@@ -161,6 +163,7 @@ Statement changes are logged but auto-skipped. Use `/lean4:prove` for interactiv
 **Deep safety coercions** (validated and applied at startup with warnings):
 - `--deep-rollback=never` → coerced to `on-regression`
 - `--deep-regression-gate=off` → coerced to `strict`
+- `--debate=ask` → coerced to `auto` (no interactive prompting in autoprove)
 
 See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#deep-mode) for full semantics, definitions, and prove/autoprove comparison.
 
@@ -195,4 +198,5 @@ Guardrailed git commands are blocked. See [cycle-engine.md](../skills/lean4/refe
 - `/lean4:review` - Quality check (read-only)
 - `/lean4:golf` - Optimize proofs
 - [Cycle Engine](../skills/lean4/references/cycle-engine.md) - Shared prove/autoprove mechanics
+- [Debate Patterns](../skills/lean4/references/debate-patterns.md) - Difficulty scoring and three-advisor debate
 - [Examples](../skills/lean4/references/command-examples.md#autoprove)
