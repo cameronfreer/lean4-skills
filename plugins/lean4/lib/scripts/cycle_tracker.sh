@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 # Resolve TMPDIR once: honor caller's TMPDIR (macOS always sets it), fall back
