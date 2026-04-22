@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 # Self-test for lint_bash_compat.sh — verifies it catches all 7 advertised
@@ -36,7 +36,7 @@ cp "$LINT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh"
 expect_lint_fail() {
   local desc="$1" body="$2"
   local probe="$TMPDIR_ROOT/lib/scripts/probe.sh"
-  printf '#!/bin/bash\n%s\n' "$body" > "$probe"
+  printf '#!/usr/bin/env bash\n%s\n' "$body" > "$probe"
   local exit_code=0
   /bin/bash "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
   if [[ "$exit_code" -eq 1 ]]; then
@@ -55,7 +55,7 @@ expect_lint_fail() {
 expect_lint_pass() {
   local desc="$1" body="$2"
   local probe="$TMPDIR_ROOT/lib/scripts/probe.sh"
-  printf '#!/bin/bash\n%s\n' "$body" > "$probe"
+  printf '#!/usr/bin/env bash\n%s\n' "$body" > "$probe"
   local exit_code=0
   /bin/bash "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
   if [[ "$exit_code" -eq 0 ]]; then
@@ -145,7 +145,7 @@ echo ""
 echo "-- Combined probe (exactly 7 categories fire) --"
 
 cat > "$TMPDIR_ROOT/lib/scripts/bad_all.sh" <<'PROBE'
-#!/bin/bash
+#!/usr/bin/env bash
 lower="${val,,}"
 declare -A mymap
 mapfile -t lines < /dev/null

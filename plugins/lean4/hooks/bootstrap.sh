@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 : "${CLAUDE_PLUGIN_ROOT:?missing CLAUDE_PLUGIN_ROOT}"
 ENV_OUT="${CLAUDE_ENV_FILE:-}"

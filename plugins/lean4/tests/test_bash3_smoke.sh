@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 # System /bin/bash smoke test for cycle_tracker.sh.
