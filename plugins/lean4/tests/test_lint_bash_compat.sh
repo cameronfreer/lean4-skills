@@ -217,6 +217,11 @@ expect_shebang_lint_fail '#!/usr/local/bin/bash — alt prefix'       '#!/usr/lo
 # script body via 'set -...' instead.
 expect_shebang_lint_fail '#!/usr/bin/env bash -e — non-portable env args' '#!/usr/bin/env bash -e'
 
+# Token-boundary regression — defends against a future "loosening" of the
+# exact match back to a prefix/substring form. Trivially rejected today
+# (bashfoo != bash), but the probe ensures it stays that way.
+expect_shebang_lint_fail '#!/usr/bin/env bashfoo — not bash token' '#!/usr/bin/env bashfoo'
+
 # Wrong interpreter — env-sh / env-zsh etc. must be rejected; runtime
 # scripts assume bash 3.2+ features (arrays, [[ ]], etc.).
 expect_shebang_lint_fail '#!/usr/bin/env sh — wrong interpreter' '#!/usr/bin/env sh'
