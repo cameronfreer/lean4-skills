@@ -5,14 +5,23 @@ set -euo pipefail
 # Bash 4+ / BSD-incompatible constructs and does NOT false-positive on safe
 # parameter-expansion forms that legitimately contain , or ^.
 #
-# Helpers invoke the copied lint with /bin/bash explicitly so the self-test
-# is end-to-end under the system default Bash, even when a newer Bash is
-# earlier on PATH. Matches the CI workflow's /bin/bash invocation.
+# Helpers invoke the copied lint with $BASH_FOR_COMPAT (default /bin/bash)
+# so the self-test is end-to-end under the system default Bash, even when a
+# newer Bash is earlier on PATH. CI invokes this with the default to match
+# the macOS Bash-3.2 contract. On hosts without /bin/bash (e.g. NixOS) the
+# test SKIPs gracefully; developers can also point BASH_FOR_COMPAT at
+# /opt/homebrew/bin/bash etc. to exercise other interpreters.
 #
 # Scope note: Check 1 (case modifiers) is a heuristic. It targets common
 # forms — ${var,,}, ${var,}, ${var^^}, ${var^}, patterned variants — and
 # has one known false-negative on arithmetic-subscript case-mod like
 # ${arr[i-1],,}. That form is intentionally out of scope.
+
+BASH_FOR_COMPAT="${BASH_FOR_COMPAT:-/bin/bash}"
+if [[ ! -x "$BASH_FOR_COMPAT" ]]; then
+  echo "SKIP: $BASH_FOR_COMPAT not found — cannot run lint self-test"
+  exit 0
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LINT="$SCRIPT_DIR/../tools/lint_bash_compat.sh"
@@ -31,14 +40,14 @@ cp "$LINT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh"
 # ---------------------------------------------------------------------------
 
 # expect_lint_fail "description" "script body"
-#   Writes script body to a probe file, runs the lint under /bin/bash,
-#   asserts exit 1 (lint caught the issue).
+#   Writes script body to a probe file, runs the lint under
+#   $BASH_FOR_COMPAT, asserts exit 1 (lint caught the issue).
 expect_lint_fail() {
   local desc="$1" body="$2"
   local probe="$TMPDIR_ROOT/lib/scripts/probe.sh"
   printf '#!/usr/bin/env bash\n%s\n' "$body" > "$probe"
   local exit_code=0
-  /bin/bash "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
+  "$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
   if [[ "$exit_code" -eq 1 ]]; then
     echo "  PASS: $desc"
     ((PASS++)) || true
@@ -50,14 +59,14 @@ expect_lint_fail() {
 }
 
 # expect_lint_pass "description" "script body"
-#   Writes script body to a probe file, runs the lint under /bin/bash,
-#   asserts exit 0 (lint did not false-positive).
+#   Writes script body to a probe file, runs the lint under
+#   $BASH_FOR_COMPAT, asserts exit 0 (lint did not false-positive).
 expect_lint_pass() {
   local desc="$1" body="$2"
   local probe="$TMPDIR_ROOT/lib/scripts/probe.sh"
   printf '#!/usr/bin/env bash\n%s\n' "$body" > "$probe"
   local exit_code=0
-  /bin/bash "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
+  "$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
   if [[ "$exit_code" -eq 0 ]]; then
     echo "  PASS: $desc"
     ((PASS++)) || true
@@ -155,7 +164,7 @@ coproc mycoproc { cat; }
 echo "${myvar@Q}"
 PROBE
 
-combined_output=$(/bin/bash "$TMPDIR_ROOT/tools/lint_bash_compat.sh" 2>&1 || true)
+combined_output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" 2>&1 || true)
 # Count warn lines that report actual matches (filename:line:content),
 # excluding the summary line ("⚠️  N issue(s) found...").
 combined_issue_count=$(echo "$combined_output" | grep -c '^⚠️.*:[0-9]\+:' || true)
