@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Self-test for lint_bash_compat.sh — verifies it catches all 7 advertised
+# Self-test for lint_bash_compat.sh — verifies it catches all advertised
 # Bash 4+ / BSD-incompatible constructs and does NOT false-positive on safe
 # parameter-expansion forms that legitimately contain , or ^.
 #
@@ -177,6 +177,64 @@ else
   ((FAIL++)) || true
 fi
 rm "$TMPDIR_ROOT/lib/scripts/bad_all.sh"
+
+# ---------------------------------------------------------------------------
+# Check 8 self-tests — runtime-path shebang regression
+#
+# Writes a probe with the given shebang line and a no-op body, asserts the
+# linter exits non-zero (Check 8 flags the shebang). Kept separate from
+# the "exactly 7 categories" combined probe above, which intentionally
+# stays scoped to Bash-4/BSD construct categories.
+# ---------------------------------------------------------------------------
+echo ""
+echo "-- Check 8 self-tests (shebang regression) --"
+
+expect_shebang_lint_fail() {
+  local desc="$1" shebang="$2"
+  local probe="$TMPDIR_ROOT/lib/scripts/probe.sh"
+  printf '%s\n: # no-op\n' "$shebang" > "$probe"
+  local exit_code=0
+  "$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
+  if [[ "$exit_code" -eq 1 ]]; then
+    echo "  PASS: $desc"
+    ((PASS++)) || true
+  else
+    echo "  FAIL: $desc (expected exit 1, got $exit_code)"
+    ((FAIL++)) || true
+  fi
+  rm -f "$probe"
+}
+
+# Positive cases — absolute Bash shebangs must be rejected in runtime path.
+expect_shebang_lint_fail '#!/bin/bash — system path'                '#!/bin/bash'
+expect_shebang_lint_fail '#!/usr/bin/bash — alt system path'        '#!/usr/bin/bash'
+expect_shebang_lint_fail '#!/opt/homebrew/bin/bash — Homebrew path' '#!/opt/homebrew/bin/bash'
+expect_shebang_lint_fail '#!/usr/local/bin/bash — alt prefix'       '#!/usr/local/bin/bash'
+
+# Negative case — env-bash with a clean body must pass cleanly.
+# Re-uses the existing expect_lint_pass helper, which writes
+# #!/usr/bin/env bash as the probe's shebang.
+expect_lint_pass '#!/usr/bin/env bash — accepted by Check 8'         ': # no-op'
+
+# Negative case — env-bash with optional trailing args (e.g. `-e`) is also
+# acceptable; the check matches any prefix `#!/usr/bin/env bash...`.
+expect_shebang_lint_accept() {
+  local desc="$1" shebang="$2"
+  local probe="$TMPDIR_ROOT/lib/scripts/probe.sh"
+  printf '%s\n: # no-op\n' "$shebang" > "$probe"
+  local exit_code=0
+  "$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
+  if [[ "$exit_code" -eq 0 ]]; then
+    echo "  PASS: $desc"
+    ((PASS++)) || true
+  else
+    echo "  FAIL: $desc (expected exit 0, got $exit_code)"
+    ((FAIL++)) || true
+  fi
+  rm -f "$probe"
+}
+
+expect_shebang_lint_accept '#!/usr/bin/env bash -e — with flag args' '#!/usr/bin/env bash -e'
 
 # ---------------------------------------------------------------------------
 # Summary

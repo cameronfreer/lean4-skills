@@ -10,6 +10,12 @@
 # (e.g. #!/opt/homebrew/bin/bash) and NOT be called from the plugin
 # runtime path.
 #
+# Shebang policy (Check 8): every .sh file in hooks/ and lib/scripts/ must
+# use #!/usr/bin/env bash for NixOS / minimal-container portability. Any
+# absolute Bash shebang (#!/bin/bash, #!/opt/homebrew/bin/bash, etc.) in
+# the runtime path is rejected — opt-out Bash-4+ scripts must live outside
+# this scope per the rule above.
+#
 # Run:  bash plugins/lean4/tools/lint_bash_compat.sh
 # ---------------------------------------------------------------------------
 set -euo pipefail
@@ -160,6 +166,32 @@ done
 [[ $found -eq 0 ]] && ok "No mktemp with post-X suffix found"
 
 # ---------------------------------------------------------------------------
+# Check 8: portable shebangs in runtime path
+#
+# Hooks (invoked directly via hooks.json) and lib/scripts/ must use
+# #!/usr/bin/env bash so they work on hosts without /bin/bash (NixOS,
+# minimal containers). Any other shebang form — absolute paths like
+# #!/bin/bash, #!/opt/homebrew/bin/bash, or non-bash interpreters — is
+# rejected in this scope. Files without a shebang at all are skipped
+# (they are not directly executable and rely on the caller's interpreter).
+# ---------------------------------------------------------------------------
+echo ""
+echo "-- Check 8: portable shebangs in runtime path --"
+found=0
+for f in "${SHELL_FILES[@]}"; do
+  first_line=$(head -n1 "$f")
+  case "$first_line" in
+    "#!"*) ;;
+    *) continue ;;
+  esac
+  if [[ "$first_line" != "#!/usr/bin/env bash"* ]]; then
+    warn "$(basename "$f"):1: non-portable shebang '$first_line' — runtime scripts must use '#!/usr/bin/env bash'"
+    found=1
+  fi
+done
+[[ $found -eq 0 ]] && ok "All runtime scripts use #!/usr/bin/env bash"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""
@@ -168,6 +200,6 @@ if [[ $ISSUES -eq 0 ]]; then
   echo "✓ All ${#SHELL_FILES[@]} scripts are Bash 3.2 compatible"
   exit 0
 else
-  echo "⚠️  $ISSUES issue(s) found — these constructs break on macOS /bin/bash 3.2"
+  echo "⚠️  $ISSUES issue(s) found — break on macOS /bin/bash 3.2 (Checks 1–7) or non-portable hosts like NixOS (Check 8)"
   exit 1
 fi
