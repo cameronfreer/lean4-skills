@@ -1,18 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Self-test for lint_bash_compat.sh — verifies it catches all 7 advertised
+# Self-test for lint_bash_compat.sh — verifies it catches all advertised
 # Bash 4+ / BSD-incompatible constructs and does NOT false-positive on safe
 # parameter-expansion forms that legitimately contain , or ^.
 #
-# Helpers invoke the copied lint with /bin/bash explicitly so the self-test
-# is end-to-end under the system default Bash, even when a newer Bash is
-# earlier on PATH. Matches the CI workflow's /bin/bash invocation.
+# Helpers invoke the copied lint with $BASH_FOR_COMPAT (default /bin/bash)
+# so the self-test is end-to-end under the system default Bash, even when a
+# newer Bash is earlier on PATH. CI invokes this with the default to match
+# the macOS Bash-3.2 contract. On hosts without /bin/bash (e.g. NixOS) the
+# test SKIPs gracefully; developers can also point BASH_FOR_COMPAT at
+# /opt/homebrew/bin/bash etc. to exercise other interpreters.
 #
 # Scope note: Check 1 (case modifiers) is a heuristic. It targets common
 # forms — ${var,,}, ${var,}, ${var^^}, ${var^}, patterned variants — and
 # has one known false-negative on arithmetic-subscript case-mod like
 # ${arr[i-1],,}. That form is intentionally out of scope.
+
+BASH_FOR_COMPAT="${BASH_FOR_COMPAT:-/bin/bash}"
+if [[ ! -x "$BASH_FOR_COMPAT" ]]; then
+  echo "SKIP: $BASH_FOR_COMPAT not found — cannot run lint self-test"
+  exit 0
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LINT="$SCRIPT_DIR/../tools/lint_bash_compat.sh"
@@ -31,14 +40,14 @@ cp "$LINT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh"
 # ---------------------------------------------------------------------------
 
 # expect_lint_fail "description" "script body"
-#   Writes script body to a probe file, runs the lint under /bin/bash,
-#   asserts exit 1 (lint caught the issue).
+#   Writes script body to a probe file, runs the lint under
+#   $BASH_FOR_COMPAT, asserts exit 1 (lint caught the issue).
 expect_lint_fail() {
   local desc="$1" body="$2"
   local probe="$TMPDIR_ROOT/lib/scripts/probe.sh"
   printf '#!/usr/bin/env bash\n%s\n' "$body" > "$probe"
   local exit_code=0
-  /bin/bash "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
+  "$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
   if [[ "$exit_code" -eq 1 ]]; then
     echo "  PASS: $desc"
     ((PASS++)) || true
@@ -50,14 +59,14 @@ expect_lint_fail() {
 }
 
 # expect_lint_pass "description" "script body"
-#   Writes script body to a probe file, runs the lint under /bin/bash,
-#   asserts exit 0 (lint did not false-positive).
+#   Writes script body to a probe file, runs the lint under
+#   $BASH_FOR_COMPAT, asserts exit 0 (lint did not false-positive).
 expect_lint_pass() {
   local desc="$1" body="$2"
   local probe="$TMPDIR_ROOT/lib/scripts/probe.sh"
   printf '#!/usr/bin/env bash\n%s\n' "$body" > "$probe"
   local exit_code=0
-  /bin/bash "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
+  "$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
   if [[ "$exit_code" -eq 0 ]]; then
     echo "  PASS: $desc"
     ((PASS++)) || true
@@ -155,7 +164,7 @@ coproc mycoproc { cat; }
 echo "${myvar@Q}"
 PROBE
 
-combined_output=$(/bin/bash "$TMPDIR_ROOT/tools/lint_bash_compat.sh" 2>&1 || true)
+combined_output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" 2>&1 || true)
 # Count warn lines that report actual matches (filename:line:content),
 # excluding the summary line ("⚠️  N issue(s) found...").
 combined_issue_count=$(echo "$combined_output" | grep -c '^⚠️.*:[0-9]\+:' || true)
@@ -168,6 +177,65 @@ else
   ((FAIL++)) || true
 fi
 rm "$TMPDIR_ROOT/lib/scripts/bad_all.sh"
+
+# ---------------------------------------------------------------------------
+# Check 8 self-tests — runtime-path shebang regression
+#
+# Writes a probe with the given shebang line and a no-op body, asserts the
+# linter exits non-zero (Check 8 flags the shebang). Kept separate from
+# the "exactly 7 categories" combined probe above, which intentionally
+# stays scoped to Bash-4/BSD construct categories.
+# ---------------------------------------------------------------------------
+echo ""
+echo "-- Check 8 self-tests (shebang regression) --"
+
+expect_shebang_lint_fail() {
+  local desc="$1" shebang="$2"
+  local probe="$TMPDIR_ROOT/lib/scripts/probe.sh"
+  printf '%s\n: # no-op\n' "$shebang" > "$probe"
+  local exit_code=0
+  "$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
+  if [[ "$exit_code" -eq 1 ]]; then
+    echo "  PASS: $desc"
+    ((PASS++)) || true
+  else
+    echo "  FAIL: $desc (expected exit 1, got $exit_code)"
+    ((FAIL++)) || true
+  fi
+  rm -f "$probe"
+}
+
+# Positive cases — absolute Bash shebangs must be rejected in runtime path.
+expect_shebang_lint_fail '#!/bin/bash — system path'                '#!/bin/bash'
+expect_shebang_lint_fail '#!/usr/bin/bash — alt system path'        '#!/usr/bin/bash'
+expect_shebang_lint_fail '#!/opt/homebrew/bin/bash — Homebrew path' '#!/opt/homebrew/bin/bash'
+expect_shebang_lint_fail '#!/usr/local/bin/bash — alt prefix'       '#!/usr/local/bin/bash'
+
+# env-bash with extra arguments must be rejected: on Linux, env treats
+# 'bash -e' as one program name and the kernel exec fails (env -S would
+# split it, but we want a single, mechanical rule). Set flags inside the
+# script body via 'set -...' instead.
+expect_shebang_lint_fail '#!/usr/bin/env bash -e — non-portable env args' '#!/usr/bin/env bash -e'
+
+# Token-boundary regression — defends against a future "loosening" of the
+# exact match back to a prefix/substring form. Trivially rejected today
+# (bashfoo != bash), but the probe ensures it stays that way.
+expect_shebang_lint_fail '#!/usr/bin/env bashfoo — not bash token' '#!/usr/bin/env bashfoo'
+
+# Wrong interpreter — env-sh / env-zsh etc. must be rejected; runtime
+# scripts assume bash 3.2+ features (arrays, [[ ]], etc.).
+expect_shebang_lint_fail '#!/usr/bin/env sh — wrong interpreter' '#!/usr/bin/env sh'
+
+# No shebang at all — first line is a regular comment. Runtime scripts
+# must declare their interpreter explicitly; the probe-writing helper
+# uses head -n1 to read the shebang, so a leading non-#! line trips the
+# check.
+expect_shebang_lint_fail 'no shebang — first line is a regular comment' '# just a comment'
+
+# Negative case — exact '#!/usr/bin/env bash' with a clean body must
+# pass cleanly. Re-uses the existing expect_lint_pass helper, which
+# writes '#!/usr/bin/env bash' as the probe's shebang.
+expect_lint_pass '#!/usr/bin/env bash — accepted by Check 8' ': # no-op'
 
 # ---------------------------------------------------------------------------
 # Summary
