@@ -11,10 +11,13 @@
 # runtime path.
 #
 # Shebang policy (Check 8): every .sh file in hooks/ and lib/scripts/ must
-# use #!/usr/bin/env bash for NixOS / minimal-container portability. Any
-# absolute Bash shebang (#!/bin/bash, #!/opt/homebrew/bin/bash, etc.) in
-# the runtime path is rejected — opt-out Bash-4+ scripts must live outside
-# this scope per the rule above.
+# start with exactly '#!/usr/bin/env bash' on its first line. Rejected:
+# absolute Bash shebangs (#!/bin/bash, #!/opt/homebrew/bin/bash, ...),
+# env-bash with extra arguments (#!/usr/bin/env bash -e — not portable on
+# Linux without env -S, which interprets 'bash -e' as one program name),
+# and files with no shebang at all. Bash-4+ opt-out scripts must live
+# outside this scope per the policy above. Set flags via 'set -...'
+# inside the script body, not via shebang args.
 #
 # Run:  bash plugins/lean4/tools/lint_bash_compat.sh
 # ---------------------------------------------------------------------------
@@ -168,24 +171,23 @@ done
 # ---------------------------------------------------------------------------
 # Check 8: portable shebangs in runtime path
 #
-# Hooks (invoked directly via hooks.json) and lib/scripts/ must use
-# #!/usr/bin/env bash so they work on hosts without /bin/bash (NixOS,
-# minimal containers). Any other shebang form — absolute paths like
-# #!/bin/bash, #!/opt/homebrew/bin/bash, or non-bash interpreters — is
-# rejected in this scope. Files without a shebang at all are skipped
-# (they are not directly executable and rely on the caller's interpreter).
+# Hooks (invoked directly via hooks.json) and lib/scripts/ must start with
+# exactly '#!/usr/bin/env bash' so they work on hosts without /bin/bash
+# (NixOS, minimal containers). Rejected:
+#   * absolute Bash paths: #!/bin/bash, #!/opt/homebrew/bin/bash, ...
+#   * env-bash with arguments: #!/usr/bin/env bash -e (not portable on
+#     Linux — env interprets 'bash -e' as one program name; needs env -S)
+#   * any non-bash interpreter
+#   * no shebang at all (runtime scripts must declare their interpreter)
+# Set flags via 'set -...' inside the script body, not via shebang args.
 # ---------------------------------------------------------------------------
 echo ""
 echo "-- Check 8: portable shebangs in runtime path --"
 found=0
 for f in "${SHELL_FILES[@]}"; do
   first_line=$(head -n1 "$f")
-  case "$first_line" in
-    "#!"*) ;;
-    *) continue ;;
-  esac
-  if [[ "$first_line" != "#!/usr/bin/env bash"* ]]; then
-    warn "$(basename "$f"):1: non-portable shebang '$first_line' — runtime scripts must use '#!/usr/bin/env bash'"
+  if [[ "$first_line" != "#!/usr/bin/env bash" ]]; then
+    warn "$(basename "$f"):1: non-portable shebang '$first_line' — runtime scripts must use exactly '#!/usr/bin/env bash'"
     found=1
   fi
 done

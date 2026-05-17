@@ -211,30 +211,26 @@ expect_shebang_lint_fail '#!/usr/bin/bash — alt system path'        '#!/usr/bi
 expect_shebang_lint_fail '#!/opt/homebrew/bin/bash — Homebrew path' '#!/opt/homebrew/bin/bash'
 expect_shebang_lint_fail '#!/usr/local/bin/bash — alt prefix'       '#!/usr/local/bin/bash'
 
-# Negative case — env-bash with a clean body must pass cleanly.
-# Re-uses the existing expect_lint_pass helper, which writes
-# #!/usr/bin/env bash as the probe's shebang.
-expect_lint_pass '#!/usr/bin/env bash — accepted by Check 8'         ': # no-op'
+# env-bash with extra arguments must be rejected: on Linux, env treats
+# 'bash -e' as one program name and the kernel exec fails (env -S would
+# split it, but we want a single, mechanical rule). Set flags inside the
+# script body via 'set -...' instead.
+expect_shebang_lint_fail '#!/usr/bin/env bash -e — non-portable env args' '#!/usr/bin/env bash -e'
 
-# Negative case — env-bash with optional trailing args (e.g. `-e`) is also
-# acceptable; the check matches any prefix `#!/usr/bin/env bash...`.
-expect_shebang_lint_accept() {
-  local desc="$1" shebang="$2"
-  local probe="$TMPDIR_ROOT/lib/scripts/probe.sh"
-  printf '%s\n: # no-op\n' "$shebang" > "$probe"
-  local exit_code=0
-  "$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
-  if [[ "$exit_code" -eq 0 ]]; then
-    echo "  PASS: $desc"
-    ((PASS++)) || true
-  else
-    echo "  FAIL: $desc (expected exit 0, got $exit_code)"
-    ((FAIL++)) || true
-  fi
-  rm -f "$probe"
-}
+# Wrong interpreter — env-sh / env-zsh etc. must be rejected; runtime
+# scripts assume bash 3.2+ features (arrays, [[ ]], etc.).
+expect_shebang_lint_fail '#!/usr/bin/env sh — wrong interpreter' '#!/usr/bin/env sh'
 
-expect_shebang_lint_accept '#!/usr/bin/env bash -e — with flag args' '#!/usr/bin/env bash -e'
+# No shebang at all — first line is a regular comment. Runtime scripts
+# must declare their interpreter explicitly; the probe-writing helper
+# uses head -n1 to read the shebang, so a leading non-#! line trips the
+# check.
+expect_shebang_lint_fail 'no shebang — first line is a regular comment' '# just a comment'
+
+# Negative case — exact '#!/usr/bin/env bash' with a clean body must
+# pass cleanly. Re-uses the existing expect_lint_pass helper, which
+# writes '#!/usr/bin/env bash' as the probe's shebang.
+expect_lint_pass '#!/usr/bin/env bash — accepted by Check 8' ': # no-op'
 
 # ---------------------------------------------------------------------------
 # Summary
