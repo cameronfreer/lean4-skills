@@ -1,8 +1,5 @@
-#!/usr/bin/env sh
-""":"
-exec "${LEAN4_PYTHON_BIN:-python3}" "$0" "$@"
-":"
-
+#!/usr/bin/env python3
+"""
 Try automated solvers in sequence before resampling with LLM.
 Handles 40-60% of simple cases mechanically.
 

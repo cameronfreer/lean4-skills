@@ -1,8 +1,5 @@
-#!/usr/bin/env sh
-""":"
-exec "${LEAN4_PYTHON_BIN:-python3}" "$0" "$@"
-":"
-
+#!/usr/bin/env python3
+"""
 Try `exact?` at various points in Lean 4 proofs to find one-liner replacements.
 
 For each candidate proof block, replaces the tactic body with `exact?`,

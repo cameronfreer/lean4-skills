@@ -1,8 +1,5 @@
-#!/usr/bin/env sh
-""":"
-exec "${LEAN4_PYTHON_BIN:-python3}" "$0" "$@"
-":"
-
+#!/usr/bin/env python3
+"""
 Parse Lean compiler errors into structured JSON for repair routing.
 
 Output schema:

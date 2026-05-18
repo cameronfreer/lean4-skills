@@ -1,8 +1,5 @@
-#!/usr/bin/env sh
-""":"
-exec "${LEAN4_PYTHON_BIN:-python3}" "$0" "$@"
-":"
-
+#!/usr/bin/env python3
+"""
 minimize_imports.py - Remove unused imports from Lean 4 files
 
 Usage:
