@@ -2,8 +2,11 @@
 set -euo pipefail
 
 # Self-test for lint_bash_compat.sh — verifies it catches all advertised
-# Bash 4+ / BSD-incompatible constructs and does NOT false-positive on safe
-# parameter-expansion forms that legitimately contain , or ^.
+# Bash 4+ / BSD-incompatible constructs (Checks 1–7), runtime shebang
+# regressions for both shell and Python (Checks 8–9), and the
+# guardrail-bypassing bin/ shortcut path (Check 10) — and does NOT
+# false-positive on safe parameter-expansion forms that legitimately
+# contain , or ^.
 #
 # Helpers invoke the copied lint with $BASH_FOR_COMPAT (default /bin/bash)
 # so the self-test is end-to-end under the system default Bash, even when a
@@ -236,6 +239,99 @@ expect_shebang_lint_fail 'no shebang — first line is a regular comment' '# jus
 # pass cleanly. Re-uses the existing expect_lint_pass helper, which
 # writes '#!/usr/bin/env bash' as the probe's shebang.
 expect_lint_pass '#!/usr/bin/env bash — accepted by Check 8' ': # no-op'
+
+# ---------------------------------------------------------------------------
+# Check 9 self-tests — runtime-path Python shebang regression
+#
+# Writes a probe .py file with the given shebang and a trivial body,
+# asserts the linter exits 1 (Check 9 flags the shebang). The acceptable
+# form is exactly '#!/usr/bin/env python3'; the no-shebang case is also
+# acceptable (library modules without a shebang are out of scope).
+# ---------------------------------------------------------------------------
+echo ""
+echo "-- Check 9 self-tests (Python shebang regression) --"
+
+expect_py_shebang_lint_fail() {
+  local desc="$1" shebang="$2"
+  local probe="$TMPDIR_ROOT/lib/scripts/probe.py"
+  printf '%s\npass\n' "$shebang" > "$probe"
+  local exit_code=0
+  "$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
+  if [[ "$exit_code" -eq 1 ]]; then
+    echo "  PASS: $desc"
+    ((PASS++)) || true
+  else
+    echo "  FAIL: $desc (expected exit 1, got $exit_code)"
+    ((FAIL++)) || true
+  fi
+  rm -f "$probe"
+}
+
+expect_py_lint_pass() {
+  local desc="$1" content="$2"
+  local probe="$TMPDIR_ROOT/lib/scripts/probe.py"
+  printf '%s\n' "$content" > "$probe"
+  local exit_code=0
+  "$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
+  if [[ "$exit_code" -eq 0 ]]; then
+    echo "  PASS: $desc"
+    ((PASS++)) || true
+  else
+    echo "  FAIL: $desc (expected exit 0, got $exit_code)"
+    ((FAIL++)) || true
+  fi
+  rm -f "$probe"
+}
+
+# Positive cases — must be rejected.
+expect_py_shebang_lint_fail '#!/usr/bin/env sh — polyglot trampoline regression' '#!/usr/bin/env sh'
+expect_py_shebang_lint_fail '#!/usr/bin/env python — missing version suffix'     '#!/usr/bin/env python'
+expect_py_shebang_lint_fail '#!/usr/bin/python3 — absolute system path'          '#!/usr/bin/python3'
+expect_py_shebang_lint_fail '#!/opt/homebrew/bin/python3 — Homebrew path'        '#!/opt/homebrew/bin/python3'
+expect_py_shebang_lint_fail '#!/usr/bin/env python3.10 — pinned minor version'   '#!/usr/bin/env python3.10'
+expect_py_shebang_lint_fail '#!/usr/bin/env pythonfoo — token-boundary'          '#!/usr/bin/env pythonfoo'
+
+# Negative cases — must be accepted.
+expect_py_lint_pass '#!/usr/bin/env python3 — exact, accepted' '#!/usr/bin/env python3
+pass'
+expect_py_lint_pass 'no shebang — library module is out of scope' '"""Library module."""
+def f(): pass'
+
+# ---------------------------------------------------------------------------
+# Check 10 self-tests — no plugins/lean4/bin shortcut path
+#
+# Creates $TMPDIR_ROOT/bin as a symlink, file, or directory and asserts
+# the linter exits 1. Cleans up after each. The no-bin negative case is
+# implicitly verified by every other probe (none of them creates bin/),
+# so all the prior "lint exits 0" expectations also cover Check 10.
+# ---------------------------------------------------------------------------
+echo ""
+echo "-- Check 10 self-tests (no bin shortcut) --"
+
+expect_bin_lint_fail() {
+  local desc="$1" kind="$2"  # symlink|file|dir
+  local bin="$TMPDIR_ROOT/bin"
+  case "$kind" in
+    symlink) ln -s lib/scripts "$bin" ;;
+    file) touch "$bin" ;;
+    dir) mkdir "$bin" ;;
+    *) echo "  FAIL: $desc (internal: unknown kind '$kind')"; ((FAIL++)) || true; return ;;
+  esac
+  local exit_code=0
+  "$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
+  if [[ "$exit_code" -eq 1 ]]; then
+    echo "  PASS: $desc"
+    ((PASS++)) || true
+  else
+    echo "  FAIL: $desc (expected exit 1, got $exit_code)"
+    ((FAIL++)) || true
+  fi
+  rm -rf "$bin"
+}
+
+expect_bin_lint_fail 'bin/ as symlink to lib/scripts' symlink
+expect_bin_lint_fail 'bin/ as plain directory'        dir
+expect_bin_lint_fail 'bin/ as plain file'             file
 
 # ---------------------------------------------------------------------------
 # Summary

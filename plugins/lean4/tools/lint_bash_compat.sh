@@ -19,6 +19,19 @@
 # outside this scope per the policy above. Set flags via 'set -...'
 # inside the script body, not via shebang args.
 #
+# Python shebang policy (Check 9): every .py file in hooks/ and lib/scripts/
+# that has a shebang must use exactly '#!/usr/bin/env python3'. Library
+# modules without a shebang are out of scope. The intent is to forbid the
+# '#!/usr/bin/env sh' polyglot trampoline pattern (which buries shell in
+# __doc__ and leaks into --help output) and absolute interpreter paths.
+#
+# Path policy (Check 10): plugins/lean4/bin must not exist as a symlink,
+# file, or directory. Such a shortcut would let callers invoke runtime
+# scripts via paths that guardrails.sh's Lean-script stderr-suppression
+# detector doesn't recognize (it matches lib/scripts/ and scripts/ only),
+# silently bypassing the safety check. Reintroduce only with a matching
+# guardrail update.
+#
 # Run:  bash plugins/lean4/tools/lint_bash_compat.sh
 # ---------------------------------------------------------------------------
 set -euo pipefail
@@ -55,13 +68,17 @@ mapfile_compat SHELL_FILES < <(find \
   "$PLUGIN_ROOT/lib/scripts" \
   -name '*.sh' -type f 2>/dev/null | sort)
 
-if [[ ${#SHELL_FILES[@]} -eq 0 ]]; then
-  echo "No .sh files found under hooks/ or lib/scripts/"
-  exit 0
-fi
+PY_FILES=()
+mapfile_compat PY_FILES < <(find \
+  "$PLUGIN_ROOT/hooks" \
+  "$PLUGIN_ROOT/lib/scripts" \
+  -name '*.py' -type f 2>/dev/null | sort)
 
-echo "Scanning ${#SHELL_FILES[@]} shell scripts for Bash 4+ constructs..."
+echo "Scanning ${#SHELL_FILES[@]} shell scripts and ${#PY_FILES[@]} Python files for runtime-portability issues..."
 echo ""
+# Note: we don't early-exit on empty arrays here. Check 10 (no bin shortcut
+# path) is a structural check that must always run regardless of file
+# counts; the per-file Checks 1–9 are no-ops with empty arrays anyway.
 
 # ---------------------------------------------------------------------------
 # Check 1: case-modifier syntax ${var,,}, ${var,}, ${var^^}, ${var^} (Bash 4.0+)
@@ -195,14 +212,59 @@ done
 [[ $found -eq 0 ]] && ok "All runtime scripts use #!/usr/bin/env bash"
 
 # ---------------------------------------------------------------------------
+# Check 9: portable Python shebangs in runtime path
+#
+# Every .py file under hooks/ and lib/scripts/ that HAS a shebang must use
+# exactly '#!/usr/bin/env python3'. Library modules without a shebang
+# (imported, not executed) are out of scope. Intent: forbid the
+# '#!/usr/bin/env sh' polyglot trampoline (which leaks 'exec "$0"' into
+# __doc__ and surfaces in --help output) and absolute interpreter paths.
+# ---------------------------------------------------------------------------
+echo ""
+echo "-- Check 9: portable Python shebangs in runtime path --"
+found=0
+for f in "${PY_FILES[@]}"; do
+  first_line=$(head -n1 "$f")
+  # Only validate files that declare a shebang. No-shebang library
+  # modules can't be polyglot regressions and stay out of scope.
+  case "$first_line" in
+    "#!"*) ;;
+    *) continue ;;
+  esac
+  if [[ "$first_line" != "#!/usr/bin/env python3" ]]; then
+    warn "$(basename "$f"):1: non-portable Python shebang '$first_line' — runtime .py with a shebang must use exactly '#!/usr/bin/env python3'"
+    found=1
+  fi
+done
+[[ $found -eq 0 ]] && ok "All shebanged Python runtime files use #!/usr/bin/env python3"
+
+# ---------------------------------------------------------------------------
+# Check 10: no plugins/lean4/bin shortcut path
+#
+# plugins/lean4/bin (as symlink, dir, or file) gives callers a shorter
+# invocation path that bypasses guardrails.sh's Lean-script
+# stderr-suppression detector, which matches '$LEAN4_SCRIPTS/...',
+# 'plugins/lean4/lib/scripts/...', and './scripts/...' only. A reappearance
+# means the safety check can be silently bypassed via 'bin/foo.py 2>/dev/null'.
+# Reintroduce only together with a matching detector update.
+# ---------------------------------------------------------------------------
+echo ""
+echo "-- Check 10: no plugins/lean4/bin shortcut path --"
+if [[ -L "$PLUGIN_ROOT/bin" || -e "$PLUGIN_ROOT/bin" ]]; then
+  warn "$PLUGIN_ROOT/bin exists — shortcut bypasses guardrails.sh stderr-suppression detector (matches lib/scripts/ and scripts/ only). Drop the path or update the detector first."
+else
+  ok "No plugins/lean4/bin shortcut path"
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""
 echo "================================"
 if [[ $ISSUES -eq 0 ]]; then
-  echo "✓ All ${#SHELL_FILES[@]} scripts are Bash 3.2 compatible"
+  echo "✓ All ${#SHELL_FILES[@]} shell + ${#PY_FILES[@]} Python runtime files pass portability checks"
   exit 0
 else
-  echo "⚠️  $ISSUES issue(s) found — break on macOS /bin/bash 3.2 (Checks 1–7) or non-portable hosts like NixOS (Check 8)"
+  echo "⚠️  $ISSUES issue(s) found — see Checks 1–10 for context (Bash 3.2 compat, runtime shebangs, shortcut path)"
   exit 1
 fi
