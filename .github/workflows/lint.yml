@@ -1,5 +1,11 @@
 name: lint
 
+# Tool versions are deliberately pinned (exact, not range) to prevent
+# silent CI drift — e.g. a new ruff release adding rules to a selected
+# sub-code set, or a shellcheck release enabling additional checks by
+# default. Bump intentionally via PR; update both pyproject.toml's
+# target-version and the pins below together when relevant.
+
 on:
   pull_request:
   push:
@@ -15,8 +21,8 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install ruff
-        run: pip install ruff
+      - name: Install ruff (pinned)
+        run: pip install 'ruff==0.15.13'
 
       - name: ruff check (config in pyproject.toml)
         run: ruff check plugins/lean4/
@@ -26,7 +32,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify shellcheck is installed
+      # Install a pinned shellcheck binary from the upstream release
+      # tarball rather than relying on ubuntu-latest's pre-installed
+      # version (which floats — 0.9.0 today, anything later tomorrow).
+      - name: Install shellcheck 0.10.0
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fsSL \
+            https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz \
+            -o shellcheck.tar.xz
+          tar -xJf shellcheck.tar.xz
+          echo "$RUNNER_TEMP/shellcheck-v0.10.0" >> "$GITHUB_PATH"
+
+      - name: Verify shellcheck version
         run: shellcheck --version
 
       - name: shellcheck (hooks/, lib/scripts/, tools/)
