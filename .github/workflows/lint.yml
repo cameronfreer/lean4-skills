@@ -1,0 +1,41 @@
+name: lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: ruff check (config in pyproject.toml)
+        run: ruff check plugins/lean4/
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify shellcheck is installed
+        run: shellcheck --version
+
+      - name: shellcheck (hooks/, lib/scripts/, tools/)
+        # Flags match the invocation Holger validated against in PR #120:
+        # --shell=bash forces bash dialect; -x follows `source` references;
+        # SC2016 (expressions in single quotes) is excluded because several
+        # scripts use single-quoted regex literals intentionally.
+        run: |
+          shellcheck --shell=bash -x --exclude=SC2016 \
+            plugins/lean4/hooks/*.sh \
+            plugins/lean4/lib/scripts/*.sh \
+            plugins/lean4/tools/*.sh
