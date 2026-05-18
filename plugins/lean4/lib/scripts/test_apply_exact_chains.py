@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Fixture tests for find_apply_exact_chains() in find_golfable.py.
+"""
+Fixture tests for find_apply_exact_chains() in find_golfable.py.
 
 Run from the repo root:
     python3 plugins/lean4/lib/scripts/test_apply_exact_chains.py
