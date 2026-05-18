@@ -50,7 +50,16 @@ ok() {
   echo "✓ $1"
 }
 
-# Collect all .sh files in the runtime path
+# Collect all .sh files in the runtime path.
+#
+# Note on the "${arr[@]+"${arr[@]}"}" idiom used below in the check
+# loops: on Bash 3.2 (macOS) with set -u, expanding "${arr[@]}" on an
+# empty array errors with "unbound variable" — a quirk fixed in Bash 4.4.
+# The alternative-value form "${arr[@]+...}" expands to nothing when the
+# array is empty and to "${arr[@]}" otherwise, dodging the bug. SHELL_FILES
+# and PY_FILES can each be empty during self-tests (when a probe of one
+# type is present without the other), so every loop over them uses this
+# guarded form.
 mapfile_compat() {
   # Can't use mapfile itself — this lint must run on Bash 3.2 too!
   local arr_name="$1"
@@ -94,7 +103,7 @@ echo ""
 # ---------------------------------------------------------------------------
 echo "-- Check 1: case-modifier syntax (\${var,,} / \${var,} / \${var^^} / \${var^}) --"
 found=0
-for f in "${SHELL_FILES[@]}"; do
+for f in "${SHELL_FILES[@]+"${SHELL_FILES[@]}"}"; do
   while IFS= read -r match; do
     warn "$match"
     found=1
@@ -108,7 +117,7 @@ done
 echo ""
 echo "-- Check 2: associative arrays (declare -A / local -A / typeset -A) --"
 found=0
-for f in "${SHELL_FILES[@]}"; do
+for f in "${SHELL_FILES[@]+"${SHELL_FILES[@]}"}"; do
   while IFS= read -r match; do
     warn "$match"
     found=1
@@ -122,7 +131,7 @@ done
 echo ""
 echo "-- Check 3: namerefs (declare -n / local -n / typeset -n) --"
 found=0
-for f in "${SHELL_FILES[@]}"; do
+for f in "${SHELL_FILES[@]+"${SHELL_FILES[@]}"}"; do
   while IFS= read -r match; do
     warn "$match"
     found=1
@@ -136,7 +145,7 @@ done
 echo ""
 echo "-- Check 4: mapfile / readarray --"
 found=0
-for f in "${SHELL_FILES[@]}"; do
+for f in "${SHELL_FILES[@]+"${SHELL_FILES[@]}"}"; do
   while IFS= read -r match; do
     warn "$match"
     found=1
@@ -150,7 +159,7 @@ done
 echo ""
 echo "-- Check 5: coproc --"
 found=0
-for f in "${SHELL_FILES[@]}"; do
+for f in "${SHELL_FILES[@]+"${SHELL_FILES[@]}"}"; do
   while IFS= read -r match; do
     warn "$match"
     found=1
@@ -164,7 +173,7 @@ done
 echo ""
 echo "-- Check 6: \${var@op} expansions --"
 found=0
-for f in "${SHELL_FILES[@]}"; do
+for f in "${SHELL_FILES[@]+"${SHELL_FILES[@]}"}"; do
   while IFS= read -r match; do
     warn "$match"
     found=1
@@ -178,7 +187,7 @@ done
 echo ""
 echo "-- Check 7: mktemp with suffix after X's --"
 found=0
-for f in "${SHELL_FILES[@]}"; do
+for f in "${SHELL_FILES[@]+"${SHELL_FILES[@]}"}"; do
   while IFS= read -r match; do
     warn "$match"
     found=1
@@ -202,7 +211,7 @@ done
 echo ""
 echo "-- Check 8: portable shebangs in runtime path --"
 found=0
-for f in "${SHELL_FILES[@]}"; do
+for f in "${SHELL_FILES[@]+"${SHELL_FILES[@]}"}"; do
   first_line=$(head -n1 "$f")
   if [[ "$first_line" != "#!/usr/bin/env bash" ]]; then
     warn "$(basename "$f"):1: non-portable shebang '$first_line' — runtime scripts must use exactly '#!/usr/bin/env bash'"
@@ -223,7 +232,7 @@ done
 echo ""
 echo "-- Check 9: portable Python shebangs in runtime path --"
 found=0
-for f in "${PY_FILES[@]}"; do
+for f in "${PY_FILES[@]+"${PY_FILES[@]}"}"; do
   first_line=$(head -n1 "$f")
   # Only validate files that declare a shebang. No-shebang library
   # modules can't be polyglot regressions and stay out of scope.
