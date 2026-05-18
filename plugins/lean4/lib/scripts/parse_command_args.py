@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Standalone CLI for the lean4 slash-command parser.
+"""
+Standalone CLI for the lean4 slash-command parser.
 
 Usage:
     python3 parse_command_args.py <command> [--cwd PATH] -- <raw tail>

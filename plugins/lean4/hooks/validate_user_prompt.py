@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Claude UserPromptSubmit hook for /lean4:* slash commands.
+"""
+Claude UserPromptSubmit hook for /lean4:* slash commands.
 
 Validates slash-command inputs before the model sees the prompt.
 Hard parse errors block the prompt; successful parses inject a
