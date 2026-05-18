@@ -26,3 +26,6 @@ __pycache__/
 
 # Scratch outputs (lean4:learn)
 .scratch/
+
+# Planning artifacts
+plans/

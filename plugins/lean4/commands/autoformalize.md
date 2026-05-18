@@ -152,5 +152,6 @@ When autoformalize stops, emit:
 - `/lean4:draft` — Skeleton-only drafting (standalone)
 - `/lean4:formalize` — Interactive synthesis (human-in-the-loop)
 - `/lean4:autoprove` — Autonomous proving (no drafting)
+- `/lean4:disprove` — Guided counterexample search with certified refutation (alternative path when a claim is suspected false)
 - [Cycle Engine — Synthesis Outer Loop](../skills/lean4/references/cycle-engine.md#synthesis-outer-loop)
 - [Examples](../skills/lean4/references/command-examples.md#autoformalize)

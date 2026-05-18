@@ -11,6 +11,7 @@ a user from running a command.
 import json
 import os
 import sys
+import tempfile
 
 # Resolve plugin root from CLAUDE_PLUGIN_ROOT (set by Claude Code at hook time)
 # or fall back to the script's own location when invoked directly.
@@ -22,9 +23,9 @@ _LIB_ROOT = os.path.join(_PLUGIN_ROOT, "lib")
 if _LIB_ROOT not in sys.path:
     sys.path.insert(0, _LIB_ROOT)
 
-# Pre-import gate: only the six parser-covered commands go through the parser.
+# Pre-import gate: only the seven parser-covered commands go through the parser.
 # Uncovered commands pass through without importing command_args.
-_COVERED_COMMANDS = {"draft", "learn", "formalize", "autoformalize", "prove", "autoprove"}
+_COVERED_COMMANDS = {"draft", "learn", "formalize", "autoformalize", "prove", "autoprove", "disprove"}
 
 
 def _emit(obj: dict) -> None:
@@ -108,9 +109,7 @@ def main() -> None:
     session_id = payload.get("session_id")
     if session_id:
         try:
-            out_dir = os.environ.get("CLAUDE_SESSION_DIR") or os.path.join(
-                __import__("tempfile").gettempdir()
-            )
+            out_dir = os.environ.get("CLAUDE_SESSION_DIR") or tempfile.gettempdir()
             os.makedirs(out_dir, exist_ok=True)
             artifact_path = os.path.join(out_dir, f"lean4_invocation_{session_id}.json")
             with open(artifact_path, "w") as f:

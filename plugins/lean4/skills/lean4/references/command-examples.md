@@ -409,6 +409,274 @@ Regression detected (--deep-regression-gate=strict):
 
 ---
 
+## disprove
+
+### Basic Usage
+
+```
+/lean4:disprove Foo.lean:42                       # File + line (sorry/declaration site)
+/lean4:disprove MyNs.SubNs.myThm                  # Qualified theorem name
+/lean4:disprove Foo.lean:42 --max-cycles=5
+/lean4:disprove Foo.lean:42 --commit=never
+```
+
+`/lean4:disprove` is always interactive — every cycle's Plan phase
+prompts the user to choose a method (Step 1) and configure it (Step 2).
+
+### Cycle 1 — decide-cascade Win Example
+
+A simple bounded universal: the user picks decide-cascade in Step 1 and
+gets a certified counterexample within the first cycle.
+
+```
+User: /lean4:disprove Bad.lean:3
+
+Claude: Resolved Inputs
+- target:               Bad.lean:3 (kind=file-line)
+- --commit:             ask (default)
+- --max-cycles:         3
+- --max-stuck-cycles:   2
+- --max-runtime:        5m
+
+Resolving target...
+  lean_goal(Bad.lean, 3) → ∀ n : Nat, n < 10
+  Shape: universal-counterexample (∀ x, P x)
+
+Search-Space Estimate
+  Shape         : ∀ n : Nat, n < 10
+  Free vars     : n : Nat (∞)
+  Candidates    : ∞
+  Decidable?    : yes (∀ n : Nat, n < 10 is decidable)
+  Known non-counterexamples (statement holds at):
+    - n ∈ {0, 1, 2, 3, 4, 5, 6, 7, 8, 9} verified via decide
+
+=== Cycle 1 — Plan ===
+
+Step 1 — Choose a search method for cycle 1:
+  1. (Recommended) decide-cascade  — decide / native_decide / norm_num / omega
+  2. mine                          — small literals + Inhabited instances
+  3. enumerate                     — bounded Fin / range
+  4. plausible                     — random property test (mathlib)
+  5. tactics                       — negated-goal tactic cascade
+  6. lookup                        — mathlib Counterexamples + repo grep
+  7. external                      — z3 / cvc5 (v1: stub; skipped)
+  s. stop                          — give up
+
+> 1
+
+Step 2 — Configure decide-cascade:
+  Include native_decide? (adds Lean.ofReduceBool axiom)  [y/N]
+> [Enter — default N]
+
+=== Cycle 1 — Work ===
+
+Running decide-cascade on ¬ (∀ n : Nat, n < 10)...
+  decide ✓ certified in 0.4s
+
+=== Cycle 1 — Checkpoint ===
+
+Constructing T_counterexample : ∃ n : Nat, ¬ (n < 10) := ⟨10, by decide⟩
+Appended to Bad.lean.
+Compile gate (lake env lean Bad.lean): passed.
+
+Commit this change? [yes / no]
+> yes
+
+Committed: "disprove: T_counterexample — cycle 1"
+
+=== Cycle 1 — Review ===
+  Method   : decide-cascade
+  Config   : native_decide=off
+  Outcome  : certified
+  Time     : 0.4s
+
+(Replan / Continue-Stop skipped: certified outcome ends the session.)
+
+## Disprove Summary
+
+**Outcome:** FALSE
+
+| Metric | Value |
+|--------|-------|
+| Target | Bad.lean:3 |
+| Witness | 10 (via decide) |
+| Artifact theorem | T_counterexample |
+| Artifact file | Bad.lean |
+| Build gate | passed |
+| Cycles run | 1 |
+| Stuck cycles | 0 |
+| Time elapsed | 0.6s |
+
+**Per-cycle attempts:**
+
+| # | Method         | Config            | Outcome   |
+|---|----------------|-------------------|-----------|
+| 1 | decide-cascade | native_decide=off | certified |
+
+Counterexample certified.
+Recommended: /lean4:checkpoint to commit.
+```
+
+### Cycle 1 mine miss → cycle 2 enumerate widen + certify
+
+```
+User: /lean4:disprove Conjecture.lean:18
+
+Claude: ... (resolve, search-space estimate)
+
+  lean_goal(Conjecture.lean, 18) → ∀ n : Nat, isPrime (n^2 + n + 41)
+  Known non-counterexamples (statement holds at): n ∈ {0..39} via decide
+
+=== Cycle 1 — Plan ===
+
+Step 1 — Choose method for cycle 1:
+> 2     (mine)
+
+Step 2 — Configure mine:
+  Number of candidates? [10]
+> [Enter — 10]
+  Include Inhabited instances from imports? [Y/n]
+> [Enter — yes]
+
+=== Cycle 1 — Work ===
+
+Running mine: trying {0, 1, 2, -1, [], none, some 0, Inhabited.default …}
+  All 10 candidates rejected by `decide` on residual ¬ (n^2 + n + 41 isPrime).
+  Outcome: exhausted-no-witness.
+
+=== Cycle 1 — Review ===
+  Method   : mine
+  Config   : candidates=10, inhabited=on
+  Outcome  : exhausted-no-witness
+  Time     : 4.8s
+
+=== Cycle 1 — Replan ===
+  Last cycle: mine exhausted without a witness.
+  Recommendation: enumerate, range 5..64, atom = decide.
+  Rationale: Domain is ℕ; small literals already verified to hold. Try
+  the next layer.
+
+Cycle 1 complete (exhausted-no-witness).
+- [continue] — run cycle 2 with enumerate (5..64, decide)
+- [stop]     — accept current outcome
+- [adjust]   — override before next cycle
+> continue
+
+=== Cycle 2 — Plan ===
+
+Step 1 — Choose method (Replan recommends `enumerate` [recommended];
+                       `mine` [exhausted]):
+> [Enter — enumerate]
+
+Step 2 — Configure enumerate (Replan pre-fills):
+  Range type? [both]
+> [Enter]
+  Range start? [5]
+> [Enter]
+  Range end?   [64]
+> [Enter]
+  Atom tactic per candidate? [decide]
+> [Enter]
+
+=== Cycle 2 — Work ===
+
+Running enumerate (n = 5 → 20 → 64, atom = decide)...
+  n=5..39: holds (statement true at these values)
+  n=40: ¬ isPrime (40^2 + 40 + 41 = 1681 = 41^2)  ✓ candidate
+
+=== Cycle 2 — Checkpoint ===
+
+Constructing T_counterexample : ∃ n : Nat, ¬ isPrime (n^2 + n + 41) :=
+  ⟨40, by decide⟩
+Appended to Conjecture.lean.
+Compile gate: passed.
+
+Commit this change? [yes / no]
+> yes
+
+## Disprove Summary
+
+**Outcome:** FALSE
+
+| Metric | Value |
+|--------|-------|
+| Target | Conjecture.lean:18 |
+| Witness | 40 |
+| Artifact theorem | T_counterexample |
+| Artifact file | Conjecture.lean |
+| Build gate | passed |
+| Cycles run | 2 |
+| Stuck cycles | 0 |
+| Time elapsed | 7.1s |
+
+**Per-cycle attempts:**
+
+| # | Method    | Config                       | Outcome              |
+|---|-----------|------------------------------|----------------------|
+| 1 | mine      | candidates=10, inhabited=on  | exhausted-no-witness |
+| 2 | enumerate | range=[5,64), atom=decide    | certified            |
+
+Counterexample certified.
+Recommended: /lean4:checkpoint to commit.
+```
+
+### Three-cycle INCONCLUSIVE example
+
+```
+User: /lean4:disprove HardConjecture.lean:7 --max-cycles=3 --max-runtime=2m
+
+Claude: ... (resolve, search-space estimate)
+
+=== Cycle 1 — Plan ===  decide-cascade (user pick)
+=== Cycle 1 — Work ===  predicate not decidable; outcome = no-candidate
+=== Cycle 1 — Replan ===  Recommend `mine`.
+
+=== Cycle 2 — Plan ===  enumerate, 5..200 (user widened past Replan's 64)
+=== Cycle 2 — Work ===  No counterexample in [0, 200); outcome = exhausted-no-witness
+=== Cycle 2 — Replan ===  Recommend `plausible` with 500 samples.
+
+=== Cycle 3 — Plan ===  plausible, 500 samples (Replan pre-fill accepted)
+=== Cycle 3 — Work ===  No counterexample after 500 samples; outcome = exhausted-no-witness
+=== Cycle 3 — Replan ===  No remaining widening lever (decide N/A; enumerate at
+                          200; plausible exhausted at 500). Cycle marked STUCK.
+
+(--max-cycles=3 reached; budget exhausted before second stuck cycle.)
+
+## Disprove Summary
+
+**Outcome:** INCONCLUSIVE
+
+| Metric | Value |
+|--------|-------|
+| Target | HardConjecture.lean:7 |
+| Witness | — |
+| Artifact theorem | — |
+| Artifact file | — |
+| Build gate | skipped |
+| Cycles run | 3 |
+| Stuck cycles | 1 |
+| Time elapsed | 1m48s |
+
+**Per-cycle attempts:**
+
+| # | Method         | Config                       | Outcome              |
+|---|----------------|------------------------------|----------------------|
+| 1 | decide-cascade | native_decide=off            | no-candidate         |
+| 2 | enumerate      | range=[5,200), atom=decide   | exhausted-no-witness |
+| 3 | plausible      | samples=500, seed=auto       | exhausted-no-witness |
+
+Coverage: enumerate covered [0, 200); plausible sampled 500.
+Stop reason: max-cycles
+Recommended: rerun with --max-cycles=<higher> and pick `lookup` from the
+             Step 1 menu, or hand off to /lean4:prove for a positive proof
+             attempt.
+```
+
+See [disprove-engine.md](disprove-engine.md) for the per-phase mechanics,
+Step 1 / Step 2 menus, Replan rules, and per-shape certification recipes.
+
+---
+
 ## checkpoint
 
 ### Basic Usage

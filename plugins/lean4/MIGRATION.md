@@ -27,6 +27,7 @@ This guide helps you upgrade from the legacy 3-plugin system (v3.x) to the unifi
 | (no equivalent) | `/lean4:review` (NEW) |
 | (no equivalent) | `/lean4:refactor` (NEW) |
 | (no equivalent) | `/lean4:doctor` (NEW) |
+| (no equivalent) | `/lean4:disprove` (NEW) |
 
 ### Environment Variables
 

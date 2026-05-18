@@ -1,8 +1,8 @@
 # Cycle Engine Reference
 
-> Shared logic for `/lean4:prove`, `/lean4:autoprove`, `/lean4:formalize`, and `/lean4:autoformalize`.
+> Shared logic for `/lean4:prove`, `/lean4:autoprove`, `/lean4:formalize`, `/lean4:autoformalize`, and `/lean4:disprove`.
 
-Both commands share a six-phase cycle engine. This reference documents the shared mechanics; command-specific behavior is noted inline.
+These commands share a six-phase cycle engine. This reference documents the shared mechanics; command-specific behavior is noted inline.
 
 ## Six-Phase Cycle
 
@@ -325,6 +325,11 @@ theorem T_salvaged (extra_assumptions...) : Q := by
 ```
 
 **Safety:** Avoid proving `¬ P` if a `theorem T : P := by sorry` exists — unless user explicitly chose negation policy.
+
+For a dedicated counterexample-search pipeline (target resolution, method
+registry, per-shape certification recipes, append-only artifact emission),
+see [disprove-engine.md](disprove-engine.md) — the canonical reference for
+`/lean4:disprove`.
 
 ## Repair Mode
 

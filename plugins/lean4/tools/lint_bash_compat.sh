@@ -2,13 +2,14 @@
 # ---------------------------------------------------------------------------
 # Bash 3.2 Compatibility Lint
 # ---------------------------------------------------------------------------
-# Scans all .sh files in the plugin runtime path (hooks/ and lib/scripts/)
-# for Bash 4+ constructs that break on macOS's default /bin/bash 3.2.
+# Scans all .sh files in the plugin runtime path (hooks/, lib/scripts/) and
+# the test path (tests/) for Bash 4+ constructs that break on macOS's
+# default /bin/bash 3.2.
 #
-# Policy: every .sh file in hooks/ and lib/scripts/ must run on Bash 3.2.
-# If a script genuinely requires Bash 4+, it must say so in its shebang
-# (e.g. #!/opt/homebrew/bin/bash) and NOT be called from the plugin
-# runtime path.
+# Policy: every .sh file in hooks/, lib/scripts/, and tests/ must run on
+# Bash 3.2. If a script genuinely requires Bash 4+, it must say so in its
+# shebang (e.g. #!/opt/homebrew/bin/bash) and NOT be called from the
+# plugin runtime or test path.
 #
 # Run:  bash plugins/lean4/tools/lint_bash_compat.sh
 # ---------------------------------------------------------------------------
@@ -40,13 +41,18 @@ mapfile_compat() {
 }
 
 SHELL_FILES=()
+# Exclude the lint's own self-test, which intentionally embeds bad-bash
+# probe strings inside `expect_lint_fail` arguments. Those strings would
+# fire every check; they're sentinels, not real Bash 4+ usage.
 mapfile_compat SHELL_FILES < <(find \
   "$PLUGIN_ROOT/hooks" \
   "$PLUGIN_ROOT/lib/scripts" \
-  -name '*.sh' -type f 2>/dev/null | sort)
+  "$PLUGIN_ROOT/tests" \
+  -name '*.sh' -type f \
+  ! -name 'test_lint_bash_compat.sh' 2>/dev/null | sort)
 
 if [[ ${#SHELL_FILES[@]} -eq 0 ]]; then
-  echo "No .sh files found under hooks/ or lib/scripts/"
+  echo "No .sh files found under hooks/, lib/scripts/, or tests/"
   exit 0
 fi
 
@@ -71,7 +77,7 @@ for f in "${SHELL_FILES[@]}"; do
   while IFS= read -r match; do
     warn "$match"
     found=1
-  done < <(grep -En '\$\{[^}/#%:=?+-]*((\^\^?)|(,,?))[^}]*\}' "$f" 2>/dev/null | sed "s|^|$(basename "$f"):|")
+  done < <(grep -En '\$\{[^}/#%:=?+-]*((\^\^?)|(,,?))[^}]*\}' "$f" 2>/dev/null | grep -vE '^[0-9]+:[[:space:]]*#' | sed "s|^|$(basename "$f"):|")
 done
 [[ $found -eq 0 ]] && ok "No case-modifier syntax found"
 
@@ -85,7 +91,7 @@ for f in "${SHELL_FILES[@]}"; do
   while IFS= read -r match; do
     warn "$match"
     found=1
-  done < <(grep -En '(declare|local|typeset)[[:space:]]+[-+][[:alpha:]]*A' "$f" 2>/dev/null | sed "s|^|$(basename "$f"):|")
+  done < <(grep -En '(declare|local|typeset)[[:space:]]+[-+][[:alpha:]]*A' "$f" 2>/dev/null | grep -vE '^[0-9]+:[[:space:]]*#' | sed "s|^|$(basename "$f"):|")
 done
 [[ $found -eq 0 ]] && ok "No associative arrays found"
 
@@ -99,7 +105,7 @@ for f in "${SHELL_FILES[@]}"; do
   while IFS= read -r match; do
     warn "$match"
     found=1
-  done < <(grep -En '(declare|local|typeset)[[:space:]]+[-+][[:alpha:]]*n' "$f" 2>/dev/null | sed "s|^|$(basename "$f"):|")
+  done < <(grep -En '(declare|local|typeset)[[:space:]]+[-+][[:alpha:]]*n' "$f" 2>/dev/null | grep -vE '^[0-9]+:[[:space:]]*#' | sed "s|^|$(basename "$f"):|")
 done
 [[ $found -eq 0 ]] && ok "No namerefs found"
 
@@ -113,7 +119,7 @@ for f in "${SHELL_FILES[@]}"; do
   while IFS= read -r match; do
     warn "$match"
     found=1
-  done < <(grep -n '\bmapfile\b\|\breadarray\b' "$f" 2>/dev/null | sed "s|^|$(basename "$f"):|")
+  done < <(grep -n '\bmapfile\b\|\breadarray\b' "$f" 2>/dev/null | grep -vE '^[0-9]+:[[:space:]]*#' | sed "s|^|$(basename "$f"):|")
 done
 [[ $found -eq 0 ]] && ok "No mapfile/readarray found"
 
@@ -127,7 +133,7 @@ for f in "${SHELL_FILES[@]}"; do
   while IFS= read -r match; do
     warn "$match"
     found=1
-  done < <(grep -n '\bcoproc\b' "$f" 2>/dev/null | sed "s|^|$(basename "$f"):|")
+  done < <(grep -n '\bcoproc\b' "$f" 2>/dev/null | grep -vE '^[0-9]+:[[:space:]]*#' | sed "s|^|$(basename "$f"):|")
 done
 [[ $found -eq 0 ]] && ok "No coproc found"
 
@@ -141,7 +147,7 @@ for f in "${SHELL_FILES[@]}"; do
   while IFS= read -r match; do
     warn "$match"
     found=1
-  done < <(grep -n '\${[^}]*@[A-Za-z]}' "$f" 2>/dev/null | sed "s|^|$(basename "$f"):|")
+  done < <(grep -n '\${[^}]*@[A-Za-z]}' "$f" 2>/dev/null | grep -vE '^[0-9]+:[[:space:]]*#' | sed "s|^|$(basename "$f"):|")
 done
 [[ $found -eq 0 ]] && ok "No \${var@op} expansions found"
 
@@ -155,7 +161,7 @@ for f in "${SHELL_FILES[@]}"; do
   while IFS= read -r match; do
     warn "$match"
     found=1
-  done < <(grep -n 'mktemp.*XXXXXX[^"'\''[:space:])]*[^X"'\''[:space:])]' "$f" 2>/dev/null | sed "s|^|$(basename "$f"):|")
+  done < <(grep -n 'mktemp.*XXXXXX[^"'\''[:space:])]*[^X"'\''[:space:])]' "$f" 2>/dev/null | grep -vE '^[0-9]+:[[:space:]]*#' | sed "s|^|$(basename "$f"):|")
 done
 [[ $found -eq 0 ]] && ok "No mktemp with post-X suffix found"
 

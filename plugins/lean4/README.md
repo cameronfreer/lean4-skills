@@ -16,6 +16,7 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 | `/lean4:autoformalize` | Autonomous end-to-end formalization from informal sources |
 | `/lean4:prove` | Guided cycle-by-cycle theorem proving with explicit checkpoints |
 | `/lean4:autoprove` | Autonomous multi-cycle theorem proving with explicit stop budgets |
+| `/lean4:disprove` | Guided search for counterexamples and produce a certified Lean refutation |
 | `/lean4:checkpoint` | Save progress with a safe commit checkpoint |
 | `/lean4:review` | Read-only code review of Lean proofs |
 | `/lean4:refactor` | Leverage mathlib, extract helpers, simplify proof strategies |
@@ -31,6 +32,7 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 /lean4:autoformalize       # Autonomous synthesis (source → proof)
 /lean4:prove               # Guided sorry filling (interactive)
 /lean4:autoprove           # Autonomous sorry filling (unattended)
+/lean4:disprove            # Guided counterexample search with certified refutation
 /lean4:checkpoint          # Build-checked save point
 /lean4:review              # Check quality (read-only)
 /lean4:refactor            # Simplify proof strategies
@@ -41,7 +43,9 @@ git push                   # Manual, after review
 ```
 
 This plugin ships a host-agnostic parser (`lib/command_args/`) that covers the
-parser-decidable startup rules of the six parameter-heavy commands. The Claude
+parser-decidable startup rules of the seven parameter-heavy commands
+(`draft`, `learn`, `formalize`, `autoformalize`, `prove`, `autoprove`,
+`disprove`). The Claude
 Code adapter pre-validates `/lean4:*` prompts via a `UserPromptSubmit` hook
 that reuses the same parser; other hosts MAY invoke it via
 `lib/scripts/parse_command_args.py` but otherwise fall back to model-parsed
@@ -106,7 +110,7 @@ On stop, emits a structured summary (sorries before/after, cycles, time, handoff
 
 ### The Cycle Engine (Shared)
 
-Both commands run the same 6-phase cycle:
+The proof and disprove engines all run the same 6-phase cycle:
 
 ```
 Plan → Work → Checkpoint → Review → Replan → Continue/Stop
@@ -120,6 +124,27 @@ Plan → Work → Checkpoint → Review → Replan → Continue/Stop
 - **Continue/Stop** — `prove` asks you; `autoprove` auto-continues
 
 When stuck (same blocker seen twice), both force a review + replan regardless of settings.
+
+### `/lean4:disprove` — Counterexample Search
+
+Use when you suspect a statement is false and want a Lean-certified refutation. Always interactive: each cycle prompts you to choose a search method and configure it.
+
+Takes a target (`File.lean:LINE` or `Namespace.theoremName`). Runs the same 6-phase cycle as `/lean4:prove` — **Plan → Work → Checkpoint → Review → Replan → Continue/Stop** — but a "cycle" is a widening pass over the same target rather than a batch of sorries.
+
+Each cycle's **Plan** phase has a two-step menu:
+
+1. **Step 1 — Method**: `decide-cascade` (decide / native_decide / norm_num / omega), `mine` (literals + Inhabited instances), `enumerate` (bounded Fin / range), `plausible` (mathlib property tester), `tactics` (negated-goal cascade), `lookup` (mathlib `Counterexamples/` + repo grep), or `external` (v1 stub for z3 / cvc5).
+2. **Step 2 — Per-method config**: method-specific prompts. For example, `decide-cascade` asks whether to enable `native_decide` (adds the `Lean.ofReduceBool` axiom; default off). `enumerate` asks for range start/end and the per-candidate atom tactic.
+
+If a cycle doesn't certify, **Replan** suggests how to widen for the next cycle (e.g., double `enumerate`'s range end, escalate to `plausible`, or try `lookup`). The user can accept, override, or stop at every Continue/Stop boundary.
+
+Tri-state outcome:
+
+- **FALSE** — Lean typechecks the negation. The only outcome that asserts falsehood.
+- **WITNESS_UNCERTIFIED** — candidate found but Lean refused certification.
+- **INCONCLUSIVE** — no candidate within `--max-cycles` widening passes (default 3) or `--max-stuck-cycles` consecutive cycles with no widening lever left.
+
+Append-only by design: never rewrites an existing `theorem T : P := by sorry`. See [disprove-engine.md](skills/lean4/references/disprove-engine.md).
 
 ### `/lean4:checkpoint` — Save Point
 
