@@ -172,7 +172,6 @@ while IFS= read -r line; do
     if [[ "$line" == *"$IDENTIFIER"* ]]; then
         # Extract line content (after line number if present)
         if [[ "$line" =~ ^[[:space:]]*([0-9]+)[:-] ]]; then
-            LINE_NUM="${BASH_REMATCH[1]}"
             LINE_CONTENT="${line#*:}"
             LINE_CONTENT="${LINE_CONTENT#*-}"  # Handle ripgrep context separator
         else

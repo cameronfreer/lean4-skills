@@ -9,6 +9,9 @@ Exit codes:
     1 — usage error (bad CLI arguments)
     2 — validation error (prints error JSON to stdout)
 """
+
+from __future__ import annotations
+
 import json
 import os
 import sys
@@ -18,7 +21,7 @@ _LIB_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _LIB_ROOT not in sys.path:
     sys.path.insert(0, _LIB_ROOT)
 
-from command_args import COMMAND_SPECS, format_validated_block, parse_invocation  # noqa: E402
+from command_args import COMMAND_SPECS, parse_invocation  # noqa: E402
 
 
 def main() -> int:
@@ -55,7 +58,9 @@ def main() -> int:
             cwd = args[i + 1]
             i += 1
         else:
-            print(f"Error: unexpected argument {args[i]!r} before '--'", file=sys.stderr)
+            print(
+                f"Error: unexpected argument {args[i]!r} before '--'", file=sys.stderr
+            )
             return 1
         i += 1
 
@@ -70,7 +75,10 @@ def main() -> int:
     spec = COMMAND_SPECS.get(command_name)
     if spec is None:
         available = ", ".join(sorted(COMMAND_SPECS.keys()))
-        print(f"Error: unknown command {command_name!r}; available: {available}", file=sys.stderr)
+        print(
+            f"Error: unknown command {command_name!r}; available: {available}",
+            file=sys.stderr,
+        )
         return 1
 
     # Normalize cwd and parse
@@ -78,7 +86,9 @@ def main() -> int:
     result = parse_invocation(spec, raw_tail, cwd=cwd)
 
     if result.errors:
-        json.dump({"errors": result.errors, "command": command_name}, sys.stdout, indent=2)
+        json.dump(
+            {"errors": result.errors, "command": command_name}, sys.stdout, indent=2
+        )
         sys.stdout.write("\n")
         return 2
 

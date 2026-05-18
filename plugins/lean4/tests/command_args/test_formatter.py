@@ -1,4 +1,7 @@
 """Snapshot tests for format_validated_block / parse_validated_block round-trip."""
+
+from __future__ import annotations
+
 import json
 import os
 import sys
@@ -20,11 +23,13 @@ class TestFormatterRoundTrip(unittest.TestCase):
             positionals={"topic": "Theorem 1"},
             options={
                 "--mode": ResolvedFlag(
-                    value="attempt", source="explicit",
+                    value="attempt",
+                    source="explicit",
                     enforcement="startup-validated",
                 ),
                 "--level": ResolvedFlag(
-                    value="intermediate", source="default",
+                    value="intermediate",
+                    source="default",
                     enforcement="startup-validated",
                 ),
             },
@@ -43,7 +48,8 @@ class TestFormatterRoundTrip(unittest.TestCase):
             raw_tail="--commit=ask",
             options={
                 "--commit": ResolvedFlag(
-                    value="auto", source="coerced",
+                    value="auto",
+                    source="coerced",
                     enforcement="startup-validated",
                     coerced_from="ask",
                 ),
@@ -57,11 +63,13 @@ class TestFormatterRoundTrip(unittest.TestCase):
 
     def test_round_trip_empty_positionals(self):
         result = ParseResult(
-            command="prove", raw_tail="",
+            command="prove",
+            raw_tail="",
             positionals={},
             options={
                 "--repair-only": ResolvedFlag(
-                    value=False, source="default",
+                    value=False,
+                    source="default",
                     enforcement="startup-validated",
                 ),
             },
@@ -77,7 +85,8 @@ class TestFormatterRoundTrip(unittest.TestCase):
             positionals={"topic": "groups"},
             options={
                 "--scope": ResolvedFlag(
-                    value="file", source="explicit",
+                    value="file",
+                    source="explicit",
                     enforcement="startup-validated",
                 ),
             },
@@ -91,11 +100,13 @@ class TestFormatterRoundTrip(unittest.TestCase):
 
     def test_block_fencing(self):
         result = ParseResult(
-            command="prove", raw_tail="MyFile.lean",
+            command="prove",
+            raw_tail="MyFile.lean",
             positionals={"scope": "MyFile.lean"},
             options={
                 "--repair-only": ResolvedFlag(
-                    value=False, source="default",
+                    value=False,
+                    source="default",
                     enforcement="startup-validated",
                 ),
             },
@@ -107,11 +118,13 @@ class TestFormatterRoundTrip(unittest.TestCase):
 
     def test_block_body_is_valid_json(self):
         result = ParseResult(
-            command="draft", raw_tail='"x"',
+            command="draft",
+            raw_tail='"x"',
             positionals={"topic": "x"},
             options={
                 "--mode": ResolvedFlag(
-                    value="skeleton", source="default",
+                    value="skeleton",
+                    source="default",
                     enforcement="startup-validated",
                 ),
             },
@@ -130,7 +143,8 @@ class TestFormatterRoundTrip(unittest.TestCase):
             positionals={"topic": "x"},
             options={
                 "--source": ResolvedFlag(
-                    value="123", source="explicit",
+                    value="123",
+                    source="explicit",
                     enforcement="startup-validated",
                 ),
             },
@@ -143,11 +157,13 @@ class TestFormatterRoundTrip(unittest.TestCase):
     def test_round_trip_string_none_literal(self):
         """String 'None' as a value must not become Python None."""
         result = ParseResult(
-            command="draft", raw_tail='"x"',
+            command="draft",
+            raw_tail='"x"',
             positionals={"topic": "x"},
             options={
                 "--source": ResolvedFlag(
-                    value="None", source="explicit",
+                    value="None",
+                    source="explicit",
                     enforcement="startup-validated",
                 ),
             },

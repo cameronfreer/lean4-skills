@@ -1,8 +1,10 @@
 """Core data types for the lean4 slash-command parser."""
+
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Callable, Literal, Mapping
+from typing import Literal
 
 EnforcementClass = Literal[
     "startup-validated",
@@ -26,7 +28,9 @@ class ParseContext:
 
 
 # Bare callable signatures — wrapped in Coercion / CrossValidation records.
-CoerceFn = Callable[[object, Mapping[str, object], ParseContext], tuple[object, str | None]]
+CoerceFn = Callable[
+    [object, Mapping[str, object], ParseContext], tuple[object, str | None]
+]
 ValidateFn = Callable[[Mapping[str, object], ParseContext], list[str]]
 
 
@@ -117,7 +121,7 @@ class ParseResult:
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, object]:
         """Serialize to a plain dict for JSON output / artifact writing."""
         return {
             "command": self.command,
@@ -128,7 +132,11 @@ class ParseResult:
                     "value": rf.value,
                     "source": rf.source,
                     "enforcement": rf.enforcement,
-                    **({"coerced_from": rf.coerced_from} if rf.coerced_from is not None else {}),
+                    **(
+                        {"coerced_from": rf.coerced_from}
+                        if rf.coerced_from is not None
+                        else {}
+                    ),
                 }
                 for name, rf in self.options.items()
             },

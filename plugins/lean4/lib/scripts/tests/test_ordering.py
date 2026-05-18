@@ -15,6 +15,8 @@ Run:
     python3 plugins/lean4/lib/scripts/tests/test_ordering.py
 """
 
+from __future__ import annotations
+
 import sys
 import tempfile
 import unittest
@@ -23,7 +25,6 @@ from pathlib import Path
 # Allow import from parent directory
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from find_golfable import analyze_file, analyze_files
-
 
 # Lean fixture with patterns from each benefit category.
 # Deliberately places apply-exact-chain BEFORE by-exact in the file
@@ -59,49 +60,62 @@ theorem baz : Prop := by
 class TestBenefitOrdering(unittest.TestCase):
     """Patterns are returned in policy order: directness, structural, conditional."""
 
-    def setUp(self):
-        f = tempfile.NamedTemporaryFile(suffix=".lean", mode="w", delete=False)
-        f.write(FIXTURE)
-        f.flush()
-        f.close()
-        self.path = Path(f.name)
+    def setUp(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".lean", mode="w", delete=False) as f:
+            f.write(FIXTURE)
+            f.flush()
+            self.path = Path(f.name)
         self.patterns = analyze_file(self.path)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self.path.unlink()
 
-    def test_benefit_groups_present(self):
+    def test_benefit_groups_present(self) -> None:
         benefits = [p.benefit for p in self.patterns]
         self.assertIn("directness", benefits)
         self.assertIn("structural", benefits)
 
-    def test_cross_phase_ordering(self):
+    def test_cross_phase_ordering(self) -> None:
         """Directness before structural before conditional."""
         benefits = [p.benefit for p in self.patterns]
         first_directness = next(i for i, b in enumerate(benefits) if b == "directness")
         first_structural = next(i for i, b in enumerate(benefits) if b == "structural")
-        self.assertLess(first_directness, first_structural,
-                        f"directness (idx {first_directness}) should precede structural (idx {first_structural})")
+        self.assertLess(
+            first_directness,
+            first_structural,
+            f"directness (idx {first_directness}) should precede structural (idx {first_structural})",
+        )
         if "conditional" in benefits:
-            first_conditional = next(i for i, b in enumerate(benefits) if b == "conditional")
-            self.assertLess(first_structural, first_conditional,
-                            f"structural (idx {first_structural}) should precede conditional (idx {first_conditional})")
+            first_conditional = next(
+                i for i, b in enumerate(benefits) if b == "conditional"
+            )
+            self.assertLess(
+                first_structural,
+                first_conditional,
+                f"structural (idx {first_structural}) should precede conditional (idx {first_conditional})",
+            )
 
-    def test_intra_phase_ordering(self):
+    def test_intra_phase_ordering(self) -> None:
         """Within directness: by-exact before apply-exact-chain."""
         directness = [p for p in self.patterns if p.benefit == "directness"]
         types = [p.pattern_type for p in directness]
         if "by exact wrapper" in types and "apply-exact-chain" in types:
             idx_by = types.index("by exact wrapper")
             idx_apply = types.index("apply-exact-chain")
-            self.assertLess(idx_by, idx_apply,
-                            f"by-exact (idx {idx_by}) should precede apply-exact-chain (idx {idx_apply}) within directness")
+            self.assertLess(
+                idx_by,
+                idx_apply,
+                f"by-exact (idx {idx_by}) should precede apply-exact-chain (idx {idx_apply}) within directness",
+            )
 
-    def test_benefit_field_values(self):
+    def test_benefit_field_values(self) -> None:
         valid_benefits = {"directness", "performance", "structural", "conditional"}
         for p in self.patterns:
-            self.assertIn(p.benefit, valid_benefits,
-                          f"{p.pattern_type} has invalid benefit '{p.benefit}'")
+            self.assertIn(
+                p.benefit,
+                valid_benefits,
+                f"{p.pattern_type} has invalid benefit '{p.benefit}'",
+            )
 
 
 # -- Cross-file fixtures --
@@ -129,7 +143,7 @@ theorem foo : Nat := by
 class TestCrossFileOrdering(unittest.TestCase):
     """Directness from a later file appears before conditional from an earlier file."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.tmpdir = tempfile.mkdtemp()
         # aaa sorts before zzz — conditional file is processed first
         cond_path = Path(self.tmpdir) / "aaa_conditional.lean"
@@ -138,11 +152,12 @@ class TestCrossFileOrdering(unittest.TestCase):
         dir_path.write_text(DIRECTNESS_ONLY)
         self.files = [cond_path, dir_path]
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         import shutil
+
         shutil.rmtree(self.tmpdir)
 
-    def test_global_sort_across_files(self):
+    def test_global_sort_across_files(self) -> None:
         """analyze_files() globally sorts: directness before conditional."""
         patterns = analyze_files(self.files)
         benefits = [p.benefit for p in patterns]
@@ -150,9 +165,12 @@ class TestCrossFileOrdering(unittest.TestCase):
         self.assertIn("conditional", benefits)
         first_directness = benefits.index("directness")
         first_conditional = benefits.index("conditional")
-        self.assertLess(first_directness, first_conditional,
-                        f"directness (idx {first_directness}) should precede "
-                        f"conditional (idx {first_conditional}) across files")
+        self.assertLess(
+            first_directness,
+            first_conditional,
+            f"directness (idx {first_directness}) should precede "
+            f"conditional (idx {first_conditional}) across files",
+        )
 
 
 if __name__ == "__main__":

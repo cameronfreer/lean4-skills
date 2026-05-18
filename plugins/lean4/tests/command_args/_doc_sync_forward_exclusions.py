@@ -13,6 +13,8 @@ This list must stay under ~10 entries. If it grows much larger, reconsider
 either the parser's I/O budget or the doc format.
 """
 
+from __future__ import annotations
+
 EXCLUSIONS: list[tuple[str, str]] = [
     # --- Class (a): file-content I/O beyond os.path.exists ---
     # .gitignore hints — requires reading .gitignore
@@ -23,11 +25,9 @@ EXCLUSIONS: list[tuple[str, str]] = [
     ("draft", "unreadable format"),
     ("formalize", "unreadable format"),
     ("learn", "Unsupported source type"),
-
     # --- Class (b): interactive user prompting ---
     # learn track picker — model-side interactive flow
     ("learn", "prompt track picker"),
-
     # --- Class (c): repo-level search ---
     # learn scope-coercion exception — requires local-declaration resolution
     ("learn", "unless topic resolves to a local declaration"),

@@ -182,8 +182,8 @@ Analyze let binding usage to avoid bad optimizations.
 
 ## Requirements
 
-- **Bash 4.0+** (for shell scripts)
-- **Python 3.6+** (for Python scripts)
+- **Bash 3.2+** (for shell scripts)
+- **Python 3.10+** (for Python scripts; `lib/command_args/types.py` evaluates `str | None` and `tuple[...]` at module-import time — PEP 604 runtime, not just annotations)
 - **Lean 4 project** with `lake`
 - **mathlib** in `.lake/packages/mathlib` (for search)
 - **ripgrep** (optional, 10-100x faster)

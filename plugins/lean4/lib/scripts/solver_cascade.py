@@ -21,13 +21,13 @@ Inspired by APOLLO's solver-first strategy
 https://arxiv.org/abs/2505.05758
 """
 
-import json
-import sys
-import subprocess
-import tempfile
-from pathlib import Path
-from typing import Optional
+from __future__ import annotations
 
+import json
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
 
 SOLVERS = [
     ("rfl", 1),
@@ -43,7 +43,9 @@ SOLVERS = [
 ]
 
 
-def try_solver(file_path: Path, line: int, column: int, solver: str, timeout: int) -> Optional[str]:
+def try_solver(
+    file_path: Path, line: int, column: int, solver: str, timeout: int
+) -> str | None:
     """
     Try inserting solver tactic at given location.
     Returns diff if compilation succeeds.
@@ -77,7 +79,7 @@ def try_solver(file_path: Path, line: int, column: int, solver: str, timeout: in
     # Write to temp file in same directory as original for proper project context
     # Use underscore prefix (not dot) since Lean module names can't start with '.'
     tmp_path = file_path.parent / f"_solver_cascade_tmp_{file_path.name}"
-    with open(tmp_path, 'w') as tmp:
+    with open(tmp_path, "w") as tmp:
         tmp.writelines(lines)
 
     try:
@@ -87,7 +89,7 @@ def try_solver(file_path: Path, line: int, column: int, solver: str, timeout: in
             ["lake", "env", "lean", str(tmp_path)],
             capture_output=True,
             timeout=timeout,
-            text=True
+            text=True,
         )
 
         if result.returncode == 0:
@@ -95,7 +97,7 @@ def try_solver(file_path: Path, line: int, column: int, solver: str, timeout: in
             diff = subprocess.run(
                 ["diff", "-u", str(file_path), str(tmp_path)],
                 capture_output=True,
-                text=True
+                text=True,
             ).stdout
             return diff
 
@@ -107,7 +109,7 @@ def try_solver(file_path: Path, line: int, column: int, solver: str, timeout: in
         tmp_path.unlink(missing_ok=True)
 
 
-def run_solver_cascade(context: dict, file_path: Path) -> Optional[str]:
+def run_solver_cascade(context: dict[str, Any], file_path: Path) -> str | None:
     """Run solver cascade, return diff if any succeeds."""
     line = context.get("line", 1)  # Default to line 1 if not specified
     column = context.get("column", 0)
@@ -131,7 +133,7 @@ def run_solver_cascade(context: dict, file_path: Path) -> Optional[str]:
     return None
 
 
-def main():
+def main() -> None:
     if len(sys.argv) < 3:
         print("Usage: solver_cascade.py CONTEXT.json FILE.lean", file=sys.stderr)
         sys.exit(1)

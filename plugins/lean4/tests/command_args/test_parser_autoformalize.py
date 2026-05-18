@@ -1,4 +1,7 @@
 """Layer 1 parser golden tests for /lean4:autoformalize."""
+
+from __future__ import annotations
+
 import os
 import sys
 import unittest
@@ -48,7 +51,9 @@ class TestAutoformalizeMissingRequired(unittest.TestCase):
         )
         self.assertTrue(len(result.errors) > 0)
         matching = [e for e in result.errors if "source" in e.lower()]
-        self.assertTrue(len(matching) > 0, f"Expected source error, got: {result.errors}")
+        self.assertTrue(
+            len(matching) > 0, f"Expected source error, got: {result.errors}"
+        )
 
     def test_missing_claim_select(self):
         result = parse_invocation(
@@ -58,7 +63,9 @@ class TestAutoformalizeMissingRequired(unittest.TestCase):
         )
         self.assertTrue(len(result.errors) > 0)
         matching = [e for e in result.errors if "claim-select" in e.lower()]
-        self.assertTrue(len(matching) > 0, f"Expected claim-select error, got: {result.errors}")
+        self.assertTrue(
+            len(matching) > 0, f"Expected claim-select error, got: {result.errors}"
+        )
 
     def test_missing_out(self):
         result = parse_invocation(
@@ -74,7 +81,9 @@ class TestAutoformalizeMissingRequired(unittest.TestCase):
         result = parse_invocation(SPEC, "", cwd=CWD)
         self.assertTrue(len(result.errors) > 0)
         # Should have at least source, claim-select, and out errors
-        self.assertTrue(len(result.errors) >= 3, f"Expected >=3 errors, got: {result.errors}")
+        self.assertTrue(
+            len(result.errors) >= 3, f"Expected >=3 errors, got: {result.errors}"
+        )
 
 
 class TestAutoformalizeReviewSourceCoercion(unittest.TestCase):
@@ -119,12 +128,14 @@ class TestAutoformalizeNoPositionals(unittest.TestCase):
     def test_positional_rejected(self):
         result = parse_invocation(
             SPEC,
-            'unexpected --source=paper.pdf --claim-select=first --out=Out.lean',
+            "unexpected --source=paper.pdf --claim-select=first --out=Out.lean",
             cwd=CWD,
         )
         self.assertTrue(len(result.errors) > 0)
         matching = [e for e in result.errors if "positional" in e.lower()]
-        self.assertTrue(len(matching) > 0, f"Expected positional error, got: {result.errors}")
+        self.assertTrue(
+            len(matching) > 0, f"Expected positional error, got: {result.errors}"
+        )
 
 
 if __name__ == "__main__":

@@ -20,13 +20,14 @@ Inspired by APOLLO's compiler-feedback-driven repair approach
 https://arxiv.org/abs/2505.05758
 """
 
+from __future__ import annotations
+
+import hashlib
 import json
 import re
 import sys
-import hashlib
 from pathlib import Path
-from typing import Optional
-
+from typing import Any
 
 ERROR_PATTERNS = [
     (r"type mismatch", "type_mismatch"),
@@ -42,7 +43,7 @@ ERROR_PATTERNS = [
 ]
 
 
-def parse_location(line: str) -> Optional[dict]:
+def parse_location(line: str) -> dict[str, Any] | None:
     """Extract file:line:column from error line.
 
     Handles both Unix paths (/path/to/file.lean:10:5:)
@@ -55,7 +56,7 @@ def parse_location(line: str) -> Optional[dict]:
         return {
             "file": match.group(1),
             "line": int(match.group(2)),
-            "column": int(match.group(3))
+            "column": int(match.group(3)),
         }
     return None
 
@@ -68,7 +69,7 @@ def classify_error(message: str) -> str:
     return "unknown"
 
 
-def extract_goal(error_text: str) -> Optional[str]:
+def extract_goal(error_text: str) -> str | None:
     """Extract goal state from error (if present)."""
     # Look for lines starting with ⊢
     goal_match = re.search(r"⊢\s+(.+)", error_text)
@@ -105,7 +106,7 @@ def extract_code_snippet(file_path: str, line: int, context_lines: int = 3) -> s
         snippet_lines = []
         for i in range(start, end):
             prefix = "❌ " if i == line - 1 else "   "
-            snippet_lines.append(f"{prefix}{i+1:4d} | {lines[i].rstrip()}")
+            snippet_lines.append(f"{prefix}{i + 1:4d} | {lines[i].rstrip()}")
         return "\n".join(snippet_lines)
     except Exception:
         return ""
@@ -117,8 +118,17 @@ def extract_suggestion_keywords(message: str) -> list[str]:
     # Extract identifiers in single quotes
     keywords.extend(re.findall(r"'([^']+)'", message))
     # Extract common type class names
-    for term in ["Continuous", "Measurable", "Integrable", "Differentiable",
-                 "Fintype", "DecidableEq", "Group", "Ring", "Field"]:
+    for term in [
+        "Continuous",
+        "Measurable",
+        "Integrable",
+        "Differentiable",
+        "Fintype",
+        "DecidableEq",
+        "Group",
+        "Ring",
+        "Field",
+    ]:
         if term.lower() in message.lower():
             keywords.append(term)
     return list(set(keywords))[:10]  # Limit to 10
@@ -130,7 +140,7 @@ def compute_error_hash(error_type: str, file: str, line: int) -> str:
     return hashlib.sha256(content.encode()).hexdigest()[:12]
 
 
-def parse_lean_errors(error_file: Path) -> list[dict]:
+def parse_lean_errors(error_file: Path) -> list[dict[str, Any]]:
     """Parse Lean error output file into list of structured errors.
 
     Returns a list of all errors found (not just the first one).
@@ -169,7 +179,7 @@ def parse_lean_errors(error_file: Path) -> list[dict]:
     return errors
 
 
-def _build_error_dict(error_lines: list[str]) -> dict:
+def _build_error_dict(error_lines: list[str]) -> dict[str, Any]:
     """Build a single error dict from its lines."""
     error_text = "\n".join(error_lines)
 
@@ -197,7 +207,7 @@ def _build_error_dict(error_lines: list[str]) -> dict:
     }
 
 
-def main():
+def main() -> None:
     if len(sys.argv) < 2:
         print("Usage: parse_lean_errors.py ERROR_FILE [--all]", file=sys.stderr)
         sys.exit(1)
@@ -214,7 +224,9 @@ def main():
     if "--all" in sys.argv:
         print(json.dumps({"errors": errors, "count": len(errors)}, indent=2))
     else:
-        print(json.dumps(errors[0] if errors else {"error": "No errors parsed"}, indent=2))
+        print(
+            json.dumps(errors[0] if errors else {"error": "No errors parsed"}, indent=2)
+        )
 
 
 if __name__ == "__main__":

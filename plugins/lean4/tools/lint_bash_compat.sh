@@ -42,6 +42,7 @@ mapfile_compat() {
   # Can't use mapfile itself — this lint must run on Bash 3.2 too!
   local arr_name="$1"
   local i=0
+  # shellcheck disable=SC2034  # $line consumed indirectly via eval
   while IFS= read -r line; do
     eval "${arr_name}[$i]=\"\$line\""
     ((i++)) || true

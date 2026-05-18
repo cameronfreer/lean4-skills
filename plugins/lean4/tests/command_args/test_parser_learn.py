@@ -1,4 +1,7 @@
 """Layer 1 parser golden tests for /lean4:learn."""
+
+from __future__ import annotations
+
 import os
 import sys
 import unittest
@@ -56,15 +59,21 @@ class TestLearnSourceOverridesScope(unittest.TestCase):
     """--source + --scope=file|changed|project -> warning."""
 
     def test_source_plus_scope_file_warns(self):
-        result = parse_invocation(SPEC, '--source=notes.pdf --scope=file', cwd=CWD)
+        result = parse_invocation(SPEC, "--source=notes.pdf --scope=file", cwd=CWD)
         self.assertEqual(result.errors, [])
-        matching = [w for w in result.warnings if "source" in w.lower() and "scope" in w.lower()]
-        self.assertTrue(len(matching) > 0, f"Expected source/scope warning, got: {result.warnings}")
+        matching = [
+            w for w in result.warnings if "source" in w.lower() and "scope" in w.lower()
+        ]
+        self.assertTrue(
+            len(matching) > 0, f"Expected source/scope warning, got: {result.warnings}"
+        )
 
     def test_source_plus_scope_auto_no_warning(self):
-        result = parse_invocation(SPEC, '--source=notes.pdf --scope=auto', cwd=CWD)
+        result = parse_invocation(SPEC, "--source=notes.pdf --scope=auto", cwd=CWD)
         self.assertEqual(result.errors, [])
-        matching = [w for w in result.warnings if "source" in w.lower() and "scope" in w.lower()]
+        matching = [
+            w for w in result.warnings if "source" in w.lower() and "scope" in w.lower()
+        ]
         self.assertEqual(len(matching), 0, f"Unexpected warning: {result.warnings}")
 
 
@@ -74,17 +83,27 @@ class TestLearnEnumValues(unittest.TestCase):
     def test_mode_valid_values(self):
         for val in ("auto", "repo", "mathlib"):
             result = parse_invocation(SPEC, f'"x" --mode={val}', cwd=CWD)
-            self.assertEqual(result.errors, [], f"Unexpected error for --mode={val}: {result.errors}")
+            self.assertEqual(
+                result.errors, [], f"Unexpected error for --mode={val}: {result.errors}"
+            )
 
     def test_style_valid_values(self):
         for val in ("tour", "socratic", "exercise", "game"):
             result = parse_invocation(SPEC, f'"x" --style={val}', cwd=CWD)
-            self.assertEqual(result.errors, [], f"Unexpected error for --style={val}: {result.errors}")
+            self.assertEqual(
+                result.errors,
+                [],
+                f"Unexpected error for --style={val}: {result.errors}",
+            )
 
     def test_level_valid_values(self):
         for val in ("beginner", "intermediate", "expert"):
             result = parse_invocation(SPEC, f'"x" --level={val}', cwd=CWD)
-            self.assertEqual(result.errors, [], f"Unexpected error for --level={val}: {result.errors}")
+            self.assertEqual(
+                result.errors,
+                [],
+                f"Unexpected error for --level={val}: {result.errors}",
+            )
 
 
 class TestLearnBadAdaptive(unittest.TestCase):

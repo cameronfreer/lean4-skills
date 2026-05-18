@@ -104,11 +104,11 @@ _strip_wrappers() {
   if [[ "$s" =~ ^sudo[[:space:]] ]]; then
     s="${s#sudo}"; s="${s#"${s%%[![:space:]]*}"}"
     while [[ "$s" == -* ]]; do
-      s="${s#${s%%[[:space:]]*}}"; s="${s#"${s%%[![:space:]]*}"}"
+      s="${s#"${s%%[[:space:]]*}"}"; s="${s#"${s%%[![:space:]]*}"}"
       _next="${s%%[[:space:]]*}"
       if [[ -n "$_next" && "$_next" != -* && ! "$_next" =~ ^[A-Za-z_][A-Za-z_0-9]*= ]]; then
         case "$_next" in git|gh|lake|env|sudo) break ;; esac
-        s="${s#${_next}}"; s="${s#"${s%%[![:space:]]*}"}"
+        s="${s#"${_next}"}"; s="${s#"${s%%[![:space:]]*}"}"
       fi
     done
   fi
@@ -116,7 +116,7 @@ _strip_wrappers() {
   if [[ "$s" =~ ^env[[:space:]] ]]; then
     s="${s#env}"; s="${s#"${s%%[![:space:]]*}"}"
     while [[ "$s" == -* ]]; do
-      s="${s#${s%%[[:space:]]*}}"; s="${s#"${s%%[![:space:]]*}"}"
+      s="${s#"${s%%[[:space:]]*}"}"; s="${s#"${s%%[![:space:]]*}"}"
     done
   fi
   # Strip env-var assignments: NAME=VALUE where VALUE may contain quotes,
@@ -195,15 +195,15 @@ _strip_wrappers() {
   if [[ "$s" =~ ^command[[:space:]] ]]; then
     s="${s#command}"; s="${s#"${s%%[![:space:]]*}"}"
     while [[ "$s" == -* ]]; do
-      s="${s#${s%%[[:space:]]*}}"; s="${s#"${s%%[![:space:]]*}"}"
+      s="${s#"${s%%[[:space:]]*}"}"; s="${s#"${s%%[![:space:]]*}"}"
     done
   fi
   # Strip shell -c invocation: bash -c 'cmd' / bash -lc 'cmd' → cmd
   if [[ "$s" =~ ^(bash|sh|zsh)([[:space:]]+-[a-zA-Z-]+)*[[:space:]]+-[a-zA-Z]*c[[:space:]] ]]; then
-    s="${s#${s%%[[:space:]]*}}"; s="${s#"${s%%[![:space:]]*}"}"
+    s="${s#"${s%%[[:space:]]*}"}"; s="${s#"${s%%[![:space:]]*}"}"
     while [[ "$s" == -* ]]; do
       _next="${s%%[[:space:]]*}"
-      s="${s#${_next}}"; s="${s#"${s%%[![:space:]]*}"}"
+      s="${s#"${_next}"}"; s="${s#"${s%%[![:space:]]*}"}"
       if [[ "$_next" == *c && "$_next" != --* ]]; then break; fi
     done
     # Unquote the -c argument if quoted

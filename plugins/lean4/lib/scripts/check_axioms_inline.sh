@@ -36,6 +36,7 @@ set -euo pipefail
 # Track backup files for cleanup on interrupt using marker files
 # Marker files are more robust than arrays for SIGINT handling
 MARKER_DIR=$(mktemp -d)
+# shellcheck disable=SC2329  # invoked via trap below
 cleanup() {
     # Find all marker files and restore corresponding backups
     # Use nullglob to handle case when no markers exist

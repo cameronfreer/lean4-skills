@@ -3,6 +3,9 @@
 Exercises the lib/scripts/parse_command_args.py sys.path bootstrap
 from a clean cwd with no PYTHONPATH.
 """
+
+from __future__ import annotations
+
 import json
 import os
 import subprocess
@@ -12,20 +15,27 @@ import unittest
 from pathlib import Path
 
 _PLUGIN_ROOT = Path(__file__).resolve().parents[2]
-CLI = str((_PLUGIN_ROOT / "lib" / "scripts" / "parse_command_args.py").resolve(strict=True))
+CLI = str(
+    (_PLUGIN_ROOT / "lib" / "scripts" / "parse_command_args.py").resolve(strict=True)
+)
 
 
 class TestStandaloneCLI(unittest.TestCase):
     """Test parse_command_args.py from a controlled subprocess."""
 
-    def _run(self, args: list[str], *, cwd: str | None = None,
-             env_override: dict | None = None) -> subprocess.CompletedProcess:
+    def _run(
+        self,
+        args: list[str],
+        *,
+        cwd: str | None = None,
+        env_override: dict | None = None,
+    ) -> subprocess.CompletedProcess:
         env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
         env["PYTHONNOUSERSITE"] = "1"
         if env_override:
             env.update(env_override)
         return subprocess.run(
-            [sys.executable, CLI] + args,
+            [sys.executable, CLI, *args],
             capture_output=True,
             text=True,
             cwd=cwd or tempfile.gettempdir(),
@@ -72,16 +82,23 @@ class TestStandaloneCLI(unittest.TestCase):
             target = os.path.join(tmpdir, "existing.lean")
             with open(target, "w") as f:
                 f.write("")
-            r = self._run([
-                "draft", "--cwd", tmpdir, "--",
-                f'--output=file --out=existing.lean "x"'
-            ])
+            r = self._run(
+                [
+                    "draft",
+                    "--cwd",
+                    tmpdir,
+                    "--",
+                    '--output=file --out=existing.lean "x"',
+                ]
+            )
             self.assertEqual(r.returncode, 2, msg=r.stderr)
             data = json.loads(r.stdout)
             self.assertTrue(
-                any("overwrite" in e.lower() or "existing" in e.lower()
-                    for e in data["errors"]),
-                msg=f"Expected overwrite error, got: {data['errors']}"
+                any(
+                    "overwrite" in e.lower() or "existing" in e.lower()
+                    for e in data["errors"]
+                ),
+                msg=f"Expected overwrite error, got: {data['errors']}",
             )
 
     def test_multi_arg_after_separator_rejected(self):

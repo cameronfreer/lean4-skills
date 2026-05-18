@@ -27,27 +27,35 @@ Examples:
     ./sorry_analyzer.py . --format=detail            # alias for text
 """
 
-import re
-import sys
+from __future__ import annotations
+
 import json
+import os
+import re
 import subprocess
+import sys
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from dataclasses import dataclass, asdict
-from typing import List, Optional, Tuple
+
 
 @dataclass
 class Sorry:
     """Represents a sorry instance with context"""
+
     file: str
     line: int
-    context_before: List[str]
-    context_after: List[str]
-    documentation: List[str]
-    in_declaration: Optional[str] = None
+    context_before: list[str]
+    context_after: list[str]
+    documentation: list[str]
+    in_declaration: str | None = None
+
 
 SORRY_TOKEN_PATTERN = re.compile(r"(?<![A-Za-z0-9_!?'])sorry(?![A-Za-z0-9_!?'])")
 
-def strip_lean_comments_and_strings(line: str, block_comment_depth: int) -> Tuple[str, int]:
+
+def strip_lean_comments_and_strings(
+    line: str, block_comment_depth: int
+) -> tuple[str, int]:
     """Return code-only text for a line and updated Lean block-comment depth.
 
     Handles:
@@ -55,21 +63,21 @@ def strip_lean_comments_and_strings(line: str, block_comment_depth: int) -> Tupl
     - nested block comments: /- ... -/
     - string literals: "..."
     """
-    result: List[str] = []
+    result: list[str] = []
     i = 0
     n = len(line)
     in_string = False
 
     while i < n:
         ch = line[i]
-        nxt = line[i + 1] if i + 1 < n else ''
+        nxt = line[i + 1] if i + 1 < n else ""
 
         if block_comment_depth > 0:
-            if ch == '/' and nxt == '-':
+            if ch == "/" and nxt == "-":
                 block_comment_depth += 1
                 i += 2
                 continue
-            if ch == '-' and nxt == '/':
+            if ch == "-" and nxt == "/":
                 block_comment_depth -= 1
                 i += 2
                 continue
@@ -77,7 +85,7 @@ def strip_lean_comments_and_strings(line: str, block_comment_depth: int) -> Tupl
             continue
 
         if in_string:
-            if ch == '\\' and i + 1 < n:
+            if ch == "\\" and i + 1 < n:
                 i += 2
                 continue
             if ch == '"':
@@ -90,10 +98,10 @@ def strip_lean_comments_and_strings(line: str, block_comment_depth: int) -> Tupl
             i += 1
             continue
 
-        if ch == '-' and nxt == '-':
+        if ch == "-" and nxt == "-":
             break
 
-        if ch == '/' and nxt == '-':
+        if ch == "/" and nxt == "-":
             block_comment_depth += 1
             i += 2
             continue
@@ -101,9 +109,10 @@ def strip_lean_comments_and_strings(line: str, block_comment_depth: int) -> Tupl
         result.append(ch)
         i += 1
 
-    return ''.join(result), block_comment_depth
+    return "".join(result), block_comment_depth
 
-def extract_declaration_name(lines: List[str], sorry_idx: int) -> Optional[str]:
+
+def extract_declaration_name(lines: list[str], sorry_idx: int) -> str | None:
     """Extract the theorem/lemma/def name containing this sorry"""
     # Search backwards for declaration
     # Support Unicode and qualified names (e.g., Foo.bar, foo', foo'')
@@ -112,21 +121,22 @@ def extract_declaration_name(lines: List[str], sorry_idx: int) -> Optional[str]:
         match = re.match(
             r"^\s*(?:@\[.*?\]\s*)?(?:private\s+|protected\s+)?"
             r"(theorem|lemma|def|example|instance|structure|class)\s+([\w.']+)",
-            lines[i]
+            lines[i],
         )
         if match:
             return f"{match.group(1)} {match.group(2)}"
     return None
 
-def extract_documentation(lines: List[str], sorry_idx: int) -> List[str]:
+
+def extract_documentation(lines: list[str], sorry_idx: int) -> list[str]:
     """Extract TODO/NOTE comments near the sorry"""
     docs = []
-    keywords = ['TODO', 'NOTE', 'FIXME', 'STRATEGY', 'DEPENDENCIES']
+    keywords = ["TODO", "NOTE", "FIXME", "STRATEGY", "DEPENDENCIES"]
 
     # Check lines BEFORE sorry (often comments precede the sorry)
     for i in range(max(0, sorry_idx - 5), sorry_idx):
         line = lines[i].strip()
-        if line.startswith('--'):
+        if line.startswith("--"):
             comment = line[2:].strip()
             if any(keyword in comment.upper() for keyword in keywords):
                 docs.append(comment)
@@ -134,18 +144,19 @@ def extract_documentation(lines: List[str], sorry_idx: int) -> List[str]:
     # Check lines AFTER sorry
     for i in range(sorry_idx + 1, min(len(lines), sorry_idx + 10)):
         line = lines[i].strip()
-        if line.startswith('--'):
+        if line.startswith("--"):
             comment = line[2:].strip()
             if any(keyword in comment.upper() for keyword in keywords):
                 docs.append(comment)
-        elif line and not line.startswith('--'):
+        elif line and not line.startswith("--"):
             break
     return docs
 
-def find_sorries_in_file(filepath: Path) -> List[Sorry]:
+
+def find_sorries_in_file(filepath: Path) -> list[Sorry]:
     """Find all sorries in a single Lean file"""
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, encoding="utf-8") as f:
             lines = f.readlines()
     except Exception as e:
         print(f"Warning: Could not read {filepath}: {e}", file=sys.stderr)
@@ -156,16 +167,25 @@ def find_sorries_in_file(filepath: Path) -> List[Sorry]:
     for i, line in enumerate(lines):
         # Fast path when we're not inside a block comment and the line has no
         # token of interest for sorry/comment/string parsing.
-        if block_comment_depth == 0 and 'sorry' not in line and '/-' not in line and '"' not in line:
+        if (
+            block_comment_depth == 0
+            and "sorry" not in line
+            and "/-" not in line
+            and '"' not in line
+        ):
             continue
 
-        code_part, block_comment_depth = strip_lean_comments_and_strings(line, block_comment_depth)
-        if 'sorry' not in code_part:
+        code_part, block_comment_depth = strip_lean_comments_and_strings(
+            line, block_comment_depth
+        )
+        if "sorry" not in code_part:
             continue
 
         if SORRY_TOKEN_PATTERN.search(code_part):
-            context_before = [l.rstrip() for l in lines[max(0, i-3):i]]
-            context_after = [l.rstrip() for l in lines[i+1:min(len(lines), i+4)]]
+            context_before = [ln.rstrip() for ln in lines[max(0, i - 3) : i]]
+            context_after = [
+                ln.rstrip() for ln in lines[i + 1 : min(len(lines), i + 4)]
+            ]
 
             sorry = Sorry(
                 file=str(filepath),
@@ -173,13 +193,14 @@ def find_sorries_in_file(filepath: Path) -> List[Sorry]:
                 context_before=context_before,
                 context_after=context_after,
                 documentation=extract_documentation(lines, i),
-                in_declaration=extract_declaration_name(lines, i)
+                in_declaration=extract_declaration_name(lines, i),
             )
             sorries.append(sorry)
 
     return sorries
 
-def find_sorries(target: Path, include_deps: bool = False) -> List[Sorry]:
+
+def find_sorries(target: Path, include_deps: bool = False) -> list[Sorry]:
     """Find all sorries in target file or directory
 
     Args:
@@ -188,31 +209,39 @@ def find_sorries(target: Path, include_deps: bool = False) -> List[Sorry]:
     """
     if target.is_file():
         # Guard: Also exclude .lake/ files unless --include-deps
-        if not include_deps and '.lake' in target.parts:
-            print(f"Skipping dependency file: {target} (use --include-deps to include)", file=sys.stderr)
+        if not include_deps and ".lake" in target.parts:
+            print(
+                f"Skipping dependency file: {target} (use --include-deps to include)",
+                file=sys.stderr,
+            )
             return []
         return find_sorries_in_file(target)
     elif target.is_dir():
         # Guard: Exclude .lake directory or any subpath unless --include-deps
-        if not include_deps and '.lake' in target.parts:
-            print(f"Skipping dependency directory: {target} (use --include-deps to include)", file=sys.stderr)
+        if not include_deps and ".lake" in target.parts:
+            print(
+                f"Skipping dependency directory: {target} (use --include-deps to include)",
+                file=sys.stderr,
+            )
             return []
         sorries = []
         # Use os.walk for early termination of .lake/ directories (performance)
         import os
+
         for root, dirs, files in os.walk(target):
             # Prune .lake directories from traversal (don't descend into them)
             if not include_deps:
-                dirs[:] = [d for d in dirs if d != '.lake']
+                dirs[:] = [d for d in dirs if d != ".lake"]
             for filename in files:
-                if filename.endswith('.lean'):
+                if filename.endswith(".lean"):
                     lean_file = Path(root) / filename
                     sorries.extend(find_sorries_in_file(lean_file))
         return sorries
     else:
         raise ValueError(f"{target} is not a file or directory")
 
-def format_text(sorries: List[Sorry]) -> str:
+
+def format_text(sorries: list[Sorry]) -> str:
     """Format sorries as human-readable text"""
     output = []
     output.append(f"Found {len(sorries)} sorry statement(s)\n")
@@ -231,21 +260,22 @@ def format_text(sorries: List[Sorry]) -> str:
         output.append("\n    Context:")
         for line in sorry.context_before[-2:]:
             output.append(f"      {line}")
-        output.append(f"      >>> SORRY <<<")
+        output.append("      >>> SORRY <<<")
         for line in sorry.context_after[:2]:
             output.append(f"      {line}")
         output.append("")
 
     return "\n".join(output)
 
-def format_markdown(sorries: List[Sorry]) -> str:
+
+def format_markdown(sorries: list[Sorry]) -> str:
     """Format sorries as Markdown"""
     output = []
-    output.append(f"# Sorry Analysis Report\n")
+    output.append("# Sorry Analysis Report\n")
     output.append(f"**Total sorries found:** {len(sorries)}\n")
 
     # Group by file
-    by_file = {}
+    by_file: dict[str, list[Sorry]] = {}
     for sorry in sorries:
         by_file.setdefault(sorry.file, []).append(sorry)
 
@@ -275,18 +305,19 @@ def format_markdown(sorries: List[Sorry]) -> str:
 
     return "\n".join(output)
 
-def format_json(sorries: List[Sorry]) -> str:
-    """Format sorries as JSON"""
-    return json.dumps({
-        'total_count': len(sorries),
-        'sorries': [asdict(s) for s in sorries]
-    }, indent=2)
 
-def format_summary(sorries: List[Sorry]) -> str:
+def format_json(sorries: list[Sorry]) -> str:
+    """Format sorries as JSON"""
+    return json.dumps(
+        {"total_count": len(sorries), "sorries": [asdict(s) for s in sorries]}, indent=2
+    )
+
+
+def format_summary(sorries: list[Sorry]) -> str:
     """Format sorries as a brief summary (file counts + total)"""
     output = []
     # Group by file
-    by_file = {}
+    by_file: dict[str, list[Sorry]] = {}
     for sorry in sorries:
         by_file.setdefault(sorry.file, []).append(sorry)
 
@@ -298,20 +329,21 @@ def format_summary(sorries: List[Sorry]) -> str:
 
     return "\n".join(output)
 
-def interactive_mode(sorries: List[Sorry]):
+
+def interactive_mode(sorries: list[Sorry]) -> None:
     """Interactive mode to navigate and select sorries"""
     if not sorries:
         print("No sorries found!")
         return
 
     # Group by file
-    by_file = {}
+    by_file: dict[str, list[Sorry]] = {}
     for sorry in sorries:
         by_file.setdefault(sorry.file, []).append(sorry)
 
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"Found {len(sorries)} sorry statement(s) across {len(by_file)} file(s)")
-    print(f"{'='*80}\n")
+    print(f"{'=' * 80}\n")
 
     # Display files with sorry counts
     files = sorted(by_file.items(), key=lambda x: len(x[1]), reverse=True)
@@ -326,7 +358,7 @@ def interactive_mode(sorries: List[Sorry]):
     while True:
         try:
             choice = input("\nSelect file (or 'q' to quit): ").strip()
-            if choice.lower() == 'q':
+            if choice.lower() == "q":
                 break
 
             idx = int(choice) - 1
@@ -339,11 +371,12 @@ def interactive_mode(sorries: List[Sorry]):
             print("\nExiting...")
             break
 
-def show_file_sorries(filepath: str, sorries: List[Sorry]):
+
+def show_file_sorries(filepath: str, sorries: list[Sorry]) -> None:
     """Show sorries in a specific file with navigation"""
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"File: {filepath}")
-    print(f"{'='*80}\n")
+    print(f"{'=' * 80}\n")
 
     for i, sorry in enumerate(sorries, 1):
         print(f"[{i}] Line {sorry.line}", end="")
@@ -361,17 +394,17 @@ def show_file_sorries(filepath: str, sorries: List[Sorry]):
         try:
             choice = input("\nSelect sorry (or 'b'/'q'): ").strip()
 
-            if choice.lower() == 'q':
+            if choice.lower() == "q":
                 sys.exit(0)
-            elif choice.lower() == 'b':
+            elif choice.lower() == "b":
                 return
-            elif choice.lower().startswith('o '):
+            elif choice.lower().startswith("o "):
                 # Open in editor
                 try:
                     idx = int(choice.split()[1]) - 1
                     if 0 <= idx < len(sorries):
                         sorry = sorries[idx]
-                        editor = subprocess.os.environ.get('EDITOR', 'vim')
+                        editor = os.environ.get("EDITOR", "vim")
                         subprocess.call([editor, f"+{sorry.line}", sorry.file])
                     else:
                         print("Invalid selection")
@@ -387,13 +420,14 @@ def show_file_sorries(filepath: str, sorries: List[Sorry]):
             print("\nExiting...")
             sys.exit(0)
 
-def show_sorry_details(sorry: Sorry):
+
+def show_sorry_details(sorry: Sorry) -> None:
     """Show detailed information about a specific sorry"""
-    print(f"\n{'─'*80}")
+    print(f"\n{'─' * 80}")
     print(f"Sorry at {sorry.file}:{sorry.line}")
     if sorry.in_declaration:
         print(f"Declaration: {sorry.in_declaration}")
-    print(f"{'─'*80}")
+    print(f"{'─' * 80}")
 
     if sorry.documentation:
         print("\nDocumentation:")
@@ -404,43 +438,53 @@ def show_sorry_details(sorry: Sorry):
     print("─" * 40)
     for line in sorry.context_before[-5:]:
         print(f"  {line}")
-    print(f"  >>> SORRY HERE <<<")
+    print("  >>> SORRY HERE <<<")
     for line in sorry.context_after[:5]:
         print(f"  {line}")
     print("─" * 40)
 
     input("\nPress Enter to continue...")
 
-def main():
+
+def main() -> None:
     if len(sys.argv) < 2:
         print(__doc__)
         sys.exit(1)
 
     # Catch common mistake: flag where target path is expected
-    if sys.argv[1].startswith('-'):
-        print("Error: missing target path (first argument must be a file or directory)", file=sys.stderr)
-        print("Usage: sorry_analyzer.py <file-or-directory> [--format=FORMAT | --format FORMAT]", file=sys.stderr)
+    if sys.argv[1].startswith("-"):
+        print(
+            "Error: missing target path (first argument must be a file or directory)",
+            file=sys.stderr,
+        )
+        print(
+            "Usage: sorry_analyzer.py <file-or-directory> [--format=FORMAT | --format FORMAT]",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     target = Path(sys.argv[1])
-    format_type = 'text'
+    format_type = "text"
     interactive = False
     include_deps = False
     exit_zero_on_findings = False
 
     # Parse arguments
-    valid_formats = ('text', 'json', 'markdown', 'summary')
-    format_aliases = {'detail': 'text'}
+    valid_formats = ("text", "json", "markdown", "summary")
+    format_aliases = {"detail": "text"}
     i = 2
     while i < len(sys.argv):
         arg = sys.argv[i]
-        if arg.startswith('--format='):
-            format_type = arg.split('=', 1)[1]
+        if arg.startswith("--format="):
+            format_type = arg.split("=", 1)[1]
             format_type = format_aliases.get(format_type, format_type)
             if format_type not in valid_formats:
-                print(f"Error: Unknown format '{format_type}'. Valid: {', '.join(valid_formats)} (alias: detail -> text)", file=sys.stderr)
+                print(
+                    f"Error: Unknown format '{format_type}'. Valid: {', '.join(valid_formats)} (alias: detail -> text)",
+                    file=sys.stderr,
+                )
                 sys.exit(1)
-        elif arg == '--format':
+        elif arg == "--format":
             i += 1
             if i >= len(sys.argv):
                 print("Error: --format requires a value", file=sys.stderr)
@@ -448,13 +492,16 @@ def main():
             format_type = sys.argv[i]
             format_type = format_aliases.get(format_type, format_type)
             if format_type not in valid_formats:
-                print(f"Error: Unknown format '{format_type}'. Valid: {', '.join(valid_formats)} (alias: detail -> text)", file=sys.stderr)
+                print(
+                    f"Error: Unknown format '{format_type}'. Valid: {', '.join(valid_formats)} (alias: detail -> text)",
+                    file=sys.stderr,
+                )
                 sys.exit(1)
-        elif arg == '--interactive':
+        elif arg == "--interactive":
             interactive = True
-        elif arg == '--include-deps':
+        elif arg == "--include-deps":
             include_deps = True
-        elif arg in ('--exit-zero-on-findings', '--report-only'):
+        elif arg in ("--exit-zero-on-findings", "--report-only"):
             exit_zero_on_findings = True
         else:
             print(f"Error: Unknown flag: {arg}", file=sys.stderr)
@@ -474,11 +521,11 @@ def main():
         sys.exit(0 if len(sorries) == 0 or exit_zero_on_findings else 1)
 
     # Format output
-    if format_type == 'json':
+    if format_type == "json":
         print(format_json(sorries))
-    elif format_type == 'markdown':
+    elif format_type == "markdown":
         print(format_markdown(sorries))
-    elif format_type == 'summary':
+    elif format_type == "summary":
         print(format_summary(sorries))
     else:
         print(format_text(sorries))
@@ -486,5 +533,6 @@ def main():
     # Exit code: 0 if no sorries, 1 if sorries found
     sys.exit(0 if len(sorries) == 0 or exit_zero_on_findings else 1)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

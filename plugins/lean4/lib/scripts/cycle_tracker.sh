@@ -267,7 +267,7 @@ cmd_init() {
   local max_cycles="" max_stuck="" max_runtime="" max_deep_per_cycle="1" max_consecutive_deep="2"
 
   # Track the flag name the caller actually used, for error messages
-  local name_stuck="--max-stuck" name_runtime="--max-runtime" name_consec_deep="--max-consecutive-deep"
+  local name_stuck="--max-stuck" name_consec_deep="--max-consecutive-deep"
 
   for arg in "$@"; do
     case "$arg" in
@@ -275,7 +275,7 @@ cmd_init() {
       --max-stuck=*) max_stuck="${arg#*=}" ;;
       --max-stuck-cycles=*) max_stuck="${arg#*=}"; name_stuck="--max-stuck-cycles" ;;
       --max-runtime=*) max_runtime="${arg#*=}" ;;
-      --max-total-runtime=*) max_runtime="${arg#*=}"; name_runtime="--max-total-runtime" ;;
+      --max-total-runtime=*) max_runtime="${arg#*=}" ;;
       --max-deep-per-cycle=*) max_deep_per_cycle="${arg#*=}" ;;
       --max-consecutive-deep=*) max_consecutive_deep="${arg#*=}" ;;
       --max-consecutive-deep-cycles=*) max_consecutive_deep="${arg#*=}"; name_consec_deep="--max-consecutive-deep-cycles" ;;

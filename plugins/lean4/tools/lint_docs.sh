@@ -35,7 +35,8 @@ check_commands() {
 
     local cmd_dir="$PLUGIN_ROOT/commands"
     local actual_commands
-    actual_commands=$(find "$cmd_dir" -name "*.md" -type f | xargs -I{} basename {} .md | sort)
+    actual_commands=$(find "$cmd_dir" -name "*.md" -type f -print0 \
+        | xargs -0 -I{} basename {} .md | sort)
     local count
     count=$(echo "$actual_commands" | wc -l | tr -d ' ')
 
@@ -100,7 +101,8 @@ check_agents() {
 
     local agent_dir="$PLUGIN_ROOT/agents"
     local actual_agents
-    actual_agents=$(find "$agent_dir" -name "*.md" -type f | xargs -I{} basename {} .md | sort)
+    actual_agents=$(find "$agent_dir" -name "*.md" -type f -print0 \
+        | xargs -0 -I{} basename {} .md | sort)
     local count
     count=$(echo "$actual_agents" | wc -l | tr -d ' ')
 
@@ -1279,9 +1281,6 @@ check_description_alignment() {
     local cmd_dir="$PLUGIN_ROOT/commands"
     local skill_md="$PLUGIN_ROOT/skills/lean4/SKILL.md"
     local plugin_readme="$PLUGIN_ROOT/README.md"
-    local repo_root
-    repo_root="$(cd "$PLUGIN_ROOT" && cd ../.. && pwd)"
-    local repo_readme="$repo_root/README.md"
 
     local _da_cmd _da_desc _da_mismatches
     _da_mismatches=0

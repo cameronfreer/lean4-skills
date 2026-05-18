@@ -209,25 +209,24 @@ else
 fi
 
 # Check 14: Stop reasons — bold labels slugified ↔ pipe-delimited tokens
-declare -A SLUG_MAP=(
-    [Completion]=completion
-    ["Max stuck cycles"]=max-stuck
-    ["Max cycles"]=max-cycles
-    ["Max runtime"]=max-runtime
-    ["Manual user stop"]=user-stop
-    ["Queue empty"]=queue-empty
-)
+slug_for_label() {
+    case "$1" in
+        Completion)         echo "completion" ;;
+        "Max stuck cycles") echo "max-stuck" ;;
+        "Max cycles")       echo "max-cycles" ;;
+        "Max runtime")      echo "max-runtime" ;;
+        "Manual user stop") echo "user-stop" ;;
+        "Queue empty")      echo "queue-empty" ;;
+        *)                  echo "UNMAPPED:$1" ;;
+    esac
+}
 
 stop_section=$(extract_section "$AUTOPROVE" "## Stop Conditions")
 stop_labels=$(echo "$stop_section" | grep -E '^[0-9]+\.' | grep -oE '\*\*[^*]+\*\*' | sed 's/\*\*//g')
 
 stop_slugs=""
 while IFS= read -r label; do
-    if [[ -n "${SLUG_MAP[$label]+x}" ]]; then
-        stop_slugs+="${SLUG_MAP[$label]}"$'\n'
-    else
-        stop_slugs+="UNMAPPED:${label}"$'\n'
-    fi
+    stop_slugs+="$(slug_for_label "$label")"$'\n'
 done <<< "$stop_labels"
 stop_slugs=$(echo "$stop_slugs" | sed '/^$/d' | sort -u)
 

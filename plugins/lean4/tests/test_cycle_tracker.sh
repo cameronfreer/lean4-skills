@@ -1220,9 +1220,8 @@ else
 fi
 
 # Step 3: caller preserves both vars, runs under a different ambient TMPDIR
-LEAN4_SESSION_ID="$STDOUT_SID" LEAN4_SESSION_DIR="$STDOUT_TMPDIR" TMPDIR="/tmp" \
-  bash "$TRACKER" tick --stuck=no >/dev/null 2>&1
-if [[ "$?" -eq 0 ]]; then
+if LEAN4_SESSION_ID="$STDOUT_SID" LEAN4_SESSION_DIR="$STDOUT_TMPDIR" TMPDIR="/tmp" \
+    bash "$TRACKER" tick --stuck=no >/dev/null 2>&1; then
   echo "  PASS: stdout-only caller can tick cross-TMPDIR by passing both vars"
   (( ++PASS ))
 else
@@ -1230,9 +1229,8 @@ else
   (( ++FAIL ))
 fi
 
-LEAN4_SESSION_ID="$STDOUT_SID" LEAN4_SESSION_DIR="$STDOUT_TMPDIR" TMPDIR="/tmp" \
-  bash "$TRACKER" status >/dev/null 2>&1
-if [[ "$?" -eq 0 ]]; then
+if LEAN4_SESSION_ID="$STDOUT_SID" LEAN4_SESSION_DIR="$STDOUT_TMPDIR" TMPDIR="/tmp" \
+    bash "$TRACKER" status >/dev/null 2>&1; then
   echo "  PASS: stdout-only caller can status cross-TMPDIR by passing both vars"
   (( ++PASS ))
 else
@@ -1313,7 +1311,7 @@ if [[ ! -f "$SUPERSEDE_TMPDIR/${SID_A}.json" && -f "$SUPERSEDE_TMPDIR/${SID_B}.j
   (( ++PASS ))
 else
   echo "  FAIL: unexpected state-file layout after stop A"
-  ls "$SUPERSEDE_TMPDIR/" | sed 's/^/          /'
+  find "$SUPERSEDE_TMPDIR" -mindepth 1 -maxdepth 1 | sed 's|.*/|          |'
   (( ++FAIL ))
 fi
 
