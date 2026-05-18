@@ -221,16 +221,17 @@ done
 [[ $found -eq 0 ]] && ok "All runtime scripts use #!/usr/bin/env bash"
 
 # ---------------------------------------------------------------------------
-# Check 9: portable Python shebangs in runtime path
+# Check 9: portable Python shebangs in hooks/ and lib/scripts/
 #
-# Every .py file under hooks/ and lib/scripts/ that HAS a shebang must use
-# exactly '#!/usr/bin/env python3'. Library modules without a shebang
-# (imported, not executed) are out of scope. Intent: forbid the
-# '#!/usr/bin/env sh' polyglot trampoline (which leaks 'exec "$0"' into
-# __doc__ and surfaces in --help output) and absolute interpreter paths.
+# Every .py file under hooks/ and lib/scripts/ (recursively, including
+# lib/scripts/tests/) that HAS a shebang must use exactly
+# '#!/usr/bin/env python3'. Library modules without a shebang (imported,
+# not executed) are out of scope. Intent: forbid the '#!/usr/bin/env sh'
+# polyglot trampoline (which leaks 'exec "$0"' into __doc__ and surfaces
+# in --help output) and absolute interpreter paths.
 # ---------------------------------------------------------------------------
 echo ""
-echo "-- Check 9: portable Python shebangs in runtime path --"
+echo "-- Check 9: portable Python shebangs in hooks/ and lib/scripts/ --"
 found=0
 for f in "${PY_FILES[@]+"${PY_FILES[@]}"}"; do
   first_line=$(head -n1 "$f")

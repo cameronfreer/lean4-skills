@@ -42,20 +42,26 @@ cp "$LINT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh"
 # Helpers
 # ---------------------------------------------------------------------------
 
+# On FAIL, helpers dump the captured lint output indented under the
+# failure line so the actual diagnostic is visible in CI logs without
+# rerunning anything. Lint stdout+stderr is captured to a local variable
+# (not /dev/null) for exactly this reason.
+
 # expect_lint_fail "description" "script body"
 #   Writes script body to a probe file, runs the lint under
 #   $BASH_FOR_COMPAT, asserts exit 1 (lint caught the issue).
 expect_lint_fail() {
-  local desc="$1" body="$2"
+  local desc="$1" body="$2" output
   local probe="$TMPDIR_ROOT/lib/scripts/probe.sh"
   printf '#!/usr/bin/env bash\n%s\n' "$body" > "$probe"
   local exit_code=0
-  "$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
+  output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" 2>&1) || exit_code=$?
   if [[ "$exit_code" -eq 1 ]]; then
     echo "  PASS: $desc"
     ((PASS++)) || true
   else
     echo "  FAIL: $desc (expected exit 1, got $exit_code)"
+    echo "$output" | sed 's/^/      /'
     ((FAIL++)) || true
   fi
   rm -f "$probe"
@@ -65,16 +71,17 @@ expect_lint_fail() {
 #   Writes script body to a probe file, runs the lint under
 #   $BASH_FOR_COMPAT, asserts exit 0 (lint did not false-positive).
 expect_lint_pass() {
-  local desc="$1" body="$2"
+  local desc="$1" body="$2" output
   local probe="$TMPDIR_ROOT/lib/scripts/probe.sh"
   printf '#!/usr/bin/env bash\n%s\n' "$body" > "$probe"
   local exit_code=0
-  "$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
+  output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" 2>&1) || exit_code=$?
   if [[ "$exit_code" -eq 0 ]]; then
     echo "  PASS: $desc"
     ((PASS++)) || true
   else
     echo "  FAIL: $desc (expected exit 0, got $exit_code)"
+    echo "$output" | sed 's/^/      /'
     ((FAIL++)) || true
   fi
   rm -f "$probe"
@@ -193,16 +200,17 @@ echo ""
 echo "-- Check 8 self-tests (shebang regression) --"
 
 expect_shebang_lint_fail() {
-  local desc="$1" shebang="$2"
+  local desc="$1" shebang="$2" output
   local probe="$TMPDIR_ROOT/lib/scripts/probe.sh"
   printf '%s\n: # no-op\n' "$shebang" > "$probe"
   local exit_code=0
-  "$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
+  output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" 2>&1) || exit_code=$?
   if [[ "$exit_code" -eq 1 ]]; then
     echo "  PASS: $desc"
     ((PASS++)) || true
   else
     echo "  FAIL: $desc (expected exit 1, got $exit_code)"
+    echo "$output" | sed 's/^/      /'
     ((FAIL++)) || true
   fi
   rm -f "$probe"
@@ -252,32 +260,34 @@ echo ""
 echo "-- Check 9 self-tests (Python shebang regression) --"
 
 expect_py_shebang_lint_fail() {
-  local desc="$1" shebang="$2"
+  local desc="$1" shebang="$2" output
   local probe="$TMPDIR_ROOT/lib/scripts/probe.py"
   printf '%s\npass\n' "$shebang" > "$probe"
   local exit_code=0
-  "$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
+  output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" 2>&1) || exit_code=$?
   if [[ "$exit_code" -eq 1 ]]; then
     echo "  PASS: $desc"
     ((PASS++)) || true
   else
     echo "  FAIL: $desc (expected exit 1, got $exit_code)"
+    echo "$output" | sed 's/^/      /'
     ((FAIL++)) || true
   fi
   rm -f "$probe"
 }
 
 expect_py_lint_pass() {
-  local desc="$1" content="$2"
+  local desc="$1" content="$2" output
   local probe="$TMPDIR_ROOT/lib/scripts/probe.py"
   printf '%s\n' "$content" > "$probe"
   local exit_code=0
-  "$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
+  output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" 2>&1) || exit_code=$?
   if [[ "$exit_code" -eq 0 ]]; then
     echo "  PASS: $desc"
     ((PASS++)) || true
   else
     echo "  FAIL: $desc (expected exit 0, got $exit_code)"
+    echo "$output" | sed 's/^/      /'
     ((FAIL++)) || true
   fi
   rm -f "$probe"
@@ -309,7 +319,7 @@ echo ""
 echo "-- Check 10 self-tests (no bin shortcut) --"
 
 expect_bin_lint_fail() {
-  local desc="$1" kind="$2"  # symlink|file|dir
+  local desc="$1" kind="$2" output  # kind: symlink|file|dir
   local bin="$TMPDIR_ROOT/bin"
   case "$kind" in
     symlink) ln -s lib/scripts "$bin" ;;
@@ -318,12 +328,13 @@ expect_bin_lint_fail() {
     *) echo "  FAIL: $desc (internal: unknown kind '$kind')"; ((FAIL++)) || true; return ;;
   esac
   local exit_code=0
-  "$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1 || exit_code=$?
+  output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" 2>&1) || exit_code=$?
   if [[ "$exit_code" -eq 1 ]]; then
     echo "  PASS: $desc"
     ((PASS++)) || true
   else
     echo "  FAIL: $desc (expected exit 1, got $exit_code)"
+    echo "$output" | sed 's/^/      /'
     ((FAIL++)) || true
   fi
   rm -rf "$bin"
