@@ -28,9 +28,14 @@ from command_args import COMMAND_SPECS, parse_invocation  # noqa: E402
 def main() -> int:
     args = sys.argv[1:]
 
-    if not args or args[0] in ("-h", "--help"):
-        # lstrip() avoids printing a leading blank line when the module
-        # docstring is block-form (opening `"""` on its own line).
+    # lstrip() avoids printing a leading blank line when the module
+    # docstring is block-form (opening `"""` on its own line).
+    if args and args[0] in ("-h", "--help"):
+        # Explicit --help is not a usage error; print to stdout and exit 0
+        # so it composes cleanly in shell pipelines and scripts.
+        print((__doc__ or "").lstrip())
+        return 0
+    if not args:
         print((__doc__ or "").lstrip(), file=sys.stderr)
         return 1
 
