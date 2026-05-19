@@ -18,10 +18,10 @@ jobs:
             || { echo "Expected /bin/bash 3.2, got ${BASH_VERSION}"; exit 1; }'
 
       - name: Static lint — Bash 4+ / BSD-incompat constructs
-        run: /bin/bash plugins/lean4/tools/lint_bash_compat.sh
+        run: /bin/bash plugins/lean4/tools/lint_runtime_portability.sh
 
       - name: Self-test — lint catches all advertised constructs
-        run: /bin/bash plugins/lean4/tests/test_lint_bash_compat.sh
+        run: /bin/bash plugins/lean4/tests/test_lint_runtime_portability.sh
 
       - name: Runtime smoke — cycle_tracker.sh under /bin/bash
         run: /bin/bash plugins/lean4/tests/test_bash3_smoke.sh

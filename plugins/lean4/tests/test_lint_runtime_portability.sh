@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Self-test for lint_bash_compat.sh — verifies it catches all advertised
+# Self-test for lint_runtime_portability.sh — verifies it catches all advertised
 # Bash 4+ / BSD-incompatible constructs (Checks 1–7), runtime shebang
 # regressions for both shell and Python (Checks 8–9), and the
 # guardrail-bypassing bin/ shortcut path (Check 10) — and does NOT
@@ -27,7 +27,7 @@ if [[ ! -x "$BASH_FOR_COMPAT" ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LINT="$SCRIPT_DIR/../tools/lint_bash_compat.sh"
+LINT="$SCRIPT_DIR/../tools/lint_runtime_portability.sh"
 
 PASS=0
 FAIL=0
@@ -36,7 +36,7 @@ TMPDIR_ROOT=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_ROOT"' EXIT
 
 mkdir -p "$TMPDIR_ROOT/hooks" "$TMPDIR_ROOT/lib/scripts" "$TMPDIR_ROOT/tools"
-cp "$LINT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh"
+cp "$LINT" "$TMPDIR_ROOT/tools/lint_runtime_portability.sh"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -55,7 +55,7 @@ expect_lint_fail() {
   local probe="$TMPDIR_ROOT/lib/scripts/probe.sh"
   printf '#!/usr/bin/env bash\n%s\n' "$body" > "$probe"
   local exit_code=0
-  output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" 2>&1) || exit_code=$?
+  output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_runtime_portability.sh" 2>&1) || exit_code=$?
   if [[ "$exit_code" -eq 1 ]]; then
     echo "  PASS: $desc"
     ((PASS++)) || true
@@ -75,7 +75,7 @@ expect_lint_pass() {
   local probe="$TMPDIR_ROOT/lib/scripts/probe.sh"
   printf '#!/usr/bin/env bash\n%s\n' "$body" > "$probe"
   local exit_code=0
-  output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" 2>&1) || exit_code=$?
+  output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_runtime_portability.sh" 2>&1) || exit_code=$?
   if [[ "$exit_code" -eq 0 ]]; then
     echo "  PASS: $desc"
     ((PASS++)) || true
@@ -174,7 +174,7 @@ coproc mycoproc { cat; }
 echo "${myvar@Q}"
 PROBE
 
-combined_output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" 2>&1 || true)
+combined_output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_runtime_portability.sh" 2>&1 || true)
 # Count warn lines that report actual matches (filename:line:content),
 # excluding the summary line ("⚠️  N issue(s) found...").
 combined_issue_count=$(echo "$combined_output" | grep -c '^⚠️.*:[0-9]\+:' || true)
@@ -204,7 +204,7 @@ expect_shebang_lint_fail() {
   local probe="$TMPDIR_ROOT/lib/scripts/probe.sh"
   printf '%s\n: # no-op\n' "$shebang" > "$probe"
   local exit_code=0
-  output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" 2>&1) || exit_code=$?
+  output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_runtime_portability.sh" 2>&1) || exit_code=$?
   if [[ "$exit_code" -eq 1 ]]; then
     echo "  PASS: $desc"
     ((PASS++)) || true
@@ -264,7 +264,7 @@ expect_py_shebang_lint_fail() {
   local probe="$TMPDIR_ROOT/lib/scripts/probe.py"
   printf '%s\npass\n' "$shebang" > "$probe"
   local exit_code=0
-  output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" 2>&1) || exit_code=$?
+  output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_runtime_portability.sh" 2>&1) || exit_code=$?
   if [[ "$exit_code" -eq 1 ]]; then
     echo "  PASS: $desc"
     ((PASS++)) || true
@@ -281,7 +281,7 @@ expect_py_lint_pass() {
   local probe="$TMPDIR_ROOT/lib/scripts/probe.py"
   printf '%s\n' "$content" > "$probe"
   local exit_code=0
-  output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" 2>&1) || exit_code=$?
+  output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_runtime_portability.sh" 2>&1) || exit_code=$?
   if [[ "$exit_code" -eq 0 ]]; then
     echo "  PASS: $desc"
     ((PASS++)) || true
@@ -328,7 +328,7 @@ expect_bin_lint_fail() {
     *) echo "  FAIL: $desc (internal: unknown kind '$kind')"; ((FAIL++)) || true; return ;;
   esac
   local exit_code=0
-  output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_bash_compat.sh" 2>&1) || exit_code=$?
+  output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_runtime_portability.sh" 2>&1) || exit_code=$?
   if [[ "$exit_code" -eq 1 ]]; then
     echo "  PASS: $desc"
     ((PASS++)) || true
