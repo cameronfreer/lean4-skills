@@ -76,8 +76,17 @@ jobs:
           tar -xJf shellcheck.tar.xz
           echo "$RUNNER_TEMP/shellcheck-v0.10.0" >> "$GITHUB_PATH"
 
-      - name: Verify shellcheck version
-        run: shellcheck --version
+      - name: Verify shellcheck version (assert exactly 0.10.0)
+        # Belt-and-suspenders against PATH-order surprises: even though
+        # the previous step prepends our pinned binary's dir to
+        # GITHUB_PATH, the grep ensures any other shellcheck on PATH
+        # (e.g. ubuntu-latest's preinstalled 0.9.0) doesn't silently
+        # win the lookup. -F treats the pattern as a fixed literal
+        # string; -x requires a full-line match so neither future
+        # "0.10.0-rc1" nor "0.10.01" would pass.
+        run: |
+          shellcheck --version
+          shellcheck --version | grep -Fxq 'version: 0.10.0'
 
       - name: shellcheck (hooks/, lib/scripts/, tools/)
         # Flags match the invocation Holger validated against in PR #120:
