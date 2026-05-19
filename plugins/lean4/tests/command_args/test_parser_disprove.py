@@ -40,6 +40,8 @@ class TestDisproveHappyPath(unittest.TestCase):
         self.assertEqual(result.options["--negation-policy"].value, "counterexample-only")
         self.assertEqual(result.options["--commit"].value, "ask")
         self.assertEqual(result.options["--commit"].source, "default")
+        self.assertEqual(result.options["--knowledge-search-budget"].value, 3)
+        self.assertEqual(result.options["--knowledge-search-budget"].source, "default")
 
 
 class TestDisproveTargetRequired(unittest.TestCase):
@@ -168,6 +170,53 @@ class TestDisproveUnknownFlag(unittest.TestCase):
     def test_dropped_max_witness_bound_errors(self):
         """--max-witness-bound moved into the Step 2 menu for enumerate."""
         result = parse_invocation(SPEC, "Foo.lean:1 --max-witness-bound=64", cwd=CWD)
+        self.assertTrue(len(result.errors) > 0)
+
+    def test_web_flag_rejected(self):
+        """--web is not a disprove flag — web tier lives inside Step 0."""
+        result = parse_invocation(SPEC, "Foo.lean:1 --web=on", cwd=CWD)
+        self.assertTrue(len(result.errors) > 0)
+
+    def test_websearch_flag_rejected(self):
+        """--websearch is not a disprove flag — web tier lives inside Step 0."""
+        result = parse_invocation(SPEC, "Foo.lean:1 --websearch=true", cwd=CWD)
+        self.assertTrue(len(result.errors) > 0)
+
+
+class TestDisproveKnowledgeSearchBudget(unittest.TestCase):
+    def test_default_is_three(self):
+        result = parse_invocation(SPEC, "Foo.lean:1", cwd=CWD)
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.options["--knowledge-search-budget"].value, 3)
+        self.assertEqual(result.options["--knowledge-search-budget"].source, "default")
+
+    def test_explicit_value_accepted(self):
+        result = parse_invocation(
+            SPEC, "Foo.lean:1 --knowledge-search-budget=5", cwd=CWD
+        )
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.options["--knowledge-search-budget"].value, 5)
+        self.assertEqual(
+            result.options["--knowledge-search-budget"].source, "explicit"
+        )
+
+    def test_zero_rejected(self):
+        result = parse_invocation(
+            SPEC, "Foo.lean:1 --knowledge-search-budget=0", cwd=CWD
+        )
+        self.assertTrue(len(result.errors) > 0)
+        self.assertIn("below minimum", result.errors[0])
+
+    def test_negative_rejected(self):
+        result = parse_invocation(
+            SPEC, "Foo.lean:1 --knowledge-search-budget=-1", cwd=CWD
+        )
+        self.assertTrue(len(result.errors) > 0)
+
+    def test_non_numeric_rejected(self):
+        result = parse_invocation(
+            SPEC, "Foo.lean:1 --knowledge-search-budget=many", cwd=CWD
+        )
         self.assertTrue(len(result.errors) > 0)
 
 

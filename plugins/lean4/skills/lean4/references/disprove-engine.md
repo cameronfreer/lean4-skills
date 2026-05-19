@@ -2,16 +2,19 @@
 
 > Disprove-specific specialization of [cycle-engine.md](cycle-engine.md).
 > Inherits the shared 6-phase cycle vocabulary
-> (Plan → Work → Checkpoint → Review → Replan → Continue/Stop), the
+> (Plan → Work → Checkpoint → Review → Accumulate → Continue/Stop), the
 > LSP-first protocol, the compile-gate contract, and the
 > [Falsification Artifacts](cycle-engine.md#falsification-artifacts)
-> templates. Adds disprove-only mechanics: the Method Registry, the
-> two-step Step 1 / Step 2 prompts, the Per-Shape Recipes, and the
-> Replan Rules table.
+> templates. Adds disprove-only mechanics: the
+> [Method Registry](#method-registry) (data file), the Phase 1 menus
+> (Step 0 — Knowledge Search Menu, Step 1 — Method Menu, Step 2 —
+> Config Menu), the Per-Shape Recipes, and the per-cycle Accumulate
+> state update.
 >
 > `/lean4:disprove` is always interactive: the workflow prompts the user
-> in each cycle's Plan phase to choose a search method (Step 1) and
-> configure its parameters (Step 2).
+> in each cycle's Plan phase to (re-)run Step 0 when applicable, then
+> choose a search method from a dynamic Step 1 menu and configure it via
+> a dynamic Step 2 menu.
 
 ## Prime Directive — Epistemological Strictness
 
@@ -24,31 +27,40 @@ or `INCONCLUSIVE`. This invariant is non-negotiable.
 ## Six-Phase Cycle
 
 ```
-Plan → Work → Checkpoint → Review → Replan → Continue/Stop
+Plan → Work → Checkpoint → Review → Accumulate → Continue/Stop
 ```
 
 A cycle is a **widening pass** over the same target. Each cycle picks one
-method (via Step 1) with its own parameters (via Step 2) and either
-certifies a counterexample or feeds Review and Replan to widen the
-search in the next cycle.
+method (via the Step 1 menu) with one config (via the Step 2 menu) and
+either certifies a counterexample or appends the cycle's outcome to
+session evidence so the next cycle's menus can re-rank.
 
 | Phase | Disprove-specific behavior |
 |-------|----------------------------|
-| 1. Plan | Cycle 1 resolves TARGET, normalizes shape, prints Search-Space Estimate. Every cycle: Step 1 menu + Step 2 prompts (Replan's recommendation pre-fills cycle ≥2). |
+| 1. Plan | Cycle 1 resolves TARGET, normalizes shape, builds the Target Profile, runs Step 0 (Knowledge Search) once. Every cycle: Step 1 menu + Step 2 menu. Later cycles re-enter Step 0 only if Step 1 picks `knowledge search`. |
 | 2. Work | Run the chosen method with the chosen config. Pre-screen candidates via `lean_multi_attempt`. |
 | 3. Checkpoint | If a candidate certified: append `T_counterexample`, run `lake env lean`, stage + commit per `--commit`. If not: no artifact. |
 | 4. Review | Classify the cycle's outcome (certified / near-miss / exhausted / no-candidate). Capture error signatures. |
-| 5. Replan | Apply per-method widening rules; recommend next cycle's method + Step 2 pre-fills. If no lever remains, mark this cycle stuck. |
-| 6. Continue/Stop | Always prompt the user: `continue / stop / adjust`. |
+| 5. Accumulate | Append `(family, config, outcome, near-miss_signature)` to session evidence. No hardcoded recommendation table — the next cycle's menus absorb the logic. |
+| 6. Continue/Stop | Always prompt the user: `continue / stop`. |
 
 ## Phase 1 — Plan
 
 Cycle 1's Plan does the full one-time setup (Target Resolution Flow,
-Shape Normalization, Search-Space Estimate, Cycle-Tracker init) and
-then enters the Step 1 + Step 2 prompts. Cycle ≥2 skips the setup
-sub-sections (TARGET, shape, search-space, tracker are reused) and
-re-enters only the Step 1 + Step 2 prompts, with Replan's
-recommendations pre-filling the answers.
+Shape Normalization, Target Profile, Cycle-Tracker init, then Step 0)
+before the Step 1 + Step 2 menus. Cycle ≥2 skips the setup sub-sections
+(TARGET, shape, Target Profile, tracker are reused) and enters Step 1
+directly; Step 0 is re-entered only when Step 1 surfaces `knowledge
+search` and the user picks it (subject to the per-cycle visit cap).
+
+Each of Step 0, Step 1, and Step 2 is one inline call to the cycling
+LLM (no subagent): the LLM proposes a menu of candidates, the user
+reviews and approves (with edit / reduce affordances), and the selected
+items fire. **Pre-flight context** (per
+[cycle-engine.md § Pre-flight Context](cycle-engine.md#pre-flight-context-for-subagent-dispatch)):
+Target Profile + prior cycle's Review block + the structured Step 0
+digest are pre-loaded into the cycling LLM's input each cycle; the
+cross-cycle digest is cached so only new evidence is re-integrated.
 
 ### Target Resolution Flow
 
@@ -83,8 +95,8 @@ tools (~30s)" planning-phase budget; see `commands/prove.md:93`.)
 Strip a leading prefix of binders from the inferred type and reclassify
 the body. The seven canonical shapes:
 
-| # | Shape | Disproof goal | Default method (Replan pre-fill) |
-|---|-------|---------------|-----------------------------------|
+| # | Shape | Disproof goal | Default method family (cycle-1 LLM hint) |
+|---|-------|---------------|---------------------------------------------|
 | 1 | `∀ x : α, P x` | `∃ x, ¬ P x` | decide-cascade → mine → enumerate |
 | 2 | `∀ x, P x → Q x` | `∃ x, P x ∧ ¬ Q x` | decide-cascade → mine → enumerate |
 | 3 | `∃ x : α, P x` | `∀ x, ¬ P x` | decide-cascade (needs `Fintype α`, `DecidablePred P`) |
@@ -96,31 +108,60 @@ the body. The seven canonical shapes:
 Mixed-quantifier prefixes (`∀ n m, …`) peel one layer at a time;
 re-classify after each `intro`.
 
-### Search-Space Estimate
+### Target Profile
+
+The Target Profile is the one-time, cycle-1 summary the cycling LLM
+reads at every Step 0 / Step 1 / Step 2 invocation. It carries only
+LSP/kernel facts.
 
 ```
-Search-Space Estimate
-  Shape         : <one of the seven above>
-  Free vars     : <name : type (size)>, ...
-  Candidates    : <feasible count> of <total>
-  Decidable?    : <yes (instance) | no | partial>
-  Known non-counterexamples (statement holds at):
-    - <small values verified via decide>
-    - lean_leansearch probe: "counterexample <keywords>" → <hit count>
+Target Profile
+  shape          : <one of the seven from Shape Normalization>
+  free_vars      : <name : type (fintype_size?)>, ...
+  fintype_size   : <int | ∞>
+  decidable      : yes | no | unknown
+  candidate_grid : <bound string for display>   e.g. "Fin 8 × Fin 8 = 64",
+                                                       "[0, 64) default window",
+                                                       "atomic"
 ```
 
-The "Known non-counterexamples" line is required. Probe small values
-(0, 1, 2, [], none, …) with `decide` or `norm_num` and report the ones at
-which the statement holds. This tells the user the search is worth running
-(if the statement fails at small values, `decide` would find it
-immediately if picked as cycle 1's method).
+**`decidable` probe** — a single `lean_run_code` `inferInstance` check
+per the resolved shape, capped at 3s wall-clock:
+
+| Shape | Probe |
+|-------|-------|
+| 1, 2  | `#check (inferInstance : Decidable (∀ x : α, P x))` (or the curried `P x → Q x` form) |
+| 3     | `#check (inferInstance : Decidable (∃ x : α, P x))` |
+| 4, 5  | Probe each component separately; `decidable=yes` iff both probes pass |
+| 6, 7  | `#check (inferInstance : Decidable <atom>)` |
+
+Outcomes:
+
+- `yes` — probe succeeded; the decide-family `must-appear-in-top-3`
+  menu invariant (see Step 1) is in force.
+- `no` — probe reports `failed to synthesize Decidable …`.
+- `unknown` — probe timed out, the file failed to load, or elaboration
+  aborted for non-synthesis reasons. Treated as `no` for menu purposes
+  (does not force the decide-family entry), but recorded distinctly for
+  audit so the user sees the probe was inconclusive rather than negative.
+
+**`candidate_grid`** — a derived, human-readable bound, not a hard search
+budget. Used to ground the user's intuition during Step 1; the actual
+search budget is per-method (`enumerate.range_end`, `plausible.samples`,
+etc.). Examples per shape:
+
+- Shape 1 over `Fin n`: `"Fin n = <n>"`.
+- Shape 1 over `Nat`/`Int`: `"[0, 64) default window"`.
+- Shape 1/2 with two `Fin` binders: `"Fin a × Fin b = a*b"`.
+- Shape 7: `"atomic"`.
 
 ### Cycle-Tracker init
 
 ```bash
 bash "$LEAN4_SCRIPTS/cycle_tracker.sh" init \
   --max-cycles=<resolved> --max-stuck-cycles=<resolved> \
-  --max-runtime=<resolved>
+  --max-runtime=<resolved> \
+  --max-knowledge-search-per-cycle=<resolved --knowledge-search-budget>
 ```
 
 Disprove has no deep mode in v1: it never calls `can-deep` / `deep`,
@@ -128,129 +169,245 @@ so the deep counters maintained internally by the tracker are inert.
 Omit the deep flags from `init` — passing `=0` would be rejected by
 the tracker's `_require_positive_int` validation.
 
+`--max-knowledge-search-per-cycle` enforces the per-cycle visit cap for
+Step 0 (see below). The tracker's `kw-search-can` / `kw-search` actions
+gate entry to Step 0.
+
+### Step 0 — Knowledge Search Menu
+
+Step 0 runs **once in Cycle 1** by default. It re-runs only when a later
+cycle's Step 1 menu surfaces the `knowledge search` entry **and the
+user picks it**, subject to the per-cycle visit cap
+(`--knowledge-search-budget`, default 3). After the Nth visit in a cycle
+completes, `knowledge search` is disabled in that cycle's Step 1 menu;
+the cap resets at each `tick`.
+
+The cycling LLM proposes a menu of knowledge-search tasks each visit.
+Multi-select; the standard rows (lean/local/web tiers), and `[custom]` and `[llm]`. Each row shows what will fire if it
+stays selected: the tool/source, the tier tag, and the executable query
+string the LLM derives from the TARGET. The user reviews — editing
+query text or reducing the selection — and approves; only after
+approval do the selected rows fire. Tier semantics: `[lean]` = Lean /
+mathlib name lookup, `[local]` = target-file or repo grep, `[web]` =
+open-web literature.
+
+**Menu items (standard rows, `[custom]` and `[llm]`, all pre-selected):**
+
+- `[lean]`   `lean_leansearch`
+- `[local]`  mathlib `Counterexamples/` grep
+- `[local]`  repo grep `*_counterexample` / `*_counter` / "false" comments
+- `[web]`    websearch — known counterexample search methods
+- `[web]`    websearch — known NON-counterexamples
+- `[web]`    websearch — known counterexamples
+- `[custom]` user-supplied free-form intent — at fire time the LLM
+  interprets the user's text into an executable query and picks the
+  tier, then dispatches the matching tool. The interpretation is
+  recorded in the finding's `source_tier` + `query` fields (and shown
+  in the Disprove Summary's per-cycle table).
+- `[llm]`    LLM-proposed query — the LLM emits both the query and
+  its tier (`(none)` if the LLM has no proposal beyond the rows above).
+
+**Findings schema** (one record per surviving finding):
+
+```json
+{
+  "cycle":         "<int>",
+  "source_tier":   "lean | local | web",
+  "query":         "<the literal query that produced this finding>",
+  "claim":         "<one-line summary>",
+  "source_url":    "<URL or repo-relative path>",
+  "retrieved_at":  "<ISO-8601 UTC>",
+  "verified_via":  "webfetch:<url> | none",
+  "confidence":    "high | medium | low"
+}
+```
+
+- **`source_url` is required.** Findings produced without a citable URL
+  or repo-relative path are dropped at write time — they never surface
+  in the Step 1 input.
+- **Web-tier counterexample candidates are spot-verified** via
+  `WebFetch` on the cited URL before being elevated to a
+  `[verify-known-cex]` candidate (sets `verified_via=webfetch:<URL>`).
+  Verification passes when the fetched content names
+  the specific witness (the value, expression, or counterexample
+  index) **and** the predicate or conjecture it refutes, and the
+  claim is not disputed in-context. Failure modes that drop the
+  finding: HTTP 4xx/5xx, paywall/login wall, off-topic landing page,
+  cited witness not present on the fetched page. If `WebFetch` is
+  unavailable in the host, web findings are dropped, not elevated. Report all failures to user.
+
+**Persistence (dual):**
+
+- **Inline conversation digest** — what the cycling LLM reads on each
+  Step 1 / Step 2 invocation. Compact; only new evidence since the last
+  cycle is re-integrated.
+- **`$LEAN4_SESSION_DIR/findings.jsonl`** — append-only, one record per
+  line. Seeds the inline digest on session resume; cited by the Disprove
+  Summary's per-cycle URL column.
+
+**Outcomes feed:**
+
+- Counterexample-search-method hits — findings about *how to look*
+  for a counterexample, surfaced by any tier (e.g. a websearch hit
+  describing a Diophantine-grid sieve, a SAT-with-blocking-clauses
+  approach, or a `lean_leansearch` hit naming a tactic combinator;
+  the dedicated Step 0 item is `[web] websearch — known counterexample
+  search methods`). The LLM **maps the discovered method to the
+  nearest registry family** (e.g. `enumerate` with a window and
+  atom tactic tuned to the cited technique; `external` for SAT/SMT
+  references, custom Python/other scripts; `tactics` for a tactic-combinator pointer) and
+  synthesizes a specialized Step 1 entry (or entries) whose label and reasoning
+  cite the source.
+- Non-counterexample ranges (e.g. a web finding that the statement
+  holds for `n ≤ 1000`) → inform Step 2's range / sample-size defaults
+  so the search doesn't waste budget on regions already known true.
+- Cited counterexample candidates → generate a `[verify-known-cex]`
+  entry pre-selected at rank 1 of the next Step 1 menu. Per-tier
+  gating:
+  - **Web-tier** candidates require WebFetch verification first (per
+    the spot-verify rule above).
+  - **Lean / local-tier** candidates are elevated on a **strong
+    match** — the hit's identifier or doc-comment names the same
+    predicate / operator / constant that appears in the TARGET
+    (e.g. the TARGET mentions `Nat.Prime` and the hit's declaration
+    is `Nat.Prime` adjacent). No WebFetch needed; the source is
+    already in the Lean ecosystem. Weaker matches feed the cycling
+    LLM's reasoning but don't trigger rank-1 elevation.
+
 ### Step 1 — Method Menu
 
-```
-Choose a search method for cycle <N>:
-  1. decide-cascade  — decide / native_decide / norm_num / omega
-  2. mine            — small literals + Inhabited instances
-  3. enumerate       — bounded Fin / range
-  4. plausible       — random property test (mathlib)
-  5. tactics         — negated-goal tactic cascade
-  6. lookup          — mathlib Counterexamples + repo grep
-  7. external        — z3 / cvc5 (v1: stub; skipped)
-  s. stop            — give up
-```
+The cycling LLM proposes a menu of 3–10 method candidates each cycle,
+single-select. It specializes from the registry's six stable families
+(`decide-cascade`, `mine`, `enumerate`, `plausible`, `tactics`,
+`external`) — picking which families to surface, how many entries per
+family (e.g. two `external` rows with different counterexample search
+methods using external solvers), and emitting a free-text `label` per
+entry — then orders the entries by expected payoff under the current
+evidence. Inputs the cycling LLM receives:
 
-One method is marked `[recommended]` and pre-selected by pressing Enter;
-methods exhausted in earlier cycles are marked `[exhausted]` and cannot
-be re-picked without explicit user override.
+- The [Method Registry](#method-registry) (data file)
+- Accumulated Step 0 findings digest
+- Prior cycle's Review block + accumulated `(family, config, outcome)` log
+- Target Profile
+- LLM judgment
 
-**Pre-fill order for the `[recommended]` tag** (highest priority first):
-
-1. Explicit `--methods` CLI flag (cycle 1 only).
-2. **Cycle 1 — shape-derived:** the first entry of the
-   [Shape Normalization](#shape-normalization) table's "Default method"
-   column for the resolved TARGET, refined by the Search-Space
-   Estimate's `Decidable?` field. If `decide-cascade` is the first
-   entry but `Decidable? = no`, drop to the next entry in the chain
-   (e.g., shape 1 → `mine`). For shapes 4 (∧) and 5 (∨), the workflow
-   may decompose into sub-targets and recurse; absent decomposition,
-   the static fallback applies.
-3. **Cycle ≥2 — Replan-derived:** the next-method output of the
-   [Replan Rules](#replan-rules) table for the previous cycle's
-   just-tried method and outcome.
-4. **Static fallback:** option 1 (`decide-cascade`).
-
-### Step 2 — Per-Method Configuration
-
-Per-method prompts (default values shown):
+**Per-entry display:**
 
 ```
-[decide-cascade]
-  Include native_decide? (adds Lean.ofReduceBool axiom)  [y/N]
-  (decide / norm_num / omega run regardless; the toggle controls native_decide only)
+N. <label>  [family: <stable-id>]   [<cost-class>]
+   Description: <one-line method description>
+   Reasoning:   <why this entry given the evidence>
+   Cost (~wall-clock):    <coarse wall-clock estimate, e.g. "~1s", "~30s",
+                "~1m", "~5m">
 ```
 
-```
-[mine]
-  Number of candidates? [10]
-  Include Inhabited instances from imports? [Y/n]
-```
+The `family` is the stable id from the registry (e.g. `decide-cascade`,
+`enumerate`); `label` is the LLM-emitted free-text variant name
+(e.g. `"enumerate Nat, Lander–Parkin window 27…145"`).
+
+`Cost (~wall-clock)` is a *coarse* wall-clock estimate for the config skeleton
+implied by the `label` — Step 2 will refine it. The cycling LLM
+derives it from the registry's `budget_hint_seconds × expected
+candidate count` (or `× 1` for single-shot families like
+`decide-cascade`). Cross-cycle calibration: the prior cycle's Review
+block carries `(estimated, actual)` time pairs the LLM uses to adjust
+future estimates.
+
+**Always-present extras:**
+
+- `knowledge search` — disabled (and visibly so) after the cycle's Nth
+  Step 0 visit.
+- `custom method` — free-form description. The cycling LLM maps the user's
+  description to the nearest registry `family` and synthesizes a `config`.
+  Audit trail records: `family=<X>, config={...}, derived-from-custom="<user text>"`.
+
+**Menu invariants** (3–10 items total):
+
+1. If a verified `[verify-known-cex]` candidate exists, it occupies
+   **rank 1**, pre-selected.
+2. **No wasted work in the top 3.** Every top-3 entry must explore
+   territory not already covered by the failed-evidence set
+   (`failed` = any `(family, config)` recorded in Phase 5 evidence
+   with `outcome ≠ "certified"`):
+   - **No exact-pair repeats**: top-3 `(family, config)` is not in the
+     failed-evidence set under strict tuple equality.
+   - **No overlapping search spaces**: the proposed config's coverage
+     must be **disjoint** from any already-failed config's coverage —
+     widening must explore **new** territory only. For range-shaped
+     families (`enumerate`), this means widening as
+     `range=[prev_end, new_end)`, NOT `range=[0, new_end)` (the latter
+     re-searches `[0, prev_end)`). For discrete-set families
+     (`tactics`, `decide-cascade`, `external`), the new set's elements
+     must exclude already-tried elements. For probabilistic families
+     (`plausible`) with fresh `seed`, draws are inherently new — overlap
+     is N/A.
+   - **Failed pairs MAY appear at ranks 4–10** as a user-override
+     option (e.g. "retry only after a code change"); the top-3
+     constraint protects the default-pick zone.
+
+   The cycling LLM applies this **semantically**, not by strict tuple
+   equality alone — it judges per-family config coverage from the
+   evidence log.
+3. If `Target Profile.decidable == yes` AND no decide-family success has
+   been recorded yet, a decide-family entry **must appear in the top 3**
+   (not necessarily rank 1 — rule 1 wins precedence).
+
+### Step 2 — Config Menu
+
+**If Step 1 picked `knowledge search`:** Step 2 is overloaded — it is a
+**multi-select of the Step 0 items** for a re-run. On confirm, return
+directly to Step 0; this re-entry counts against the
+`--knowledge-search-budget` visit cap. After Step 0 completes, control
+returns to Step 1 with the freshly accumulated findings digest.
+
+**Otherwise (any concrete family):** The cycling LLM proposes a menu of
+3–10 config candidates for the picked family, single-select. Each
+candidate is a concrete instantiation of the family's params from the
+registry (e.g. for `enumerate`: specific `range_start`, `range_end`,
+and `atom_tactic` values) — not a re-ordering of pre-defined configs.
+The registry's per-param `default` is a **seed value**, not a UI
+default: the cycling LLM is expected to override it when Target Profile
+or Step 0 evidence justifies (e.g. `enumerate.range_end` seeds at `64`,
+but for `∀ n : Fin 16, …` the LLM should propose candidates with
+`range_end = 16` to match the target's cardinality). Inputs the
+cycling LLM receives: picked family's parameter schema, Step 0 digest,
+prior-cycle outcomes, Target Profile, LLM judgment.
+
+**Per-entry display:**
 
 ```
-[enumerate]
-  Range type? [Fin / range / both] (default both)
-  Range start? [5]
-  Range end?   [64]
-  Atom tactic per candidate? [decide / norm_num / omega] (default decide)
+N. <config summary, e.g. "range=[5,64), atom=decide">
+   Reasoning:           <why this config given the evidence>
+   Cost (~wall-clock):  <refined estimate, e.g. "~64s", "~30s", "~1m">
+   Coverage:            <<mode>: <K> [of <denominator from candidate_grid>]>
+                        <e.g. "exhaustive: 16/16 over Fin 16",
+                              "window: 59/∞ over Nat",
+                              "sampled: 200 random of unbounded",
+                              "list: 10 named candidates">
 ```
 
-```
-[plausible]
-  Number of samples? [200]
-  Random seed? [auto]
-```
+**Cost vs Coverage**: the two axes are independent. `Cost` is the
+expected wall-clock time the cycling LLM derives from the registry's
+`budget_hint_seconds × candidate count` (or family-equivalent —
+`samples` for `plausible`, `len(tactics)` for `tactics`, etc.).
+`Coverage` is the *shape* of the search the config performs, expressed
+as `<mode>: <K>` plus (when meaningful) `of <denominator>` taken from
+the Target Profile's `candidate_grid`. Modes: `exhaustive` (covers all
+of a finite set), `window` (covers a sub-interval of a larger or
+infinite set), `sampled` (probabilistic draws — coverage is
+distributional, not enumerative), `list` (a named candidate set, as in
+`mine`), `atomic` (single proposition decided in one shot — no
+enumeration, as in `decide-cascade`), `cited` (adopts an
+externally-cited witness or lemma, as in `[verify-known-cex]`
+entries). The cross-cycle calibration loop (Phase 4 Review's
+`(estimated, actual)` time pair) lets the LLM tighten `Cost` over the
+session.
 
-```
-[tactics]
-  Tactics to include? [rfl, simp, decide, native_decide, omega, norm_num, grind, linarith]
-                       (toggle individually or accept all)
-```
+**Always-present extra:** `custom-config` — free-text. Schema-validated
+against the picked family's `params` table in
+[disprove_methods.toml](../../../lib/data/disprove_methods.toml).
 
-```
-[lookup]
-  Include 1× lean_leansearch query? [Y/n]
-  Search mathlib `Counterexamples/`? [Y/n]
-  Search repo for *_counterexample / *_counter / "false" comments? [Y/n]
-```
-
-```
-[external]
-  (v1) Solver wiring is a stub. Skip and choose another method?
-```
-
-**Pre-fill order for each field** (highest priority first):
-
-1. **Replan's recommendation** (cycle ≥2 only) — output of the
-   [Replan Rules](#replan-rules) table for the just-tried method.
-2. **Derived from the Search-Space Estimate** (cycle 1, when the SSE
-   provides a usable value):
-   - `enumerate.range_type` ← `Fin` if the relevant binder is `Fin _`;
-     `range` for `Nat`/`Int`; `both` for mixed binders.
-   - `enumerate.range_end` ← `min(Fintype.size, 64)` when the type has
-     a known `Fintype` instance; `64` for unbounded `Nat`/`Int`. For
-     multi-variable targets (e.g., `∀ a b : Nat, P a b`), divide the
-     budget per variable (e.g., 16 per var to keep the candidate grid
-     ≤ 64²).
-   - `enumerate.atom_tactic` ← `omega` if the residual is
-     integer-linear; `norm_num` for arithmetic equalities with
-     numerals; `decide` otherwise.
-   - `mine.candidates` ← type-shaped literal set (`Nat`: small
-     non-negatives + `Inhabited`; `Int`: small signed + `Inhabited`;
-     `List`/`Option`: empties + `Inhabited`; `Bool`: both values;
-     `Fin n`: all elements if `n ≤ candidates count`, else first `n`).
-   - `plausible.samples` ← `min(Fintype.size × 2, 200)` for finite
-     types; `200` otherwise. If the type is small and finite, prefer
-     `enumerate` over `plausible` outright (no point sampling when
-     exhaustive search fits the budget).
-   - `tactics.cascade` ← prefix the cascade with the shape-natural
-     tactic (`omega`/`norm_num` for arithmetic shapes 6/7; `decide` /
-     `native_decide` for decidable atoms; `rfl`/`simp` for structural
-     shapes); the full cascade still runs as fallback.
-   - `decide-cascade.native_decide` ← `N` by default (axiom-introducing
-     and audit-worthy; opt-in only).
-   - `lookup` toggles ← all three sources on by default; Search-Space
-     Estimate may turn off the `lean_leansearch` query when the TARGET
-     keywords are too generic to be useful (e.g., a single-letter
-     identifier).
-3. **Static fallback** — the bracketed value shown in the per-method
-   block above. Used only when neither (1) nor (2) supplies a value.
-
-The Search-Space Estimate (Phase 1) is the canonical source for the
-type, size, and decidability information that tier (2) consumes; an
-LLM agent following this workflow MUST consult the SSE output before
-falling through to the static defaults.
+On confirm → Phase 2.
 
 ## Phase 2 — Work
 
@@ -270,79 +427,90 @@ Method outcomes for this cycle (consumed by Review):
 | `certified` | A candidate passed pre-screen AND the file compile gate. |
 | `near-miss` | A candidate passed pre-screen but `lake env lean` rejected it. The error signature is captured. |
 | `exhausted-no-witness` | The method's budget was spent; no candidate was produced. |
-| `no-candidate` | The method produced zero candidates (e.g., enumerate hit no `DecidablePred`). |
+| `no-candidate` | The method produced zero candidates (e.g., enumerate hit no `DecidablePred`, or an external script timed out / failed to parse). |
+
+### External family — Work-phase execution
+
+When the picked Step 2 config has `family = "external"`, Phase 2 Work
+runs an LLM-emitted script before constructing the per-shape Lean
+snippet:
+
+1. **Emit script.** The cycling LLM writes a script to
+   `$LEAN4_SESSION_DIR/scripts/cycle-<N>-trial-<M>.<ext>` — extension
+   determined by `config.language` (`.py`, `.sh`, `.smt2`, …). The
+   script implements the methodology the Step 1 entry cited (e.g. a
+   Diophantine-grid sieve, a SAT encoding of the target's negation,
+   a custom shell pipeline), parameterised by the Step 2 config and
+   the Target Profile.
+2. **Confirmation prompt.** Phase 2 displays the full script to the
+   user with a one-line summary and prompts for explicit approval
+   before execution:
+   ```
+   Run cycle-3-trial-1.py? [yes / show-full / skip]
+   ```
+   The cycling LLM also flags any noteworthy capabilities the script
+   uses (network access, local solver invocation, file writes outside
+   the scripts dir).
+3. **Execute.** On approval, run via the `Bash` tool with `timeout`
+   set from the picked entry's `Cost (~wall-clock)` estimate:
+   ```bash
+   timeout <Cost-seconds> python3 $LEAN4_SESSION_DIR/scripts/cycle-N-trial-M.py
+   ```
+   For `bash`, run the file directly. For `sat-z3` / `sat-cvc5` /
+   `smt-z3` / `smt-cvc5`, dispatch the `.smt2` file via the matching
+   solver binary if installed; if the solver isn't on `$PATH`, fall
+   through to `outcome = no-candidate` with the binary-missing reason
+   captured.
+4. **Parse stdout for witnesses.** The cycling LLM judges the output
+   — there is no hard-coded format. Convention: emit lines like
+   `WITNESS: <value>` (one per line) so parsing is mechanical, but
+   the LLM may extract from richer or solver-specific output (e.g.,
+   z3 `(model …)` blocks) too.
+5. **Wrap each witness through Per-Shape Recipes**, then
+   `lean_multi_attempt(file, line, snippets=[per-shape-recipe(w)])`.
+   The witness flows through the existing pre-screen + Checkpoint
+   pipeline unchanged.
+
+**Outcomes for external**:
+- Script timeout, non-zero exit, witness-parse failure, no witnesses
+  in stdout → `outcome = no-candidate`; reason captured in
+  `near_miss_signature` (e.g. `"external: timeout after 60s"`).
+- At least one witness produced AND one passes pre-screen → standard
+  Checkpoint flow → `outcome = certified` (or `near-miss` if the
+  compile gate later rejects).
+- Witness produced but pre-screen rejects all → `outcome = near-miss`
+  with the Lean error signature.
+
+The saved script path is recorded in Phase 5 evidence as
+`external_script_path` for audit / re-run.
 
 ### Method Registry
 
-The Step 1 menu surfaces these methods. Step 2's prompts are the
-parameters each method accepts.
+The Method Registry is a structured data file:
+[`plugins/lean4/lib/data/disprove_methods.toml`](../../../lib/data/disprove_methods.toml).
+It is the canonical source of stable method ids, applies-to-shape
+filters, parameter schemas, cost classes, and per-method false-negative
+notes that the cycling LLM draws from when proposing the Step 1 / Step 2
+menus.
 
-#### `decide-cascade`
+Schema per entry (see the file's top-of-file comment for the field
+reference): `id`, `display_name`, `applies_to_shapes` ⊆ {1..7},
+`cost_class` ∈ {cheap, medium, expensive}, `budget_hint_seconds`,
+`false_negative_notes`, `cert_template_ref` (anchors into Per-Shape
+Recipes below), and `params` (per-parameter schema for `custom-config`
+validation).
 
-| | |
-|---|---|
-| Applies to | closed decidable Props; `∀ x : α, P x` with `[Fintype α]`, `[DecidablePred P]`; arithmetic equalities/inequalities |
-| Candidate | none — kernel/decision procedure decides directly |
-| Step 2 toggle | `Include native_decide?` (default off; adds `Lean.ofReduceBool` axiom) |
-| Budget | ~1s `decide` / `norm_num` / `omega`; ~5s `native_decide` |
-| False-negative | no `Decidable` instance; nonlinear arithmetic |
-| Cert snippet | `example : ¬ TARGET := by decide` (or `native_decide`, `norm_num`, `omega`) |
+The registry ships six methods: `decide-cascade`, `mine`, `enumerate`,
+`plausible`, `tactics`, `external`. Known-counterexample adoption
+flows through the Step 1 menu's `[verify-known-cex]` entry, which is
+generated when Step 0 yields a verified web finding (see Phase 1 §
+Step 0). The `external` family runs LLM-emitted scripts in Phase 2
+Work — see [§ External family — Work-phase execution](#external-family--work-phase-execution).
 
-#### `mine` — Constructor / literal mining
-
-| | |
-|---|---|
-| Applies to | shapes 1, 2 |
-| Candidates | from small literals (`0`, `1`, `2`, `[]`, `none`, `some 0`), `Inhabited` instances in scope (toggle in Step 2), project-local example defs |
-| Step 2 | number of candidates (default 10); include Inhabited instances (default yes) |
-| Per-candidate cert | atom cascade (`decide` → `norm_num` → `omega`) |
-
-#### `enumerate` — Bounded enumeration
-
-| | |
-|---|---|
-| Applies to | shapes 1, 2 over `ℕ`, `ℤ`, `Fin n`, finite lists |
-| Step 2 | range type (Fin / range / both); range start (default 5); range end (default 64); atom tactic (default `decide`) |
-| Candidates | iterate `List.range n` / `Fin.elems`; Replan typically doubles `range end` cycle-over-cycle |
-| Cert | per-candidate atom cascade |
-
-#### `plausible` — Mathlib's property tester
-
-| | |
-|---|---|
-| Applies to | any shape with `SampleableExt` instances |
-| Step 2 | number of samples (default 200); random seed (auto) |
-| Candidates | `by plausible` reports a sample |
-| Cert lifting | only if residual `¬ P w` is decidable; otherwise → near-miss `WITNESS_UNCERTIFIED` |
-| Requires | `import Mathlib.Tactic.Plausible` in the file's transitive closure (probe via `lean_run_code` before using) |
-
-#### `tactics` — Negated-goal tactic cascade
-
-| | |
-|---|---|
-| Applies to | any shape, as a residual finisher |
-| Step 2 | which tactics to include (default: `rfl`, `simp`, `decide`, `native_decide`, `omega`, `norm_num`, `grind`, `linarith`) |
-| Budget | 15s |
-
-#### `external` — SAT/SMT (v1 stub)
-
-| | |
-|---|---|
-| Applies to | bit-vectors, linear arithmetic, EUF (in principle) |
-| v1 status | **not wired** — Step 2 prompt informs the user and asks to pick a different method |
-| v2 plan | out-of-process z3, port literal model back as a Lean witness, run atom cascade on the residual |
-| v2 dispatch | run via a subagent (analogous to prove's `sorry-filler-deep`) so the main thread stays responsive while the solver works |
-
-#### `lookup` — Local + mathlib known-counterexamples
-
-| | |
-|---|---|
-| Step 2 | toggle `lean_leansearch` query; toggle mathlib `Counterexamples/` grep; toggle repo grep |
-| Source 1 | grep `Mathlib/Counterexamples/` and similar paths |
-| Source 2 | repo-local grep for `*_counterexample`, `*_counter`, comments mentioning "false" near the target |
-| Source 3 | one `lean_leansearch` query: `counterexample <keywords from TARGET>` |
-| Budget | 10s |
-| Cert | if a Counterexamples entry is a *match*, adopt its lemma name (the entry already typechecks); if only similar, list as advisory |
+Renames and additions are governed by the registry's schema tests
+(`tests/test_disprove_methods.py`); changes to `cert_template_ref` must
+keep the anchor resolvable against this file's
+[Per-Shape Recipes](#per-shape-recipes) section.
 
 ## Phase 3 — Checkpoint
 
@@ -362,7 +530,10 @@ If Work produced a `certified` outcome this cycle:
 
 Per `--commit`:
 - `auto` — stage the modified file (`git add <target-file>`, never `-A`)
-  and commit `disprove: T_counterexample — cycle N`.
+  and commit `disprove: T_counterexample — cycle N`. When the certifying
+  cycle adopted a `custom method` from Step 1, include
+  `derived-from-custom="<user text>"` in the commit message body for
+  provenance.
 - `ask` — show the diff and prompt the user.
 - `never` — leave staging to `/lean4:checkpoint`.
 
@@ -465,44 +636,84 @@ Emit a short Review block per cycle:
 
 ```
 Review (cycle N):
-  Method            : <name>
+  Method            : <family>
   Config            : <method-specific key=value list>   e.g. "range=[5,64), atom=decide"
   Outcome           : certified | near-miss | exhausted-no-witness | no-candidate
   Candidates tried  : <K>
-  Time              : <T>
+  Time              : actual <T>  (estimated <E>; from picked Step 2 entry's Cost)
   Near-miss signature (if any) : <error-key>  e.g. "decide: failed to reduce ¬ (n^2 + n + 41).Prime"
+  Step 0 visits     : <kw_search_this_cycle>/<max_kw_search_per_cycle>
 ```
 
-Review feeds Replan: the outcome + near-miss signature determines which
-widening rule fires next.
+The `(estimated, actual)` time pair persists into Phase 5 evidence and
+is read by the next cycle's menus to calibrate their `Cost` estimates
+(see Step 1 / Step 2 per-entry display).
 
-## Phase 5 — Replan
+Review feeds Accumulate (Phase 5), which appends the structured record
+to session evidence for the next cycle's menus.
 
-After a cycle that didn't certify, Replan inspects the last cycle's
-Review outcome and recommends the next cycle's method + Step 2 pre-fills.
+## Phase 5 — Accumulate
 
-### Replan Rules
+After a cycle that didn't certify, Accumulate is a pure state update:
+append the cycle's evidence record to the session digest. No hardcoded
+recommendation table — the next cycle's Step 0 / Step 1 / Step 2 menus
+absorb the recommendation logic from the accumulated evidence.
 
-| Last-cycle method | If `exhausted-no-witness` | If `near-miss` | If `no-candidate` |
-|-------------------|---------------------------|----------------|-------------------|
-| decide-cascade | Recommend `mine` next; if `native_decide` was off, suggest enabling it in Step 2 | — | Recommend `mine` or `enumerate` |
-| mine | Recommend `enumerate` | Recommend `enumerate` with range around the near-miss | Recommend `lookup` |
-| enumerate | Recommend `enumerate` again with range end × 2 | Recommend `enumerate` with range tightened around the near-miss | Recommend `plausible` |
-| plausible | Recommend `enumerate` (if `SampleableExt` couldn't generate); else recommend `plausible` with 2× samples | Lift the near-miss witness into a probe and recommend `decide-cascade` for cert | Recommend `lookup` |
-| tactics | Recommend `mine` | — | Recommend `lookup` |
-| lookup | — | Adopt the matching mathlib Counterexample directly (skip to Checkpoint with that lemma name) | Recommend `external` (v1: stub) |
+Session evidence record (appended once per cycle):
 
-If a recommendation is generated, Replan **pre-fills** the next cycle's
-Step 1 selection and Step 2 fields. The user can accept (Enter), override
-in Continue/Stop's `adjust` branch, or stop.
+```json
+{
+  "cycle":                          "<int>",
+  "family":                         "<id from Method Registry>",
+  "config":                         { /* per-method config snapshot */ },
+  "outcome":                        "certified | near-miss | exhausted-no-witness | no-candidate",
+  "near_miss_signature":            "<error key, or null>",
+  "estimated_time_seconds":         "<int from picked Step 2 entry's Cost>",
+  "actual_time_seconds":            "<int wall-clock>",
+  "derived_from_custom":            "<user text, if custom method>",
+  "derived_from_verify_known_cex":  "<source_url or repo-relative path, if [verify-known-cex]>",
+  "external_script_path":           "<path under $LEAN4_SESSION_DIR/scripts/, if family=external>"
+}
+```
+
+`estimated_time_seconds` / `actual_time_seconds` form the calibration
+pair the next cycle's menus read when computing their `Cost` lines —
+persistent across cycles so calibration tightens over a long session,
+not just within one Phase 4 → Phase 5 hop.
+
+`[verify-known-cex]` entries map to the nearest registry `family` at
+fire time — typically `tactics` for adopting a Lean-ecosystem lemma
+(`config = {tactics: ["exact NS.X_counterexample"]}`), or the family
+whose `config` best operationalizes the cited witness (e.g.
+`enumerate` with `range_start = range_end = <witness>` for a concrete
+numeric witness). The `config` field captures the resolved
+instantiation; `derived_from_verify_known_cex` records the originating
+`source_url` / repo path, mirroring how `derived_from_custom` records
+the user's free-form text. Example values:
+`"https://en.wikipedia.org/wiki/Formula_for_primes#Euler_polynomial"`
+(web tier, WebFetch-verified) or
+`"Mathlib/Counterexamples/Phillips.lean#Phillips.PhillipsExample"`
+(lean / local tier — repo-relative path with `#<theorem-name>` anchor).
+
+Step 0 visits do not produce evidence records themselves; their
+findings live in the Step 0 digest (and `findings.jsonl`).
 
 ### Stuck Definition for Disprove
 
+Under Accumulate, the stuck definition is **evidence-based**:
+
 A cycle is **stuck** when **both** hold:
+
 - It produced no `certified` outcome (Review = near-miss /
   exhausted-no-witness / no-candidate), AND
-- Replan has no recommendation (every method either exhausted-no-witness
-  with no remaining widening, or already tried with no near-miss).
+- The next cycle's Step 1 menu has **no non-failed `(family, config)`
+  pair** to place in its top 3 — per invariant 2's definition of
+  "failed" (exact-pair repeat OR overlapping search space). Every
+  viable `(family, config)` combination for the current Target Profile
+  has been tried, with no remaining widening lever — non-overlapping
+  range extension, additional plausible samples (fresh seed),
+  un-tried tactics, neighboring family — for the cycling LLM to
+  specialize.
 
 Two consecutive stuck cycles → the session bails with `INCONCLUSIVE` on
 the next Continue/Stop boundary.
@@ -514,12 +725,15 @@ Always prompt the user:
 ```
 Cycle N complete.
   Outcome: <certified | near-miss | exhausted-no-witness | no-candidate>
-  Replan recommends: <method> with <key config values>
+  Next cycle's Step 1 preview: <top-ranked entry's family + config>
 
-- [continue] — run cycle N+1 with Replan's recommendation
+- [continue] — run cycle N+1 with the preview pre-selected at Step 1
 - [stop]     — accept current outcome, emit Disprove Summary
-- [adjust]   — override Replan before next cycle
 ```
+
+To override the preview, pick a different entry (any registry family,
+`knowledge search`, or `custom method`) when the next cycle's Step 1
+menu opens.
 
 After the user decides:
 
@@ -533,7 +747,8 @@ bash "$LEAN4_SCRIPTS/cycle_tracker.sh" stop
 ```
 
 `tick` enforces `--max-cycles` and `--max-stuck-cycles` at the cycle
-boundary. `--max-runtime` is checked here too (best-effort).
+boundary and resets `kw_search_this_cycle` to 0. `--max-runtime` is
+checked here too (best-effort).
 
 ## Disprove Summary
 
@@ -543,16 +758,38 @@ per-outcome handoff bullets, see
 [commands/disprove.md § Disprove Summary](../../../commands/disprove.md#disprove-summary)
 — it is the canonical source.
 
+The per-cycle attempts table includes a `URL` column populated for any
+cycle whose certifying witness was elevated via `[verify-known-cex]`
+(the URL is the verified `source_url` of the originating Step 0
+finding). For all other cycles the column is `—`.
+
 ## Safety
 
 - **Append-only.** Never rewrite an existing
   `theorem T : P := by sorry` declaration to `: ¬ P`. The artifact
   emitter (`disprove_emit_artifact.py`) enforces this — it refuses to
   modify or duplicate existing declarations.
-- **No `native_decide` without opt-in.** Each cycle's Step 2 prompt for
-  `decide-cascade` asks whether to enable `native_decide`. Default off:
-  `native_decide` adds the `Lean.ofReduceBool` axiom and is audit-worthy.
+- **No `native_decide` without opt-in.** The `decide-cascade` family's
+  `native_decide` parameter is `audit_worthy=true` in the registry and
+  defaults off. The Step 2 menu surfaces it as an explicit opt-in;
+  enabling adds the `Lean.ofReduceBool` axiom and is audit-worthy.
 - **No claim of `FALSE` without compile gate.** Pre-screen via
   `lean_multi_attempt` is necessary but not sufficient; only
   `lake env lean <path>` from the project root licenses the `FALSE`
   claim.
+- **No Step 0 findings without `source_url`.** Findings produced without
+  a citable URL or repo-relative path are dropped at write time. Web
+  counterexample candidates require `WebFetch` verification before
+  elevation to `[verify-known-cex]`. If `WebFetch` is unavailable in
+  the host, web findings are dropped, not elevated.
+- **External-family script execution gate.** When Phase 2 Work
+  executes an LLM-emitted script (`family = "external"`), the full
+  script body is shown to the user and explicit approval is required
+  before execution. Scripts are written to
+  `$LEAN4_SESSION_DIR/scripts/` and run via the `Bash` tool with
+  `timeout` set from the entry's `Cost (~wall-clock)` estimate.
+  Scripts may make network calls or invoke local solvers if available
+  — the cycling LLM must call this out in the confirmation prompt.
+  The scripts directory survives the run for audit; each cycle's
+  script is referenced by the Phase 5 evidence record's
+  `external_script_path` field.

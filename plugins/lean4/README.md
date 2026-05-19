@@ -110,7 +110,7 @@ On stop, emits a structured summary (sorries before/after, cycles, time, handoff
 
 ### The Cycle Engine (Shared)
 
-The proof and disprove engines all run the same 6-phase cycle:
+The proof engines (`prove`, `autoprove`, `formalize`, `autoformalize`) all run the same 6-phase cycle:
 
 ```
 Plan → Work → Checkpoint → Review → Replan → Continue/Stop
@@ -125,18 +125,21 @@ Plan → Work → Checkpoint → Review → Replan → Continue/Stop
 
 When stuck (same blocker seen twice), both force a review + replan regardless of settings.
 
+`disprove` uses the same phase skeleton but specializes Phase 5 as **Accumulate** (per-cycle evidence append) and Phase 1 with dynamic Step 0 / Step 1 / Step 2 menus seeded by accumulated evidence.
+
 ### `/lean4:disprove` — Counterexample Search
 
-Use when you suspect a statement is false and want a Lean-certified refutation. Always interactive: each cycle prompts you to choose a search method and configure it.
+Use when you suspect a statement is false and want a Lean-certified refutation. Always interactive: each cycle prompts you through dynamic menus seeded by accumulated evidence.
 
-Takes a target (`File.lean:LINE` or `Namespace.theoremName`). Runs the same 6-phase cycle as `/lean4:prove` — **Plan → Work → Checkpoint → Review → Replan → Continue/Stop** — but a "cycle" is a widening pass over the same target rather than a batch of sorries.
+Takes a target (`File.lean:LINE` or `Namespace.theoremName`). Runs a 6-phase cycle — **Plan → Work → Checkpoint → Review → Accumulate → Continue/Stop** — where a "cycle" is a widening pass over the same target rather than a batch of sorries (Phase 5 — Accumulate — replaces prove's Replan).
 
-Each cycle's **Plan** phase has a two-step menu:
+Each cycle's **Plan** phase generates three dynamic menus:
 
-1. **Step 1 — Method**: `decide-cascade` (decide / native_decide / norm_num / omega), `mine` (literals + Inhabited instances), `enumerate` (bounded Fin / range), `plausible` (mathlib property tester), `tactics` (negated-goal cascade), `lookup` (mathlib `Counterexamples/` + repo grep), or `external` (v1 stub for z3 / cvc5).
-2. **Step 2 — Per-method config**: method-specific prompts. For example, `decide-cascade` asks whether to enable `native_decide` (adds the `Lean.ofReduceBool` axiom; default off). `enumerate` asks for range start/end and the per-candidate atom tactic.
+1. **Step 0 — Knowledge Search Menu** (Cycle 1 by default; later cycles re-enter only if Step 1 picks `knowledge search`, subject to `--knowledge-search-budget`). Eight menu items: six pre-tagged across `[lean]` / `[local]` / `[web]` tiers, plus `[custom]` (user-supplied free-form intent — LLM picks tier at fire time) and `[llm]` (LLM-proposed query + tier). Each pre-tagged row shows the source/tool, tier tag, and executable query the cycling LLM derives from the TARGET. Findings without a citable URL are dropped at write time; web counterexample candidates are spot-verified via `WebFetch` before elevation to `[verify-known-cex]`.
+2. **Step 1 — Method Menu**: the cycling LLM proposes 3–10 method candidates from a stable Method Registry (`decide-cascade`, `mine`, `enumerate`, `plausible`, `tactics`, `external`), plus always-present `knowledge search` and `custom method` extras. Each entry shows the stable `family` id, a free-text label, the LLM's reasoning, and a cost class.
+3. **Step 2 — Config Menu**: if Step 1 picked `knowledge search`, this is a multi-select Step 0 re-run. Otherwise, the cycling LLM proposes 3–10 candidate configs for the picked family, plus a `custom-config` extra (free-text, schema-validated against the family's parameter table).
 
-If a cycle doesn't certify, **Replan** suggests how to widen for the next cycle (e.g., double `enumerate`'s range end, escalate to `plausible`, or try `lookup`). The user can accept, override, or stop at every Continue/Stop boundary.
+Phase 5 — **Accumulate** — appends the cycle's `(family, config, outcome, near-miss_signature)` to session evidence. The next cycle's menus absorb the recommendation logic; there is no hardcoded Replan table.
 
 Tri-state outcome:
 

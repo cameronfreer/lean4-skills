@@ -1,9 +1,11 @@
 """Spec for /lean4:disprove — counterexample search with certified refutation.
 
 Always interactive. The 6-phase cycle (Plan → Work → Checkpoint → Review →
-Replan → Continue/Stop) runs once per cycle; the user picks one method
-per cycle via a two-step menu (Step 1: method, Step 2: per-method config).
-Per-method parameters are runtime prompts, not top-level flags.
+Accumulate → Continue/Stop) runs once per cycle; the user picks one method
+per cycle from Step 1's dynamic menu and one config from Step 2's dynamic
+menu (Step 0 — Knowledge Search Menu — runs once in Cycle 1 by default,
+and re-enters when Step 1 picks `knowledge search`). Per-method parameters
+are dynamic Step 2 candidates the cycling LLM proposes, not top-level flags.
 """
 from __future__ import annotations
 
@@ -122,8 +124,9 @@ FLAG_MAX_STUCK_CYCLES = FlagSpec(
     int_min=1,
     enforcement="session-enforced",
     notes=(
-        "Bail after this many consecutive cycles where Replan has no "
-        "remaining widening lever (no method to recommend)."
+        "Bail after this many consecutive cycles where the next cycle's "
+        "Step 1 menu has no non-failed `(family, config)` pair to place in "
+        "its top 3 (no remaining widening lever)."
     ),
 )
 
@@ -149,6 +152,20 @@ FLAG_COMMIT = FlagSpec(
     ),
 )
 
+FLAG_KNOWLEDGE_SEARCH_BUDGET = FlagSpec(
+    name="--knowledge-search-budget",
+    type="int",
+    default=3,
+    int_min=1,
+    enforcement="session-enforced",
+    notes=(
+        "Max Step 0 (knowledge search) visits per cycle. Cycle 1 always runs "
+        "Step 0 once; subsequent visits only happen if a later cycle's Step 1 "
+        "menu surfaces 'knowledge search' and the user picks it. Enforced by "
+        "cycle_tracker.sh as --max-knowledge-search-per-cycle."
+    ),
+)
+
 
 # ---------------------------------------------------------------------------
 # Spec
@@ -169,6 +186,7 @@ SPEC = CommandSpec(
         FLAG_MAX_STUCK_CYCLES,
         FLAG_NEGATION_POLICY,
         FLAG_COMMIT,
+        FLAG_KNOWLEDGE_SEARCH_BUDGET,
     ),
     cross_validations=(
         TARGET_REQUIRED,

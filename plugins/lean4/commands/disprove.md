@@ -2,7 +2,7 @@
 name: disprove
 description: Search for counterexamples and produce a certified Lean refutation
 user_invocable: true
-argument-hint: '<File.lean:LINE | Namespace.theoremName> [--max-cycles=N] [--max-stuck-cycles=N] [--max-runtime=DURATION] [--negation-policy=counterexample-only] [--commit=auto|ask|never]'
+argument-hint: '<File.lean:LINE | Namespace.theoremName> [--max-cycles=N] [--max-stuck-cycles=N] [--max-runtime=DURATION] [--negation-policy=counterexample-only] [--commit=auto|ask|never] [--knowledge-search-budget=N]'
 ---
 
 # Lean4 Disprove
@@ -14,8 +14,9 @@ found but Lean refused to certify it) or `INCONCLUSIVE` (no candidate
 found within budgets).
 
 `/lean4:disprove` is **always interactive** — disprove is an exploratory
-search, and the workflow prompts you at each cycle's Plan phase to choose
-a search method and configure its parameters.
+search, and the workflow generates three dynamic menus each cycle
+(Step 0 knowledge search, Step 1 method, Step 2 config) seeded by
+accumulated evidence and the Target Profile.
 
 ## Usage
 
@@ -55,11 +56,13 @@ Startup requirements:
    coercions, ignored flags, and startup validation errors.
 2. Refuse to start on startup validation errors.
 3. Call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" init` with resolved
-   numeric values for `--max-cycles`, `--max-stuck-cycles`, and
-   `--max-runtime`. Disprove has no deep mode in v1; omit the deep
-   args and let the tracker default them (they remain inert because
-   disprove never calls `can-deep` / `deep`). A failed init (exit 2)
-   is a startup validation error — do not proceed.
+   numeric values for `--max-cycles`, `--max-stuck-cycles`,
+   `--max-runtime`, and
+   `--max-knowledge-search-per-cycle=<--knowledge-search-budget>`.
+   Disprove has no deep mode in v1; omit the deep args and let the
+   tracker default them (they remain inert because disprove never
+   calls `can-deep` / `deep`). A failed init (exit 2) is a startup
+   validation error — do not proceed.
 4. The cycle-tracker state file is the single source of truth for session
    counters. Read counters from `tick`/`status` output, not from
    conversational memory.
@@ -69,34 +72,56 @@ Startup requirements:
 | Arg | Required | Default | Description |
 |-----|----------|---------|-------------|
 | target | Yes | — | `File.lean:LINE` or `Namespace.theoremName`. Inline Props not supported in v1. |
-| --max-cycles | No | 3 | Max widening passes. Each cycle picks one method via the Step 1 menu and configures its parameters via Step 2 prompts. |
-| --max-stuck-cycles | No | 2 | Bail after this many consecutive cycles where Replan has no remaining widening lever. |
+| --max-cycles | No | 3 | Max widening passes. Each cycle picks one method via the Step 1 menu and configures its parameters via the Step 2 menu. |
+| --max-stuck-cycles | No | 2 | Bail after this many consecutive cycles where the next cycle's Step 1 menu has no non-failed `(family, config)` pair to place in its top 3 (no remaining widening lever). |
 | --max-runtime | No | 5m | Best-effort wall-clock session budget across all cycles. |
 | --negation-policy | No | counterexample-only | v1: locked. Reserved for future `with-salvage`. |
 | --commit | No | ask | Per-cycle Checkpoint behavior. `ask` prompts before each commit; `auto` commits without prompting; `never` skips committing (leave staging to `/lean4:checkpoint`). |
+| --knowledge-search-budget | No | 3 | Max Step 0 (knowledge search) visits per cycle. Cycle 1 always runs Step 0 once; later cycles only re-enter Step 0 if their Step 1 menu surfaces `knowledge search` and the user picks it. After the Nth visit completes, `knowledge search` is disabled in that cycle's Step 1 menu. |
 
 Per-method parameters (e.g. enumerate's range, `native_decide` opt-in,
-sample count for `plausible`, external-solver choice) are **runtime
-prompts** in each cycle's Plan phase, not top-level flags. See
-[disprove-engine.md § Step 2 — Per-Method Configuration](../skills/lean4/references/disprove-engine.md#step-2--per-method-configuration).
+sample count for `plausible`) are surfaced as **dynamic Step 2
+candidates** in each cycle's Plan phase, not top-level flags. See
+[disprove-engine.md § Step 2 — Config Menu](../skills/lean4/references/disprove-engine.md#step-2--config-menu).
 
-## Two-Step Method Selection
+## Plan-Phase Menus (Step 0 / 1 / 2)
 
-Every cycle's Plan phase prompts the user in two steps:
+Every cycle's Plan phase generates **dynamic menus** seeded by accumulated
+Step 0 evidence + the Target Profile + the prior cycle's Review:
 
-1. **Step 1 — Method menu.** Choose one of: decide-cascade, mine,
-   enumerate, plausible, tactics, lookup, external (v1 stub), or stop.
-   Cycle ≥2 marks exhausted methods and pre-selects Replan's
-   recommendation.
-2. **Step 2 — Per-method configuration.** Method-specific prompts (e.g.,
-   for `enumerate`: range type, start, end, atom tactic; for
-   `decide-cascade`: include `native_decide`?).
+- **Step 0 — Knowledge Search Menu.** Runs once in Cycle 1 by default;
+  later cycles re-enter only if Step 1 surfaces `knowledge search` and
+  the user picks it. The cycling LLM proposes a menu of search tasks
+  (multi-select; lean/local/web rows, and `[custom]` and
+  `[llm]`; all pre-selected); each row shows the source/tool, tier tag (`[lean]`
+  / `[local]` / `[web]`), and executable query the LLM derives from the
+  TARGET (for `[custom]`, the LLM interprets the user's free-form
+  intent instead). The user approves / edits / reduces before selected
+  rows fire. Cap = `--knowledge-search-budget`.
+- **Step 1 — Method Menu.** The cycling LLM proposes 3–10 method
+  candidates each cycle (single-select), informed by accumulated
+  Step 0 evidence, prior-cycle outcomes, and the Target Profile. It
+  picks which of the six registry families to surface and how many
+  entries per family (e.g. two `enumerate` rows with different ranges).
+  Per-entry display: stable `family` id, LLM-emitted free-text `label`,
+  one-line description, reasoning, cost class. Always-present extras:
+  `knowledge search` (disabled after the cycle's Nth Step 0 visit) and
+  `custom method` (free-form description; the LLM maps it to the
+  nearest registry `family` and synthesizes a config).
+- **Step 2 — Config Menu.** If Step 1 picked `knowledge search`,
+  Step 2 is a multi-select of Step 0 items and returns to Step 0
+  (counting against the visit cap). Otherwise: the cycling LLM
+  proposes 3–10 candidate configs for the picked family
+  (single-select). Each candidate is a concrete instantiation of the
+  picked family's params (not a re-ordering of pre-defined configs),
+  informed by the family's parameter schema + Step 0 digest +
+  prior-cycle outcomes + Target Profile. Always-present extra:
+  `custom-config` (free-text, schema-validated against the family's
+  params).
 
-Pre-fill order for any prompted value: (1) Replan's recommendation for
-this cycle, (2) the method's default.
-
-See [disprove-engine.md § Phase 1 — Plan](../skills/lean4/references/disprove-engine.md#phase-1--plan)
-for the full menu and per-method prompts.
+The Method Registry is the canonical vocabulary the cycling LLM draws
+from — see [`lib/data/disprove_methods.toml`](../lib/data/disprove_methods.toml)
+and [disprove-engine.md § Method Registry](../skills/lean4/references/disprove-engine.md#method-registry).
 
 ## Actions
 
@@ -104,7 +129,7 @@ Six phases — see [disprove-engine.md](../skills/lean4/references/disprove-engi
 
 ### Phase 1: Plan
 
-See [disprove-engine.md § Phase 1 — Plan](../skills/lean4/references/disprove-engine.md#phase-1--plan). Cycle 1 resolves the TARGET, normalizes shape, and prints the Search-Space Estimate; every cycle prompts Step 1 (method) + Step 2 (config), with Replan's recommendations pre-filling cycle ≥2.
+See [disprove-engine.md § Phase 1 — Plan](../skills/lean4/references/disprove-engine.md#phase-1--plan). Cycle 1 resolves the TARGET, normalizes shape, builds the Target Profile, runs Step 0 once, and presents the Step 1 + Step 2 menus. Cycle ≥2 re-enters Step 0 only if Step 1 surfaces `knowledge search` and the user picks it.
 
 ### Phase 2: Work
 
@@ -125,13 +150,24 @@ Commit T_counterexample to <file>? [yes / yes-all / no / never]
 - `no` — unstage; don't commit this cycle.
 - `never` — switch to `never` for the rest of the session.
 
+For provenance, the commit message body includes the relevant audit
+field from the cycle's Phase 5 evidence record:
+
+- If the cycle's method was `custom method`:
+  `derived-from-custom="<user text>"`.
+- If the family was `external`: `external_script_path="<path under
+  $LEAN4_SESSION_DIR/scripts/>"` (the script remains for re-run /
+  audit).
+- If the entry was `[verify-known-cex]`:
+  `derived-from-verify-known-cex="<source_url or repo-relative path>"`.
+
 ### Phase 4: Review
 
-See [disprove-engine.md § Phase 4 — Review](../skills/lean4/references/disprove-engine.md#phase-4--review). Classifies the cycle's outcome and captures the residual error signature on near-misses for Replan.
+See [disprove-engine.md § Phase 4 — Review](../skills/lean4/references/disprove-engine.md#phase-4--review). Classifies the cycle's outcome and captures the residual error signature on near-misses for the next cycle's menus.
 
-### Phase 5: Replan
+### Phase 5: Accumulate
 
-See [disprove-engine.md § Replan Rules](../skills/lean4/references/disprove-engine.md#replan-rules). Widens the just-tried method's parameters (e.g., doubles `enumerate`'s range end) or recommends a different method based on Review. If no widening lever remains, the cycle is marked stuck.
+See [disprove-engine.md § Phase 5 — Accumulate](../skills/lean4/references/disprove-engine.md#phase-5--accumulate). Appends the cycle's `(family, config, outcome, near-miss_signature)` to session evidence. No hardcoded recommendation table — the next cycle's Step 0 / Step 1 / Step 2 menus absorb the recommendation logic. A cycle is **stuck** when it produced no `certified` outcome AND the next cycle's Step 1 menu has no non-failed `(family, config)` pair to place in its top 3.
 
 ### Phase 6: Continue / Stop
 
@@ -139,11 +175,14 @@ See [disprove-engine.md § Phase 6 — Continue / Stop](../skills/lean4/referenc
 
 ```
 Cycle N complete (outcome: <outcome>).
-Replan recommends: <method> with <config>.
-- [continue] — run cycle N+1 with Replan's recommendation
+Next cycle's Step 1 preview: <top-ranked entry's family + config>.
+- [continue] — run cycle N+1 with the preview pre-selected at Step 1
 - [stop]     — accept the current outcome and exit
-- [adjust]   — change Replan's recommendation before the next cycle
 ```
+
+To override the preview, pick a different entry (any registry family,
+`knowledge search`, or `custom method`) when the next cycle's Step 1
+menu opens.
 
 ## Stop Conditions
 
@@ -178,18 +217,20 @@ When the command stops (any branch), emit:
 
 **Per-cycle attempts:**
 
-| # | Method | Config | Outcome |
-|---|--------|--------|---------|
-| 1 | <method> | <method-specific key=value list> | <outcome> |
-| 2 | <method> | <...> | <outcome> |
-| ... | | | |
+| # | Method (family) | Config | Outcome | URL |
+|---|-----------------|--------|---------|-----|
+| 1 | <family> | <key=value list> | <outcome> | <URL or —> |
+| 2 | <family> | <...> | <outcome> | <URL or —> |
+| ... | | | | |
 
-The `Config` column mirrors each method's Step 2 prompts — for example
+The `Method (family)` column shows the stable id from the registry; the
+`Config` column mirrors the cycle's Step 2 choices — for example
 `native_decide=off` for `decide-cascade`; `range=[a,b), atom=<tactic>`
-for `enumerate`; `samples=N, seed=<int>` for `plausible`. See
-[disprove-engine.md § Step 2 — Per-Method Configuration](../skills/lean4/references/disprove-engine.md#step-2--per-method-configuration).
-A method that fired (produced `certified`) is the row whose `Outcome` is
-`certified`; "methods attempted" is just the column.
+for `enumerate`; `samples=N, seed=<int>` for `plausible`. The `URL`
+column is populated **only** for cycles whose certifying witness was
+elevated via `[verify-known-cex]` (the URL is the verified `source_url`
+of the originating Step 0 finding); all other cycles show `—`. See
+[disprove-engine.md § Step 2 — Config Menu](../skills/lean4/references/disprove-engine.md#step-2--config-menu).
 
 [FALSE]
   Counterexample certified.
@@ -203,9 +244,9 @@ A method that fired (produced `certified`) is the row whose `Outcome` is
 [INCONCLUSIVE]
   Coverage: <e.g. enumerate covered [0, 128); plausible sampled 200>
   Stop reason: max-cycles | max-stuck | max-runtime | user-stop
-  Recommended: rerun with --max-cycles=<higher> and pick `lookup` from the
-               Step 1 menu, or hand off to /lean4:prove for a positive proof
-               attempt.
+  Recommended: rerun with --max-cycles=<higher> and pick `knowledge
+               search` in Step 1 (widens with fresh evidence), or hand
+               off to /lean4:prove for a positive proof attempt.
 ```
 
 ## Safety
@@ -213,12 +254,18 @@ A method that fired (produced `certified`) is the row whose `Outcome` is
 - **Append-only.** Never rewrite an existing `theorem T : P := by sorry`
   declaration to `: ¬ P`. The artifact emitter refuses to modify existing
   declarations.
-- **No `native_decide` without opt-in.** Each cycle's Step 2 for the
-  `decide-cascade` method asks whether to enable `native_decide` (it adds
-  the `Lean.ofReduceBool` axiom and is audit-worthy). Default off.
+- **No `native_decide` without opt-in.** The cycling LLM surfaces
+  `native_decide=on` in the Step 2 menu as an explicit opt-in candidate
+  (`audit_worthy=true` in the registry). Enabling adds the
+  `Lean.ofReduceBool` axiom and is audit-worthy. Default off.
 - **No `FALSE` without compile gate.** `lean_multi_attempt` is the cheap
   pre-screen; only `lake env lean <path>` from the project root licenses
   the `FALSE` claim.
+- **No Step 0 findings without `source_url`.** Findings produced without
+  a citable URL or repo-relative path are dropped at write time. Web
+  counterexample candidates require `WebFetch` verification before
+  elevation to `[verify-known-cex]`. If `WebFetch` is unavailable in the
+  host, web findings are dropped, not elevated.
 - **Line width.** Follow mathlib 100-char line width — do not wrap lines at 80 when they fit within 100.
 
 ## See Also
@@ -226,5 +273,6 @@ A method that fired (produced `certified`) is the row whose `Outcome` is
 - `/lean4:prove` — Guided cycle-by-cycle proving
 - `/lean4:autoprove` — Autonomous multi-cycle proving
 - `/lean4:checkpoint` — Manual save point
-- [Disprove Engine](../skills/lean4/references/disprove-engine.md) — Phase mechanics, Step 1 / Step 2 menus, Per-Shape Recipes, Replan rules
+- [Disprove Engine](../skills/lean4/references/disprove-engine.md) — Phase mechanics, Step 0 / 1 / 2 menus (Knowledge Search / Method / Config), Per-Shape Recipes
+- [Method Registry](../lib/data/disprove_methods.toml) — Stable method ids, parameter schemas, cost classes
 - [Examples](../skills/lean4/references/command-examples.md#disprove)

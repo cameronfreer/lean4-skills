@@ -1,0 +1,99 @@
+# Method Registry for /lean4:disprove.
+#
+# This is a stable vocabulary the cycling LLM draws from to generate the
+# Step 1 / Step 2 menus. The LLM SPECIALIZES from these skeletons;
+# it does not free-generate.
+#
+# Schema (per entry):
+#   id                     stable identifier — appears in the cycle audit log
+#                          and the Disprove Summary's per-cycle table; never
+#                          renamed without a migration.
+#   display_name           user-facing variant of the id; the cycling LLM
+#                          may also emit a free-text `label` per menu entry.
+#   applies_to_shapes      subset of {1..7} from disprove-engine.md's Shape
+#                          Normalization table.
+#   cost_class             one of {cheap, medium, expensive}. Used by the
+#                          cycling LLM to break ties without numeric tuning.
+#   budget_hint_seconds    advisory per-invocation budget; runtime caps win.
+#   false_negative_notes   free-prose hint the cycling LLM reads verbatim;
+#                          explains when this method silently fails to refute.
+#   cert_template_ref      anchor into the Per-Shape Recipes block; the
+#                          checkpoint emitter uses these recipes to wrap a
+#                          witness into T_counterexample.
+#   [methods.params]       per-method parameter schema; the Step 2 dynamic
+#                          config menu uses this to validate `custom-config`
+#                          and to specialize candidate configs. Each
+#                          param's `default` is a SEED the LLM specializes
+#                          from (per Target Profile + Step 0 evidence) —
+#                          not a static UI value shown verbatim.
+
+[[methods]]
+id = "decide-cascade"
+display_name = "decide-cascade"
+applies_to_shapes = [1, 2, 3, 6, 7]
+cost_class = "cheap"
+budget_hint_seconds = 1
+false_negative_notes = "No Decidable instance for the negated goal; nonlinear arithmetic past omega/norm_num; instance synthesis times out under the elaborator budget."
+cert_template_ref = "disprove-engine.md#per-shape-recipes"
+[methods.params]
+native_decide = { type = "bool", default = false, audit_worthy = true }
+
+[[methods]]
+id = "mine"
+display_name = "mine"
+applies_to_shapes = [1, 2]
+cost_class = "cheap"
+budget_hint_seconds = 5
+false_negative_notes = "Literal candidate set too narrow; the type has no Inhabited or project-local example def; per-candidate residual is not closeable by the atom cascade."
+cert_template_ref = "disprove-engine.md#per-shape-recipes"
+[methods.params]
+candidates = { type = "int", default = 10, int_min = 1 }
+include_inhabited = { type = "bool", default = true }
+
+[[methods]]
+id = "enumerate"
+display_name = "enumerate"
+applies_to_shapes = [1, 2]
+cost_class = "medium"
+budget_hint_seconds = 15
+false_negative_notes = "Search window too small; predicate non-decidable on candidates; multi-variable grid blew past the per-variable sub-budget."
+cert_template_ref = "disprove-engine.md#per-shape-recipes"
+[methods.params]
+range_type   = { type = "enum", enum_values = ["Fin", "range", "both"], default = "both" }
+range_start  = { type = "int", default = 5, int_min = 0 }
+range_end    = { type = "int", default = 64, int_min = 1 }
+atom_tactic  = { type = "enum", enum_values = ["decide", "norm_num", "omega"], default = "decide" }
+
+[[methods]]
+id = "plausible"
+display_name = "plausible"
+applies_to_shapes = [1, 2]
+cost_class = "medium"
+budget_hint_seconds = 30
+false_negative_notes = "No SampleableExt instance for the binder type; conjecture genuinely holds (no counterexample exists in the sampled distribution); residual ¬ P w is not decidable, so the witness can't be lifted to a Lean term."
+cert_template_ref = "disprove-engine.md#per-shape-recipes"
+[methods.params]
+samples = { type = "int", default = 200, int_min = 1 }
+seed    = { type = "string", default = "auto" }
+
+[[methods]]
+id = "tactics"
+display_name = "tactics"
+applies_to_shapes = [1, 2, 3, 4, 5, 6, 7]
+cost_class = "medium"
+budget_hint_seconds = 15
+false_negative_notes = "Cascade exhausted without closing the negated goal; goal is not tactic-solvable from existing imports."
+cert_template_ref = "disprove-engine.md#per-shape-recipes"
+[methods.params]
+tactics = { type = "list[string]", default = ["rfl", "simp", "decide", "native_decide", "omega", "norm_num", "grind", "linarith"] }
+
+[[methods]]
+id = "external"
+display_name = "external"
+applies_to_shapes = [1, 2, 6, 7]
+cost_class = "expensive"
+budget_hint_seconds = 60
+false_negative_notes = "Script timeout; non-zero exit; witness-parse failure; runtime sandbox / network restriction; external solver disagrees with Lean (witness produced but not certifiable by `lean_multi_attempt` / `lake env lean`)."
+cert_template_ref = "disprove-engine.md#per-shape-recipes"
+[methods.params]
+language = { type = "enum", enum_values = ["python", "bash", "sat-z3", "sat-cvc5", "smt-z3", "smt-cvc5"], default = "python" }

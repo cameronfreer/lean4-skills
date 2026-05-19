@@ -421,52 +421,86 @@ Regression detected (--deep-regression-gate=strict):
 ```
 
 `/lean4:disprove` is always interactive — every cycle's Plan phase
-prompts the user to choose a method (Step 1) and configure it (Step 2).
+presents Step 0 (Knowledge Search Menu), Step 1 (Method Menu), and
+Step 2 (Config Menu) — three dynamic menus the cycling LLM proposes
+for user review and approval.
 
 ### Cycle 1 — decide-cascade Win Example
 
-A simple bounded universal: the user picks decide-cascade in Step 1 and
-gets a certified counterexample within the first cycle.
+A simple bounded universal: Step 0 runs quickly with the default Lean +
+local items (no cited findings), the dynamic Step 1 menu ranks
+`decide-cascade` at rank 1 (because `Target Profile.decidable=yes` and
+no decide-family success has been recorded yet), and the cycle
+certifies in Phase 2.
 
 ```
 User: /lean4:disprove Bad.lean:3
 
 Claude: Resolved Inputs
-- target:               Bad.lean:3 (kind=file-line)
-- --commit:             ask (default)
-- --max-cycles:         3
-- --max-stuck-cycles:   2
-- --max-runtime:        5m
+- target:                       Bad.lean:3 (kind=file-line)
+- --commit:                     ask (default)
+- --max-cycles:                 3
+- --max-stuck-cycles:           2
+- --max-runtime:                5m
+- --knowledge-search-budget:    3
 
 Resolving target...
   lean_goal(Bad.lean, 3) → ∀ n : Nat, n < 10
-  Shape: universal-counterexample (∀ x, P x)
+  Shape: 1 (∀ x, P x)
 
-Search-Space Estimate
-  Shape         : ∀ n : Nat, n < 10
-  Free vars     : n : Nat (∞)
-  Candidates    : ∞
-  Decidable?    : yes (∀ n : Nat, n < 10 is decidable)
-  Known non-counterexamples (statement holds at):
-    - n ∈ {0, 1, 2, 3, 4, 5, 6, 7, 8, 9} verified via decide
+Target Profile
+  shape          : 1 (∀ n : Nat, n < 10)
+  free_vars      : n : Nat (∞)
+  fintype_size   : ∞
+  decidable      : yes
+  candidate_grid : [0, 64) default window
 
 === Cycle 1 — Plan ===
 
-Step 1 — Choose a search method for cycle 1:
-  1. (Recommended) decide-cascade  — decide / native_decide / norm_num / omega
-  2. mine                          — small literals + Inhabited instances
-  3. enumerate                     — bounded Fin / range
-  4. plausible                     — random property test (mathlib)
-  5. tactics                       — negated-goal tactic cascade
-  6. lookup                        — mathlib Counterexamples + repo grep
-  7. external                      — z3 / cvc5 (v1: stub; skipped)
-  s. stop                          — give up
+Step 0 — Knowledge Search Menu (visit 1/3):
+  [lean]   lean_leansearch: "counterexample ∀ n : Nat, n < 10"
+  [local]  grep mathlib/Counterexamples/ for "bounded"
+  [local]  grep repo for "*_counterexample" near Bad.lean
+  [web]    websearch: known counterexample search methods
+  [web]    websearch: known NON-counterexamples for "∀ n : Nat, n < 10"
+  [web]    websearch: known counterexamples for "∀ n : Nat, n < 10"
+  [custom] (none)
+  [llm]    (none)
+Approve [yes / edit / reduce] > yes
 
-> 1
+Step 0 — running 6 queries...
+  0 cited findings (web/local hits had no source_url and were dropped).
+
+Step 1 — Search method for cycle 1:
+  1. (Recommended) [family: decide-cascade]  [cheap]
+     decide / native_decide / norm_num / omega — Target Profile.decidable=yes
+     and no decide-family success yet, so this is the obvious first move.
+     Cost (~wall-clock): ~1s
+  2. [family: mine]                          [cheap]
+     small literals + Inhabited — useful if decide times out.
+     Cost (~wall-clock): ~5s
+  3. [family: enumerate]                     [medium]
+     iterate Nat in [5, 64) with atom=decide — falls back if mine misses.
+     Cost (~wall-clock): ~1m
+  --
+  knowledge search (1/3 visits used; available)
+  custom method   (specify your own approach)
+
+> [Enter — accept rank 1]
 
 Step 2 — Configure decide-cascade:
-  Include native_decide? (adds Lean.ofReduceBool axiom)  [y/N]
-> [Enter — default N]
+  1. (Recommended) native_decide=off
+     Pure-Lean decide — no axioms; full ∀ check within elaborator budget.
+     Cost (~wall-clock): ~1s
+     Coverage:           atomic (decides the ∀-statement directly)
+  2. native_decide=on
+     Adds Lean.ofReduceBool axiom; ~5× faster but audit-worthy.
+     Cost (~wall-clock): ~0.2s
+     Coverage:           atomic (decides the ∀-statement directly)
+  --
+  custom-config
+
+> [Enter — accept rank 1]
 
 === Cycle 1 — Work ===
 
@@ -485,12 +519,13 @@ Commit this change? [yes / no]
 Committed: "disprove: T_counterexample — cycle 1"
 
 === Cycle 1 — Review ===
-  Method   : decide-cascade
-  Config   : native_decide=off
-  Outcome  : certified
-  Time     : 0.4s
+  Method            : decide-cascade
+  Config            : native_decide=off
+  Outcome           : certified
+  Time              : actual 0.4s  (estimated ~1s; from picked Step 2 entry's Cost)
+  Step 0 visits     : 1/3
 
-(Replan / Continue-Stop skipped: certified outcome ends the session.)
+(Accumulate / Continue-Stop skipped: certified outcome ends the session.)
 
 ## Disprove Summary
 
@@ -509,9 +544,9 @@ Committed: "disprove: T_counterexample — cycle 1"
 
 **Per-cycle attempts:**
 
-| # | Method         | Config            | Outcome   |
-|---|----------------|-------------------|-----------|
-| 1 | decide-cascade | native_decide=off | certified |
+| # | Method (family) | Config            | Outcome   | URL |
+|---|-----------------|-------------------|-----------|-----|
+| 1 | decide-cascade  | native_decide=off | certified | —   |
 
 Counterexample certified.
 Recommended: /lean4:checkpoint to commit.
@@ -519,74 +554,155 @@ Recommended: /lean4:checkpoint to commit.
 
 ### Cycle 1 mine miss → cycle 2 enumerate widen + certify
 
+A widening pass over an infinite ℕ-quantifier: cycle 1's `mine` exhausts
+without a witness; cycle 2's dynamic Step 1 menu **promotes** `enumerate`
+based on the accumulated `(mine, exhausted-no-witness)` evidence plus a
+Step 0 web finding that cites `n=40`, and the cycle certifies.
+
 ```
 User: /lean4:disprove Conjecture.lean:18
 
-Claude: ... (resolve, search-space estimate)
+Claude: Resolved Inputs (defaults)
 
-  lean_goal(Conjecture.lean, 18) → ∀ n : Nat, isPrime (n^2 + n + 41)
-  Known non-counterexamples (statement holds at): n ∈ {0..39} via decide
+Resolving target...
+  lean_goal(Conjecture.lean, 18) → ∀ n : Nat, Nat.Prime (n^2 + n + 41)
+  Shape: 1 (∀ x, P x)
+
+Target Profile
+  shape          : 1 (∀ n : Nat, Nat.Prime (n^2 + n + 41))
+  free_vars      : n : Nat (∞)
+  fintype_size   : ∞
+  decidable      : no            ← (∀ n : Nat, …) has no Decidable instance
+  candidate_grid : [0, 64) default window
 
 === Cycle 1 — Plan ===
 
-Step 1 — Choose method for cycle 1:
-> 2     (mine)
+Step 0 — Knowledge Search Menu (visit 1/3):
+  [lean]   lean_leansearch: "Euler prime polynomial counterexample"
+  [local]  grep mathlib/Counterexamples/
+  [local]  grep repo for "prime_polynomial_*"
+  [web]    websearch: known NON-counterexamples for "n^2 + n + 41 prime"
+  [web]    websearch: known counterexamples for "n^2 + n + 41 prime"
+  [custom] (none)
+  [llm]    (none)
+Approve [yes / edit / reduce] > yes
+
+Step 0 — running 5 queries...
+  Web finding: "Euler's prime-generating polynomial fails first at n=40"
+    source_url = en.wikipedia.org/wiki/Formula_for_primes#Euler_polynomial
+    WebFetch on cited URL: ok (content matches).
+    verified_via = webfetch:…wikipedia.org/wiki/Formula_for_primes
+    confidence = high
+  Lean / local: 0 hits.
+
+Step 1 — Search method for cycle 1:
+  1. (Recommended) [family: mine]   [cheap]
+     Try small literals first — cheap exhaustion; the web finding hints
+     at a witness around n=40, past the default literal set, so mine
+     likely misses but lets cycle 2 specialize enumerate around that point.
+     Cost (~wall-clock): ~5s
+  2. [family: enumerate]             [medium]
+     Iterate Nat in [5, 64) with atom=decide — direct route to the
+     web-cited witness; cycle 1 could also start here.
+     Cost (~wall-clock): ~1m
+  3. [family: tactics]               [medium]
+     residual cascade — useful if either mine or enumerate near-misses.
+     Cost (~wall-clock): ~15s
+  --
+  knowledge search (1/3 visits used; available)
+  custom method
+
+> 1   (user accepts mine)
 
 Step 2 — Configure mine:
-  Number of candidates? [10]
-> [Enter — 10]
-  Include Inhabited instances from imports? [Y/n]
-> [Enter — yes]
+  1. (Recommended) candidates=10, include_inhabited=true
+     Standard mining; web finding's n=40 is past the literal set, so
+     this likely misses — expect cycle 2 to widen.
+     Cost (~wall-clock): ~5s
+     Coverage:           list: 10 named candidates (literals + Inhabited)
+  2. candidates=50, include_inhabited=true
+     Aggressive; still misses if literals max at ~30.
+     Cost (~wall-clock): ~25s
+     Coverage:           list: 50 named candidates (literals + Inhabited)
+  --
+  custom-config
+
+> [Enter — accept rank 1]
 
 === Cycle 1 — Work ===
 
 Running mine: trying {0, 1, 2, -1, [], none, some 0, Inhabited.default …}
-  All 10 candidates rejected by `decide` on residual ¬ (n^2 + n + 41 isPrime).
+  All 10 candidates: residual `Nat.Prime (n^2 + n + 41)` reduces to True.
   Outcome: exhausted-no-witness.
 
 === Cycle 1 — Review ===
-  Method   : mine
-  Config   : candidates=10, inhabited=on
-  Outcome  : exhausted-no-witness
-  Time     : 4.8s
+  Method            : mine
+  Config            : candidates=10, include_inhabited=true
+  Outcome           : exhausted-no-witness
+  Time              : actual 4.8s  (estimated ~5s; from picked Step 2 entry's Cost)
+  Step 0 visits     : 1/3
 
-=== Cycle 1 — Replan ===
-  Last cycle: mine exhausted without a witness.
-  Recommendation: enumerate, range 5..64, atom = decide.
-  Rationale: Domain is ℕ; small literals already verified to hold. Try
-  the next layer.
+=== Cycle 1 — Accumulate ===
+  Appended: (family=mine, config={candidates:10, include_inhabited:true},
+             outcome=exhausted-no-witness)
+  Session evidence size: 1 record.
 
 Cycle 1 complete (exhausted-no-witness).
-- [continue] — run cycle 2 with enumerate (5..64, decide)
-- [stop]     — accept current outcome
-- [adjust]   — override before next cycle
+  Next cycle's Step 1 preview: [enumerate] range=[5,64), atom=decide
+                               (promoted by accumulated mine evidence +
+                                Step 0 web finding citing n=40)
+- [continue] / [stop]
 > continue
 
 === Cycle 2 — Plan ===
 
-Step 1 — Choose method (Replan recommends `enumerate` [recommended];
-                       `mine` [exhausted]):
-> [Enter — enumerate]
+(Step 0 skipped — Step 1 did not pick `knowledge search`.)
 
-Step 2 — Configure enumerate (Replan pre-fills):
-  Range type? [both]
-> [Enter]
-  Range start? [5]
-> [Enter]
-  Range end?   [64]
-> [Enter]
-  Atom tactic per candidate? [decide]
-> [Enter]
+Step 1 — Search method for cycle 2:
+  1. (Recommended) [family: enumerate]  [medium]
+     Iterate Nat in [5, 64) — the (mine, candidates=10) pair is in the
+     failed evidence so it's excluded from the top 3; the web finding
+     citing n=40 falls inside this window.
+     Cost (~wall-clock): ~30s
+  2. [family: plausible]                 [medium]
+     200 random Nat samples — broader but probabilistic.
+     Cost (~wall-clock): ~30s
+  3. [family: tactics]                   [medium]
+     residual cascade — last resort if enumerate near-misses.
+     Cost (~wall-clock): ~15s
+  --
+  knowledge search (1/3 visits used; available)
+  custom method
+
+> [Enter — accept rank 1]
+
+Step 2 — Configure enumerate:
+  1. (Recommended) range_type=both, range_start=5, range_end=64, atom_tactic=decide
+     Hits the web finding's n=40 within the window; decide as atom.
+     Cost (~wall-clock): ~30s
+     Coverage:           window: 59/∞ over Nat (covers [5, 64))
+  2. range_type=range, range_start=5, range_end=128, atom_tactic=decide
+     Wider window; ~2× cost.
+     Cost (~wall-clock): ~1m
+     Coverage:           window: 123/∞ over Nat (covers [5, 128))
+  3. range_type=range, range_start=5, range_end=64, atom_tactic=norm_num
+     Same window, norm_num atom for arithmetic predicates.
+     Cost (~wall-clock): ~45s
+     Coverage:           window: 59/∞ over Nat (covers [5, 64))
+  --
+  custom-config
+
+> [Enter — accept rank 1]
 
 === Cycle 2 — Work ===
 
 Running enumerate (n = 5 → 20 → 64, atom = decide)...
   n=5..39: holds (statement true at these values)
-  n=40: ¬ isPrime (40^2 + 40 + 41 = 1681 = 41^2)  ✓ candidate
+  n=40: Nat.Prime (40^2 + 40 + 41) = Nat.Prime 1681 = Nat.Prime (41 * 41) — false  ✓ candidate
 
 === Cycle 2 — Checkpoint ===
 
-Constructing T_counterexample : ∃ n : Nat, ¬ isPrime (n^2 + n + 41) :=
+Constructing T_counterexample : ∃ n : Nat, ¬ Nat.Prime (n^2 + n + 41) :=
   ⟨40, by decide⟩
 Appended to Conjecture.lean.
 Compile gate: passed.
@@ -611,36 +727,96 @@ Commit this change? [yes / no]
 
 **Per-cycle attempts:**
 
-| # | Method    | Config                       | Outcome              |
-|---|-----------|------------------------------|----------------------|
-| 1 | mine      | candidates=10, inhabited=on  | exhausted-no-witness |
-| 2 | enumerate | range=[5,64), atom=decide    | certified            |
+| # | Method (family) | Config                                | Outcome              | URL |
+|---|-----------------|---------------------------------------|----------------------|-----|
+| 1 | mine            | candidates=10, include_inhabited=true | exhausted-no-witness | —   |
+| 2 | enumerate       | range=[5,64), atom=decide             | certified            | —   |
 
 Counterexample certified.
 Recommended: /lean4:checkpoint to commit.
 ```
 
-### Three-cycle INCONCLUSIVE example
+### Three-cycle INCONCLUSIVE — verify-known-cex with WebFetch failure
+
+A stubborn target: decide isn't applicable; enumerate's window misses;
+plausible's sample budget exhausts. Cycle 2's Step 0 surfaces a web
+finding that LOOKS like a known counterexample, but `WebFetch` fails to
+verify the cited URL, so the candidate is **dropped rather than elevated**
+to `[verify-known-cex]` — the cycle falls back through the regular method
+ranking.
 
 ```
 User: /lean4:disprove HardConjecture.lean:7 --max-cycles=3 --max-runtime=2m
 
-Claude: ... (resolve, search-space estimate)
+Claude: Resolved Inputs (defaults; --max-cycles=3, --max-runtime=2m,
+                          --knowledge-search-budget=3 default)
 
-=== Cycle 1 — Plan ===  decide-cascade (user pick)
-=== Cycle 1 — Work ===  predicate not decidable; outcome = no-candidate
-=== Cycle 1 — Replan ===  Recommend `mine`.
+Resolving target... lean_goal → ∀ n : Nat, p n
+  Target Profile
+    shape          : 1
+    decidable      : no            ← `p` lacks DecidablePred instance
+    candidate_grid : [0, 64) default window
 
-=== Cycle 2 — Plan ===  enumerate, 5..200 (user widened past Replan's 64)
-=== Cycle 2 — Work ===  No counterexample in [0, 200); outcome = exhausted-no-witness
-=== Cycle 2 — Replan ===  Recommend `plausible` with 500 samples.
+=== Cycle 1 — Plan ===
+  Step 0 — visit 1/3: ran default Lean + local items; 0 cited findings.
+  Step 1 — LLM proposes: [decide-cascade] rank 1 (~1s, atomic — but
+           must-appear-in-top-3 invariant is OFF because decidable=no;
+           the user picks it anyway to confirm), [mine] rank 2
+           (~5s, list:10), [enumerate] rank 3 (~30s, window:59/∞).
+  Step 2 — decide-cascade with native_decide=off (Cost ~1s, atomic).
 
-=== Cycle 3 — Plan ===  plausible, 500 samples (Replan pre-fill accepted)
-=== Cycle 3 — Work ===  No counterexample after 500 samples; outcome = exhausted-no-witness
-=== Cycle 3 — Replan ===  No remaining widening lever (decide N/A; enumerate at
-                          200; plausible exhausted at 500). Cycle marked STUCK.
+=== Cycle 1 — Work ===  decide / native_decide / norm_num / omega — all
+                        report no DecidablePred instance. Outcome:
+                        no-candidate.
+=== Cycle 1 — Review ===  no-candidate; Time: actual ~0.5s (estimated ~1s); Step 0 visits 1/3
+=== Cycle 1 — Accumulate ===
+  Appended: (decide-cascade, {native_decide:false}, no-candidate)
 
-(--max-cycles=3 reached; budget exhausted before second stuck cycle.)
+Cycle 1 complete (no-candidate).
+  Next cycle's Step 1 preview: [enumerate] range=[5,64), atom=decide
+- [continue] / [stop]
+> continue (at Step 1, pick `knowledge search` to override preview)
+
+=== Cycle 2 — Plan ===
+  Step 0 — visit 2/3 (entered via Step 1 `knowledge search`):
+    Items: all 8 selected (web items included). Approve > yes.
+    Web finding: "p fails at n=128" — source_url=example.com/preprint.pdf
+    WebFetch on example.com/preprint.pdf: 404 (cited URL is dead).
+    Finding dropped (verification failed; not elevated to [verify-known-cex]).
+    Lean / local hits: 0.
+  Step 1 — LLM proposes: no [verify-known-cex] entry (verification failed).
+           [enumerate] rank 1 (~30s, window:59/∞ — widening from default);
+           [plausible] rank 2 (~30s, sampled:200); [tactics] rank 3 (~15s).
+  Step 2 — enumerate with range=[5,200), atom=decide (Cost ~2m,
+           window:195/∞ — user widened past the LLM's range_end=64
+           seed via custom-config).
+
+=== Cycle 2 — Work ===  No counterexample in [0, 200);
+                        outcome = exhausted-no-witness.
+=== Cycle 2 — Review ===  exhausted-no-witness; Time: actual ~2m (estimated ~2m); Step 0 visits 2/3
+=== Cycle 2 — Accumulate ===
+  Appended: (enumerate, {range_type:range, range_start:5, range_end:200,
+             atom_tactic:decide}, exhausted-no-witness)
+
+> continue
+
+=== Cycle 3 — Plan ===
+  Step 0 — skipped (Step 1 did not pick `knowledge search`).
+  Step 1 — LLM proposes: [plausible] rank 1 (~75s, sampled:500) — last
+           remaining family with a widening lever; (enumerate,
+           range_end:200) is in failed evidence so any (enumerate,
+           ≤200) variant is excluded from top 3.
+  Step 2 — plausible with samples=500, seed=auto (Cost ~75s, sampled:500).
+
+=== Cycle 3 — Work ===  No counterexample after 500 samples;
+                        outcome = exhausted-no-witness.
+=== Cycle 3 — Review ===  exhausted-no-witness; Time: actual ~70s (estimated ~75s)
+=== Cycle 3 — Accumulate ===
+  Appended: (plausible, {samples:500, seed:auto}, exhausted-no-witness).
+  Stuck check: no non-failed (family, config) pair remains for top 3 —
+                cycle marked STUCK.
+
+(--max-cycles=3 reached; budget exhausted before the second stuck cycle.)
 
 ## Disprove Summary
 
@@ -659,21 +835,22 @@ Claude: ... (resolve, search-space estimate)
 
 **Per-cycle attempts:**
 
-| # | Method         | Config                       | Outcome              |
-|---|----------------|------------------------------|----------------------|
-| 1 | decide-cascade | native_decide=off            | no-candidate         |
-| 2 | enumerate      | range=[5,200), atom=decide   | exhausted-no-witness |
-| 3 | plausible      | samples=500, seed=auto       | exhausted-no-witness |
+| # | Method (family) | Config                                                                  | Outcome              | URL |
+|---|-----------------|--------------------------------------------------------------------------|----------------------|-----|
+| 1 | decide-cascade  | native_decide=off                                                        | no-candidate         | —   |
+| 2 | enumerate       | range=[5,200), atom=decide                                               | exhausted-no-witness | —   |
+| 3 | plausible       | samples=500, seed=auto                                                   | exhausted-no-witness | —   |
 
 Coverage: enumerate covered [0, 200); plausible sampled 500.
 Stop reason: max-cycles
-Recommended: rerun with --max-cycles=<higher> and pick `lookup` from the
-             Step 1 menu, or hand off to /lean4:prove for a positive proof
-             attempt.
+Recommended: rerun with --max-cycles=<higher> and pick `knowledge search`
+             in Step 1 (widens with fresh evidence), or hand off to
+             /lean4:prove for a positive proof attempt.
 ```
 
 See [disprove-engine.md](disprove-engine.md) for the per-phase mechanics,
-Step 1 / Step 2 menus, Replan rules, and per-shape certification recipes.
+Step 0 / Step 1 / Step 2 menus, the Accumulate state update, and
+per-shape certification recipes.
 
 ---
 
