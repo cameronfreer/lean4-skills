@@ -448,7 +448,9 @@ def show_sorry_details(sorry: Sorry) -> None:
 
 def main() -> None:
     if len(sys.argv) < 2:
-        print(__doc__)
+        # lstrip() avoids printing a leading blank line when the module
+        # docstring is block-form (opening `"""` on its own line).
+        print((__doc__ or "").lstrip())
         sys.exit(1)
 
     # Catch common mistake: flag where target path is expected

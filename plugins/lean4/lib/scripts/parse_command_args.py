@@ -29,7 +29,9 @@ def main() -> int:
     args = sys.argv[1:]
 
     if not args or args[0] in ("-h", "--help"):
-        print(__doc__, file=sys.stderr)
+        # lstrip() avoids printing a leading blank line when the module
+        # docstring is block-form (opening `"""` on its own line).
+        print((__doc__ or "").lstrip(), file=sys.stderr)
         return 1
 
     # Parse CLI: <command> [--cwd PATH] -- <single raw tail string>
