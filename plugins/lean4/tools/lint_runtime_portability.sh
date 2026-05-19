@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# Bash 3.2 Compatibility Lint
+# Runtime Portability Lint
 # ---------------------------------------------------------------------------
-# Scans all .sh files in the plugin runtime path (hooks/ and lib/scripts/)
-# for Bash 4+ constructs that break on macOS's default /bin/bash 3.2.
+# Scans .sh and .py files in the plugin runtime path (hooks/ and
+# lib/scripts/) for portability issues across three policies:
 #
-# Policy: every .sh file in hooks/ and lib/scripts/ must run on Bash 3.2.
+#   * Bash 3.2 compatibility (Checks 1-7) — Bash 4+ / BSD-incompatible
+#     constructs that break on macOS's default /bin/bash 3.2
+#   * Shebang portability (Checks 8-9) — env-based shebangs only,
+#     no absolute paths or polyglot trampolines
+#   * Path structure (Check 10) — no shortcut paths that bypass
+#     guardrail detectors
+#
+# Bash 3.2 policy: every .sh file in hooks/ and lib/scripts/ must run on Bash 3.2.
 # If a script genuinely requires Bash 4+, it must say so in its shebang
 # (e.g. #!/opt/homebrew/bin/bash) and NOT be called from the plugin
 # runtime path.
@@ -32,7 +39,7 @@
 # silently bypassing the safety check. Reintroduce only with a matching
 # guardrail update.
 #
-# Run:  bash plugins/lean4/tools/lint_bash_compat.sh
+# Run:  bash plugins/lean4/tools/lint_runtime_portability.sh
 # ---------------------------------------------------------------------------
 set -euo pipefail
 

@@ -1,5 +1,33 @@
 # Changelog
 
+## v4.4.10 (May 2026)
+
+Portability hardening, lint/CI infrastructure, and a broad code-quality sweep. No new commands or user-facing behavior changes.
+
+### Portability
+
+- Replace `#!/bin/bash` with `#!/usr/bin/env bash` in runtime scripts so the plugin works on NixOS / minimal containers where `/bin/bash` doesn't exist (#118, FernandoChu)
+- Replace hardcoded `/tmp` with `$TMPDIR` in `cycle_tracker.sh` for macOS / sandboxed-runtime correctness (#112)
+- Document `bash` on `PATH` as an explicit requirement (#127)
+
+### Lint / CI infrastructure
+
+- Add Bash 3.2 compatibility lint for macOS (#107) — later expanded and renamed to `lint_runtime_portability.sh` (this release)
+- Harden shebang policy: exact `#!/usr/bin/env bash` for runtime `.sh`, exact `#!/usr/bin/env python3` for shebanged runtime `.py`, no `plugins/lean4/bin` shortcut bypassing guardrails (#121, #123)
+- Parameterize self-test via `BASH_FOR_COMPAT` so it skips gracefully on `/bin/bash`-less hosts (#121)
+- Add `lint` workflow with ruff (`E,F,W,B,C4,UP,SIM,I,RUF,N`), `ruff format --check`, mypy `--strict`, and shellcheck (#124, #126)
+- Pin tool versions for deterministic CI: ruff 0.15.13, mypy 1.20.2, shellcheck 0.10.0 (#125, #126)
+- Bump GitHub Actions to Node 24 (`checkout@v5`, `setup-python@v6`) ahead of the 2026-06-02 default switch (#126)
+- Tighten `bash3-compat.yml` to hard-assert `/bin/bash` is exactly Bash 3.2 (#121)
+- Rename `lint_bash_compat.sh` → `lint_runtime_portability.sh` to reflect its expanded scope (this release)
+
+### Code cleanup
+
+- Ruff / mypy / shellcheck sweep across `plugins/lean4/` Python and shell — type annotations, modern PEP-585/604 syntax, sorted `__all__`, quoted parameter expansions, dead-store removal, BSD-compatible `find -print0 | xargs -0` (#120, Holger Dell)
+- Normalize executable-script module docstrings to BLOCK form (`"""` on its own line) for a single repo convention (#122)
+- `print(__doc__)` callers use `.lstrip()` to avoid a leading blank line; `parse_command_args.py --help` now exits 0 to stdout instead of 1 to stderr (#127)
+- `lint_docs.sh` always derives `PLUGIN_ROOT` from `BASH_SOURCE` (no longer false-positives a Bash 3.2 failure when the harness cache is stale) (#127)
+
 ## v4.4.9 (April 2026)
 
 - Add shared slash-command parser and `UserPromptSubmit` hook for pre-validation of the six parameter-heavy commands (#103, #106) — Phase 3 of the command invocation fix
