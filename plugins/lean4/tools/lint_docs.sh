@@ -9,7 +9,13 @@
 set -euo pipefail
 
 VERBOSE="${1:-}"
-PLUGIN_ROOT="${LEAN4_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+# Always derive PLUGIN_ROOT from this script's own location. Honoring
+# LEAN4_PLUGIN_ROOT (the harness-exported install-cache path) caused
+# false-positive failures when the cache was stale, because internal
+# checks like the lint_bash_compat.sh invocation would run against the
+# cache instead of the working copy. This is a maintainer dev tool;
+# it should operate on the working tree exclusively.
+PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ISSUES=0
 
 # Single source of truth for known commands (used by check_commands and check_cross_refs)
