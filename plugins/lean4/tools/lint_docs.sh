@@ -1665,11 +1665,11 @@ check_command_invocation_contract
 check_proof_complete_shortcut
 
 log ""
-log "Checking Bash 3.2 compatibility..."
+log "Checking runtime portability lint..."
 if bash "$PLUGIN_ROOT/tools/lint_runtime_portability.sh" >/dev/null 2>&1; then
-    ok "All shell scripts are Bash 3.2 compatible"
+    ok "Runtime portability lint passed"
 else
-    warn "Bash 3.2 compatibility lint failed — run: bash plugins/lean4/tools/lint_runtime_portability.sh"
+    warn "Runtime portability lint failed — run: bash plugins/lean4/tools/lint_runtime_portability.sh"
 fi
 
 log ""
