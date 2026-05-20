@@ -106,7 +106,7 @@ Classify learning intent and establish a session Learning Profile: {intent, pres
 When `--mode=auto`, resolve by tie-breaking order:
 
 1. If topic resolves to an existing `.lean` file path → `repo`
-2. Resolve topic against project-local declarations (via `Grep`/`$LEAN4_SCRIPTS/find_usages.sh`). **Local wins** — if both local and mathlib match, prefer local → `repo`
+2. Resolve topic against project-local declarations (via `Grep`/`lean4-skills-find-usages`). **Local wins** — if both local and mathlib match, prefer local → `repo`
 3. Check mathlib namespace/theorem names (via `lean_local_search`, `lean_leanfinder`/`lean_leansearch`, `lean_loogle`) → `mathlib`
 4. If topic is a natural-language mathematical statement → suggest `/lean4:formalize`
 5. If ambiguous → ask the user
@@ -117,7 +117,7 @@ When no topic is provided, enter conversational discovery and set `--mode` after
 
 ### 2. Discovery (per mode)
 
-**repo:** `Glob`/`Grep` (file survey) → `Read` (targeted content) → `$LEAN4_SCRIPTS/find_usages.sh` (dependency pass). Build a map: key files, declarations, dependency flow, where proofs live.
+**repo:** `Glob`/`Grep` (file survey) → `Read` (targeted content) → `lean4-skills-find-usages` (dependency pass). Build a map: key files, declarations, dependency flow, where proofs live.
 
 **mathlib:** `lean_local_search` → one semantic search (`lean_leanfinder` for goal/proof-state shaped queries, `lean_leansearch` for natural-language concept queries) → `lean_loogle` (type-pattern gaps). Present canonical lemmas, type signatures, minimal usage examples.
 

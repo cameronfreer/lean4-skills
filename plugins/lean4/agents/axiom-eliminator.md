@@ -15,12 +15,12 @@ model: opus
 
 1. **Audit current state**:
    - Start with `lean_diagnostic_messages(file)` on the target file(s) before broader verification
-   - Use `bash $LEAN4_SCRIPTS/check_axioms_inline.sh FILE.lean` (or `.` for project-wide audit) to measure current axiom state
-   - Use `bash $LEAN4_SCRIPTS/find_usages.sh axiom_name` for dependency inventory
+   - Use `lean4-skills-check-axioms-inline FILE.lean` (or `.` for project-wide audit) to measure current axiom state
+   - Use `lean4-skills-find-usages axiom_name` for dependency inventory
 
    > **MCP canary:** If `lean_diagnostic_messages` is missing from context (tool not
    > listed), emit "⚠ Lean MCP tools unavailable in this subagent context" and fall
-   > back immediately to `$LEAN4_SCRIPTS/check_axioms_inline.sh` and `lake build` for
+   > back immediately to `lean4-skills-check-axioms-inline` and `lake build` for
    > validation. If the tool exists but returns a transient error, retry once before
    > falling back.
    >
@@ -92,7 +92,7 @@ Total: ~2000-3000 tokens per batch
 
 ---
 
-Searching: bash $LEAN4_SCRIPTS/search_mathlib.sh "helper" name
+Searching: lean4-skills-search-mathlib "helper" name
 Found: Mathlib.Foo.helper_lemma
 
 ## Axiom Eliminated: helper_lemma
@@ -111,10 +111,10 @@ lean_local_search("keyword")
 lean_loogle("type pattern")
 lean_run_code("code")
 # Script fallback:
-$LEAN4_SCRIPTS/check_axioms_inline.sh
-$LEAN4_SCRIPTS/find_usages.sh
-$LEAN4_SCRIPTS/search_mathlib.sh
-$LEAN4_SCRIPTS/smart_search.sh
+lean4-skills-check-axioms-inline
+lean4-skills-find-usages
+lean4-skills-search-mathlib
+lean4-skills-smart-search
 lake build
 ```
 

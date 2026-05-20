@@ -35,13 +35,13 @@ Improve Lean proofs that already compile. Score candidates by: correctness → d
 1. **Verify Build** - Ensure code compiles before optimizing
 2. **Find Patterns** - Detect golfable patterns (in policy order: directness → structural → conditional):
    ```bash
-   ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/find_golfable.py" [file] --filter-false-positives
+   lean4-skills-find-golfable [file] --filter-false-positives
    ```
    For direct-proof discovery when `--search` is enabled or syntactic pass stalls:
    ```bash
-   ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/find_exact_candidates.py" [file]
+   lean4-skills-find-exact-candidates [file]
    ```
-3. **Exact-Collapse Pass** (bounded) — For apply/exact chain anchors from `$LEAN4_SCRIPTS/find_golfable.py`:
+3. **Exact-Collapse Pass** (bounded) — For apply/exact chain anchors from `lean4-skills-find-golfable`:
    - **Mechanical** (≤30 anchors/file): Construct collapsed `exact` from tactic structure → `lean_multi_attempt` + `lean_diagnostic_messages` baseline check (no new diagnostics, no sorry increase). Accept if the replacement is more direct or clearer. Reject if it introduces heavier automation (simpa, rwa, broad simp) to replace an explicit proof, if term length exceeds ~80 chars, if dot-chain depth > 2, or if it removes meaningful intermediate names. A 1-line saving that raises inference burden is not a win.
    - **Exploratory** (when `--search≠off`; consumes `--search` budget): On remaining single-goal anchors, build candidate `exact` terms from chain lemmas + local hypotheses + dot-notation rewrites → `lean_multi_attempt` + diagnostics check. Probe caps are phase-local: `quick` ≤5 probes/file; `full` ≤15 probes/file; ≤2 probes/anchor. Time budget is shared with lemma replacement (step 4): `quick` 30s total, `full` 60s total across both phases.
    - Skip: `calc`, `cases`/`induction`, multi-goal branches, blocks >7 lines, semicolon-heavy (>3), blocks with `have`/`refine`. `constructor` chains are handled by the existing instant-win rule, not this pass.
@@ -52,7 +52,7 @@ Improve Lean proofs that already compile. Score candidates by: correctness → d
    - Hand off to axiom-eliminator if replacement needs statement changes or multi-file refactor
 5. **Verify Safety** - Check usage before inlining:
    ```bash
-   ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/analyze_let_usage.py" [file] --line [line]
+   lean4-skills-analyze-let-usage [file] --line [line]
    ```
 6. **Apply** - Make changes with `lean_diagnostic_messages` after each; `lake build` for final verification
 7. **Report** - Show savings and saturation status

@@ -112,11 +112,10 @@ lean_run_code("code")               # Isolated scratch experiments
 ```
 
 **Scripts:**
-```bash
-$LEAN4_SCRIPTS/sorry_analyzer.py       # Context analysis
-$LEAN4_SCRIPTS/check_axioms_inline.sh  # Verify no axioms
-$LEAN4_SCRIPTS/find_usages.sh          # Dependency analysis
-$LEAN4_SCRIPTS/smart_search.sh         # Search fallback (after bounded LSP pass)
+```lean4-skills-sorry-analyzer       # Context analysis
+lean4-skills-check-axioms-inline  # Verify no axioms
+lean4-skills-find-usages          # Dependency analysis
+lean4-skills-smart-search         # Search fallback (after bounded LSP pass)
 lake env lean path/to/File.lean         # File gate (project root, after LSP checks)
 lake build                              # Project gate / final verification only
 ```

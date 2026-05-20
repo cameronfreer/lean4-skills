@@ -171,7 +171,7 @@ Use `$LEAN4_SCRIPTS` for search and `lake env lean` / `lake build` for validatio
 - **No live goal inspection** — `lean_goal` is unavailable; you can read the file and check compilation output, but cannot see proof state at a specific line
 - **No tactic testing** — `lean_multi_attempt` is unavailable; edits must be validated by compiling the file (`lake env lean`)
 - **No real-time diagnostics** — `lean_diagnostic_messages` is unavailable; use `lake env lean <file>` (from project root) for compilation errors, but feedback is file-level, not line-level
-- **Search is script-based** — `$LEAN4_SCRIPTS/smart_search.sh` replaces LSP search tools
+- **Search is script-based** — `lean4-skills-smart-search` replaces LSP search tools
 
 This mode is functional for straightforward proofs but significantly slower and less precise than MCP-backed workflows.
 
@@ -274,9 +274,9 @@ If LSP tools aren't responding, check your operating profile above. In `scripts_
 **Script environment check:**
 ```bash
 echo "$LEAN4_SCRIPTS"
-ls -l "$LEAN4_SCRIPTS/sorry_analyzer.py"
+ls -l lean4-skills-sorry-analyzer
 # One-pass discovery for troubleshooting (human-readable default text):
-${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --report-only
+lean4-skills-sorry-analyzer . --report-only
 # Structured output (optional): --format=json
 # Counts only (optional): --format=summary
 ```

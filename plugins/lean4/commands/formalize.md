@@ -165,7 +165,7 @@ Output format follows `--presentation`: `informal` → prose with math notation 
 
 `propext`, `Classical.choice`, `Quot.sound` — not flagged. All others reported as non-standard.
 
-Always run `bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target> --report-only` before presenting final results.
+Always run `lean4-skills-check-axioms-inline <target> --report-only` before presenting final results.
 
 ## Safety
 
@@ -174,7 +174,7 @@ Always run `bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target> --report-only`
 - **No commits in standalone mode.** `/formalize` never commits in standalone mode (`--commit` is accepted for prove-phase compatibility but inert — no staging, no committing). `--output=file` writes but does not stage or commit.
 - **Path restriction.** User-requested outputs (`--output=file`, `--output=scratch`) restricted to workspace root (scratch uses `.scratch/lean4/`). Reject path traversal (`../`) or absolute paths outside workspace. Internal temp files may use `/tmp/lean4-formalize/`.
 - **Overwrite protection.** `--output=file` with existing target requires `--overwrite`; otherwise startup validation error.
-- **Never add global axioms silently.** Assumptions go as explicit theorem parameters or in `namespace Assumptions`. Always verified with `bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target> --report-only`.
+- **Never add global axioms silently.** Assumptions go as explicit theorem parameters or in `namespace Assumptions`. Always verified with `lean4-skills-check-axioms-inline <target> --report-only`.
 - **All `guardrails.sh` rules apply.**
 - **Line width.** Follow mathlib 100-char line width — do not wrap lines at 80 when they fit within 100.
 

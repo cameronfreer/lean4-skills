@@ -17,16 +17,16 @@ model: opus
 
 1. **Find patterns** (in policy order: directness → structural → conditional) with false-positive filtering:
    ```bash
-   ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/find_golfable.py" FILE.lean --filter-false-positives
+   lean4-skills-find-golfable FILE.lean --filter-false-positives
    ```
    For direct-proof discovery when search_mode ≠ off or syntactic pass stalls:
    ```bash
-   ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/find_exact_candidates.py" FILE.lean
+   lean4-skills-find-exact-candidates FILE.lean
    ```
 
 2. **Verify safety** before inlining any binding:
    ```bash
-   ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/analyze_let_usage.py" FILE.lean --line LINE
+   lean4-skills-analyze-let-usage FILE.lean --line LINE
    ```
    - 1-2 uses: Safe to inline
    - 3-4 uses: Check carefully (40% worth optimizing)
@@ -119,7 +119,7 @@ Pattern found at line 45:
   let x := expr
   exact property x
 
-Running: ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/analyze_let_usage.py" --line 45
+Running: lean4-skills-analyze-let-usage --line 45
 Result: x used 1 time → Safe
 
 Before (2 lines):
@@ -147,8 +147,8 @@ lean_diagnostic_messages(file)         # Per-edit validation
 
 **Scripts:**
 ```bash
-${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/find_golfable.py"       # Pattern detection
-${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/analyze_let_usage.py"  # Safety verification (CRITICAL)
+lean4-skills-find-golfable       # Pattern detection
+lean4-skills-analyze-let-usage  # Safety verification (CRITICAL)
 lake build                              # Final verification
 ```
 

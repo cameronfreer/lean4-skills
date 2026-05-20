@@ -38,7 +38,7 @@ Startup requirements:
 1. Emit a **Resolved Inputs** block with explicit values, defaults, coercions,
    ignored flags, and startup validation errors.
 2. Refuse to start on startup validation errors.
-3. Call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" init` with resolved numeric
+3. Call `lean4-skills-cycle-tracker init` with resolved numeric
    values for `--max-cycles`, `--max-stuck-cycles`, `--max-total-runtime`,
    and `--max-deep-per-cycle`.
    A failed init (exit 2) is a startup validation error — do not proceed.
@@ -98,15 +98,15 @@ Summary:
 
 ## Stop Conditions
 
-Autoformalize checks stop budgets at cycle boundaries via `$LEAN4_SCRIPTS/cycle_tracker.sh tick --stuck=yes|no`.
+Autoformalize checks stop budgets at cycle boundaries via `lean4-skills-cycle-tracker tick --stuck=yes|no`.
 Limits are checked at cycle boundaries only — a long-running tool call within a cycle
 will not be interrupted.
 
 Autoformalize stops when the **first** of these is satisfied:
 
 1. **Queue empty** — all claims attempted (expected completion)
-2. **Max stuck cycles** — `--max-stuck-cycles` consecutive stuck cycles on current claim. Session-enforced via `$LEAN4_SCRIPTS/cycle_tracker.sh`.
-3. **Max cycles** — `--max-cycles` total cycles reached on current claim. Session-enforced via `$LEAN4_SCRIPTS/cycle_tracker.sh`.
+2. **Max stuck cycles** — `--max-stuck-cycles` consecutive stuck cycles on current claim. Session-enforced via `lean4-skills-cycle-tracker`.
+3. **Max cycles** — `--max-cycles` total cycles reached on current claim. Session-enforced via `lean4-skills-cycle-tracker`.
 4. **Max runtime** — best-effort wall-clock budget reached (`--max-total-runtime`). Checked at cycle boundaries and deep preflight.
 5. **Manual user stop** — user interrupts
 
