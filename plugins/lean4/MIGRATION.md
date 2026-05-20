@@ -120,8 +120,14 @@ V4 blocks certain git operations when working inside a Lean project (detected by
 - `gh pr create` - Review first with `/lean4:review`
 
 Override with `LEAN4_GUARDRAILS_DISABLE=1` (skip all) or `LEAN4_GUARDRAILS_FORCE=1` (enforce everywhere). `LEAN4_GUARDRAILS_DISABLE` takes precedence over `LEAN4_GUARDRAILS_FORCE`.
-Set `LEAN4_GUARDRAILS_COLLAB_POLICY` to control collaboration ops: `ask` (default, current behavior), `allow` (no prompts), or `block` (unconditional block). Default `ask` mode preserves current behavior — set `allow` for no prompts on collaboration ops.
-For a single collaboration command in `ask` mode, prefix with the bypass token instead (command prefix only, not an env var): `LEAN4_GUARDRAILS_BYPASS=1 git push origin main`. Destructive operations remain hard-blocked regardless of policy.
+
+Two independent soft-gate policies (each `ask` | `allow` | `block`, default `ask`):
+- `LEAN4_GUARDRAILS_COLLAB_POLICY` — controls `git push`, `git commit --amend`, `gh pr create`.
+- `LEAN4_GUARDRAILS_DESTRUCTIVE_POLICY` — controls path-scoped destructive ops (`git checkout -- <path…>`, `git restore <path…>`).
+
+For a single soft-gated command in `ask` mode, prefix with the bypass token instead (command prefix only, not an env var): `LEAN4_GUARDRAILS_BYPASS=1 git push origin main`. The token applies to either soft-gate category.
+
+**Whole-worktree** destructive operations (`git reset --hard`, `git clean -f`/`-fd`/`-fdx`, `git checkout .`/`-- .`/`-- :/`/`HEAD -- .`, `git restore .`/`./`/`:/`, `git restore --staged --worktree`) remain **hard-blocked** regardless of either policy or the bypass token. The blast radius is unbounded and reflog can't recover uncommitted edits; `clean -f` can't recover untracked files at all. Pure unstaging (`git restore --staged <anything>` without `--worktree`) is always allowed since it only touches the index.
 
 ### Memory System (REMOVED)
 

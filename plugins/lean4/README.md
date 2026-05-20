@@ -180,28 +180,49 @@ Blocked during Lean project sessions:
 | `LEAN4_GUARDRAILS_DISABLE=1` | Skip all guardrails regardless of context |
 | `LEAN4_GUARDRAILS_FORCE=1` | Enforce guardrails even outside Lean projects |
 | `LEAN4_GUARDRAILS_COLLAB_POLICY` | Collaboration op policy: `ask` (default), `allow`, `block` |
+| `LEAN4_GUARDRAILS_DESTRUCTIVE_POLICY` | Path-scoped destructive op policy: `ask` (default), `allow`, `block` |
 
 `LEAN4_GUARDRAILS_DISABLE` overrides everything. `LEAN4_GUARDRAILS_FORCE` controls whether guardrails activate outside Lean projects.
 
+Git operations fall into **three tiers**:
+
+1. **Allow** (implicit, no gate): `git status`, `diff`, `log`, `show`, `branch`, `add`, `commit`, `stash push`, `switch <branch>`, `checkout <branch>`, `restore --staged <path>` (pure unstaging, any pathspec including `.`).
+2. **Soft-gate** (policy-controlled, bypass-able): collaboration ops + path-scoped destructive ops. See subsections below.
+3. **Hard-block** (absolute, never bypassable): `git reset --hard`, `git clean -f`/`-fd`/`-fdx`, plus the whole-worktree variants — `git checkout .`/`./`/`-- .`/`-- ./`/`-- :/`/`HEAD -- .`, `git restore .`/`./`/`:/`, `git restore --staged --worktree`. These wipe state across the whole worktree (or untracked files); reflog can't recover uncommitted edits and `clean -f` can't recover untracked files at all.
+
 **Collaboration policy (`LEAN4_GUARDRAILS_COLLAB_POLICY`):**
 
-Controls how collaboration ops (`git push`, `git commit --amend`, `gh pr create`) are handled:
+Controls how collaboration ops (`git push`, `git commit --amend`, `gh pr create`) — operations that affect shared state — are handled:
 
 - **`ask`** (default) — block unless a one-shot bypass token is present. The hook is non-interactive; in `ask` mode the assistant asks you yes/no, then reruns the command with the bypass token once.
 - **`allow`** — permit collaboration ops without a bypass token.
 - **`block`** — block collaboration ops unconditionally, even with a bypass token.
 
-Invalid values fall back to `ask`. Destructive operations (`checkout --`, `restore`, `reset --hard`, `clean -f`) are always blocked regardless of policy.
+Invalid values fall back to `ask`.
 
-**One-shot bypass (collaboration ops only):**
+**Destructive policy (`LEAN4_GUARDRAILS_DESTRUCTIVE_POLICY`):**
 
-To override a single blocked collaboration command (`git push`, `git commit --amend`, `gh pr create`), prefix it with the bypass token:
+Controls how **path-scoped** destructive ops — `git checkout -- <path…>` and `git restore <path…>` (without `--staged`) — are handled. These have bounded blast radius (the named pathset only) but still discard uncommitted edits the reflog can't recover.
+
+- **`ask`** (default) — block unless a one-shot bypass token is present.
+- **`allow`** — permit path-scoped destructive ops without a bypass token (useful when routinely reverting experimental files).
+- **`block`** — block unconditionally, even with a bypass token.
+
+Invalid values fall back to `ask`. Whole-worktree destructive variants (tier 3 above) are independent of this policy and **always block** regardless of its value or the bypass token.
+
+The two policies are independent: `DESTRUCTIVE_POLICY=allow` does not unblock collab ops, and `COLLAB_POLICY=allow` does not unblock path-scoped destructive ops.
+
+**One-shot bypass (soft-gated ops):**
+
+To override a single blocked soft-gated command, prefix it with the bypass token:
 
 ```bash
 LEAN4_GUARDRAILS_BYPASS=1 git push origin main
+LEAN4_GUARDRAILS_BYPASS=1 git checkout -- experiment.lean
+LEAN4_GUARDRAILS_BYPASS=1 git restore src/some_file.lean
 ```
 
-The token must appear in the leading env-assignment prefix of the command (command prefix only, not an environment variable). Bypass is effective only in `ask` mode (default); it is unnecessary in `allow` mode and ignored in `block` mode. Destructive operations (`checkout --`, `restore`, `reset --hard`, `clean -f`) are always blocked — bypass does not apply to them.
+The token must appear in the leading env-assignment prefix of the command (command prefix only, not an environment variable). Bypass is effective only in `ask` mode (default for both policies); it is unnecessary in `allow` mode and ignored in `block` mode. Bypass does **not** apply to whole-worktree hard-blocked ops (`reset --hard`, `clean -f`, `checkout .`, etc.) — those are absolute.
 
 ### LSP-First Approach
 
