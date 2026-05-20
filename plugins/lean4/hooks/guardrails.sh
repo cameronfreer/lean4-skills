@@ -70,18 +70,52 @@ fi
 #          FOO="a b" LEAN4_GUARDRAILS_BYPASS=1 git push ...
 # Rejects: echo LEAN4_GUARDRAILS_BYPASS=1 && git push ... (token after a command word)
 #          FOO="LEAN4_GUARDRAILS_BYPASS=1" git push ...  (token inside quoted value)
-# Applies to collaboration ops only (push, amend, pr create), not destructive ops.
+# Applies to soft-gated ops (collaboration + single-file destructive); the
+# whole-worktree destructive ops (reset --hard, clean -f, checkout .,
+# restore .) remain non-bypassable regardless.
 # Never exits early — all destructive checks run first; bypass resolves at end.
 BYPASS=0
 
-# Collaboration policy: ask (default) | allow | block
-# - ask:   require human confirmation; block unless one-shot bypass token present
-# - allow: permit collaboration ops without bypass token
-# - block: block collaboration ops even with bypass token
+# Three-tier git operation policy:
+#
+#   1. ALLOW (implicit)         — status, diff, log, show, branch, add,
+#                                 commit, stash push, switch <branch>,
+#                                 restore --staged <path>, etc. No gate.
+#
+#   2. SOFT-GATE (this section) — policy-controlled, bypass-token-able.
+#                                 Two independent vars cover the two
+#                                 risk categories:
+#                                   COLLAB_POLICY: push, amend, pr create
+#                                     (affects shared state, reversible
+#                                     via force-push / amend back / PR close)
+#                                   DESTRUCTIVE_POLICY: checkout -- <path>,
+#                                     restore <path>
+#                                     (single-file local data loss; smaller
+#                                     blast radius than whole-worktree wipes)
+#
+#   3. HARD-BLOCK (below)       — non-bypassable, no policy override.
+#                                 reset --hard, clean -f/-fd/-fdx,
+#                                 checkout ., restore ., checkout -- .
+#                                 The blast radius is unbounded and
+#                                 git reflog can't recover uncommitted
+#                                 edits (and can't recover untracked
+#                                 files via clean -f at all).
+#
+# Each soft-gate policy independently accepts ask | allow | block:
+#   ask:   require human confirmation via one-shot bypass token (default)
+#   allow: permit without bypass token (user explicitly opted in)
+#   block: block even with bypass token (extra paranoia)
+
 COLLAB_POLICY="${LEAN4_GUARDRAILS_COLLAB_POLICY:-ask}"
 case "$COLLAB_POLICY" in
   ask|allow|block) ;;
   *) COLLAB_POLICY="ask" ;;
+esac
+
+DESTRUCTIVE_POLICY="${LEAN4_GUARDRAILS_DESTRUCTIVE_POLICY:-ask}"
+case "$DESTRUCTIVE_POLICY" in
+  ask|allow|block) ;;
+  *) DESTRUCTIVE_POLICY="ask" ;;
 esac
 
 # --- Segment-based command parsing ---
@@ -376,12 +410,36 @@ _check_collab_op() {
   case "$COLLAB_POLICY" in
     allow) return 0 ;;
     block)
-      echo "BLOCKED (Lean guardrail): $label - $msg [policy=block]" >&2
+      echo "BLOCKED (Lean guardrail): $label - $msg [collab_policy=block]" >&2
       exit 2
       ;;
     *)  # ask (default): confirmation-gated; bypass is the one-time confirmed rerun path
       if [[ $BYPASS -ne 1 ]]; then
-        echo "BLOCKED (Lean guardrail): $label - $msg [policy=ask, confirm then rerun]" >&2
+        echo "BLOCKED (Lean guardrail): $label - $msg [collab_policy=ask, confirm then rerun]" >&2
+        echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
+        exit 2
+      fi
+      ;;
+  esac
+}
+
+# Destructive-op policy enforcement (single-file blast radius).
+# Same shape as _check_collab_op but governed by DESTRUCTIVE_POLICY.
+# Used by the soft-gated cases below. Whole-worktree destructive ops
+# (reset --hard, clean -f, checkout ., restore .) bypass this helper
+# and exit 2 unconditionally — see the dedicated block further down.
+# $1 = short label, $2 = user-facing message suffix
+_check_destructive_op() {
+  local label="$1" msg="$2"
+  case "$DESTRUCTIVE_POLICY" in
+    allow) return 0 ;;
+    block)
+      echo "BLOCKED (Lean guardrail): $label - $msg [destructive_policy=block]" >&2
+      exit 2
+      ;;
+    *)  # ask (default): confirmation-gated; bypass token allows one-shot
+      if [[ $BYPASS -ne 1 ]]; then
+        echo "BLOCKED (Lean guardrail): $label - $msg [destructive_policy=ask, confirm then rerun]" >&2
         echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
         exit 2
       fi
@@ -406,45 +464,75 @@ if seg_match gh '\bpr\b.*\bcreate\b'; then
   _check_collab_op "gh pr create" "review first, then create PR manually"
 fi
 
-# --- Destructive ops (never bypassable) ---
+# ---------------------------------------------------------------------------
+# Destructive ops: whole-worktree (HARD-BLOCK — non-bypassable)
+# ---------------------------------------------------------------------------
+# These wipe state across the whole worktree (or untracked files); reflog
+# can't recover uncommitted edits and `clean -f` can't recover untracked
+# files at all. No policy override; bypass token does not apply. The
+# whole-worktree variants run BEFORE the soft-gated single-file variants
+# below so a broad-blast pattern can't accidentally fall through into
+# ask/allow territory.
 
-# Block destructive checkout (discards uncommitted changes)
-# Allows: git checkout <branch>, git checkout -b <branch>
-# Blocks: git checkout -- <path>, git checkout .
-if seg_match git '\bcheckout\b.*\s--\s'; then
-  echo "BLOCKED (Lean guardrail): destructive git checkout. Commit or checkpoint first." >&2
+# git checkout .            (whole-worktree revert)
+# git checkout -- .         (same semantics: -- with . as the path)
+# Note: this must precede the soft-gated `checkout -- <path>` check.
+if seg_match git '\bcheckout\b\s+(--\s+)?\.(\s|$)'; then
+  echo "BLOCKED (Lean guardrail): whole-worktree git checkout discards all changes. Commit or checkpoint first." >&2
   exit 2
 fi
-if seg_match git '\bcheckout\b\s+\.(\s|$)'; then
-  echo "BLOCKED (Lean guardrail): git checkout . discards changes. Commit or checkpoint first." >&2
-  exit 2
-fi
 
-# Block git restore (worktree changes only, allow pure unstaging)
-# Blocks: git restore <path>, git restore --source=..., git restore --staged --worktree
-# Allows: git restore --staged <path> (without --worktree)
+# git restore .             (whole-worktree restore)
+# git restore --staged --worktree  (still hard-block: combined restore is whole-worktree-ish)
 for _seg in "${SEGMENTS[@]}"; do
   echo "$_seg" | grep -qE '^git\b' || continue
   echo "$_seg" | grep -qE '\brestore\b' || continue
-  if echo "$_seg" | grep -qE -- '--staged\b' && ! echo "$_seg" | grep -qE -- '--worktree\b'; then
-    continue  # allowed - pure unstaging
+  if echo "$_seg" | grep -qE '\brestore\b.*\s\.(\s|$)'; then
+    echo "BLOCKED (Lean guardrail): git restore . discards all worktree changes. Commit or checkpoint first." >&2
+    exit 2
   fi
-  echo "BLOCKED (Lean guardrail): git restore discards changes. Commit or checkpoint first." >&2
-  exit 2
+  if echo "$_seg" | grep -qE -- '--staged\b' && echo "$_seg" | grep -qE -- '--worktree\b'; then
+    echo "BLOCKED (Lean guardrail): git restore --staged --worktree resets both index and worktree. Commit or checkpoint first." >&2
+    exit 2
+  fi
 done
 
-# Block git reset --hard (discards commits and changes)
+# git reset --hard
 if seg_match git '\breset\b.*--hard\b'; then
   echo "BLOCKED (Lean guardrail): git reset --hard. Commit or checkpoint first." >&2
   exit 2
 fi
 
-# Block git clean with -f/--force anywhere (deletes untracked files)
+# git clean with -f/--force anywhere (deletes untracked files; not recoverable)
 # Matches: -f, -fd, -fx, -nfd, --force, etc.
 if seg_match git '\bclean\b.*(-[a-zA-Z]*f|--force)'; then
   echo "BLOCKED (Lean guardrail): git clean deletes untracked files. Commit or checkpoint first." >&2
   exit 2
 fi
+
+# ---------------------------------------------------------------------------
+# Destructive ops: single-file (SOFT-GATE via DESTRUCTIVE_POLICY)
+# ---------------------------------------------------------------------------
+# Bounded blast radius (the named paths only). Still loses uncommitted
+# edits — reflog won't help — so default mode is `ask` (block unless
+# bypass token), but the operator can opt into `allow` or paranoia-mode
+# `block` via LEAN4_GUARDRAILS_DESTRUCTIVE_POLICY. The whole-worktree
+# variants above have already short-circuited.
+
+# git checkout -- <path>    (single or multiple specific paths)
+if seg_match git '\bcheckout\b.*\s--\s'; then
+  _check_destructive_op "git checkout --" "discards uncommitted edits in the named path(s)"
+fi
+
+# git restore <path>        (worktree-only; pure --staged unstaging is allowed)
+for _seg in "${SEGMENTS[@]}"; do
+  echo "$_seg" | grep -qE '^git\b' || continue
+  echo "$_seg" | grep -qE '\brestore\b' || continue
+  if echo "$_seg" | grep -qE -- '--staged\b' && ! echo "$_seg" | grep -qE -- '--worktree\b'; then
+    continue  # pure unstaging — always allowed
+  fi
+  _check_destructive_op "git restore" "discards uncommitted edits in the named path(s)"
+done
 
 # All checks passed — resolve deferred bypass or allow normally
 exit 0
