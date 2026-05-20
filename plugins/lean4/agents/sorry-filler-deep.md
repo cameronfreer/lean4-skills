@@ -112,7 +112,8 @@ lean_run_code("code")               # Isolated scratch experiments
 ```
 
 **Scripts:**
-```lean4-skills-sorry-analyzer       # Context analysis
+```bash
+lean4-skills-sorry-analyzer       # Context analysis
 lean4-skills-check-axioms-inline  # Verify no axioms
 lean4-skills-find-usages          # Dependency analysis
 lean4-skills-smart-search         # Search fallback (after bounded LSP pass)

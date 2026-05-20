@@ -107,7 +107,8 @@ lean_run_code("code")               # Isolated scratch experiments
 ```
 
 **Script fallback** (only when LSP is unavailable, rate-limited, or inconclusive after bounded attempts):
-```lean4-skills-search-mathlib    # Search by pattern
+```bash
+lean4-skills-search-mathlib    # Search by pattern
 lean4-skills-smart-search      # Multi-source
 ```
 
