@@ -168,5 +168,31 @@ run_test_policy "unset: plain push (block=ask)"         ""   "git push origin ma
 run_test_policy "unset: bypass push (allow=ask)"        ""   "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   0
 
 echo ""
+echo "-- Lean script stderr-suppression detector: \$LEAN4_SCRIPTS paths --"
+run_test "\$LEAN4_SCRIPTS/cycle_tracker.sh 2>/dev/null (block)"  'bash "$LEAN4_SCRIPTS/cycle_tracker.sh" tick 2>/dev/null'    2
+run_test "\${LEAN4_SCRIPTS}/sorry_analyzer.py 2>/dev/null (block)" 'python3 "${LEAN4_SCRIPTS}/sorry_analyzer.py" . 2>/dev/null' 2
+run_test "plugins/lean4/lib/scripts/foo.sh 2>/dev/null (block)"   'bash plugins/lean4/lib/scripts/cycle_tracker.sh tick 2>/dev/null' 2
+run_test "./lib/scripts/foo.sh 2>/dev/null (block)"               'bash ./lib/scripts/cycle_tracker.sh tick 2>/dev/null' 2
+
+echo ""
+echo "-- Lean script stderr-suppression detector: lean4-skills-* wrappers (all 4 call forms) --"
+# Bare name (PATH lookup — the autoprove-hot-path case)
+run_test "bare lean4-skills-cycle-tracker 2>/dev/null (block)"  "lean4-skills-cycle-tracker tick 2>/dev/null"  2
+run_test "bare lean4-skills-sorry-analyzer 2>/dev/null (block)" "lean4-skills-sorry-analyzer . 2>/dev/null"   2
+# Relative bin/ path
+run_test "bin/lean4-skills-cycle-tracker 2>/dev/null (block)"   "bin/lean4-skills-cycle-tracker tick 2>/dev/null" 2
+# Explicit ./ relative path
+run_test "./bin/lean4-skills-cycle-tracker 2>/dev/null (block)" "./bin/lean4-skills-cycle-tracker tick 2>/dev/null" 2
+# Full plugin-rooted path
+run_test "plugins/lean4/bin/lean4-skills-foo 2>/dev/null (block)" "plugins/lean4/bin/lean4-skills-cycle-tracker tick 2>/dev/null" 2
+# &>/dev/null variant — should also block (matches detector's combined-redirect branch)
+run_test "lean4-skills-cycle-tracker &>/dev/null (block)" "lean4-skills-cycle-tracker tick &>/dev/null" 2
+# Without stderr suppression — should NOT block (wrappers without 2>/dev/null are fine)
+run_test "lean4-skills-cycle-tracker tick (allow)" "lean4-skills-cycle-tracker tick" 0
+run_test "lean4-skills-sorry-analyzer . --format=json (allow)" "lean4-skills-sorry-analyzer . --format=json" 0
+# Token boundary — only the exact prefix counts; "leaning4-skills" or "lean4-skillsfoo" are non-tokens
+run_test "leaning4-skills-cycle 2>/dev/null (allow — not a real token)" "leaning4-skills-cycle 2>/dev/null" 0
+
+echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]
