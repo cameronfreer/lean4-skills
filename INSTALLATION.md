@@ -2,13 +2,25 @@
 
 ## Environment Bootstrap (All Hosts)
 
-All hosts need these three variables. Claude Code sets them automatically via its
-bootstrap hook. Other hosts set them manually in shell profile or agent config.
+All hosts need these variables. Claude Code sets them automatically via its
+bootstrap hook and also adds `plugins/lean4/bin/` to the Bash tool's PATH so
+model-facing `lean4-skills-*` wrappers resolve as bare commands. Other hosts
+(Codex, Gemini, Cursor, OpenCode, generic) need to set everything manually,
+including the PATH export — without it, the model may invoke
+`lean4-skills-sorry-analyzer …` and the shell won't find the wrapper.
 
 ```bash
 export LEAN4_PLUGIN_ROOT=/path/to/lean4-skills/plugins/lean4
 export LEAN4_SCRIPTS=$LEAN4_PLUGIN_ROOT/lib/scripts
 export LEAN4_REFS=$LEAN4_PLUGIN_ROOT/skills/lean4/references
+export PATH="$LEAN4_PLUGIN_ROOT/bin:$PATH"   # so `lean4-skills-*` wrappers resolve
+```
+
+Verify the wrappers are on PATH:
+
+```bash
+command -v lean4-skills-sorry-analyzer
+# expected: /…/plugins/lean4/bin/lean4-skills-sorry-analyzer
 ```
 
 ## Claude Code (Native Plugin)
@@ -77,6 +89,7 @@ Set env vars in your shell profile (replace `/path/to` with your actual clone lo
 export LEAN4_PLUGIN_ROOT=/path/to/lean4-skills/plugins/lean4
 export LEAN4_SCRIPTS=$LEAN4_PLUGIN_ROOT/lib/scripts
 export LEAN4_REFS=$LEAN4_PLUGIN_ROOT/skills/lean4/references
+export PATH="$LEAN4_PLUGIN_ROOT/bin:$PATH"   # so `lean4-skills-*` wrappers resolve
 ```
 
 Add to your project's `AGENTS.md` (model context — not shell env):
@@ -108,7 +121,7 @@ the exact commands — examples:
 
 ```bash
 echo "$LEAN4_SCRIPTS"
-python3 "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary --report-only
+lean4-skills-sorry-analyzer . --format=summary --report-only
 # If MCP configured: test lean_goal on a .lean file
 ```
 
@@ -137,13 +150,14 @@ Set env vars in your shell profile:
 export LEAN4_PLUGIN_ROOT=/path/to/lean4-skills/plugins/lean4
 export LEAN4_SCRIPTS=$LEAN4_PLUGIN_ROOT/lib/scripts
 export LEAN4_REFS=$LEAN4_PLUGIN_ROOT/skills/lean4/references
+export PATH="$LEAN4_PLUGIN_ROOT/bin:$PATH"   # so `lean4-skills-*` wrappers resolve
 ```
 
 ### Verify
 
 ```bash
 echo "$LEAN4_SCRIPTS"
-python3 "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary --report-only
+lean4-skills-sorry-analyzer . --format=summary --report-only
 ```
 
 ## Cursor
@@ -169,7 +183,7 @@ Set env vars in your terminal profile (Cursor runs commands in your shell).
 Open a `.lean` file, ask the agent to run:
 
 ```bash
-python3 "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary --report-only
+lean4-skills-sorry-analyzer . --format=summary --report-only
 ```
 
 ## Windsurf
@@ -208,6 +222,7 @@ Set env vars in your shell profile:
 export LEAN4_PLUGIN_ROOT=/path/to/lean4-skills/plugins/lean4
 export LEAN4_SCRIPTS=$LEAN4_PLUGIN_ROOT/lib/scripts
 export LEAN4_REFS=$LEAN4_PLUGIN_ROOT/skills/lean4/references
+export PATH="$LEAN4_PLUGIN_ROOT/bin:$PATH"   # so `lean4-skills-*` wrappers resolve
 ```
 
 OpenCode supports MCP servers — see [OpenCode docs](https://opencode.ai/docs/)
@@ -217,7 +232,7 @@ for current MCP setup commands.
 
 ```bash
 echo "$LEAN4_SCRIPTS"
-python3 "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary --report-only
+lean4-skills-sorry-analyzer . --format=summary --report-only
 ```
 
 ## Any Agent (Generic)
@@ -229,7 +244,7 @@ Any LLM coding agent that can read markdown and run shell commands can use this 
 3. Point your agent at `plugins/lean4/skills/lean4/SKILL.md` as system context
 4. Scripts work standalone — no adapter needed:
    ```bash
-   python3 "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary --report-only
+   lean4-skills-sorry-analyzer . --format=summary --report-only
    bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" path/to/YourFile.lean --report-only
    bash "$LEAN4_SCRIPTS/search_mathlib.sh" "continuous" name
    ```
@@ -262,7 +277,7 @@ Copy-Item -Recurse "path\to\lean4-skills\plugins\lean4\skills\lean4" .agents\ski
 ```bash
 echo "$LEAN4_SCRIPTS"
 ls "$LEAN4_SCRIPTS/sorry_analyzer.py"
-python3 "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary --report-only
+lean4-skills-sorry-analyzer . --format=summary --report-only
 ```
 
 ## Lean LSP MCP Server (All Hosts)

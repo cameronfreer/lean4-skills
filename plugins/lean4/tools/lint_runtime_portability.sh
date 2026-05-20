@@ -36,7 +36,7 @@
 # OR be a real directory containing only `lean4-skills-*` regular
 # executable files (no symlinks-to-dir, no non-prefixed files, no
 # non-executable files). The model-facing wrapper scripts under bin/
-# (added in #129 to fix issue #117) get Claude Code's auto-PATH
+# (introduced to fix issue #117) get Claude Code's auto-PATH
 # allowlist; the guardrails.sh stderr-suppression detector recognizes
 # both bare and path-form invocations of `lean4-skills-*`. Check 10
 # enforces shape only — adding a new wrapper file doesn't require
@@ -278,7 +278,7 @@ done
 # ---------------------------------------------------------------------------
 # Check 10: bin/ shape — curated lean4-skills-* wrappers only
 #
-# plugins/lean4/bin is allowed (and expected, post-#129) to exist as a real
+# plugins/lean4/bin is allowed (and expected) to exist as a real
 # directory containing the model-facing wrapper scripts. The shape rules:
 #
 #   * bin/ must be a directory, not a symlink. A whole-directory symlink
