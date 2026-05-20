@@ -417,8 +417,8 @@ check25_ok=1
 
 for cmd_file in "$AUTOPROVE" "$AUTOFORMALIZE"; do
     base=$(basename "$cmd_file")
-    if ! grep -q 'cycle_tracker\.sh' "$cmd_file" 2>/dev/null; then
-        fail "Check 25: $base missing cycle_tracker.sh reference in Invocation Contract"
+    if ! grep -q 'lean4-skills-cycle-tracker' "$cmd_file" 2>/dev/null; then
+        fail "Check 25: $base missing lean4-skills-cycle-tracker reference in Invocation Contract"
         check25_ok=0
     fi
 done
@@ -458,8 +458,8 @@ done
 
 # Flag-name consistency: autoprove init contract block must reference long user-facing flags.
 # The init contract spans multiple lines around "cycle_tracker.sh init", so extract a window.
-if grep -q "cycle_tracker.sh.*init" "$AUTOPROVE" 2>/dev/null; then
-    init_block=$(grep -A 3 "cycle_tracker.sh.*init" "$AUTOPROVE" 2>/dev/null)
+if grep -q "lean4-skills-cycle-tracker.*init" "$AUTOPROVE" 2>/dev/null; then
+    init_block=$(grep -A 3 "lean4-skills-cycle-tracker.*init" "$AUTOPROVE" 2>/dev/null)
     for flag in max-stuck-cycles max-total-runtime max-consecutive-deep-cycles; do
         if ! echo "$init_block" | grep -q "$flag"; then
             fail "Check 25: autoprove.md init contract missing --$flag"
@@ -469,8 +469,8 @@ if grep -q "cycle_tracker.sh.*init" "$AUTOPROVE" 2>/dev/null; then
 fi
 
 # autoformalize must NOT reference autoprove-only flag --max-consecutive-deep-cycles in init contract
-if grep -q "cycle_tracker.sh.*init" "$AUTOFORMALIZE" 2>/dev/null; then
-    af_init_block=$(grep -A 3 "cycle_tracker.sh.*init" "$AUTOFORMALIZE" 2>/dev/null)
+if grep -q "lean4-skills-cycle-tracker.*init" "$AUTOFORMALIZE" 2>/dev/null; then
+    af_init_block=$(grep -A 3 "lean4-skills-cycle-tracker.*init" "$AUTOFORMALIZE" 2>/dev/null)
     if echo "$af_init_block" | grep -q "max-consecutive-deep-cycles"; then
         fail "Check 25: autoformalize.md init contract references autoprove-only --max-consecutive-deep-cycles"
         check25_ok=0
@@ -490,6 +490,37 @@ fi
 
 if [[ "$check25_ok" -eq 1 ]]; then
     ok "Check 25: Session tracking contract verified across all files"
+fi
+
+# ---------------------------------------------------------------------------
+# Check 26: every lean4-skills-* wrapper is referenced by at least one
+# model-facing doc surface (commands/, agents/, or SKILL.md). The
+# lint's Check 10 enforces *shape* only; this contract test enforces
+# *coverage* — i.e. wrappers don't drift away from their documented
+# call sites, and the curated set stays aligned with what the model
+# actually invokes.
+#
+# Acceptance: the wrapper name appears either as a bare token
+# (lean4-skills-foo …) or path-form (bin/lean4-skills-foo, etc.) in
+# any of those doc surfaces. Adding a new wrapper file without adding
+# at least one doc reference triggers this check.
+# ---------------------------------------------------------------------------
+check26_ok=1
+BIN_DIR="$PLUGIN_ROOT/bin"
+DOCS_DIRS=("$PLUGIN_ROOT/commands" "$PLUGIN_ROOT/agents" "$PLUGIN_ROOT/skills/lean4/SKILL.md")
+if [[ -d "$BIN_DIR" ]]; then
+    while IFS= read -r wrapper; do
+        name=$(basename "$wrapper")
+        # Search each docs dir/file for the wrapper name as a word token.
+        # \b for word boundary catches both bare invocation and path-form.
+        if ! grep -qrE -- "\\b${name}\\b" "${DOCS_DIRS[@]}" 2>/dev/null; then
+            fail "Check 26: wrapper $name has no doc reference under commands/, agents/, or SKILL.md"
+            check26_ok=0
+        fi
+    done < <(find "$BIN_DIR" -mindepth 1 -maxdepth 1 -name 'lean4-skills-*' -type f 2>/dev/null | sort)
+fi
+if [[ "$check26_ok" -eq 1 ]]; then
+    ok "Check 26: bin/lean4-skills-* wrappers are all doc-referenced"
 fi
 
 echo ""
