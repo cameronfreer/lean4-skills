@@ -32,12 +32,16 @@
 # '#!/usr/bin/env sh' polyglot trampoline pattern (which buries shell in
 # __doc__ and leaks into --help output) and absolute interpreter paths.
 #
-# Path policy (Check 10): plugins/lean4/bin must not exist as a symlink,
-# file, or directory. Such a shortcut would let callers invoke runtime
-# scripts via paths that guardrails.sh's Lean-script stderr-suppression
-# detector doesn't recognize (it matches lib/scripts/ and scripts/ only),
-# silently bypassing the safety check. Reintroduce only with a matching
-# guardrail update.
+# Bin/ shape policy (Check 10): plugins/lean4/bin must EITHER not exist
+# OR be a real directory containing only `lean4-skills-*` regular
+# executable files (no symlinks-to-dir, no non-prefixed files, no
+# non-executable files). The model-facing wrapper scripts under bin/
+# (added in #129 to fix issue #117) get Claude Code's auto-PATH
+# allowlist; the guardrails.sh stderr-suppression detector recognizes
+# both bare and path-form invocations of `lean4-skills-*`. Check 10
+# enforces shape only — adding a new wrapper file doesn't require
+# editing this check; the expected wrapper-coverage assertion lives
+# separately in test_contracts.sh.
 #
 # Run:  bash plugins/lean4/tools/lint_runtime_portability.sh
 # ---------------------------------------------------------------------------
@@ -90,7 +94,23 @@ mapfile_compat PY_FILES < <(find \
   "$PLUGIN_ROOT/lib/scripts" \
   -name '*.py' -type f 2>/dev/null | sort)
 
-echo "Scanning ${#SHELL_FILES[@]} shell scripts and ${#PY_FILES[@]} Python files for runtime-portability issues..."
+# Curated model-facing wrappers under bin/ (see issue #117). Extensionless
+# executables, named `lean4-skills-*`. Scanned alongside .sh files by
+# Checks 1-8 (Bash 3.2 portability + shebang), and validated separately
+# by Check 10 (shape: name pattern + regular file + exec bit).
+WRAPPER_FILES=()
+mapfile_compat WRAPPER_FILES < <(find \
+  "$PLUGIN_ROOT/bin" \
+  -maxdepth 1 -name 'lean4-skills-*' -type f 2>/dev/null | sort)
+
+# Append wrappers to SHELL_FILES so Checks 1-8 scan their bodies for
+# Bash 4+ / BSD-incompat constructs without code duplication. Check 10
+# below additionally enforces the bin/ shape constraints.
+for _w in "${WRAPPER_FILES[@]+"${WRAPPER_FILES[@]}"}"; do
+  SHELL_FILES+=("$_w")
+done
+
+echo "Scanning ${#SHELL_FILES[@]} shell files (${#WRAPPER_FILES[@]} bin/ wrappers + $((${#SHELL_FILES[@]} - ${#WRAPPER_FILES[@]})) under hooks/+lib/scripts/) and ${#PY_FILES[@]} Python files for runtime-portability issues..."
 echo ""
 # Note: we don't early-exit on empty arrays here. Check 10 (no bin shortcut
 # path) is a structural check that must always run regardless of file
@@ -256,22 +276,63 @@ done
 [[ $found -eq 0 ]] && ok "All shebanged Python runtime files use #!/usr/bin/env python3"
 
 # ---------------------------------------------------------------------------
-# Check 10: no plugins/lean4/bin shortcut path
+# Check 10: bin/ shape — curated lean4-skills-* wrappers only
 #
-# plugins/lean4/bin (as symlink, dir, or file) gives callers a shorter
-# invocation path that bypasses guardrails.sh's Lean-script
-# stderr-suppression detector, which matches '$LEAN4_SCRIPTS/...',
-# 'plugins/lean4/lib/scripts/...', and './scripts/...' only. A reappearance
-# means the safety check can be silently bypassed via 'bin/foo.py 2>/dev/null'.
-# Reintroduce only together with a matching detector update.
+# plugins/lean4/bin is allowed (and expected, post-#129) to exist as a real
+# directory containing the model-facing wrapper scripts. The shape rules:
+#
+#   * bin/ must be a directory, not a symlink. A whole-directory symlink
+#     (e.g. bin -> lib/scripts) was the original PR #120 approach that
+#     bypassed the guardrails detector wholesale; banned permanently.
+#   * Every entry directly under bin/ must:
+#     - be a regular file (no symlinks, no nested directories)
+#     - be executable (the wrappers exist precisely so Claude Code's auto-
+#       PATH allowlists them; non-executable files would be useless and
+#       suggest someone forgot `chmod +x`)
+#     - have a name matching ^lean4-skills-[a-z][a-z0-9-]*$
+#
+# Check 10 enforces *shape*, not a hardcoded list of wrapper names. Adding
+# or removing wrappers is a docs / test_contracts.sh concern, not a lint
+# change. Absent bin/ is also fine — the shape rule only fires when bin/
+# exists and contains the wrong things.
 # ---------------------------------------------------------------------------
 echo ""
-echo "-- Check 10: no plugins/lean4/bin shortcut path --"
-if [[ -L "$PLUGIN_ROOT/bin" || -e "$PLUGIN_ROOT/bin" ]]; then
-  warn "$PLUGIN_ROOT/bin exists — shortcut bypasses guardrails.sh stderr-suppression detector (matches lib/scripts/ and scripts/ only). Drop the path or update the detector first."
-else
-  ok "No plugins/lean4/bin shortcut path"
+echo "-- Check 10: bin/ shape (curated lean4-skills-* wrappers only) --"
+found=0
+if [[ -L "$PLUGIN_ROOT/bin" ]]; then
+  warn "$PLUGIN_ROOT/bin is a symlink — whole-directory bin/ symlinks bypass the guardrails stderr-suppression detector wholesale. Replace with a real directory containing curated lean4-skills-* wrappers."
+  found=1
+elif [[ -e "$PLUGIN_ROOT/bin" && ! -d "$PLUGIN_ROOT/bin" ]]; then
+  warn "$PLUGIN_ROOT/bin exists but is not a directory — bin/ must be a directory of curated lean4-skills-* wrappers (or absent)."
+  found=1
+elif [[ -d "$PLUGIN_ROOT/bin" ]]; then
+  # Walk bin/ entries and enforce per-entry shape.
+  # Using find with -mindepth 1 -maxdepth 1 to catch direct entries
+  # (regular files, symlinks, and subdirs all).
+  while IFS= read -r entry; do
+    base=$(basename "$entry")
+    if [[ -L "$entry" ]]; then
+      warn "$PLUGIN_ROOT/bin/$base: symlink in bin/ is not allowed; wrappers must be regular files."
+      found=1
+      continue
+    fi
+    if [[ ! -f "$entry" ]]; then
+      warn "$PLUGIN_ROOT/bin/$base: non-file entry in bin/ (directory or device); bin/ must contain only regular files."
+      found=1
+      continue
+    fi
+    if [[ ! "$base" =~ ^lean4-skills-[a-z][a-z0-9-]*$ ]]; then
+      warn "$PLUGIN_ROOT/bin/$base: name does not match ^lean4-skills-[a-z][a-z0-9-]*\$ — bin/ is reserved for model-facing wrappers with that prefix."
+      found=1
+      continue
+    fi
+    if [[ ! -x "$entry" ]]; then
+      warn "$PLUGIN_ROOT/bin/$base: wrapper is not executable. Run 'chmod +x' on it."
+      found=1
+    fi
+  done < <(find "$PLUGIN_ROOT/bin" -mindepth 1 -maxdepth 1 2>/dev/null | sort)
 fi
+[[ $found -eq 0 ]] && ok "bin/ shape OK (${#WRAPPER_FILES[@]} curated lean4-skills-* wrappers)"
 
 # ---------------------------------------------------------------------------
 # Summary
