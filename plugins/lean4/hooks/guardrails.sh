@@ -474,25 +474,52 @@ fi
 # below so a broad-blast pattern can't accidentally fall through into
 # ask/allow territory.
 
-# git checkout .            (whole-worktree revert)
-# git checkout -- .         (same semantics: -- with . as the path)
+# Whole-worktree pathspec variants for checkout:
+#   git checkout .                 (whole-worktree, no `--`)
+#   git checkout ./                (same — `./` is `.`)
+#   git checkout -- .              (`--` then `.`)
+#   git checkout -- ./             (`--` then `./`)
+#   git checkout -- :/             (pathspec for "top of repo")
+#   git checkout HEAD -- .         (with a ref before `--`)
+#   git checkout HEAD -- ./        (same)
+#   git checkout -- :(top)         (verbose pathspec form)
 # Note: this must precede the soft-gated `checkout -- <path>` check.
-if seg_match git '\bcheckout\b\s+(--\s+)?\.(\s|$)'; then
+#
+# Detection strategy:
+#   (a) `checkout` followed (anywhere) by `--` followed by a whole-worktree
+#       pathspec token (`.`, `./`, `:/`, `:(top)`)
+#   (b) `checkout` followed directly by `.` or `./` (no `--` separator)
+if seg_match git '\bcheckout\b.*\s--\s+(\.|\./|:/|:\(top\))(\s|$)' \
+   || seg_match git '\bcheckout\b\s+(\.|\./)(\s|$)'; then
   echo "BLOCKED (Lean guardrail): whole-worktree git checkout discards all changes. Commit or checkpoint first." >&2
   exit 2
 fi
 
-# git restore .             (whole-worktree restore)
-# git restore --staged --worktree  (still hard-block: combined restore is whole-worktree-ish)
+# Whole-worktree restore variants:
+#   git restore .                  (whole-worktree)
+#   git restore ./                 (same)
+#   git restore :/                 (top-of-repo pathspec)
+#   git restore --staged --worktree …  (restores both index and worktree)
+# But: pure `--staged` (no `--worktree`) is unstaging only — index-bounded,
+# recoverable, never touches worktree. ALWAYS allowed regardless of path,
+# so the unstaging exemption MUST be checked first, otherwise commands
+# like `git restore --staged .` (legitimate "unstage everything") would
+# be hard-blocked incorrectly.
 for _seg in "${SEGMENTS[@]}"; do
   echo "$_seg" | grep -qE '^git\b' || continue
   echo "$_seg" | grep -qE '\brestore\b' || continue
-  if echo "$_seg" | grep -qE '\brestore\b.*\s\.(\s|$)'; then
-    echo "BLOCKED (Lean guardrail): git restore . discards all worktree changes. Commit or checkpoint first." >&2
-    exit 2
+  # Pure unstaging — always allowed, must come first.
+  if echo "$_seg" | grep -qE -- '--staged\b' && ! echo "$_seg" | grep -qE -- '--worktree\b'; then
+    continue
   fi
+  # Combined --staged --worktree — restores worktree too, so destructive.
   if echo "$_seg" | grep -qE -- '--staged\b' && echo "$_seg" | grep -qE -- '--worktree\b'; then
     echo "BLOCKED (Lean guardrail): git restore --staged --worktree resets both index and worktree. Commit or checkpoint first." >&2
+    exit 2
+  fi
+  # Whole-worktree pathspec — `.`, `./`, `:/`, `:(top)`.
+  if echo "$_seg" | grep -qE '\brestore\b.*\s(\.|\./|:/|:\(top\))(\s|$)'; then
+    echo "BLOCKED (Lean guardrail): git restore on whole-worktree pathspec discards all worktree changes. Commit or checkpoint first." >&2
     exit 2
   fi
 done

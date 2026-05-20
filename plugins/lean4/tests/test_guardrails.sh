@@ -214,20 +214,42 @@ run_test_destructive_policy "block: restore file (still block)"             bloc
 run_test_destructive_policy "block: bypass restore file (still block)"      block "LEAN4_GUARDRAILS_BYPASS=1 git restore file.lean"    2
 
 echo ""
+echo "-- Pure unstaging is always allowed (including whole-index 'restore --staged .') --"
+# git restore --staged <anything> (without --worktree) only touches the index.
+# Recoverable via re-add. Must NOT be hard-blocked even with the broad `.`
+# pathspec — previously was a regression.
+run_test_destructive_policy "unset: restore --staged . (allow always)"   "" "git restore --staged ."         0
+run_test_destructive_policy "block: restore --staged . (allow always)"   block "git restore --staged ."     0
+run_test_destructive_policy "unset: restore --staged ./ (allow always)"  "" "git restore --staged ./"        0
+
+echo ""
 echo "-- Hard-block: whole-worktree variants stay non-bypassable --"
 # These must block regardless of DESTRUCTIVE_POLICY value or bypass token.
-run_test_destructive_policy "git checkout .       (always block)"           allow "git checkout ."                                    2
-run_test_destructive_policy "git checkout -- .    (always block, new)"      allow "git checkout -- ."                                 2
-run_test_destructive_policy "git restore .        (always block, new)"      allow "git restore ."                                     2
-run_test_destructive_policy "git restore --staged --worktree (always block)" allow "git restore --staged --worktree file.lean"        2
-run_test_destructive_policy "git reset --hard    (always block)"            allow "git reset --hard"                                  2
-run_test_destructive_policy "git clean -fd       (always block)"            allow "git clean -fd"                                     2
-run_test_destructive_policy "git clean --force   (always block)"            allow "git clean --force"                                 2
+# Coverage includes the broader pathspec variants: `.`, `./`, `:/`,
+# `:(top)`, the `checkout HEAD -- .` form (ref before `--`), and
+# combined `--staged --worktree` restores.
+run_test_destructive_policy "git checkout .                   (always block)" allow "git checkout ."                                    2
+run_test_destructive_policy "git checkout ./                  (always block)" allow "git checkout ./"                                   2
+run_test_destructive_policy "git checkout -- .                (always block)" allow "git checkout -- ."                                 2
+run_test_destructive_policy "git checkout -- ./               (always block)" allow "git checkout -- ./"                                2
+run_test_destructive_policy "git checkout -- :/               (always block)" allow "git checkout -- :/"                                2
+run_test_destructive_policy "git checkout -- :(top)           (always block)" allow "git checkout -- :(top)"                            2
+run_test_destructive_policy "git checkout HEAD -- .           (always block)" allow "git checkout HEAD -- ."                            2
+run_test_destructive_policy "git checkout HEAD -- ./          (always block)" allow "git checkout HEAD -- ./"                           2
+run_test_destructive_policy "git restore .                    (always block)" allow "git restore ."                                     2
+run_test_destructive_policy "git restore ./                   (always block)" allow "git restore ./"                                    2
+run_test_destructive_policy "git restore :/                   (always block)" allow "git restore :/"                                    2
+run_test_destructive_policy "git restore --staged --worktree  (always block)" allow "git restore --staged --worktree file.lean"        2
+run_test_destructive_policy "git reset --hard                 (always block)" allow "git reset --hard"                                  2
+run_test_destructive_policy "git clean -fd                    (always block)" allow "git clean -fd"                                     2
+run_test_destructive_policy "git clean --force                (always block)" allow "git clean --force"                                 2
 # Even with bypass token, whole-worktree ops must stay blocked.
-run_test_destructive_policy "bypass git checkout .     (still block)"       allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout ."          2
-run_test_destructive_policy "bypass git checkout -- .  (still block)"       allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout -- ."       2
-run_test_destructive_policy "bypass git reset --hard   (still block)"       allow "LEAN4_GUARDRAILS_BYPASS=1 git reset --hard"        2
-run_test_destructive_policy "bypass git clean -fd      (still block)"       allow "LEAN4_GUARDRAILS_BYPASS=1 git clean -fd"           2
+run_test_destructive_policy "bypass git checkout .            (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout ."          2
+run_test_destructive_policy "bypass git checkout -- .         (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout -- ."       2
+run_test_destructive_policy "bypass git checkout HEAD -- .    (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout HEAD -- ."  2
+run_test_destructive_policy "bypass git restore ./            (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git restore ./"           2
+run_test_destructive_policy "bypass git reset --hard          (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git reset --hard"        2
+run_test_destructive_policy "bypass git clean -fd             (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git clean -fd"           2
 
 echo ""
 echo "-- Policy independence: COLLAB and DESTRUCTIVE govern separately --"
