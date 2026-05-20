@@ -45,6 +45,26 @@ run_test_policy() {
   fi
 }
 
+# Run a test with a specific destructive policy (single-file destructive ops).
+# $1=desc  $2=policy value (ask|allow|block|"" for unset)  $3=command  $4=expected exit
+run_test_destructive_policy() {
+  local desc="$1" policy="$2" cmd="$3" expected="$4" actual
+  actual=0
+  local policy_env=()
+  if [[ -n "$policy" ]]; then
+    policy_env=(LEAN4_GUARDRAILS_DESTRUCTIVE_POLICY="$policy")
+  fi
+  echo "{\"tool_input\":{\"command\":$(printf '%s' "$cmd" | jq -Rs .)}}" \
+    | env LEAN4_GUARDRAILS_FORCE=1 "${policy_env[@]}" bash "$HOOK" >/dev/null 2>&1 || actual=$?
+  if [[ "$actual" -eq "$expected" ]]; then
+    echo "  PASS: $desc"
+    (( ++PASS ))
+  else
+    echo "  FAIL: $desc (expected exit $expected, got $actual)"
+    (( ++FAIL ))
+  fi
+}
+
 echo "=== guardrails.sh regression tests ==="
 echo ""
 
@@ -166,6 +186,60 @@ run_test_policy "invalid: yolo push (block=ask)"        yolo "git push origin ma
 run_test_policy "invalid: yolo bypass push (allow=ask)" yolo "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   0
 run_test_policy "unset: plain push (block=ask)"         ""   "git push origin main"           2
 run_test_policy "unset: bypass push (allow=ask)"        ""   "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   0
+
+echo ""
+echo "-- Destructive policy: single-file checkout -- <path> --"
+# Default (unset = ask): blocks without bypass, allows with bypass
+run_test_destructive_policy "unset: checkout -- file (block=ask)"           "" "git checkout -- file.lean"                            2
+run_test_destructive_policy "unset: bypass checkout -- file (allow=ask)"    "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout -- file.lean"  0
+# allow: passes without bypass
+run_test_destructive_policy "allow: checkout -- file"                       allow "git checkout -- file.lean"                       0
+run_test_destructive_policy "allow: checkout -- multi-file"                 allow "git checkout -- a.lean b.lean"                    0
+# block: blocks even with bypass token
+run_test_destructive_policy "block: checkout -- file (still block)"         block "git checkout -- file.lean"                       2
+run_test_destructive_policy "block: bypass checkout -- file (still block)"  block "LEAN4_GUARDRAILS_BYPASS=1 git checkout -- file.lean" 2
+
+echo ""
+echo "-- Destructive policy: single-file git restore <path> --"
+# Default: same shape
+run_test_destructive_policy "unset: restore file (block=ask)"               "" "git restore file.lean"                                  2
+run_test_destructive_policy "unset: bypass restore file (allow=ask)"        "" "LEAN4_GUARDRAILS_BYPASS=1 git restore file.lean"        0
+# Pure unstaging — always allowed regardless of policy
+run_test_destructive_policy "unset: restore --staged file (allow always)"   "" "git restore --staged file.lean"                         0
+run_test_destructive_policy "block: restore --staged file (allow always)"   block "git restore --staged file.lean"                     0
+# allow
+run_test_destructive_policy "allow: restore file"                           allow "git restore file.lean"                              0
+# block: even bypass token doesn't help
+run_test_destructive_policy "block: restore file (still block)"             block "git restore file.lean"                              2
+run_test_destructive_policy "block: bypass restore file (still block)"      block "LEAN4_GUARDRAILS_BYPASS=1 git restore file.lean"    2
+
+echo ""
+echo "-- Hard-block: whole-worktree variants stay non-bypassable --"
+# These must block regardless of DESTRUCTIVE_POLICY value or bypass token.
+run_test_destructive_policy "git checkout .       (always block)"           allow "git checkout ."                                    2
+run_test_destructive_policy "git checkout -- .    (always block, new)"      allow "git checkout -- ."                                 2
+run_test_destructive_policy "git restore .        (always block, new)"      allow "git restore ."                                     2
+run_test_destructive_policy "git restore --staged --worktree (always block)" allow "git restore --staged --worktree file.lean"        2
+run_test_destructive_policy "git reset --hard    (always block)"            allow "git reset --hard"                                  2
+run_test_destructive_policy "git clean -fd       (always block)"            allow "git clean -fd"                                     2
+run_test_destructive_policy "git clean --force   (always block)"            allow "git clean --force"                                 2
+# Even with bypass token, whole-worktree ops must stay blocked.
+run_test_destructive_policy "bypass git checkout .     (still block)"       allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout ."          2
+run_test_destructive_policy "bypass git checkout -- .  (still block)"       allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout -- ."       2
+run_test_destructive_policy "bypass git reset --hard   (still block)"       allow "LEAN4_GUARDRAILS_BYPASS=1 git reset --hard"        2
+run_test_destructive_policy "bypass git clean -fd      (still block)"       allow "LEAN4_GUARDRAILS_BYPASS=1 git clean -fd"           2
+
+echo ""
+echo "-- Policy independence: COLLAB and DESTRUCTIVE govern separately --"
+# DESTRUCTIVE_POLICY=allow doesn't unblock collab ops; COLLAB_POLICY=allow doesn't unblock destructive ops.
+run_test_destructive_policy "allow: git push (still block — collab governs)" allow "git push origin main"                              2
+run_test_policy "allow: checkout -- file (still block — destructive governs)" allow "git checkout -- file.lean"                       2
+run_test_policy "allow: restore file (still block — destructive governs)"    allow "git restore file.lean"                            2
+
+echo ""
+echo "-- Invalid destructive policy values fall back to ask --"
+run_test_destructive_policy "invalid: yolo plain checkout -- (block=ask)"  yolo "git checkout -- file.lean"                            2
+run_test_destructive_policy "invalid: yolo bypass checkout -- (allow=ask)" yolo "LEAN4_GUARDRAILS_BYPASS=1 git checkout -- file.lean" 0
 
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
