@@ -45,7 +45,7 @@ run_test_policy() {
   fi
 }
 
-# Run a test with a specific destructive policy (single-file destructive ops).
+# Run a test with a specific destructive policy (path-scoped destructive ops).
 # $1=desc  $2=policy value (ask|allow|block|"" for unset)  $3=command  $4=expected exit
 run_test_destructive_policy() {
   local desc="$1" policy="$2" cmd="$3" expected="$4" actual
@@ -153,74 +153,37 @@ run_test "FOO=\$(cmd) BYPASS=1 git push (allow)"       'FOO=$(echo "x y") LEAN4_
 run_test "FOO=\"BYPASS=1\" git push (block)"            'FOO="LEAN4_GUARDRAILS_BYPASS=1" git push origin main'        2
 
 echo ""
-echo "-- Collaboration policy: ask mode --"
-run_test_policy "ask: git push (block)"                 ask "git push origin main"            2
-run_test_policy "ask: git commit --amend (block)"       ask "git commit --amend"              2
-run_test_policy "ask: gh pr create (block)"             ask "gh pr create --title test"       2
-run_test_policy "ask: bypass git push (allow)"          ask "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   0
-run_test_policy "ask: bypass git commit --amend (allow)" ask "LEAN4_GUARDRAILS_BYPASS=1 git commit --amend"    0
-run_test_policy "ask: bypass gh pr create (allow)"      ask "LEAN4_GUARDRAILS_BYPASS=1 gh pr create --title t" 0
-
-echo ""
-echo "-- Collaboration policy: allow mode --"
-run_test_policy "allow: git push (allow)"               allow "git push origin main"          0
-run_test_policy "allow: git commit --amend (allow)"     allow "git commit --amend"            0
-run_test_policy "allow: gh pr create (allow)"           allow "gh pr create --title test"     0
-run_test_policy "allow: reset --hard (still block)"     allow "git reset --hard"              2
-run_test_policy "allow: clean -f (still block)"         allow "git clean -f"                  2
-run_test_policy "allow: checkout -- (still block)"      allow "git checkout -- file.txt"      2
-
-echo ""
-echo "-- Collaboration policy: block mode --"
-run_test_policy "block: git push (block)"               block "git push origin main"          2
-run_test_policy "block: git commit --amend (block)"     block "git commit --amend"            2
-run_test_policy "block: gh pr create (block)"           block "gh pr create --title test"     2
-run_test_policy "block: bypass git push (still block)"  block "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   2
-run_test_policy "block: bypass amend (still block)"     block "LEAN4_GUARDRAILS_BYPASS=1 git commit --amend"     2
-run_test_policy "block: bypass pr create (still block)" block "LEAN4_GUARDRAILS_BYPASS=1 gh pr create --title t" 2
-run_test_policy "block: reset --hard (still block)"     block "git reset --hard"              2
-
-echo ""
-echo "-- Collaboration policy: invalid/default --"
-run_test_policy "invalid: yolo push (block=ask)"        yolo "git push origin main"           2
-run_test_policy "invalid: yolo bypass push (allow=ask)" yolo "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   0
-run_test_policy "unset: plain push (block=ask)"         ""   "git push origin main"           2
-run_test_policy "unset: bypass push (allow=ask)"        ""   "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   0
-
-echo ""
-echo "-- Destructive policy: single-file checkout -- <path> --"
+echo "-- Destructive policy: path-scoped checkout -- <path…> --"
 # Default (unset = ask): blocks without bypass, allows with bypass
 run_test_destructive_policy "unset: checkout -- file (block=ask)"           "" "git checkout -- file.lean"                            2
 run_test_destructive_policy "unset: bypass checkout -- file (allow=ask)"    "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout -- file.lean"  0
-# allow: passes without bypass
+# allow: passes without bypass; covers multi-file and directory pathsets too
 run_test_destructive_policy "allow: checkout -- file"                       allow "git checkout -- file.lean"                       0
 run_test_destructive_policy "allow: checkout -- multi-file"                 allow "git checkout -- a.lean b.lean"                    0
+run_test_destructive_policy "allow: checkout -- directory"                  allow "git checkout -- src/"                             0
 # block: blocks even with bypass token
 run_test_destructive_policy "block: checkout -- file (still block)"         block "git checkout -- file.lean"                       2
 run_test_destructive_policy "block: bypass checkout -- file (still block)"  block "LEAN4_GUARDRAILS_BYPASS=1 git checkout -- file.lean" 2
 
 echo ""
-echo "-- Destructive policy: single-file git restore <path> --"
+echo "-- Destructive policy: path-scoped git restore <path…> --"
 # Default: same shape
 run_test_destructive_policy "unset: restore file (block=ask)"               "" "git restore file.lean"                                  2
 run_test_destructive_policy "unset: bypass restore file (allow=ask)"        "" "LEAN4_GUARDRAILS_BYPASS=1 git restore file.lean"        0
-# Pure unstaging — always allowed regardless of policy
+# Pure unstaging — always allowed regardless of policy (any pathspec,
+# including the whole-index `--staged .` form — pure unstaging is
+# index-only and recoverable).
 run_test_destructive_policy "unset: restore --staged file (allow always)"   "" "git restore --staged file.lean"                         0
 run_test_destructive_policy "block: restore --staged file (allow always)"   block "git restore --staged file.lean"                     0
-# allow
+run_test_destructive_policy "unset: restore --staged . (allow always)"      "" "git restore --staged ."                                 0
+run_test_destructive_policy "block: restore --staged . (allow always)"      block "git restore --staged ."                             0
+run_test_destructive_policy "unset: restore --staged ./ (allow always)"     "" "git restore --staged ./"                                0
+# allow: any path-scoped restore
 run_test_destructive_policy "allow: restore file"                           allow "git restore file.lean"                              0
+run_test_destructive_policy "allow: restore directory"                      allow "git restore src/"                                   0
 # block: even bypass token doesn't help
 run_test_destructive_policy "block: restore file (still block)"             block "git restore file.lean"                              2
 run_test_destructive_policy "block: bypass restore file (still block)"      block "LEAN4_GUARDRAILS_BYPASS=1 git restore file.lean"    2
-
-echo ""
-echo "-- Pure unstaging is always allowed (including whole-index 'restore --staged .') --"
-# git restore --staged <anything> (without --worktree) only touches the index.
-# Recoverable via re-add. Must NOT be hard-blocked even with the broad `.`
-# pathspec — previously was a regression.
-run_test_destructive_policy "unset: restore --staged . (allow always)"   "" "git restore --staged ."         0
-run_test_destructive_policy "block: restore --staged . (allow always)"   block "git restore --staged ."     0
-run_test_destructive_policy "unset: restore --staged ./ (allow always)"  "" "git restore --staged ./"        0
 
 echo ""
 echo "-- Hard-block: whole-worktree variants stay non-bypassable --"
@@ -262,6 +225,41 @@ echo ""
 echo "-- Invalid destructive policy values fall back to ask --"
 run_test_destructive_policy "invalid: yolo plain checkout -- (block=ask)"  yolo "git checkout -- file.lean"                            2
 run_test_destructive_policy "invalid: yolo bypass checkout -- (allow=ask)" yolo "LEAN4_GUARDRAILS_BYPASS=1 git checkout -- file.lean" 0
+
+echo ""
+echo "-- Collaboration policy: ask mode --"
+run_test_policy "ask: git push (block)"                 ask "git push origin main"            2
+run_test_policy "ask: git commit --amend (block)"       ask "git commit --amend"              2
+run_test_policy "ask: gh pr create (block)"             ask "gh pr create --title test"       2
+run_test_policy "ask: bypass git push (allow)"          ask "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   0
+run_test_policy "ask: bypass git commit --amend (allow)" ask "LEAN4_GUARDRAILS_BYPASS=1 git commit --amend"    0
+run_test_policy "ask: bypass gh pr create (allow)"      ask "LEAN4_GUARDRAILS_BYPASS=1 gh pr create --title t" 0
+
+echo ""
+echo "-- Collaboration policy: allow mode --"
+run_test_policy "allow: git push (allow)"               allow "git push origin main"          0
+run_test_policy "allow: git commit --amend (allow)"     allow "git commit --amend"            0
+run_test_policy "allow: gh pr create (allow)"           allow "gh pr create --title test"     0
+run_test_policy "allow: reset --hard (still block)"     allow "git reset --hard"              2
+run_test_policy "allow: clean -f (still block)"         allow "git clean -f"                  2
+run_test_policy "allow: checkout -- (still block)"      allow "git checkout -- file.txt"      2
+
+echo ""
+echo "-- Collaboration policy: block mode --"
+run_test_policy "block: git push (block)"               block "git push origin main"          2
+run_test_policy "block: git commit --amend (block)"     block "git commit --amend"            2
+run_test_policy "block: gh pr create (block)"           block "gh pr create --title test"     2
+run_test_policy "block: bypass git push (still block)"  block "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   2
+run_test_policy "block: bypass amend (still block)"     block "LEAN4_GUARDRAILS_BYPASS=1 git commit --amend"     2
+run_test_policy "block: bypass pr create (still block)" block "LEAN4_GUARDRAILS_BYPASS=1 gh pr create --title t" 2
+run_test_policy "block: reset --hard (still block)"     block "git reset --hard"              2
+
+echo ""
+echo "-- Collaboration policy: invalid/default --"
+run_test_policy "invalid: yolo push (block=ask)"        yolo "git push origin main"           2
+run_test_policy "invalid: yolo bypass push (allow=ask)" yolo "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   0
+run_test_policy "unset: plain push (block=ask)"         ""   "git push origin main"           2
+run_test_policy "unset: bypass push (allow=ask)"        ""   "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   0
 
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="

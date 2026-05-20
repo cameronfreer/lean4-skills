@@ -70,9 +70,9 @@ fi
 #          FOO="a b" LEAN4_GUARDRAILS_BYPASS=1 git push ...
 # Rejects: echo LEAN4_GUARDRAILS_BYPASS=1 && git push ... (token after a command word)
 #          FOO="LEAN4_GUARDRAILS_BYPASS=1" git push ...  (token inside quoted value)
-# Applies to soft-gated ops (collaboration + single-file destructive); the
-# whole-worktree destructive ops (reset --hard, clean -f, checkout .,
-# restore .) remain non-bypassable regardless.
+# Applies to soft-gated ops (collaboration + path-scoped destructive);
+# the whole-worktree destructive ops (reset --hard, clean -f,
+# checkout .,restore .) remain non-bypassable regardless.
 # Never exits early — all destructive checks run first; bypass resolves at end.
 BYPASS=0
 
@@ -88,10 +88,13 @@ BYPASS=0
 #                                   COLLAB_POLICY: push, amend, pr create
 #                                     (affects shared state, reversible
 #                                     via force-push / amend back / PR close)
-#                                   DESTRUCTIVE_POLICY: checkout -- <path>,
-#                                     restore <path>
-#                                     (single-file local data loss; smaller
-#                                     blast radius than whole-worktree wipes)
+#                                   DESTRUCTIVE_POLICY: checkout -- <path…>,
+#                                     restore <path…>
+#                                     (path-scoped local data loss — one
+#                                     file, multiple files, a directory,
+#                                     or any explicit pathset; smaller
+#                                     blast radius than whole-worktree
+#                                     wipes which use `.` / `./` / `:/`)
 #
 #   3. HARD-BLOCK (below)       — non-bypassable, no policy override.
 #                                 reset --hard, clean -f/-fd/-fdx,
@@ -423,9 +426,11 @@ _check_collab_op() {
   esac
 }
 
-# Destructive-op policy enforcement (single-file blast radius).
+# Destructive-op policy enforcement (path-scoped blast radius).
 # Same shape as _check_collab_op but governed by DESTRUCTIVE_POLICY.
-# Used by the soft-gated cases below. Whole-worktree destructive ops
+# Used by the soft-gated cases below — operations that name an
+# explicit pathset (one file, several files, a directory, etc.) but
+# don't target the whole worktree. Whole-worktree destructive ops
 # (reset --hard, clean -f, checkout ., restore .) bypass this helper
 # and exit 2 unconditionally — see the dedicated block further down.
 # $1 = short label, $2 = user-facing message suffix
@@ -470,7 +475,7 @@ fi
 # These wipe state across the whole worktree (or untracked files); reflog
 # can't recover uncommitted edits and `clean -f` can't recover untracked
 # files at all. No policy override; bypass token does not apply. The
-# whole-worktree variants run BEFORE the soft-gated single-file variants
+# whole-worktree variants run BEFORE the soft-gated path-scoped variants
 # below so a broad-blast pattern can't accidentally fall through into
 # ask/allow territory.
 
@@ -538,20 +543,21 @@ if seg_match git '\bclean\b.*(-[a-zA-Z]*f|--force)'; then
 fi
 
 # ---------------------------------------------------------------------------
-# Destructive ops: single-file (SOFT-GATE via DESTRUCTIVE_POLICY)
+# Destructive ops: path-scoped (SOFT-GATE via DESTRUCTIVE_POLICY)
 # ---------------------------------------------------------------------------
-# Bounded blast radius (the named paths only). Still loses uncommitted
-# edits — reflog won't help — so default mode is `ask` (block unless
-# bypass token), but the operator can opt into `allow` or paranoia-mode
-# `block` via LEAN4_GUARDRAILS_DESTRUCTIVE_POLICY. The whole-worktree
-# variants above have already short-circuited.
+# Bounded blast radius — the named pathset only (one file, several files,
+# a subdirectory, etc.; whole-worktree pathspecs `.` / `./` / `:/` are
+# excluded by the hard-block block above). Still loses uncommitted edits
+# — reflog won't help — so default mode is `ask` (block unless bypass
+# token), but the operator can opt into `allow` or paranoia-mode `block`
+# via LEAN4_GUARDRAILS_DESTRUCTIVE_POLICY.
 
-# git checkout -- <path>    (single or multiple specific paths)
+# git checkout -- <path…>   (one or more explicit path arguments)
 if seg_match git '\bcheckout\b.*\s--\s'; then
   _check_destructive_op "git checkout --" "discards uncommitted edits in the named path(s)"
 fi
 
-# git restore <path>        (worktree-only; pure --staged unstaging is allowed)
+# git restore <path…>       (worktree-only; pure --staged unstaging is allowed)
 for _seg in "${SEGMENTS[@]}"; do
   echo "$_seg" | grep -qE '^git\b' || continue
   echo "$_seg" | grep -qE '\brestore\b' || continue
