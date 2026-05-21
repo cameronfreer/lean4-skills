@@ -170,8 +170,8 @@ Guarded during Lean project sessions (policy/tier details below):
 - `git push` → Use `/lean4:checkpoint`, then push manually (soft-gate, bypass-able)
 - `git commit --amend` → Each change is a new commit for safe rollback (soft-gate, bypass-able)
 - `gh pr create` → Review first with `/lean4:review` (soft-gate, bypass-able)
-- Path-scoped destructive git (`checkout -- <path>`, `restore <path>`, `checkout <tree-ish> <path>`) → soft-gate, bypass-able; default `ask` mode
-- Whole-worktree destructive git (`reset --hard`, `clean -f`, `checkout .` / `-- .` / `HEAD -- .`, `restore .`, `restore --staged --worktree`) → absolute hard-block; bypass does not apply
+- Path-scoped destructive git (`checkout -- <path>`, `checkout <tree-ish> <path>`, `checkout {--ours,--theirs,-2,-3,--conflict=…} <path>`, `checkout -f <path>`, `checkout ./<path>`, `restore <path>` and short-flag variants) → soft-gate, bypass-able; default `ask` mode
+- Whole-worktree / force-branch destructive git (`reset --hard`, `clean -f`, `checkout .` / `-- .` / `HEAD -- .` / `-f .` / `--ours .`, `restore .` / `-SW`, `checkout --pathspec-from-file`, `restore --pathspec-from-file` (non-staged), `checkout -f|--force <branch>`, `switch -f|--force|--discard-changes`) → absolute hard-block; bypass does not apply
 - Deep sorry-filling has snapshot, rollback, scope budgets, and regression gates — see [Cycle Engine](skills/lean4/references/cycle-engine.md#deep-mode)
 
 **Override environment variables:**
@@ -189,7 +189,7 @@ Git operations fall into **three tiers**:
 
 1. **Allow** (implicit, no gate): `git status`, `diff`, `log`, `show`, `branch`, `add`, `commit`, `stash push`, `switch <branch>`, `checkout <branch>`, `restore --staged <path>` (pure unstaging, any pathspec including `.`).
 2. **Soft-gate** (policy-controlled, bypass-able): collaboration ops + path-scoped destructive ops. See subsections below.
-3. **Hard-block** (absolute, never bypassable): `git reset --hard`, `git clean -f`/`-fd`/`-fdx`, plus the whole-worktree variants — `git checkout .`/`./`/`-- .`/`-- ./`/`-- :/`/`HEAD -- .`, `git restore .`/`./`/`:/`, `git restore --staged --worktree`. These wipe state across the whole worktree (or untracked files); reflog can't recover uncommitted edits and `clean -f` can't recover untracked files at all.
+3. **Hard-block** (absolute, never bypassable): `git reset --hard`, `git clean -f`/`-fd`/`-fdx`, plus the whole-worktree, opaque-pathspec, and force-branch variants — `git checkout .`/`./`/`-- .`/`-- ./`/`-- :/`/`HEAD -- .`/`-f .`/`--ours .`/`--theirs :/`, `git checkout --pathspec-from-file=…`, `git checkout -f|--force <branch>`, `git restore .`/`./`/`:/`, `git restore --staged --worktree` (incl. `-SW` short-flag bundle), `git restore --pathspec-from-file=…` (non-staged), `git switch -f|--force|--discard-changes <anything>`. These wipe state across the whole worktree (or untracked files), discard uncommitted edits during branch switching, or accept opaque path lists the guardrail can't inspect; reflog can't recover uncommitted edits and `clean -f` can't recover untracked files at all.
 
 **Collaboration policy (`LEAN4_GUARDRAILS_COLLAB_POLICY`):**
 
@@ -203,7 +203,16 @@ Invalid values fall back to `ask`.
 
 **Destructive policy (`LEAN4_GUARDRAILS_DESTRUCTIVE_POLICY`):**
 
-Controls how **path-scoped** destructive ops — `git checkout -- <path…>` and `git restore <path…>` (without `--staged`) — are handled. These have bounded blast radius (the named pathset only) but still discard uncommitted edits the reflog can't recover.
+Controls how **path-scoped** destructive ops are handled. The covered forms (each with bounded blast radius — the named pathset only — but still discarding uncommitted edits the reflog can't recover):
+
+- `git checkout -- <path…>`
+- `git checkout <tree-ish> <path…>` (without `--`, e.g. `git checkout HEAD file.lean`)
+- `git checkout {--ours,--theirs,-2,-3,--conflict=…} <path…>` (merge-conflict resolution flags)
+- `git checkout -f|--force <path-like>` (path-scoped force-restore; `-f <branch>` is hard-blocked)
+- `git checkout ./<path>` / `:/<path>` / `../<path>` (explicit path-prefix positionals, including dotfiles)
+- `git restore <path…>` (any worktree-touching flag combination, including `-W`, `-SW`, etc.)
+
+`git restore --staged <path>` (pure unstaging, including pathspec `.`) is always allowed regardless of policy — it's index-only and reversible.
 
 - **`ask`** (default) — block unless a one-shot bypass token is present.
 - **`allow`** — permit path-scoped destructive ops without a bypass token (useful when routinely reverting experimental files).
