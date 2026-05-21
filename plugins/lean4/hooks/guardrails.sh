@@ -635,9 +635,12 @@ fi
 # git checkout ./file or git checkout :/file or git checkout ../path
 # Single positional with an explicit path prefix. Distinguishes
 # obviously-a-path arguments from branch names; matches `./file.lean`,
-# `:/file.lean`, `../subdir/foo.lean`. Whole-worktree-pathspec variants
-# (`./` / `:/` standalone) already short-circuited via the hard-block.
-if seg_match git '\bcheckout\b\s+(\.{1,2}/|:/?)[^\s.][^\s]*'; then
+# `./.env`, `./.github/workflows/foo.yml`, `:/file.lean`,
+# `../subdir/foo.lean`, etc. Whole-worktree-pathspec variants (`./` /
+# `:/` standalone) already short-circuited via the hard-block, so the
+# `[^\s]+` suffix only excludes the bare prefix without forbidding
+# dotfile-style paths.
+if seg_match git '\bcheckout\b\s+(\.{1,2}/|:/?)[^\s]+'; then
   _check_destructive_op "git checkout <path>" "restores the named path from index, discarding uncommitted edits"
 fi
 

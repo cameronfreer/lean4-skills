@@ -202,6 +202,14 @@ run_test_destructive_policy "allow: checkout ./file"                        allo
 run_test_destructive_policy "bypass: checkout ./file"                       "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout ./file.lean"      0
 run_test_destructive_policy "block: checkout ./file (still block)"          block "git checkout ./file.lean"                            2
 
+# Dotfile path-prefix forms (e.g., ./.env, ./.github/...) — same gating
+# as non-dotfile path-prefix forms.
+run_test_destructive_policy "unset: checkout ./.env (block=ask)"            "" "git checkout ./.env"                                     2
+run_test_destructive_policy "unset: checkout :/.env (block=ask)"            "" "git checkout :/.env"                                     2
+run_test_destructive_policy "unset: checkout ../.env (block=ask)"           "" "git checkout ../.env"                                    2
+run_test_destructive_policy "allow: checkout ./.env"                        allow "git checkout ./.env"                                  0
+run_test_destructive_policy "allow: checkout ./.github path"                allow "git checkout ./.github/workflows/lint.yml"            0
+
 echo ""
 echo "-- Destructive policy: path-scoped git restore <path…> --"
 # Default: same shape
