@@ -72,7 +72,7 @@ fi
 #          FOO="LEAN4_GUARDRAILS_BYPASS=1" git push ...  (token inside quoted value)
 # Applies to soft-gated ops (collaboration + path-scoped destructive);
 # the whole-worktree destructive ops (reset --hard, clean -f,
-# checkout .,restore .) remain non-bypassable regardless.
+# checkout ., restore .) remain non-bypassable regardless.
 # Never exits early — all destructive checks run first; bypass resolves at end.
 BYPASS=0
 
