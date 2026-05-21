@@ -165,6 +165,23 @@ run_test_destructive_policy "allow: checkout -- directory"                  allo
 run_test_destructive_policy "block: checkout -- file (still block)"         block "git checkout -- file.lean"                       2
 run_test_destructive_policy "block: bypass checkout -- file (still block)"  block "LEAN4_GUARDRAILS_BYPASS=1 git checkout -- file.lean" 2
 
+# git checkout <tree-ish> <path…>  (restore-from-tree-ish form, no `--`)
+# Default (ask): blocks without bypass, allows with bypass.
+run_test_destructive_policy "unset: checkout HEAD file (block=ask)"         "" "git checkout HEAD file.lean"                          2
+run_test_destructive_policy "unset: bypass checkout HEAD file (allow=ask)"  "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout HEAD file.lean" 0
+# allow: any tree-ish + bounded path passes
+run_test_destructive_policy "allow: checkout HEAD file"                     allow "git checkout HEAD file.lean"                      0
+run_test_destructive_policy "allow: checkout main file"                     allow "git checkout main src/foo.lean"                   0
+run_test_destructive_policy "allow: checkout HEAD~1 file"                   allow "git checkout HEAD~1 file.lean"                    0
+# block: even bypass token doesn't help
+run_test_destructive_policy "block: checkout HEAD file (still block)"       block "git checkout HEAD file.lean"                      2
+# Branch switching with a single arg is still allowed (not the restore form)
+run_test_destructive_policy "allow: switch to branch by name"               ""    "git checkout main"                                 0
+run_test_destructive_policy "allow: switch to ref by name"                  ""    "git checkout origin/main"                          0
+# -b/-B newbranch creates a branch; not restore, not gated
+run_test_destructive_policy "allow: checkout -b newbranch"                  ""    "git checkout -b newbranch"                         0
+run_test_destructive_policy "allow: checkout -b newbranch start-point"      ""    "git checkout -b newbranch main"                    0
+
 echo ""
 echo "-- Destructive policy: path-scoped git restore <path…> --"
 # Default: same shape
@@ -199,6 +216,9 @@ run_test_destructive_policy "git checkout -- :/               (always block)" al
 run_test_destructive_policy "git checkout -- :(top)           (always block)" allow "git checkout -- :(top)"                            2
 run_test_destructive_policy "git checkout HEAD -- .           (always block)" allow "git checkout HEAD -- ."                            2
 run_test_destructive_policy "git checkout HEAD -- ./          (always block)" allow "git checkout HEAD -- ./"                           2
+run_test_destructive_policy "git checkout HEAD .              (always block)" allow "git checkout HEAD ."                               2
+run_test_destructive_policy "git checkout HEAD ./             (always block)" allow "git checkout HEAD ./"                              2
+run_test_destructive_policy "git checkout main :/             (always block)" allow "git checkout main :/"                              2
 run_test_destructive_policy "git restore .                    (always block)" allow "git restore ."                                     2
 run_test_destructive_policy "git restore ./                   (always block)" allow "git restore ./"                                    2
 run_test_destructive_policy "git restore :/                   (always block)" allow "git restore :/"                                    2
@@ -210,6 +230,7 @@ run_test_destructive_policy "git clean --force                (always block)" al
 run_test_destructive_policy "bypass git checkout .            (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout ."          2
 run_test_destructive_policy "bypass git checkout -- .         (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout -- ."       2
 run_test_destructive_policy "bypass git checkout HEAD -- .    (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout HEAD -- ."  2
+run_test_destructive_policy "bypass git checkout HEAD .       (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout HEAD ."     2
 run_test_destructive_policy "bypass git restore ./            (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git restore ./"           2
 run_test_destructive_policy "bypass git reset --hard          (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git reset --hard"        2
 run_test_destructive_policy "bypass git clean -fd             (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git clean -fd"           2

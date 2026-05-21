@@ -488,14 +488,21 @@ fi
 #   git checkout HEAD -- .         (with a ref before `--`)
 #   git checkout HEAD -- ./        (same)
 #   git checkout -- :(top)         (verbose pathspec form)
-# Note: this must precede the soft-gated `checkout -- <path>` check.
+#   git checkout HEAD .            (ref + whole-worktree pathspec, no `--`)
+#   git checkout HEAD ./           (same)
+#   git checkout main :/           (any ref form before whole-worktree pathspec)
+# Note: this must precede the soft-gated `checkout … <path>` check.
 #
 # Detection strategy:
 #   (a) `checkout` followed (anywhere) by `--` followed by a whole-worktree
 #       pathspec token (`.`, `./`, `:/`, `:(top)`)
 #   (b) `checkout` followed directly by `.` or `./` (no `--` separator)
+#   (c) `checkout` followed by a non-flag token (a tree-ish like `HEAD`,
+#       `main`, etc.) followed by a whole-worktree pathspec — git's
+#       `git checkout <tree-ish> <pathspec>` restore form without `--`.
 if seg_match git '\bcheckout\b.*\s--\s+(\.|\./|:/|:\(top\))(\s|$)' \
-   || seg_match git '\bcheckout\b\s+(\.|\./)(\s|$)'; then
+   || seg_match git '\bcheckout\b\s+(\.|\./)(\s|$)' \
+   || seg_match git '\bcheckout\b\s+[^-\s]\S*\s+(\.|\./|:/|:\(top\))(\s|$)'; then
   echo "BLOCKED (Lean guardrail): whole-worktree git checkout discards all changes. Commit or checkpoint first." >&2
   exit 2
 fi
@@ -552,9 +559,19 @@ fi
 # token), but the operator can opt into `allow` or paranoia-mode `block`
 # via LEAN4_GUARDRAILS_DESTRUCTIVE_POLICY.
 
-# git checkout -- <path…>   (one or more explicit path arguments)
+# git checkout -- <path…>   (one or more explicit path arguments after `--`)
 if seg_match git '\bcheckout\b.*\s--\s'; then
   _check_destructive_op "git checkout --" "discards uncommitted edits in the named path(s)"
+fi
+
+# git checkout <tree-ish> <path…>   (no `--` separator; restore from tree-ish)
+# Matches forms like `git checkout HEAD file.lean` or
+# `git checkout main src/foo.lean`. First positional must not start
+# with `-` (so `-b newbranch` doesn't match) and the second positional
+# must also be a non-flag token. Whole-worktree pathspec variants
+# above already short-circuited, so this only catches bounded paths.
+if seg_match git '\bcheckout\b\s+[^-\s]\S*\s+[^-\s]\S*'; then
+  _check_destructive_op "git checkout <tree-ish> <path>" "restores the named path(s) from the tree-ish, discarding uncommitted edits"
 fi
 
 # git restore <path…>       (worktree-only; pure --staged unstaging is allowed)
