@@ -187,6 +187,12 @@ run_test_destructive_policy "allow: checkout -b newbranch start-point"      ""  
 # destructive policy.
 run_test_destructive_policy "unset: checkout --ours file (block=ask)"       "" "git checkout --ours file.lean"                          2
 run_test_destructive_policy "unset: checkout --theirs file (block=ask)"     "" "git checkout --theirs file.lean"                        2
+# -2 / -3 are short aliases for --ours / --theirs (same conflict-resolution semantics).
+run_test_destructive_policy "unset: checkout -2 file (block=ask)"           "" "git checkout -2 file.lean"                              2
+run_test_destructive_policy "unset: checkout -3 file (block=ask)"           "" "git checkout -3 file.lean"                              2
+run_test_destructive_policy "allow: checkout -2 file"                       allow "git checkout -2 file.lean"                          0
+run_test_destructive_policy "allow: checkout -3 file"                       allow "git checkout -3 file.lean"                          0
+run_test_destructive_policy "bypass: checkout -2 file"                      "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout -2 file.lean"   0
 # Note: -m is not covered — see _strip_optvals limitation comment in guardrails.sh
 run_test_destructive_policy "allow: checkout --ours file"                   allow "git checkout --ours file.lean"                      0
 run_test_destructive_policy "allow: checkout --theirs src/foo.lean"         allow "git checkout --theirs src/foo.lean"                  0

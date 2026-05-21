@@ -656,7 +656,7 @@ fi
 # checkout context would require splitting the normalization pipeline
 # per-command; deferred. `--ours`/`--theirs`/`--conflict` are not
 # stripped and are detected normally.
-if seg_match git '\bcheckout\b.*\s(--ours|--theirs|--conflict[=[:space:]])\b'; then
+if seg_match git '\bcheckout\b.*\s(--ours|--theirs|-2|-3|--conflict[=[:space:]])(\s|$)'; then
   _check_destructive_op "git checkout <restore-flag>" "restores the named path(s) from the merge-conflict side, discarding uncommitted edits"
 fi
 
