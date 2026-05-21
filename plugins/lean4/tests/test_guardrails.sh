@@ -187,6 +187,12 @@ run_test_destructive_policy "allow: checkout -b newbranch start-point"      ""  
 # destructive policy.
 run_test_destructive_policy "unset: checkout --ours file (block=ask)"       "" "git checkout --ours file.lean"                          2
 run_test_destructive_policy "unset: checkout --theirs file (block=ask)"     "" "git checkout --theirs file.lean"                        2
+# --conflict=<style> takes a value; the regex must accept `--conflict=merge`,
+# `--conflict=zdiff3`, etc., not just bare `--conflict`.
+run_test_destructive_policy "unset: checkout --conflict=merge file (block=ask)" "" "git checkout --conflict=merge file.lean"            2
+run_test_destructive_policy "unset: checkout --conflict=zdiff3 file (block=ask)" "" "git checkout --conflict=zdiff3 file.lean"          2
+run_test_destructive_policy "allow: checkout --conflict=merge file"         allow "git checkout --conflict=merge file.lean"            0
+run_test_destructive_policy "allow: checkout --conflict=zdiff3 file"        allow "git checkout --conflict=zdiff3 file.lean"           0
 # -2 / -3 are short aliases for --ours / --theirs (same conflict-resolution semantics).
 run_test_destructive_policy "unset: checkout -2 file (block=ask)"           "" "git checkout -2 file.lean"                              2
 run_test_destructive_policy "unset: checkout -3 file (block=ask)"           "" "git checkout -3 file.lean"                              2
