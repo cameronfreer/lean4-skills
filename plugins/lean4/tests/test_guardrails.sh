@@ -182,6 +182,26 @@ run_test_destructive_policy "allow: switch to ref by name"                  ""  
 run_test_destructive_policy "allow: checkout -b newbranch"                  ""    "git checkout -b newbranch"                         0
 run_test_destructive_policy "allow: checkout -b newbranch start-point"      ""    "git checkout -b newbranch main"                    0
 
+# Option-prefixed checkout pathspec forms (merge-conflict resolution flags
+# + force flag). These are restore-mode operations gated by the
+# destructive policy.
+run_test_destructive_policy "unset: checkout --ours file (block=ask)"       "" "git checkout --ours file.lean"                          2
+run_test_destructive_policy "unset: checkout --theirs file (block=ask)"     "" "git checkout --theirs file.lean"                        2
+# Note: -m is not covered — see _strip_optvals limitation comment in guardrails.sh
+run_test_destructive_policy "allow: checkout --ours file"                   allow "git checkout --ours file.lean"                      0
+run_test_destructive_policy "allow: checkout --theirs src/foo.lean"         allow "git checkout --theirs src/foo.lean"                  0
+run_test_destructive_policy "bypass: checkout --ours file"                  "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout --ours file.lean" 0
+run_test_destructive_policy "block: checkout --ours file (still block)"     block "git checkout --ours file.lean"                       2
+
+# Single positional with explicit path prefix (./, :/, ../)
+# Distinguishes obvious path arguments from branch names.
+run_test_destructive_policy "unset: checkout ./file (block=ask)"            "" "git checkout ./file.lean"                                2
+run_test_destructive_policy "unset: checkout :/file (block=ask)"            "" "git checkout :/file.lean"                                2
+run_test_destructive_policy "unset: checkout ../file (block=ask)"           "" "git checkout ../file.lean"                               2
+run_test_destructive_policy "allow: checkout ./file"                        allow "git checkout ./file.lean"                            0
+run_test_destructive_policy "bypass: checkout ./file"                       "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout ./file.lean"      0
+run_test_destructive_policy "block: checkout ./file (still block)"          block "git checkout ./file.lean"                            2
+
 echo ""
 echo "-- Destructive policy: path-scoped git restore <path…> --"
 # Default: same shape
@@ -233,6 +253,15 @@ run_test_destructive_policy "git checkout HEAD -- ./          (always block)" al
 run_test_destructive_policy "git checkout HEAD .              (always block)" allow "git checkout HEAD ."                               2
 run_test_destructive_policy "git checkout HEAD ./             (always block)" allow "git checkout HEAD ./"                              2
 run_test_destructive_policy "git checkout main :/             (always block)" allow "git checkout main :/"                              2
+# Option-prefixed whole-worktree pathspec variants — all hard-block.
+run_test_destructive_policy "git checkout -f .                (always block)" allow "git checkout -f ."                                 2
+run_test_destructive_policy "git checkout --force ./          (always block)" allow "git checkout --force ./"                           2
+run_test_destructive_policy "git checkout --ours .            (always block)" allow "git checkout --ours ."                             2
+run_test_destructive_policy "git checkout --theirs :/         (always block)" allow "git checkout --theirs :/"                          2
+# Note: -m is not covered — see _strip_optvals limitation comment in guardrails.sh
+# --pathspec-from-file always hard-blocks (paths hidden in a file)
+run_test_destructive_policy "git checkout --pathspec-from-file (always block)" allow "git checkout --pathspec-from-file=paths.txt"      2
+run_test_destructive_policy "git checkout HEAD --pathspec-from-file (always block)" allow "git checkout HEAD --pathspec-from-file=paths.txt" 2
 run_test_destructive_policy "git restore .                    (always block)" allow "git restore ."                                     2
 run_test_destructive_policy "git restore ./                   (always block)" allow "git restore ./"                                    2
 run_test_destructive_policy "git restore :/                   (always block)" allow "git restore :/"                                    2
@@ -245,6 +274,9 @@ run_test_destructive_policy "bypass git checkout .            (still block)" all
 run_test_destructive_policy "bypass git checkout -- .         (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout -- ."       2
 run_test_destructive_policy "bypass git checkout HEAD -- .    (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout HEAD -- ."  2
 run_test_destructive_policy "bypass git checkout HEAD .       (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout HEAD ."     2
+run_test_destructive_policy "bypass git checkout -f .         (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout -f ."       2
+run_test_destructive_policy "bypass git checkout --ours .     (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout --ours ."   2
+run_test_destructive_policy "bypass git checkout --pathspec-from-file (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout --pathspec-from-file=paths.txt" 2
 run_test_destructive_policy "bypass git restore ./            (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git restore ./"           2
 run_test_destructive_policy "bypass git reset --hard          (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git reset --hard"        2
 run_test_destructive_policy "bypass git clean -fd             (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git clean -fd"           2

@@ -499,31 +499,34 @@ fi
 # below so a broad-blast pattern can't accidentally fall through into
 # ask/allow territory.
 
-# Whole-worktree pathspec variants for checkout:
-#   git checkout .                 (whole-worktree, no `--`)
-#   git checkout ./                (same — `./` is `.`)
-#   git checkout -- .              (`--` then `.`)
-#   git checkout -- ./             (`--` then `./`)
-#   git checkout -- :/             (pathspec for "top of repo")
-#   git checkout HEAD -- .         (with a ref before `--`)
-#   git checkout HEAD -- ./        (same)
-#   git checkout -- :(top)         (verbose pathspec form)
-#   git checkout HEAD .            (ref + whole-worktree pathspec, no `--`)
-#   git checkout HEAD ./           (same)
-#   git checkout main :/           (any ref form before whole-worktree pathspec)
-# Note: this must precede the soft-gated `checkout … <path>` check.
+# Whole-worktree pathspec variants for checkout. Detection generalized to
+# match ANY whole-worktree pathspec token (`.`, `./`, `:/`, `:(top)`)
+# appearing anywhere in the checkout segment, regardless of what comes
+# between `checkout` and the pathspec. That subsumes:
 #
-# Detection strategy:
-#   (a) `checkout` followed (anywhere) by `--` followed by a whole-worktree
-#       pathspec token (`.`, `./`, `:/`, `:(top)`)
-#   (b) `checkout` followed directly by `.` or `./` (no `--` separator)
-#   (c) `checkout` followed by a non-flag token (a tree-ish like `HEAD`,
-#       `main`, etc.) followed by a whole-worktree pathspec — git's
-#       `git checkout <tree-ish> <pathspec>` restore form without `--`.
-if seg_match git '\bcheckout\b.*\s--\s+(\.|\./|:/|:\(top\))(\s|$)' \
-   || seg_match git '\bcheckout\b\s+(\.|\./)(\s|$)' \
-   || seg_match git '\bcheckout\b\s+[^-\s]\S*\s+(\.|\./|:/|:\(top\))(\s|$)'; then
+#   git checkout .              git checkout HEAD .         (tree-ish form)
+#   git checkout ./             git checkout main :/
+#   git checkout -- .           git checkout HEAD -- .      (with `--`)
+#   git checkout -- ./          git checkout HEAD -- ./
+#   git checkout -- :/          git checkout -- :(top)
+#   git checkout -f .           git checkout --ours .       (with options)
+#   git checkout --theirs .     git checkout -m .
+#
+# Single regex: `\bcheckout\b.*\s<wp>(\s|$)` where `<wp>` is the pathspec
+# alternation. The `.*` swallows any combination of refs and options
+# before the whitespace-bounded pathspec token. Must run BEFORE soft-gate
+# checks so option-prefixed whole-worktree pathspecs short-circuit there.
+if seg_match git '\bcheckout\b.*\s(\.|\./|:/|:\(top\))(\s|$)'; then
   echo "BLOCKED (Lean guardrail): whole-worktree git checkout discards all changes. Commit or checkpoint first." >&2
+  exit 2
+fi
+
+# git checkout --pathspec-from-file=... reads pathspecs from a file the
+# guardrail can't inspect. The file could contain `.` or `:/` which would
+# be a whole-worktree wipe. Hard-block conservatively — operators with a
+# trustworthy paths file can stage the operation as explicit arguments.
+if seg_match git '\bcheckout\b.*\s--pathspec-from-file([=[:space:]])'; then
+  echo "BLOCKED (Lean guardrail): git checkout --pathspec-from-file reads paths from a file the guardrail can't inspect; could contain whole-worktree pathspecs. Pass explicit paths on the command line." >&2
   exit 2
 fi
 
@@ -596,6 +599,37 @@ fi
 # above already short-circuited, so this only catches bounded paths.
 if seg_match git '\bcheckout\b\s+[^-\s]\S*\s+[^-\s]\S*'; then
   _check_destructive_op "git checkout <tree-ish> <path>" "restores the named path(s) from the tree-ish, discarding uncommitted edits"
+fi
+
+# git checkout {--ours|--theirs|--conflict=…} <path…>
+# Merge-conflict resolution flags that take pathspecs. With a path
+# argument, these restore that path's "ours"/"theirs" version or
+# re-create the merge conflict, discarding uncommitted edits in that
+# path. Whole-worktree variants (`--ours .`) already short-circuited
+# via the hard-block above.
+#
+# Note: bare `git checkout --ours` (no path) would soft-gate spuriously
+# but git would error on it anyway, so acceptable.
+#
+# Limitation: `-m` is NOT included here. The shared _strip_optvals
+# normalization (needed for `git commit -m "msg"` false-positive
+# avoidance in the collab checks) strips `-m <value>` from segments
+# before pattern matching, so `git checkout -m <path>` arrives at the
+# checkout checks with `-m <path>` already removed. Catching `-m` in
+# checkout context would require splitting the normalization pipeline
+# per-command; deferred. `--ours`/`--theirs`/`--conflict` are not
+# stripped and are detected normally.
+if seg_match git '\bcheckout\b.*\s(--ours|--theirs|--conflict[=[:space:]])\b'; then
+  _check_destructive_op "git checkout <restore-flag>" "restores the named path(s) from the merge-conflict side, discarding uncommitted edits"
+fi
+
+# git checkout ./file or git checkout :/file or git checkout ../path
+# Single positional with an explicit path prefix. Distinguishes
+# obviously-a-path arguments from branch names; matches `./file.lean`,
+# `:/file.lean`, `../subdir/foo.lean`. Whole-worktree-pathspec variants
+# (`./` / `:/` standalone) already short-circuited via the hard-block.
+if seg_match git '\bcheckout\b\s+(\.{1,2}/|:/?)[^\s.][^\s]*'; then
+  _check_destructive_op "git checkout <path>" "restores the named path from index, discarding uncommitted edits"
 fi
 
 # git restore <path…>       (worktree-only; pure --staged/-S unstaging is allowed)
