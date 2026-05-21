@@ -202,6 +202,20 @@ run_test_destructive_policy "allow: restore directory"                      allo
 run_test_destructive_policy "block: restore file (still block)"             block "git restore file.lean"                              2
 run_test_destructive_policy "block: bypass restore file (still block)"      block "LEAN4_GUARDRAILS_BYPASS=1 git restore file.lean"    2
 
+# Short flag aliases: -S = --staged, -W = --worktree.
+# Pure unstaging via -S (or any bundle containing S but not W) is allowed.
+run_test_destructive_policy "unset: restore -S file (allow always)"         "" "git restore -S file.lean"                                0
+run_test_destructive_policy "block: restore -S file (allow always)"         block "git restore -S file.lean"                            0
+run_test_destructive_policy "block: restore -S . (allow always)"            block "git restore -S ."                                    0
+# Combined index+worktree via -SW or mixed long/short → hard-block
+run_test_destructive_policy "git restore -SW file (always block)"           allow "git restore -SW file.lean"                           2
+run_test_destructive_policy "git restore -WS file (always block)"           allow "git restore -WS file.lean"                           2
+run_test_destructive_policy "git restore --staged -W file (always block)"   allow "git restore --staged -W file.lean"                   2
+run_test_destructive_policy "git restore -S --worktree file (always block)" allow "git restore -S --worktree file.lean"                 2
+# Worktree-only via -W alone is path-scoped destructive → soft-gate
+run_test_destructive_policy "allow: restore -W file"                        allow "git restore -W file.lean"                            0
+run_test_destructive_policy "unset: restore -W file (block=ask)"            "" "git restore -W file.lean"                                2
+
 echo ""
 echo "-- Hard-block: whole-worktree variants stay non-bypassable --"
 # These must block regardless of DESTRUCTIVE_POLICY value or bypass token.

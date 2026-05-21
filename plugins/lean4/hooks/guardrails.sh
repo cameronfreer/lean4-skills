@@ -426,6 +426,26 @@ _check_collab_op() {
   esac
 }
 
+# Classify git restore flag presence (long + short forms) into two
+# integers passed back via the global _restore_staged / _restore_worktree.
+# Long forms: --staged / --worktree. Short forms: -S / -W, including
+# bundled short flags like -SW, -WS, -qS (git docs document the short
+# aliases and bundling). Detection runs over the raw segment text and
+# uses a `(^|\s)` boundary so substrings like `--no-staged` don't
+# false-match the staged check.
+_classify_restore_flags() {
+  local s="$1"
+  _restore_staged=0
+  _restore_worktree=0
+  if echo "$s" | grep -qE -- '(^|[[:space:]])--staged([[:space:]]|=|$)'; then _restore_staged=1; fi
+  if echo "$s" | grep -qE -- '(^|[[:space:]])--worktree([[:space:]]|=|$)'; then _restore_worktree=1; fi
+  # Short flag bundles: `-` (not preceded by alphanumeric) + sequence of
+  # letters that contains S or W. Excludes long-form `--…` by requiring
+  # the char after `-` to be a letter (not `-`).
+  if echo "$s" | grep -qE -- '(^|[[:space:]])-[A-Za-z]*S[A-Za-z]*([[:space:]]|$)'; then _restore_staged=1; fi
+  if echo "$s" | grep -qE -- '(^|[[:space:]])-[A-Za-z]*W[A-Za-z]*([[:space:]]|$)'; then _restore_worktree=1; fi
+}
+
 # Destructive-op policy enforcement (path-scoped blast radius).
 # Same shape as _check_collab_op but governed by DESTRUCTIVE_POLICY.
 # Used by the soft-gated cases below — operations that name an
@@ -512,21 +532,25 @@ fi
 #   git restore ./                 (same)
 #   git restore :/                 (top-of-repo pathspec)
 #   git restore --staged --worktree …  (restores both index and worktree)
-# But: pure `--staged` (no `--worktree`) is unstaging only — index-bounded,
-# recoverable, never touches worktree. ALWAYS allowed regardless of path,
-# so the unstaging exemption MUST be checked first, otherwise commands
-# like `git restore --staged .` (legitimate "unstage everything") would
-# be hard-blocked incorrectly.
+#   git restore -SW <path>         (short form of --staged --worktree)
+#   git restore --staged -W <path> (mixed long/short combined restore)
+# But: pure `--staged` (or `-S`) without `--worktree` (or `-W`) is
+# unstaging only — index-bounded, recoverable, never touches worktree.
+# ALWAYS allowed regardless of path, so the unstaging exemption MUST
+# be checked first, otherwise commands like `git restore --staged .`
+# (legitimate "unstage everything") would be hard-blocked incorrectly.
+# Flag detection covers long and short forms via _classify_restore_flags.
 for _seg in "${SEGMENTS[@]}"; do
   echo "$_seg" | grep -qE '^git\b' || continue
   echo "$_seg" | grep -qE '\brestore\b' || continue
+  _classify_restore_flags "$_seg"
   # Pure unstaging — always allowed, must come first.
-  if echo "$_seg" | grep -qE -- '--staged\b' && ! echo "$_seg" | grep -qE -- '--worktree\b'; then
+  if [[ $_restore_staged -eq 1 && $_restore_worktree -eq 0 ]]; then
     continue
   fi
-  # Combined --staged --worktree — restores worktree too, so destructive.
-  if echo "$_seg" | grep -qE -- '--staged\b' && echo "$_seg" | grep -qE -- '--worktree\b'; then
-    echo "BLOCKED (Lean guardrail): git restore --staged --worktree resets both index and worktree. Commit or checkpoint first." >&2
+  # Combined staged+worktree (any flag combo) — restores worktree too.
+  if [[ $_restore_staged -eq 1 && $_restore_worktree -eq 1 ]]; then
+    echo "BLOCKED (Lean guardrail): git restore --staged --worktree (or -SW) resets both index and worktree. Commit or checkpoint first." >&2
     exit 2
   fi
   # Whole-worktree pathspec — `.`, `./`, `:/`, `:(top)`.
@@ -574,11 +598,12 @@ if seg_match git '\bcheckout\b\s+[^-\s]\S*\s+[^-\s]\S*'; then
   _check_destructive_op "git checkout <tree-ish> <path>" "restores the named path(s) from the tree-ish, discarding uncommitted edits"
 fi
 
-# git restore <path…>       (worktree-only; pure --staged unstaging is allowed)
+# git restore <path…>       (worktree-only; pure --staged/-S unstaging is allowed)
 for _seg in "${SEGMENTS[@]}"; do
   echo "$_seg" | grep -qE '^git\b' || continue
   echo "$_seg" | grep -qE '\brestore\b' || continue
-  if echo "$_seg" | grep -qE -- '--staged\b' && ! echo "$_seg" | grep -qE -- '--worktree\b'; then
+  _classify_restore_flags "$_seg"
+  if [[ $_restore_staged -eq 1 && $_restore_worktree -eq 0 ]]; then
     continue  # pure unstaging — always allowed
   fi
   _check_destructive_op "git restore" "discards uncommitted edits in the named path(s)"
