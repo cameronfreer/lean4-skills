@@ -166,11 +166,12 @@ Checks your environment (lean, lake, python, git), plugin structure, project hea
 
 Guardrails activate only in Lean project context (a directory tree containing `lakefile.lean`, `lean-toolchain`, or `lakefile.toml`). Outside Lean projects, they are silently skipped.
 
-Blocked during Lean project sessions:
-- `git push` → Use `/lean4:checkpoint`, then push manually
-- `git commit --amend` → Each change is a new commit for safe rollback
-- `gh pr create` → Review first with `/lean4:review`
-- Destructive git operations (`checkout --`, `restore`, `reset --hard`, `clean -f`) → Commit or checkpoint first
+Guarded during Lean project sessions (policy/tier details below):
+- `git push` → Use `/lean4:checkpoint`, then push manually (soft-gate, bypass-able)
+- `git commit --amend` → Each change is a new commit for safe rollback (soft-gate, bypass-able)
+- `gh pr create` → Review first with `/lean4:review` (soft-gate, bypass-able)
+- Path-scoped destructive git (`checkout -- <path>`, `restore <path>`, `checkout <tree-ish> <path>`) → soft-gate, bypass-able; default `ask` mode
+- Whole-worktree destructive git (`reset --hard`, `clean -f`, `checkout .` / `-- .` / `HEAD -- .`, `restore .`, `restore --staged --worktree`) → absolute hard-block; bypass does not apply
 - Deep sorry-filling has snapshot, rollback, scope budgets, and regression gates — see [Cycle Engine](skills/lean4/references/cycle-engine.md#deep-mode)
 
 **Override environment variables:**
