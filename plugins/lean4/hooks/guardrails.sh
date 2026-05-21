@@ -585,6 +585,34 @@ if seg_match git '\bclean\b.*(-[a-zA-Z]*f|--force)'; then
   exit 2
 fi
 
+# git switch with force/discard-changes — throws away local modifications
+# during branch switching. Reflog can't recover uncommitted edits.
+# Matches `-f`, `--force`, and `--discard-changes` as standalone tokens.
+# `--force-create` is intentionally NOT matched: it forces branch CREATION
+# over an existing branch name, which doesn't touch the worktree state.
+# The `(\s|$)` suffix on `--force` is what distinguishes it from
+# `--force-create` (the latter is followed by `-`, not whitespace/EOL).
+if seg_match git '\bswitch\b.*\s(-f|--force|--discard-changes)(\s|$)'; then
+  echo "BLOCKED (Lean guardrail): git switch with --force / --discard-changes / -f discards uncommitted edits during branch switching. Commit or checkpoint first." >&2
+  exit 2
+fi
+
+# git checkout -f|--force <branch-like-token>  — hard-block. Force
+# branch checkout discards uncommitted edits across the whole worktree
+# (same effective blast radius as `reset --hard`). Heuristic: branch-like
+# means the following token has no path indicators (no `/`, `.`, `:`),
+# i.e. matches `[A-Za-z0-9_][A-Za-z0-9_-]*`. Path-scoped force-restore
+# (`-f file.lean`, `-f docs/`) falls through to the soft-gate below.
+# Whole-worktree pathspecs (`-f .`, `-f :/`) were already caught by the
+# whole-worktree hard-block above. Branch names containing `/` or `.`
+# (e.g. `release/v1.0`) are deliberately treated as path-like and
+# soft-gated rather than hard-blocked — the heuristic prefers fewer
+# false-positive hard-blocks over branch-name exhaustiveness.
+if seg_match git '\bcheckout\b\s+(-f|--force)\s+[A-Za-z0-9_][A-Za-z0-9_-]*(\s|$)'; then
+  echo "BLOCKED (Lean guardrail): git checkout -f / --force <branch> discards uncommitted edits across the whole worktree during branch switching. Commit or checkpoint first." >&2
+  exit 2
+fi
+
 # ---------------------------------------------------------------------------
 # Destructive ops: path-scoped (SOFT-GATE via DESTRUCTIVE_POLICY)
 # ---------------------------------------------------------------------------
@@ -630,6 +658,19 @@ fi
 # stripped and are detected normally.
 if seg_match git '\bcheckout\b.*\s(--ours|--theirs|--conflict[=[:space:]])\b'; then
   _check_destructive_op "git checkout <restore-flag>" "restores the named path(s) from the merge-conflict side, discarding uncommitted edits"
+fi
+
+# git checkout -f|--force <path-like-token>
+# Path-scoped force-restore. Branch-like `-f <branch>` was hard-blocked
+# above; whole-worktree `-f .` was hard-blocked even earlier. What's
+# left is the case where `-f` is followed by a token containing a path
+# indicator (`/`, `.`, `:`) — e.g. `-f file.lean`, `-f docs/`,
+# `-f release/v1.0`. Soft-gated rather than hard-blocked because the
+# blast radius is the named path; reflog still can't recover the edits
+# but the operator can opt in via DESTRUCTIVE_POLICY=allow or the
+# bypass token.
+if seg_match git '\bcheckout\b\s+(-f|--force)\s+\S*[/.:]\S*'; then
+  _check_destructive_op "git checkout -f <path>" "force-restores the named path, discarding uncommitted edits"
 fi
 
 # git checkout ./file or git checkout :/file or git checkout ../path

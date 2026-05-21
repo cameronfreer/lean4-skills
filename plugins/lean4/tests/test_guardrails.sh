@@ -210,6 +210,32 @@ run_test_destructive_policy "unset: checkout ../.env (block=ask)"           "" "
 run_test_destructive_policy "allow: checkout ./.env"                        allow "git checkout ./.env"                                  0
 run_test_destructive_policy "allow: checkout ./.github path"                allow "git checkout ./.github/workflows/lint.yml"            0
 
+# Force-mode checkout / switch — branch-like vs path-like.
+# Branch-like (no path indicators) is hard-blocked because force branch
+# checkout discards uncommitted edits across the whole worktree.
+run_test_destructive_policy "git checkout -f main             (always block)" allow "git checkout -f main"                              2
+run_test_destructive_policy "git checkout --force main        (always block)" allow "git checkout --force main"                        2
+run_test_destructive_policy "git checkout -f feature_x        (always block)" allow "git checkout -f feature_x"                        2
+run_test_destructive_policy "bypass git checkout -f main      (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout -f main"   2
+# git switch in force/discard-changes mode — always hard-block.
+run_test_destructive_policy "git switch -f main               (always block)" allow "git switch -f main"                               2
+run_test_destructive_policy "git switch --force main          (always block)" allow "git switch --force main"                         2
+run_test_destructive_policy "git switch --discard-changes main (always block)" allow "git switch --discard-changes main"               2
+run_test_destructive_policy "bypass git switch -f main        (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git switch -f main"     2
+# Path-like -f forms — soft-gate (path-scoped).
+run_test_destructive_policy "unset: checkout -f file (block=ask)"           "" "git checkout -f file.lean"                              2
+run_test_destructive_policy "unset: checkout -f docs/ (block=ask)"          "" "git checkout -f docs/"                                  2
+run_test_destructive_policy "allow: checkout -f file"                       allow "git checkout -f file.lean"                          0
+run_test_destructive_policy "allow: checkout --force file"                  allow "git checkout --force file.lean"                     0
+run_test_destructive_policy "bypass: checkout -f file"                      "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout -f file.lean"   0
+run_test_destructive_policy "block: checkout -f file (still block)"         block "git checkout -f file.lean"                          2
+# Negative: git switch --force-create (creates branch over existing; doesn't touch worktree)
+# should NOT match the switch-force hard-block.
+run_test_destructive_policy "allow: git switch --force-create new" "" "git switch --force-create new-branch" 0
+# Negative: regular branch switching stays allowed.
+run_test_destructive_policy "allow: git switch main" "" "git switch main" 0
+run_test_destructive_policy "allow: git checkout main" "" "git checkout main" 0
+
 echo ""
 echo "-- Destructive policy: path-scoped git restore <path…> --"
 # Default: same shape
