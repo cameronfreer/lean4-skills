@@ -228,6 +228,25 @@ run_test_destructive_policy "git switch -f main               (always block)" al
 run_test_destructive_policy "git switch --force main          (always block)" allow "git switch --force main"                         2
 run_test_destructive_policy "git switch --discard-changes main (always block)" allow "git switch --discard-changes main"               2
 run_test_destructive_policy "bypass git switch -f main        (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git switch -f main"     2
+# Force checkout with options interleaved before/after -f: same hard-block.
+run_test_destructive_policy "git checkout -q -f main          (always block)" allow "git checkout -q -f main"                           2
+run_test_destructive_policy "git checkout --quiet --force main (always block)" allow "git checkout --quiet --force main"                 2
+run_test_destructive_policy "git checkout -f --detach HEAD    (always block)" allow "git checkout -f --detach HEAD"                     2
+run_test_destructive_policy "git checkout -f -B tmp main      (always block)" allow "git checkout -f -B tmp main"                       2
+# Force checkout with git ref shorthand forms — branch/ref-switch hard-block.
+run_test_destructive_policy 'git checkout -f @{-1}           (always block)' allow 'git checkout -f @{-1}'                              2
+run_test_destructive_policy "git checkout --force @{-1}      (always block)" allow 'git checkout --force @{-1}'                         2
+run_test_destructive_policy "git checkout -f -                (always block)" allow "git checkout -f -"                                 2
+run_test_destructive_policy "git checkout -f @                (always block)" allow "git checkout -f @"                                 2
+run_test_destructive_policy "git checkout -f HEAD~3           (always block)" allow "git checkout -f HEAD~3"                            2
+run_test_destructive_policy 'git checkout -f HEAD@{1}        (always block)' allow 'git checkout -f HEAD@{1}'                           2
+# Force checkout with path-like and option interleaving: soft-gate.
+run_test_destructive_policy "unset: checkout -q -f file (block=ask)"        "" "git checkout -q -f file.lean"                            2
+run_test_destructive_policy "allow: checkout -q -f file"                    allow "git checkout -q -f file.lean"                       0
+run_test_destructive_policy "allow: checkout --quiet --force file"          allow "git checkout --quiet --force file.lean"             0
+# Force checkout with explicit `--` separator: defers to general -- soft-gate.
+run_test_destructive_policy "allow: checkout -f -- file"                    allow "git checkout -f -- file.lean"                       0
+run_test_destructive_policy "unset: checkout -f -- file (block=ask)"        "" "git checkout -f -- file.lean"                           2
 # Path-like -f forms — soft-gate (path-scoped).
 run_test_destructive_policy "unset: checkout -f file (block=ask)"           "" "git checkout -f file.lean"                              2
 run_test_destructive_policy "unset: checkout -f docs/ (block=ask)"          "" "git checkout -f docs/"                                  2
