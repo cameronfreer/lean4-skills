@@ -551,6 +551,15 @@ for _seg in "${SEGMENTS[@]}"; do
   if [[ $_restore_staged -eq 1 && $_restore_worktree -eq 0 ]]; then
     continue
   fi
+  # --pathspec-from-file in worktree-touching restore: the paths file is
+  # opaque to the guardrail and could contain `.` or `:/`, which would be
+  # a whole-worktree wipe with no warning. Hard-block conservatively;
+  # pure-unstaging `--staged --pathspec-from-file=…` was already allowed
+  # by the exemption above.
+  if echo "$_seg" | grep -qE -- '--pathspec-from-file([=[:space:]])'; then
+    echo "BLOCKED (Lean guardrail): git restore --pathspec-from-file reads paths from a file the guardrail can't inspect; could contain whole-worktree pathspecs. Pass explicit paths on the command line." >&2
+    exit 2
+  fi
   # Combined staged+worktree (any flag combo) — restores worktree too.
   if [[ $_restore_staged -eq 1 && $_restore_worktree -eq 1 ]]; then
     echo "BLOCKED (Lean guardrail): git restore --staged --worktree (or -SW) resets both index and worktree. Commit or checkpoint first." >&2

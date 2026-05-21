@@ -266,6 +266,11 @@ run_test_destructive_policy "git restore .                    (always block)" al
 run_test_destructive_policy "git restore ./                   (always block)" allow "git restore ./"                                    2
 run_test_destructive_policy "git restore :/                   (always block)" allow "git restore :/"                                    2
 run_test_destructive_policy "git restore --staged --worktree  (always block)" allow "git restore --staged --worktree file.lean"        2
+run_test_destructive_policy "git restore --pathspec-from-file (always block)" allow "git restore --pathspec-from-file=paths.txt"        2
+run_test_destructive_policy "git restore --worktree --pathspec-from-file (always block)" allow "git restore --worktree --pathspec-from-file=paths.txt" 2
+# Pure-unstaging --staged --pathspec-from-file remains allowed (index-only).
+run_test_destructive_policy "restore --staged --pathspec-from-file (allow always)" block "git restore --staged --pathspec-from-file=paths.txt" 0
+run_test_destructive_policy "restore -S --pathspec-from-file (allow always)" block "git restore -S --pathspec-from-file=paths.txt" 0
 run_test_destructive_policy "git reset --hard                 (always block)" allow "git reset --hard"                                  2
 run_test_destructive_policy "git clean -fd                    (always block)" allow "git clean -fd"                                     2
 run_test_destructive_policy "git clean --force                (always block)" allow "git clean --force"                                 2
@@ -277,6 +282,7 @@ run_test_destructive_policy "bypass git checkout HEAD .       (still block)" all
 run_test_destructive_policy "bypass git checkout -f .         (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout -f ."       2
 run_test_destructive_policy "bypass git checkout --ours .     (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout --ours ."   2
 run_test_destructive_policy "bypass git checkout --pathspec-from-file (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout --pathspec-from-file=paths.txt" 2
+run_test_destructive_policy "bypass git restore --pathspec-from-file (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git restore --pathspec-from-file=paths.txt" 2
 run_test_destructive_policy "bypass git restore ./            (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git restore ./"           2
 run_test_destructive_policy "bypass git reset --hard          (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git reset --hard"        2
 run_test_destructive_policy "bypass git clean -fd             (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git clean -fd"           2
