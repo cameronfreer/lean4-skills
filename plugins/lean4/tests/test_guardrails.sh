@@ -187,6 +187,12 @@ run_test_destructive_policy "allow: checkout -b newbranch start-point"      ""  
 # destructive policy.
 run_test_destructive_policy "unset: checkout --ours file (block=ask)"       "" "git checkout --ours file.lean"                          2
 run_test_destructive_policy "unset: checkout --theirs file (block=ask)"     "" "git checkout --theirs file.lean"                        2
+# --merge is the long form of -m. Unlike short -m (which _strip_optvals
+# removes pre-emptively to support `git commit -m "msg"`), the long
+# form survives normalization and IS gated here.
+run_test_destructive_policy "unset: checkout --merge file (block=ask)"      "" "git checkout --merge file.lean"                         2
+run_test_destructive_policy "allow: checkout --merge file"                  allow "git checkout --merge file.lean"                     0
+run_test_destructive_policy "bypass: checkout --merge file"                 "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout --merge file.lean" 0
 # --conflict=<style> takes a value; the regex must accept `--conflict=merge`,
 # `--conflict=zdiff3`, etc., not just bare `--conflict`.
 run_test_destructive_policy "unset: checkout --conflict=merge file (block=ask)" "" "git checkout --conflict=merge file.lean"            2

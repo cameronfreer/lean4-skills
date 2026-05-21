@@ -679,15 +679,16 @@ fi
 # Note: bare `git checkout --ours` (no path) would soft-gate spuriously
 # but git would error on it anyway, so acceptable.
 #
-# Limitation: `-m` is NOT included here. The shared _strip_optvals
-# normalization (needed for `git commit -m "msg"` false-positive
-# avoidance in the collab checks) strips `-m <value>` from segments
-# before pattern matching, so `git checkout -m <path>` arrives at the
-# checkout checks with `-m <path>` already removed. Catching `-m` in
-# checkout context would require splitting the normalization pipeline
-# per-command; deferred. `--ours`/`--theirs`/`--conflict` are not
-# stripped and are detected normally.
-if seg_match git '\bcheckout\b.*\s(--ours|--theirs|-2|-3|--conflict(=\S+)?)(\s|$)'; then
+# Limitation: short-form `-m` is NOT included here. The shared
+# _strip_optvals normalization (needed for `git commit -m "msg"`
+# false-positive avoidance in the collab checks) strips `-m <value>`
+# from segments before pattern matching, so `git checkout -m <path>`
+# arrives at the checkout checks with `-m <path>` already removed.
+# Catching `-m` in checkout context would require splitting the
+# normalization pipeline per-command; deferred. The long form
+# `--merge` IS covered (below) — _strip_optvals only handles
+# `--(message|file|body|title)` long flags, not `--merge`.
+if seg_match git '\bcheckout\b.*\s(--ours|--theirs|-2|-3|--merge|--conflict(=\S+)?)(\s|$)'; then
   _check_destructive_op "git checkout <restore-flag>" "restores the named path(s) from the merge-conflict side, discarding uncommitted edits"
 fi
 
