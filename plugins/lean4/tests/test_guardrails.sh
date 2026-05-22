@@ -249,9 +249,14 @@ run_test_destructive_policy "git checkout -f -B tmp main      (always block)" al
 run_test_destructive_policy 'git checkout -f @{-1}           (always block)' allow 'git checkout -f @{-1}'                              2
 run_test_destructive_policy "git checkout --force @{-1}      (always block)" allow 'git checkout --force @{-1}'                         2
 run_test_destructive_policy "git checkout -f -                (always block)" allow "git checkout -f -"                                 2
+run_test_destructive_policy "git checkout --force -            (always block)" allow "git checkout --force -"                            2
 run_test_destructive_policy "git checkout -f @                (always block)" allow "git checkout -f @"                                 2
 run_test_destructive_policy "git checkout -f HEAD~3           (always block)" allow "git checkout -f HEAD~3"                            2
 run_test_destructive_policy 'git checkout -f HEAD@{1}        (always block)' allow 'git checkout -f HEAD@{1}'                           2
+# Bypass token does not override ref-shorthand force hard-blocks (Layer 1
+# confirmed these discard the dirty worktree; tier-1 stays absolute).
+run_test_destructive_policy 'bypass git checkout -f @{-1}    (still block)' allow 'LEAN4_GUARDRAILS_BYPASS=1 git checkout -f @{-1}'      2
+run_test_destructive_policy "bypass git checkout -f -         (still block)" allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout -f -"        2
 # Force checkout with path-like and option interleaving: soft-gate.
 run_test_destructive_policy "unset: checkout -q -f file (block=ask)"        "" "git checkout -q -f file.lean"                            2
 run_test_destructive_policy "allow: checkout -q -f file"                    allow "git checkout -q -f file.lean"                       0
@@ -259,6 +264,10 @@ run_test_destructive_policy "allow: checkout --quiet --force file"          allo
 # Force checkout with explicit `--` separator: defers to general -- soft-gate.
 run_test_destructive_policy "allow: checkout -f -- file"                    allow "git checkout -f -- file.lean"                       0
 run_test_destructive_policy "unset: checkout -f -- file (block=ask)"        "" "git checkout -f -- file.lean"                           2
+# Force restore with explicit ./ path prefix — soft-gate (path-scoped).
+run_test_destructive_policy "unset: checkout -f ./file (block=ask)"         "" "git checkout -f ./file.lean"                              2
+run_test_destructive_policy "allow: checkout -f ./file"                     allow "git checkout -f ./file.lean"                        0
+run_test_destructive_policy "bypass: checkout -f ./file"                    "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout -f ./file.lean" 0
 # Path-like -f forms — soft-gate (path-scoped).
 run_test_destructive_policy "unset: checkout -f file (block=ask)"           "" "git checkout -f file.lean"                              2
 run_test_destructive_policy "unset: checkout -f docs/ (block=ask)"          "" "git checkout -f docs/"                                  2
@@ -272,6 +281,10 @@ run_test_destructive_policy "allow: git switch --force-create new" "" "git switc
 # Negative: regular branch switching stays allowed.
 run_test_destructive_policy "allow: git switch main" "" "git switch main" 0
 run_test_destructive_policy "allow: git checkout main" "" "git checkout main" 0
+# `git checkout -` (bare dash, no force) is "switch to previous branch"; git
+# itself refuses the operation if the worktree is dirty, so it never destroys
+# data. Stays in the implicit-allow tier — Layer 1 confirmed PRESERVED.
+run_test_destructive_policy "allow: git checkout -" "" "git checkout -" 0
 
 echo ""
 echo "-- Destructive policy: path-scoped git restore <path…> --"
