@@ -726,6 +726,12 @@ fi
 #   git checkout --no-overlay f                  → DISCARDED
 #   git checkout --overlay f                     → DISCARDED
 #   git checkout --recurse-submodules f          → DISCARDED
+#   yes y | git checkout -p f                    → DISCARDED
+#   yes y | git checkout --patch f               → DISCARDED
+#
+# `-p` / `--patch` is interactive (per-hunk y/n), but interactivity
+# is not absolute protection — pipes like `yes y | …` bypass it.
+# Soft-gate consistently regardless of whether stdin is a TTY.
 #
 # `--recurse-submodules` is also valid with branch switching; for the
 # branch case (`git checkout --recurse-submodules main`), git itself
@@ -733,7 +739,7 @@ fi
 # soft-gate here is at worst an extra confirmation prompt before a
 # no-op — the conservative trade-off is preferred over a silent
 # destructive false-negative.
-if seg_match git '\bcheckout\b.*\s(--ignore-skip-worktree-bits|--no-overlay|--overlay|--recurse-submodules)(\s|$)'; then
+if seg_match git '\bcheckout\b.*\s(--ignore-skip-worktree-bits|--no-overlay|--overlay|--recurse-submodules|-p|--patch)(\s|$)'; then
   _check_destructive_op "git checkout <pathspec-flag> <path>" "restores the named path(s) from index, discarding uncommitted edits"
 fi
 

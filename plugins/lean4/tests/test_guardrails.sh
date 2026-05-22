@@ -189,6 +189,16 @@ run_test_destructive_policy "unset: checkout --recurse-submodules file"      "" 
 run_test_destructive_policy "allow: checkout --no-overlay file"              allow "git checkout --no-overlay file.lean"                 0
 run_test_destructive_policy "allow: checkout --ignore-skip-worktree-bits file" allow "git checkout --ignore-skip-worktree-bits file.lean" 0
 run_test_destructive_policy "bypass: checkout --no-overlay file"             "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout --no-overlay file.lean" 0
+# -p / --patch is interactive but pipeable (yes y | git checkout -p file
+# discards the file). Soft-gate regardless of TTY.
+run_test_destructive_policy "unset: checkout -p file (block=ask)"            "" "git checkout -p file.lean"                              2
+run_test_destructive_policy "unset: checkout --patch file (block=ask)"       "" "git checkout --patch file.lean"                         2
+run_test_destructive_policy "allow: checkout -p file"                        allow "git checkout -p file.lean"                          0
+run_test_destructive_policy "allow: checkout --patch file"                   allow "git checkout --patch file.lean"                     0
+run_test_destructive_policy "bypass: checkout -p file"                       "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout -p file.lean"   0
+# Patch with no positional — still soft-gate (whole-worktree interactive sweep).
+run_test_destructive_policy "unset: checkout -p (no path, block=ask)"        "" "git checkout -p"                                        2
+run_test_destructive_policy "unset: checkout --patch (no path, block=ask)"   "" "git checkout --patch"                                   2
 # Non-force flag prefix before explicit-prefix path — same soft-gate.
 run_test_destructive_policy "unset: checkout -q ./file (block=ask)"         "" "git checkout -q ./file.lean"                            2
 run_test_destructive_policy "allow: checkout --quiet :/foo.lean"            allow "git checkout --quiet :/foo.lean"                   0
