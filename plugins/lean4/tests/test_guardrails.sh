@@ -180,6 +180,15 @@ run_test_destructive_policy "allow: checkout --quiet HEAD file"             allo
 run_test_destructive_policy "bypass: checkout -q HEAD file"                 "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout -q HEAD file.lean" 0
 # Flag interleaving between tree-ish and path — pins the documented behavior.
 run_test_destructive_policy "unset: checkout HEAD -q file (block=ask)"      "" "git checkout HEAD -q file.lean"                         2
+# Pathspec-oriented flags: single positional with one of these is
+# unambiguously path-restore (empirically confirmed to discard).
+run_test_destructive_policy "unset: checkout --ignore-skip-worktree-bits file" "" "git checkout --ignore-skip-worktree-bits file.lean"  2
+run_test_destructive_policy "unset: checkout --no-overlay file (block=ask)"  "" "git checkout --no-overlay file.lean"                    2
+run_test_destructive_policy "unset: checkout --overlay file (block=ask)"     "" "git checkout --overlay file.lean"                       2
+run_test_destructive_policy "unset: checkout --recurse-submodules file"      "" "git checkout --recurse-submodules file.lean"            2
+run_test_destructive_policy "allow: checkout --no-overlay file"              allow "git checkout --no-overlay file.lean"                 0
+run_test_destructive_policy "allow: checkout --ignore-skip-worktree-bits file" allow "git checkout --ignore-skip-worktree-bits file.lean" 0
+run_test_destructive_policy "bypass: checkout --no-overlay file"             "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout --no-overlay file.lean" 0
 # Non-force flag prefix before explicit-prefix path — same soft-gate.
 run_test_destructive_policy "unset: checkout -q ./file (block=ask)"         "" "git checkout -q ./file.lean"                            2
 run_test_destructive_policy "allow: checkout --quiet :/foo.lean"            allow "git checkout --quiet :/foo.lean"                   0

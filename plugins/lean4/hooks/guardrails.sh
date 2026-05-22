@@ -715,6 +715,28 @@ if seg_match git '\bcheckout\b.*\s(--ours|--theirs|-2|-3|--merge|--conflict(=\S+
   _check_destructive_op "git checkout <restore-flag>" "restores the named path(s) from the merge-conflict side, discarding uncommitted edits"
 fi
 
+# Pathspec-oriented checkout flags. When any of these appears in a
+# checkout segment, the operation is meaningfully a path restore even
+# with a single positional — distinguishing it from the deliberately-
+# deferred bare `git checkout file.lean` ambiguity. Empirically verified
+# (separate temp-repo probe) that all of these discard a dirty worktree
+# file when used with a path positional:
+#
+#   git checkout --ignore-skip-worktree-bits f   → DISCARDED
+#   git checkout --no-overlay f                  → DISCARDED
+#   git checkout --overlay f                     → DISCARDED
+#   git checkout --recurse-submodules f          → DISCARDED
+#
+# `--recurse-submodules` is also valid with branch switching; for the
+# branch case (`git checkout --recurse-submodules main`), git itself
+# refuses a dirty switch without `-f` (PRESERVED in the probe), so a
+# soft-gate here is at worst an extra confirmation prompt before a
+# no-op — the conservative trade-off is preferred over a silent
+# destructive false-negative.
+if seg_match git '\bcheckout\b.*\s(--ignore-skip-worktree-bits|--no-overlay|--overlay|--recurse-submodules)(\s|$)'; then
+  _check_destructive_op "git checkout <pathspec-flag> <path>" "restores the named path(s) from index, discarding uncommitted edits"
+fi
+
 # Path-scoped `git checkout -f <path>` was handled by the force-mode
 # loop above (outcome (b)) so its policy gate fires before this point.
 # Falling through here means the `--` form took outcome (a) and will be
