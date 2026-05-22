@@ -196,9 +196,18 @@ run_test_destructive_policy "unset: checkout --patch file (block=ask)"       "" 
 run_test_destructive_policy "allow: checkout -p file"                        allow "git checkout -p file.lean"                          0
 run_test_destructive_policy "allow: checkout --patch file"                   allow "git checkout --patch file.lean"                     0
 run_test_destructive_policy "bypass: checkout -p file"                       "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout -p file.lean"   0
-# Patch with no positional — still soft-gate (whole-worktree interactive sweep).
-run_test_destructive_policy "unset: checkout -p (no path, block=ask)"        "" "git checkout -p"                                        2
-run_test_destructive_policy "unset: checkout --patch (no path, block=ask)"   "" "git checkout --patch"                                   2
+# Patch with no path positional — TIER-1 hard-block (whole-worktree
+# interactive sweep; pipes like `yes y | …` bypass interactivity).
+# Empirically verified: both forms wipe every dirty file in the worktree.
+run_test_destructive_policy "git checkout -p              (always block, no path)" allow "git checkout -p"                                2
+run_test_destructive_policy "git checkout --patch         (always block, no path)" allow "git checkout --patch"                           2
+run_test_destructive_policy "git checkout -p HEAD         (always block, no pathspec)" allow "git checkout -p HEAD"                       2
+run_test_destructive_policy "git checkout --patch HEAD    (always block, no pathspec)" allow "git checkout --patch HEAD"                  2
+run_test_destructive_policy "bypass git checkout -p       (still block, no path)" allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout -p"      2
+run_test_destructive_policy "bypass git checkout --patch  (still block, no path)" allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout --patch" 2
+run_test_destructive_policy "bypass git checkout -p HEAD  (still block)"         allow "LEAN4_GUARDRAILS_BYPASS=1 git checkout -p HEAD"  2
+# Negative control: -p WITH a path positional still soft-gates (path-scoped).
+run_test_destructive_policy "allow: checkout -p HEAD file"                       allow "git checkout -p HEAD file.lean"                  0
 # Non-force flag prefix before explicit-prefix path — same soft-gate.
 run_test_destructive_policy "unset: checkout -q ./file (block=ask)"         "" "git checkout -q ./file.lean"                            2
 run_test_destructive_policy "allow: checkout --quiet :/foo.lean"            allow "git checkout --quiet :/foo.lean"                   0

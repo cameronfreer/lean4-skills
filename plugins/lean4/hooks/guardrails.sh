@@ -597,6 +597,30 @@ if seg_match git '\bswitch\b.*\s(-f|--force|--discard-changes)(\s|$)'; then
   exit 2
 fi
 
+# git checkout -p|--patch without a path positional — interactive
+# whole-worktree sweep. Same blast radius as `git checkout .` /
+# `git checkout HEAD --` (rewrites every modified file the user says
+# `y` to). Empirically verified (separate temp-repo probe) that both
+# `yes y | git checkout -p` AND `yes y | git checkout -p HEAD` wipe
+# every dirty file in the worktree — the interactive prompt isn't
+# protection against piped stdin. Tier-1 hard-block, no bypass.
+#
+# Heuristic for "no path positional": no token in the segment contains
+# `/`, `.`, or `:` after the leading non-flag char. With a path-like
+# positional (`-p file.lean`, `-p HEAD docs/foo.lean`), defers to the
+# pathspec-oriented flag soft-gate below.
+for _seg in "${SEGMENTS[@]}"; do
+  echo "$_seg" | grep -qE '^git\b' || continue
+  echo "$_seg" | grep -qE '\bcheckout\b' || continue
+  echo "$_seg" | grep -qE '\s(-p|--patch)(\s|$)' || continue
+  # Path-like positional present → defer to soft-gate.
+  if echo "$_seg" | grep -qE '(^|\s)[^-\s]\S*[/.:]\S*(\s|$)'; then
+    continue
+  fi
+  echo "BLOCKED (Lean guardrail): git checkout -p / --patch without a path is an interactive whole-worktree sweep that pipes (yes y | …) can bypass. Commit or checkpoint first, then narrow to specific paths." >&2
+  exit 2
+done
+
 # git checkout -f|--force — force-mode checkout. Order-insensitive
 # loop so `-f` may appear anywhere in the option run (e.g.
 # `git checkout -q -f main`, `--quiet --force main`, `-f --detach HEAD`,
