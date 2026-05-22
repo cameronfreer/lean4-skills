@@ -660,14 +660,37 @@ if seg_match git '\bcheckout\b.*\s--\s'; then
 fi
 
 # git checkout <tree-ish> <path…>   (no `--` separator; restore from tree-ish)
-# Matches forms like `git checkout HEAD file.lean` or
-# `git checkout main src/foo.lean`. First positional must not start
-# with `-` (so `-b newbranch` doesn't match) and the second positional
-# must also be a non-flag token. Whole-worktree pathspec variants
-# above already short-circuited, so this only catches bounded paths.
-if seg_match git '\bcheckout\b\s+[^-\s]\S*\s+[^-\s]\S*'; then
-  _check_destructive_op "git checkout <tree-ish> <path>" "restores the named path(s) from the tree-ish, discarding uncommitted edits"
-fi
+# Matches forms like `git checkout HEAD file.lean`,
+# `git checkout main src/foo.lean`, `git checkout -q HEAD file.lean`,
+# `git checkout --quiet HEAD a.lean b.lean`. Per-segment loop so
+# non-destructive flag prefixes (`-q`, `--quiet`, etc.) can interleave
+# with the positionals without forcing the regex to anchor `\S` to
+# `\s+` immediately after `checkout`.
+#
+# Explicit skip list for branch-creation / detach flags (`-b`, `-B`,
+# `--orphan`, `--detach`): those forms take a branch name as their
+# next argument, not a tree-ish + path, and they aren't path-restore.
+# `-f` / `--force` is also skipped — the force-mode loop above already
+# applies the (stricter) classification for that case.
+#
+# Whole-worktree pathspec variants were hard-blocked earlier, so this
+# only catches bounded paths.
+for _seg in "${SEGMENTS[@]}"; do
+  echo "$_seg" | grep -qE '^git\b' || continue
+  echo "$_seg" | grep -qE '\bcheckout\b' || continue
+  # Branch-creation / detach forms — not path-restore.
+  if echo "$_seg" | grep -qE '\s(-b|-B|--orphan|--detach)(\s|$)'; then
+    continue
+  fi
+  # Force mode handled by the dedicated loop above (stricter classification).
+  if echo "$_seg" | grep -qE '\s(-f|--force)(\s|$)'; then
+    continue
+  fi
+  # Two non-flag positionals with optional flag interleaving.
+  if echo "$_seg" | grep -qE '\bcheckout\b\s+(-\S+\s+)*[^-\s]\S*\s+(-\S+\s+)*[^-\s]\S*'; then
+    _check_destructive_op "git checkout <tree-ish> <path>" "restores the named path(s) from the tree-ish, discarding uncommitted edits"
+  fi
+done
 
 # git checkout {--ours|--theirs|--conflict=…} <path…>
 # Merge-conflict resolution flags that take pathspecs. With a path
@@ -705,7 +728,9 @@ fi
 # `:/` standalone) already short-circuited via the hard-block, so the
 # `[^\s]+` suffix only excludes the bare prefix without forbidding
 # dotfile-style paths.
-if seg_match git '\bcheckout\b\s+(\.{1,2}/|:/?)[^\s]+'; then
+# Optional flag prefix (`\s+(-\S+\s+)*`) so `git checkout -q ./file.lean`,
+# `git checkout --quiet :/foo.lean`, etc. soft-gate too.
+if seg_match git '\bcheckout\b\s+(-\S+\s+)*(\.{1,2}/|:/?)[^\s]+'; then
   _check_destructive_op "git checkout <path>" "restores the named path from index, discarding uncommitted edits"
 fi
 

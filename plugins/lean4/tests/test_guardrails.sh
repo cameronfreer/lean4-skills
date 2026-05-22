@@ -172,6 +172,22 @@ run_test_destructive_policy "unset: bypass checkout HEAD file (allow=ask)"  "" "
 # allow: any tree-ish + bounded path passes
 run_test_destructive_policy "allow: checkout HEAD file"                     allow "git checkout HEAD file.lean"                      0
 run_test_destructive_policy "allow: checkout main file"                     allow "git checkout main src/foo.lean"                   0
+# Non-force flag prefix before tree-ish + path — same soft-gate.
+run_test_destructive_policy "unset: checkout -q HEAD file (block=ask)"      "" "git checkout -q HEAD file.lean"                         2
+run_test_destructive_policy "unset: checkout --quiet HEAD file (block=ask)" "" "git checkout --quiet HEAD file.lean"                    2
+run_test_destructive_policy "allow: checkout -q HEAD file"                  allow "git checkout -q HEAD file.lean"                    0
+run_test_destructive_policy "allow: checkout --quiet HEAD file"             allow "git checkout --quiet HEAD file.lean"               0
+run_test_destructive_policy "bypass: checkout -q HEAD file"                 "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout -q HEAD file.lean" 0
+# Non-force flag prefix before explicit-prefix path — same soft-gate.
+run_test_destructive_policy "unset: checkout -q ./file (block=ask)"         "" "git checkout -q ./file.lean"                            2
+run_test_destructive_policy "allow: checkout --quiet :/foo.lean"            allow "git checkout --quiet :/foo.lean"                   0
+# Negative controls: branch creation/detach flags must not soft-gate
+# (those forms aren't path-restore).
+run_test_destructive_policy "allow: git checkout -b newbranch"              "" "git checkout -b newbranch"                              0
+run_test_destructive_policy "allow: git checkout -b newbranch main"         "" "git checkout -b newbranch main"                         0
+run_test_destructive_policy "allow: git checkout -B existing main"          "" "git checkout -B existing main"                          0
+run_test_destructive_policy "allow: git checkout --orphan newroot"          "" "git checkout --orphan newroot"                          0
+run_test_destructive_policy "allow: git checkout --detach main"             "" "git checkout --detach main"                             0
 run_test_destructive_policy "allow: checkout HEAD~1 file"                   allow "git checkout HEAD~1 file.lean"                    0
 # block: even bypass token doesn't help
 run_test_destructive_policy "block: checkout HEAD file (still block)"       block "git checkout HEAD file.lean"                      2
