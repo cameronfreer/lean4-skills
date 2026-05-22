@@ -170,8 +170,8 @@ Guarded during Lean project sessions (policy/tier details below):
 - `git push` → Use `/lean4:checkpoint`, then push manually (soft-gate, bypass-able)
 - `git commit --amend` → Each change is a new commit for safe rollback (soft-gate, bypass-able)
 - `gh pr create` → Review first with `/lean4:review` (soft-gate, bypass-able)
-- Path-scoped destructive git (`checkout -- <path>`, `checkout <tree-ish> <path>`, `checkout {--ours,--theirs,-2,-3,--conflict=…} <path>`, `checkout -f <path>`, `checkout ./<path>`, `restore <path>` and short-flag variants) → soft-gate, bypass-able; default `ask` mode
-- Whole-worktree / force-branch destructive git (`reset --hard`, `clean -f`, `checkout .` / `-- .` / `HEAD -- .` / `-f .` / `--ours .`, `restore .` / `-SW`, `checkout --pathspec-from-file`, `restore --pathspec-from-file` (non-staged), `checkout -f|--force <branch>`, `switch -f|--force|--discard-changes`) → absolute hard-block; bypass does not apply
+- Path-scoped destructive git (`checkout -- <path>`, `checkout [-q|--quiet] <tree-ish> <path>`, `checkout {--ours,--theirs,-2,-3,--merge,--conflict=…} <path>`, `checkout {--ignore-skip-worktree-bits,--no-overlay,--overlay,--recurse-submodules,-p,--patch} <path>`, `checkout -f <path-like>`, `checkout ./<path>` (incl. dotfiles), `restore <path>` and short-flag variants) → soft-gate, bypass-able; default `ask` mode
+- Whole-worktree / force-branch / interactive-sweep destructive git (`reset --hard`, `clean -f`, `checkout .` / `-- .` / `HEAD -- .` / `-f .` / `--ours .`, `restore .` / `-SW`, `checkout --pathspec-from-file`, `restore --pathspec-from-file` (non-staged), `checkout -f|--force <branch-or-ref>`, `checkout -p`/`--patch` with no path, `switch -f|--force|--discard-changes`) → absolute hard-block; bypass does not apply
 - Deep sorry-filling has snapshot, rollback, scope budgets, and regression gates — see [Cycle Engine](skills/lean4/references/cycle-engine.md#deep-mode)
 
 **Override environment variables:**
@@ -189,7 +189,7 @@ Git operations fall into **three tiers**:
 
 1. **Allow** (implicit, no gate): `git status`, `diff`, `log`, `show`, `branch`, `add`, `commit`, `stash push`, `switch <branch>`, `checkout <branch>`, `restore --staged <path>` (pure unstaging, any pathspec including `.`).
 2. **Soft-gate** (policy-controlled, bypass-able): collaboration ops + path-scoped destructive ops. See subsections below.
-3. **Hard-block** (absolute, never bypassable): `git reset --hard`, `git clean -f`/`-fd`/`-fdx`, plus the whole-worktree, opaque-pathspec, and force-branch variants — `git checkout .`/`./`/`-- .`/`-- ./`/`-- :/`/`HEAD -- .`/`-f .`/`--ours .`/`--theirs :/`, `git checkout --pathspec-from-file=…`, `git checkout -f|--force <branch>`, `git restore .`/`./`/`:/`, `git restore --staged --worktree` (incl. `-SW` short-flag bundle), `git restore --pathspec-from-file=…` (non-staged), `git switch -f|--force|--discard-changes <anything>`. These wipe state across the whole worktree (or untracked files), discard uncommitted edits during branch switching, or accept opaque path lists the guardrail can't inspect; reflog can't recover uncommitted edits and `clean -f` can't recover untracked files at all.
+3. **Hard-block** (absolute, never bypassable): `git reset --hard`, `git clean -f`/`-fd`/`-fdx`, plus the whole-worktree, opaque-pathspec, force-branch, and interactive-sweep variants — `git checkout .`/`./`/`-- .`/`-- ./`/`-- :/`/`HEAD -- .`/`-f .`/`--ours .`/`--theirs :/`, `git checkout --pathspec-from-file=…`, `git checkout -f|--force <branch-or-ref>` (incl. ref shorthand `@{-1}`, `-`, `@`, `HEAD~3`, `HEAD@{1}`), `git checkout -p`/`--patch` with no path positional (interactive whole-worktree sweep, bypassable by piped stdin), `git restore .`/`./`/`:/`, `git restore --staged --worktree` (incl. `-SW` short-flag bundle), `git restore --pathspec-from-file=…` (non-staged), `git switch -f|--force|--discard-changes <anything>`. These wipe state across the whole worktree (or untracked files), discard uncommitted edits during branch switching, sweep modified files interactively from an opaque stdin source, or accept opaque path lists the guardrail can't inspect; reflog can't recover uncommitted edits and `clean -f` can't recover untracked files at all.
 
 **Collaboration policy (`LEAN4_GUARDRAILS_COLLAB_POLICY`):**
 
@@ -206,9 +206,10 @@ Invalid values fall back to `ask`.
 Controls how **path-scoped** destructive ops are handled. The covered forms (each with bounded blast radius — the named pathset only — but still discarding uncommitted edits the reflog can't recover):
 
 - `git checkout -- <path…>`
-- `git checkout <tree-ish> <path…>` (without `--`, e.g. `git checkout HEAD file.lean`)
-- `git checkout {--ours,--theirs,-2,-3,--conflict=…} <path…>` (merge-conflict resolution flags)
-- `git checkout -f|--force <path-like>` (path-scoped force-restore; `-f <branch>` is hard-blocked)
+- `git checkout [-q|--quiet] <tree-ish> <path…>` (without `--`, e.g. `git checkout HEAD file.lean`; non-destructive flag prefix or interleaving OK)
+- `git checkout {--ours,--theirs,-2,-3,--merge,--conflict=<style>} <path…>` (merge-conflict resolution flags; long-form `--merge` covered, short-form `-m` deferred per `_strip_optvals` limitation)
+- `git checkout {--ignore-skip-worktree-bits,--no-overlay,--overlay,--recurse-submodules,-p,--patch} <path…>` (pathspec-oriented flags; `-p`/`--patch` is interactive but pipes like `yes y | …` bypass interactivity, so soft-gated regardless of TTY)
+- `git checkout -f|--force <path-like>` (path-scoped force-restore; `-f <branch-or-ref>` is hard-blocked instead)
 - `git checkout ./<path>` / `:/<path>` / `../<path>` (explicit path-prefix positionals, including dotfiles)
 - `git restore <path…>` (any worktree-touching flag combination, including `-W`, `-SW`, etc.)
 
