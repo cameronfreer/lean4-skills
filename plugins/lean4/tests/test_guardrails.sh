@@ -178,6 +178,8 @@ run_test_destructive_policy "unset: checkout --quiet HEAD file (block=ask)" "" "
 run_test_destructive_policy "allow: checkout -q HEAD file"                  allow "git checkout -q HEAD file.lean"                    0
 run_test_destructive_policy "allow: checkout --quiet HEAD file"             allow "git checkout --quiet HEAD file.lean"               0
 run_test_destructive_policy "bypass: checkout -q HEAD file"                 "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout -q HEAD file.lean" 0
+# Flag interleaving between tree-ish and path — pins the documented behavior.
+run_test_destructive_policy "unset: checkout HEAD -q file (block=ask)"      "" "git checkout HEAD -q file.lean"                         2
 # Non-force flag prefix before explicit-prefix path — same soft-gate.
 run_test_destructive_policy "unset: checkout -q ./file (block=ask)"         "" "git checkout -q ./file.lean"                            2
 run_test_destructive_policy "allow: checkout --quiet :/foo.lean"            allow "git checkout --quiet :/foo.lean"                   0
