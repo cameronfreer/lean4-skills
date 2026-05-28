@@ -29,3 +29,9 @@ __pycache__/
 
 # Planning artifacts
 plans/
+
+# Local-only working folders, not tracked by the code repo
+# /disprove-papers/ is the paper repo (own git repo, pushed to GitHub);
+# /local/ holds scratch notes/code that should never be committed here.
+/disprove-papers/
+/local/
