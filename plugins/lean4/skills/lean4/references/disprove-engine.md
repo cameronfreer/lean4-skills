@@ -621,10 +621,11 @@ the qualified-name target resolved to in Phase 1):
      typechecked (no `sorry`/`admit`) **and** its axiom set ⊆ the allowed whitelist.
      Commit only `T_counterexample` (drop the gate-only `*_negates_target` wrapper);
      proceed to Review.
-   - **Typecheck fails** → revert the appended hunk; downgrade to `near-miss`,
-     capture the error signature.
+   - **Typecheck fails** → revert all declarations appended this cycle (the
+     artifact and, for witness shapes, the gate-only `*_negates_target` wrapper);
+     downgrade to `near-miss`, capture the error signature.
    - **A non-whitelisted axiom appears, or axiom inspection is unavailable /
-     inconclusive** → revert the appended hunk if this cycle appended one (do not
+     inconclusive** → revert all declarations appended this cycle, if any (do not
      delete a pre-existing identical declaration the emitter left untouched), do
      **not** commit, and downgrade to `WITNESS_UNCERTIFIED` — never `FALSE`.
 
