@@ -26,6 +26,11 @@
 #                          param's `default` is a SEED the LLM specializes
 #                          from (per Target Profile + Step 0 evidence) —
 #                          not a static UI value shown verbatim.
+#
+# Menu generation: the Step 1 menu lists as numbered/selectable ONLY methods that
+# are both applicable (`applies_to_shapes` ∋ current shape) and available
+# (prerequisites met); the rest go under "Unavailable this cycle" with a reason.
+# See disprove-engine.md § Step 1 — Method Menu.
 
 [[methods]]
 id = "decide-cascade"

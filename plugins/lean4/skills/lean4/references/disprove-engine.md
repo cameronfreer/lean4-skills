@@ -359,6 +359,30 @@ candidate count` (or `× 1` for single-shot families like
 block carries `(estimated, actual)` time pairs the LLM uses to adjust
 future estimates.
 
+**Applicability & availability filtering.** Only registry-backed methods that are
+**both applicable and available** are listed as numbered, selectable entries:
+
+- *applicable* — the registry `applies_to_shapes` includes the current Target
+  Profile shape;
+- *available* — prerequisites are met (cheap probes): e.g. `decide-cascade` needs a
+  `Decidable` instance, `plausible` a `SampleableExt` instance, `external` the
+  chosen solver on `$PATH`.
+
+A method that is inapplicable or unavailable is **not numbered**; render it under a
+separate **"Unavailable this cycle"** block with a one-line reason drawn from the
+registry `false_negative_notes` or the failed probe:
+
+```
+Unavailable this cycle:
+- decide-cascade — target not Decidable in current imports
+- plausible      — no SampleableExt instance for the binder type
+- external       — z3/cvc5 not installed
+```
+
+This filtering applies **only to registry-backed method entries**. The
+always-present special entries below are governed by their own rules, not by this
+filter (e.g. `knowledge search` stays shown but disabled after the Step 0 visit cap).
+
 **Always-present extras:**
 
 - `knowledge search` — disabled (and visibly so) after the cycle's Nth
