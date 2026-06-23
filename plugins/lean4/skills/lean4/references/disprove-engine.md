@@ -67,7 +67,7 @@ session evidence so the next cycle's menus can re-rank.
 |-------|----------------------------|
 | 1. Plan | Cycle 1 resolves TARGET, normalizes shape, builds the Target Profile, runs Step 0 (Knowledge Search) once. Every cycle: Step 1 menu + Step 2 menu. Later cycles re-enter Step 0 only if Step 1 picks `knowledge search`. |
 | 2. Work | Run the chosen method with the chosen config. Pre-screen candidates via `lean_multi_attempt`. |
-| 3. Checkpoint | If a candidate certified: append `T_counterexample`, run `lake env lean`, stage + commit per `--commit`. If not: no artifact. |
+| 3. Checkpoint | If a candidate certified: append `T_counterexample`, run `lake env lean`, then check axioms ⊆ whitelist (`FALSE` only if both pass; else revert hunk → `WITNESS_UNCERTIFIED`); stage + commit per `--commit`. If not: no artifact. |
 | 4. Review | Classify the cycle's outcome (certified / near-miss / exhausted / no-candidate). Capture error signatures. |
 | 5. Accumulate | Append `(family, config, outcome, near-miss_signature)` to session evidence. No hardcoded recommendation table — the next cycle's menus absorb the logic. |
 | 6. Continue/Stop | Always prompt the user: `continue / stop`. |
