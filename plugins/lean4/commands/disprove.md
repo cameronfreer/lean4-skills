@@ -100,7 +100,9 @@ Target Profile, and the prior cycle's Review:
 Keep only the selected entries and their rationale in the cycle record. Cycle 1
 also resolves the TARGET, normalizes shape, builds the Target Profile, and runs
 Step 0 once; cycle ≥2 re-enters Step 0 only if Step 1 surfaces `knowledge search`
-and the user picks it.
+and the user picks it. A qualified-name target must resolve to a **writable source
+file** (the declaration's file); if it resolves only to a read-only dependency, the
+session refuses before Phase 2 (use a `File.lean:LINE` target instead).
 
 Full menu mechanics, invariants, and the findings schema live in
 [disprove-engine.md § Phase 1 — Plan](../skills/lean4/references/disprove-engine.md#phase-1--plan).
@@ -111,7 +113,7 @@ See [disprove-engine.md § Phase 2 — Work](../skills/lean4/references/disprove
 
 ### Phase 3: Checkpoint
 
-See [disprove-engine.md § Phase 3 — Checkpoint](../skills/lean4/references/disprove-engine.md#phase-3--checkpoint). On certification, append `T_counterexample` via `disprove_emit_artifact.py`, then run `lake env lean <target-file>` from the project root.
+See [disprove-engine.md § Phase 3 — Checkpoint](../skills/lean4/references/disprove-engine.md#phase-3--checkpoint). On certification, append `T_counterexample` via `disprove_emit_artifact.py`, then run `lake env lean <target-file>` from the project root. `<target-file>` is the resolved source file — for a qualified-name target, the declaration's **writable** source file from Phase 1 (disprove refuses if it resolves only to a read-only dependency).
 
 **Commit prompt** (when `--commit=ask`):
 

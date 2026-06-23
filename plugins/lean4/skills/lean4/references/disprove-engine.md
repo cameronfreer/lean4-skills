@@ -98,6 +98,7 @@ disprove_target_resolve.py → {kind, file?, line?, name?}
               → lean_hover_info(file, line, col)  ← if goal is empty
         ↓
    qualified-name ──→ lean_local_search(name) → lean_hover_info on hit
+                   → lean_declaration_file(name)  ← source file + line of the decl
                    → fallback: one lean_leansearch query
         ↓
    if still no type:
@@ -113,6 +114,18 @@ wall-clock. If the type is still unknown after that, treat as a startup
 validation failure and refuse the session rather than entering Phase 2
 with a partially-resolved target. (Mirrors prove's "up to 3 LSP search
 tools (~30s)" planning-phase budget; see `commands/prove.md:93`.)
+
+**Qualified-name targets must resolve to a writable project source file.**
+For a `Namespace.name` target, resolution must yield not just the inferred
+type but the declaration's **source file + line** (via `lean_declaration_file`,
+or the `lean_local_search` hit's location). That resolved file is the
+`<target-file>` Phase 3 appends `T_counterexample` to and runs `lake env lean`
+against — the artifact is checked in the target's real source context. If the
+declaration resolves only to a **read-only dependency** (e.g. under `.lake/` or
+mathlib) or no source file can be located, **refuse before Phase 2** with:
+*"qualified-name target resolved, but no writable source file is available; use
+a `File.lean:LINE` target in a writable file."* There is no silent scratch-file
+fallback in v1.
 
 ### Shape Normalization
 
@@ -538,7 +551,9 @@ keep the anchor resolvable against this file's
 
 ## Phase 3 — Checkpoint
 
-If Work produced a `certified` outcome this cycle:
+If Work produced a `certified` outcome this cycle (`<target-file>` is the target's
+source file: the `File.lean` for a file-line target, or the writable source file
+the qualified-name target resolved to in Phase 1):
 
 1. Construct the per-shape `T_counterexample` Lean snippet
    ([Per-Shape Recipes](#per-shape-recipes) below). Apply atom-slot
