@@ -16,6 +16,30 @@
 > choose a search method from a dynamic Step 1 menu and configure it via
 > a dynamic Step 2 menu.
 
+## Contents
+
+- [Prime Directive — Epistemological Strictness](#prime-directive--epistemological-strictness)
+- [Six-Phase Cycle](#six-phase-cycle)
+- [Phase 1 — Plan](#phase-1--plan)
+  - [Target Resolution Flow](#target-resolution-flow)
+  - [Shape Normalization](#shape-normalization)
+  - [Target Profile](#target-profile)
+  - [Cycle-Tracker init](#cycle-tracker-init)
+  - [Step 0 — Knowledge Search Menu](#step-0--knowledge-search-menu)
+  - [Step 1 — Method Menu](#step-1--method-menu)
+  - [Step 2 — Config Menu](#step-2--config-menu)
+- [Phase 2 — Work](#phase-2--work)
+  - [External family — Work-phase execution](#external-family--work-phase-execution)
+  - [Method Registry](#method-registry)
+- [Phase 3 — Checkpoint](#phase-3--checkpoint)
+  - [Per-Shape Recipes](#per-shape-recipes)
+- [Phase 4 — Review](#phase-4--review)
+- [Phase 5 — Accumulate](#phase-5--accumulate)
+  - [Stuck Definition for Disprove](#stuck-definition-for-disprove)
+- [Phase 6 — Continue / Stop](#phase-6--continue--stop)
+- [Disprove Summary](#disprove-summary)
+- [Safety](#safety)
+
 ## Prime Directive — Epistemological Strictness
 
 `/lean4:disprove` reports `FALSE` **only** when it produces a Lean term of
