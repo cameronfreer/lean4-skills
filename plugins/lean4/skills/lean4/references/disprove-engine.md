@@ -131,6 +131,11 @@ mathlib) or no source file can be located, **refuse before Phase 2** with:
 a `File.lean:LINE` target in a writable file."* There is no silent scratch-file
 fallback in v1.
 
+**v1 grammar limitation.** Qualified-name targets containing a prime (`'`, e.g.
+`Nat.foo'`) or an escaped `«…»` identifier are **not accepted in v1** (the shared
+tokenizer/parser rejects them before resolution). Target such declarations by
+`File.lean:LINE` instead. Broader name grammar is deferred.
+
 ### Shape Normalization
 
 Strip a leading prefix of binders from the inferred type and reclassify

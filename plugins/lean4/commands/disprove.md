@@ -74,7 +74,7 @@ Startup requirements:
 
 | Arg | Required | Default | Description |
 |-----|----------|---------|-------------|
-| target | Yes | — | `File.lean:LINE` or `Namespace.theoremName`. Inline Props not supported in v1. |
+| target | Yes | — | `File.lean:LINE` or `Namespace.theoremName`. Inline Props not supported in v1. A qualified name containing a prime (`'`) or an escaped `«…»` identifier is not accepted in v1 — use a `File.lean:LINE` target for that declaration. |
 | --max-cycles | No | 3 | Max widening passes. Each cycle picks one method via the Step 1 menu and configures its parameters via the Step 2 menu. |
 | --max-stuck-cycles | No | 2 | Bail after this many consecutive cycles where the next cycle's Step 1 menu has no non-failed `(family, config)` pair to place in its top 3 (no remaining widening lever). |
 | --max-runtime | No | 5m | Best-effort wall-clock session budget across all cycles. |
