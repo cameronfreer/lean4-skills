@@ -32,7 +32,7 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 /lean4:autoformalize       # Autonomous synthesis (source → proof)
 /lean4:prove               # Guided sorry filling (interactive)
 /lean4:autoprove           # Autonomous sorry filling (unattended)
-/lean4:disprove            # Guided counterexample search with certified refutation
+/lean4:disprove Foo.lean:42  # Guided counterexample search with certified refutation (target required)
 /lean4:checkpoint          # Build-checked save point
 /lean4:review              # Check quality (read-only)
 /lean4:refactor            # Simplify proof strategies
