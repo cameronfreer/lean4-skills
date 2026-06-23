@@ -773,6 +773,23 @@ append the cycle's evidence record to the session digest. No hardcoded
 recommendation table — the next cycle's Step 0 / Step 1 / Step 2 menus
 absorb the recommendation logic from the accumulated evidence.
 
+**Re-ranking signals (advisory, not a fixed escalation table).** When the next
+cycle's menus re-rank from this evidence, the cycling LLM weighs — but is not bound
+by — signals such as:
+
+- **Deprioritize the failed-evidence set** — `(family, config)` pairs recorded with
+  `outcome ≠ certified` drop in rank (and are excluded from the top-3 per the Step 1
+  menu invariants).
+- **Boost a verified `[verify-known-cex]`** — a WebFetch/strong-match-verified cited
+  counterexample takes rank 1.
+- **Prefer non-overlapping widening** — extend coverage into untried territory
+  (e.g. `range=[prev_end, new_end)`), never re-search a covered window.
+- **Surface a neighboring family** when the current family's widening lever is
+  exhausted (e.g. `enumerate` → `plausible`/`external`).
+
+These are heuristics for the LLM's judgment; they deliberately do **not** encode a
+rigid ordering.
+
 Session evidence record (appended once per cycle):
 
 ```json
