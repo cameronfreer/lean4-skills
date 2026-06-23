@@ -117,7 +117,7 @@ Full menu mechanics, invariants, and the findings schema live in
 
 ### Phase 2: Work
 
-See [disprove-engine.md § Phase 2 — Work](../skills/lean4/references/disprove-engine.md#phase-2--work). Run the chosen method, pre-screen candidates via `lean_multi_attempt`, record outcomes (`certified` / `near-miss` / `exhausted-no-witness` / `no-candidate`).
+See [disprove-engine.md § Phase 2 — Work](../skills/lean4/references/disprove-engine.md#phase-2--work). Run the chosen method and pre-screen candidates via `lean_multi_attempt`; Work yields a pre-screen-passing candidate (or none). The cycle outcome (`certified` / `near-miss` / `exhausted-no-witness` / `no-candidate`) is finalized by the Phase 3 gate, not in Work.
 
 ### Phase 3: Checkpoint
 

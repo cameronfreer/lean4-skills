@@ -430,8 +430,8 @@ for user review and approval.
 A simple bounded universal: Step 0 runs quickly with the default Lean +
 local items (no cited findings), the dynamic Step 1 menu ranks
 `decide-cascade` at rank 1 (because `Target Profile.decidable=yes` and
-no decide-family success has been recorded yet), and the cycle
-certifies in Phase 2.
+no decide-family success has been recorded yet); the cycle's candidate
+pre-screens clean in Phase 2 and is certified by the Phase 3 gate.
 
 ```
 User: /lean4:disprove Bad.lean:3
@@ -505,7 +505,7 @@ Step 2 — Configure decide-cascade:
 === Cycle 1 — Work ===
 
 Running decide-cascade on ¬ (∀ n : Nat, n < 10)...
-  decide ✓ certified in 0.4s
+  decide ✓ candidate found (pre-screen passed) in 0.4s
 
 === Cycle 1 — Checkpoint ===
 
