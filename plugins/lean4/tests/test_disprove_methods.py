@@ -12,9 +12,6 @@ _LIB = os.path.join(_TESTS, "..", "lib")
 sys.path.insert(0, _LIB)
 
 from disprove_methods import (  # noqa: E402
-    DEFAULT_REGISTRY_PATH,
-    MethodEntry,
-    ParamSpec,
     RegistryError,
     find_by_id,
     load_registry,
