@@ -52,6 +52,13 @@ are *hypotheses* until Lean certifies them. Anything weaker — including a
 term that typechecks but pulls in a non-whitelisted axiom — is reported as
 `WITNESS_UNCERTIFIED` or `INCONCLUSIVE`. This invariant is non-negotiable.
 
+Certification is by the **term, not its surface form**: `FALSE` is licensed when
+Lean checks a **closed** term of type `¬ TARGET` (no `sorry`/`admit`, axioms ⊆
+whitelist). The emitted `T_counterexample` artifact may be that `¬ TARGET` theorem
+directly, **or** a witness theorem from which `¬ TARGET` is derived by a named
+per-shape wrapper that is itself typecheck- and axiom-checked (see
+[Per-Shape Recipes](#per-shape-recipes) and [Phase 3](#phase-3--checkpoint)).
+
 ## Six-Phase Cycle
 
 ```
@@ -67,7 +74,7 @@ session evidence so the next cycle's menus can re-rank.
 |-------|----------------------------|
 | 1. Plan | Cycle 1 resolves TARGET, normalizes shape, builds the Target Profile, runs Step 0 (Knowledge Search) once. Every cycle: Step 1 menu + Step 2 menu. Later cycles re-enter Step 0 only if Step 1 picks `knowledge search`. |
 | 2. Work | Run the chosen method with the chosen config. Pre-screen candidates via `lean_multi_attempt`. |
-| 3. Checkpoint | If a candidate certified: append `T_counterexample`, run `lake env lean`, then check axioms ⊆ whitelist (`FALSE` only if both pass; else revert hunk → `WITNESS_UNCERTIFIED`); stage + commit per `--commit`. If not: no artifact. |
+| 3. Checkpoint | If Work produced a **pre-screen-passing candidate**: append `T_counterexample`, run `lake env lean` + axiom check (⊆ whitelist) → `certified` (`FALSE`) only if both pass, else revert hunk → `near-miss`/`WITNESS_UNCERTIFIED`; stage + commit per `--commit`. If no candidate: no artifact. |
 | 4. Review | Classify the cycle's outcome (certified / near-miss / exhausted / no-candidate). Capture error signatures. |
 | 5. Accumulate | Append `(family, config, outcome, near-miss_signature)` to session evidence. No hardcoded recommendation table — the next cycle's menus absorb the logic. |
 | 6. Continue/Stop | Always prompt the user: `continue / stop`. |
@@ -490,7 +497,7 @@ witness:
 3. On pass, advance to Checkpoint.
 4. On fail, record the residual error signature (used by Review).
 
-Method outcomes for this cycle (consumed by Review):
+Post-gate cycle outcomes (assigned after the Phase 3 typecheck + axiom gate, consumed by Review):
 
 | Outcome | Meaning |
 |---------|---------|
@@ -585,26 +592,35 @@ keep the anchor resolvable against this file's
 
 ## Phase 3 — Checkpoint
 
-If Work produced a `certified` outcome this cycle (`<target-file>` is the target's
+If Work produced a **pre-screen-passing candidate** this cycle (`<target-file>` is the target's
 source file: the `File.lean` for a file-line target, or the writable source file
 the qualified-name target resolved to in Phase 1):
 
 1. Construct the per-shape `T_counterexample` Lean snippet
    ([Per-Shape Recipes](#per-shape-recipes) below). Apply atom-slot
    hot-swap if the first cert tactic fails (see the cascade order
-   documented with the recipes).
-2. Append via
+   documented with the recipes). For **witness shapes** (1/2), also build the
+   named, gate-only `T_counterexample_negates_target : ¬ TARGET := <shape-specific
+   wrapper>` (see the Per-Shape Recipes intro) — this is the declaration that
+   actually carries the `¬ TARGET` type.
+2. Append `T_counterexample` via
    `python3 "$LEAN4_SCRIPTS/disprove_emit_artifact.py" --scope-file=<target-file> --theorem-name=T_counterexample`
-   (snippet on stdin).
+   (snippet on stdin). For witness shapes, append the gate-only
+   `T_counterexample_negates_target` the same way (same collision-safe writer);
+   it is excluded from the commit — the committed artifact is `T_counterexample`
+   only.
 3. Run `lake env lean <target-file>` from the project root (typecheck gate).
-4. **Axiom gate.** Inspect the axioms of `T_counterexample` via `lean_verify`
-   (or `#print axioms T_counterexample`). The allowed set is
-   `{propext, Classical.choice, Quot.sound}`, plus `Lean.ofReduceBool` **only**
+4. **Axiom gate.** Inspect the axioms via `lean_verify` (or `#print axioms`) of the
+   declaration that carries the `¬ TARGET` type — `T_counterexample` for direct
+   shapes, or `T_counterexample_negates_target` for witness shapes. The allowed set
+   is `{propext, Classical.choice, Quot.sound}`, plus `Lean.ofReduceBool` **only**
    when `native_decide` was explicitly opted in for this cycle (recorded in the
    evidence record).
 5. License the outcome:
-   - **`certified` (→ `FALSE`)** only if the typecheck passed (no `sorry`/`admit`)
-     **and** the axiom set ⊆ the allowed whitelist. Proceed to Review.
+   - **`certified` (→ `FALSE`)** only if the `¬ TARGET`-typed declaration
+     typechecked (no `sorry`/`admit`) **and** its axiom set ⊆ the allowed whitelist.
+     Commit only `T_counterexample` (drop the gate-only `*_negates_target` wrapper);
+     proceed to Review.
    - **Typecheck fails** → revert the appended hunk; downgrade to `near-miss`,
      capture the error signature.
    - **A non-whitelisted axiom appears, or axiom inspection is unavailable /
@@ -621,10 +637,24 @@ Per `--commit`:
 - `ask` — show the diff and prompt the user.
 - `never` — leave staging to `/lean4:checkpoint`.
 
-If Work produced no `certified` outcome: no artifact, no rollback —
+If Work produced no pre-screen-passing candidate: no artifact, no rollback —
 nothing was written this cycle.
 
 ### Per-Shape Recipes
+
+Snippets shown as `example : …` below are pre-screen / certification **templates**;
+the emitted-and-committed artifact is named `T_counterexample` and is what Phase 3
+typecheck- and axiom-checks **by that name**. The emitted `T_counterexample` must be
+a **closed** term — Shapes 4/5 must inline/apply their sub-counterproofs (never a
+partially-applied wrapper). For **witness-shaped** artifacts (Shapes 1/2, whose
+`T_counterexample` is existential, not `¬ TARGET`), Phase 3 additionally typecheck-
+and axiom-checks a **named** derived-negation declaration built with the
+shape-specific wrapper — e.g.
+`T_counterexample_negates_target : ¬ TARGET := not_forall.mpr T_counterexample`
+(Shape 2 uses the `∃ w, P w ∧ ¬ Q w` → `¬ (∀ x, P x → Q x)` wrapper). That
+`*_negates_target` declaration is a temporary, gate-only certification — not a
+committed artifact; if inserted into the file for the gate it uses the same
+collision-safe handling and is excluded from the commit.
 
 **Shape 1 — `∀ x : α, P x` with witness `w0`:**
 

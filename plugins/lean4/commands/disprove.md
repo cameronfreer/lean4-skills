@@ -37,6 +37,11 @@ Fast witnesses and informal heuristics are *hypotheses* until Lean certifies
 them. See
 [disprove-engine.md § Prime Directive](../skills/lean4/references/disprove-engine.md#prime-directive--epistemological-strictness).
 
+`FALSE` is licensed by a **checked closed term of type `¬ TARGET`**, not by the
+artifact's surface form: `T_counterexample` may be a direct `¬ TARGET` theorem **or**
+a witness theorem whose named per-shape wrapper (also axiom-checked) derives
+`¬ TARGET`.
+
 ## Invocation Contract
 
 Interpret this command's inputs per the
@@ -116,7 +121,7 @@ See [disprove-engine.md § Phase 2 — Work](../skills/lean4/references/disprove
 
 ### Phase 3: Checkpoint
 
-See [disprove-engine.md § Phase 3 — Checkpoint](../skills/lean4/references/disprove-engine.md#phase-3--checkpoint). On certification, append `T_counterexample` via `$LEAN4_SCRIPTS/disprove_emit_artifact.py`, run `lake env lean <target-file>` from the project root, then **inspect the artifact's axioms** (`lean_verify` / `#print axioms`). Report `FALSE` only if it typechecks **and** the axiom set ⊆ `{propext, Classical.choice, Quot.sound}` (plus `Lean.ofReduceBool` only under an explicit `native_decide` opt-in this cycle); otherwise revert the appended hunk and report `WITNESS_UNCERTIFIED`. `<target-file>` is the resolved source file — for a qualified-name target, the declaration's **writable** source file from Phase 1 (disprove refuses if it resolves only to a read-only dependency).
+See [disprove-engine.md § Phase 3 — Checkpoint](../skills/lean4/references/disprove-engine.md#phase-3--checkpoint). On a **pre-screen-passing candidate**, append `T_counterexample` via `$LEAN4_SCRIPTS/disprove_emit_artifact.py`, run `lake env lean <target-file>` from the project root, then **inspect the artifact's axioms** (`lean_verify` / `#print axioms`). Report `FALSE` only if it typechecks **and** the axiom set ⊆ `{propext, Classical.choice, Quot.sound}` (plus `Lean.ofReduceBool` only under an explicit `native_decide` opt-in this cycle); otherwise revert the appended hunk and report `WITNESS_UNCERTIFIED`. `<target-file>` is the resolved source file — for a qualified-name target, the declaration's **writable** source file from Phase 1 (disprove refuses if it resolves only to a read-only dependency).
 
 **Commit prompt** (when `--commit=ask`):
 
