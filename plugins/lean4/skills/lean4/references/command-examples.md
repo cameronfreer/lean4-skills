@@ -538,6 +538,7 @@ Committed: "disprove: T_counterexample — cycle 1"
 | Artifact theorem | T_counterexample |
 | Artifact file | Bad.lean |
 | Build gate | passed |
+| Axiom gate | passed (⊆ {propext, Classical.choice, Quot.sound}) |
 | Cycles run | 1 |
 | Stuck cycles | 0 |
 | Time elapsed | 0.6s |
@@ -721,6 +722,7 @@ Commit this change? [yes / no]
 | Artifact theorem | T_counterexample |
 | Artifact file | Conjecture.lean |
 | Build gate | passed |
+| Axiom gate | passed (⊆ {propext, Classical.choice, Quot.sound}) |
 | Cycles run | 2 |
 | Stuck cycles | 0 |
 | Time elapsed | 7.1s |
@@ -829,6 +831,7 @@ Cycle 1 complete (no-candidate).
 | Artifact theorem | — |
 | Artifact file | — |
 | Build gate | skipped |
+| Axiom gate | skipped |
 | Cycles run | 3 |
 | Stuck cycles | 1 |
 | Time elapsed | 1m48s |
