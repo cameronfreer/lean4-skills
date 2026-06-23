@@ -121,7 +121,7 @@ See [disprove-engine.md § Phase 2 — Work](../skills/lean4/references/disprove
 
 ### Phase 3: Checkpoint
 
-See [disprove-engine.md § Phase 3 — Checkpoint](../skills/lean4/references/disprove-engine.md#phase-3--checkpoint). On a **pre-screen-passing candidate**, append `T_counterexample` via `$LEAN4_SCRIPTS/disprove_emit_artifact.py`, run `lake env lean <target-file>` from the project root, then **inspect the artifact's axioms** (`lean_verify` / `#print axioms`). Report `FALSE` only if it typechecks **and** the axiom set ⊆ `{propext, Classical.choice, Quot.sound}` (plus `Lean.ofReduceBool` only under an explicit `native_decide` opt-in this cycle); otherwise revert the appended hunk and report `WITNESS_UNCERTIFIED`. `<target-file>` is the resolved source file — for a qualified-name target, the declaration's **writable** source file from Phase 1 (disprove refuses if it resolves only to a read-only dependency).
+See [disprove-engine.md § Phase 3 — Checkpoint](../skills/lean4/references/disprove-engine.md#phase-3--checkpoint). On a **pre-screen-passing candidate**, append `T_counterexample` via `$LEAN4_SCRIPTS/disprove_emit_artifact.py`, run `lake env lean <target-file>` from the project root, then **inspect the axioms of the declaration carrying `¬ TARGET`** (`T_counterexample` for direct shapes, `T_counterexample_negates_target` for witness shapes) via `lean_verify` / `#print axioms`. Report `FALSE` only if it typechecks **and** that declaration's axioms ⊆ `{propext, Classical.choice, Quot.sound}` (plus `Lean.ofReduceBool` only under an explicit `native_decide` opt-in this cycle); otherwise revert the appended hunk and report `WITNESS_UNCERTIFIED`. `<target-file>` is the resolved source file — for a qualified-name target, the declaration's **writable** source file from Phase 1 (disprove refuses if it resolves only to a read-only dependency).
 
 **Commit prompt** (when `--commit=ask`):
 
@@ -251,7 +251,8 @@ of the originating Step 0 finding); all other cycles show `—`. See
   compile/axiom gate then permits only for that cycle.
 - **No `FALSE` without compile gate + axiom gate.** `lean_multi_attempt` is the
   cheap pre-screen; `FALSE` requires `lake env lean <path>` from the project root
-  to typecheck (no `sorry`/`admit`) **and** the artifact's axioms ⊆
+  to typecheck (no `sorry`/`admit`) **and** the `¬ TARGET` declaration's axioms
+  (`T_counterexample`, or `T_counterexample_negates_target` for witness shapes) ⊆
   `{propext, Classical.choice, Quot.sound}` (plus `Lean.ofReduceBool` only under
   an explicit `native_decide` opt-in). A non-whitelisted axiom, or inconclusive
   axiom inspection, → revert the hunk and report `WITNESS_UNCERTIFIED`.
