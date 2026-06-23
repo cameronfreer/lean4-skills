@@ -219,7 +219,10 @@ of the originating Step 0 finding); all other cycles show `—`. See
 
 [FALSE]
   Counterexample certified.
-  Recommended: /lean4:checkpoint to commit.
+  - If already committed (`--commit=auto`, or `ask` accepted): committed as
+    `disprove: T_counterexample — cycle N` (see `git log -1`).
+  - If not committed (`--commit=never`, or `ask` declined): Recommended:
+    /lean4:checkpoint to commit.
 
 [WITNESS_UNCERTIFIED]
   Candidate witness w0 = <value>; Lean error <signature>.

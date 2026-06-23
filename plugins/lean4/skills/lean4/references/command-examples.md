@@ -549,8 +549,7 @@ Committed: "disprove: T_counterexample — cycle 1"
 |---|-----------------|-------------------|-----------|-----|
 | 1 | decide-cascade  | native_decide=off | certified | —   |
 
-Counterexample certified.
-Recommended: /lean4:checkpoint to commit.
+Counterexample certified and committed (see `git log -1`).
 ```
 
 ### Cycle 1 mine miss → cycle 2 enumerate widen + certify
@@ -711,6 +710,8 @@ Compile gate: passed.
 Commit this change? [yes / no]
 > yes
 
+Committed: "disprove: T_counterexample — cycle 2"
+
 ## Disprove Summary
 
 **Outcome:** FALSE
@@ -734,8 +735,7 @@ Commit this change? [yes / no]
 | 1 | mine            | candidates=10, include_inhabited=true | exhausted-no-witness | —   |
 | 2 | enumerate       | range=[5,64), atom=decide             | certified            | —   |
 
-Counterexample certified.
-Recommended: /lean4:checkpoint to commit.
+Counterexample certified and committed (see `git log -1`).
 ```
 
 ### Three-cycle INCONCLUSIVE — verify-known-cex with WebFetch failure
