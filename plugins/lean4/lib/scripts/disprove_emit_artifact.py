@@ -38,6 +38,10 @@ import sys
 # Top-level declaration header (any name) — used to find where an existing
 # declaration block ends (the next top-level decl starts the next block).
 _DECL_KEYWORDS = "theorem|lemma|def|abbrev|instance|example|structure|inductive|class|opaque|axiom"
+# Named declarations (everything above except anonymous `example`) — used to
+# detect an existing declaration that already claims the requested name, so a
+# name clash across decl kinds (e.g. an `axiom T_counterexample`) is caught.
+_NAMED_DECL = "theorem|lemma|def|abbrev|instance|structure|inductive|class|opaque|axiom"
 _MODIFIERS = r"(?:(?:private|protected|noncomputable|partial|unsafe)\s+)*"
 
 
@@ -55,7 +59,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 def _extract_declaration_block(content: str, name: str) -> str | None:
     """Return the existing top-level declaration block named NAME, or None.
 
-    Recognises `theorem`, `lemma`, `def`, `abbrev`, and `instance`, with any
+    Recognises any named declaration (`theorem`, `lemma`, `def`, `abbrev`,
+    `instance`, `axiom`, `opaque`, `structure`, `inductive`, `class`), with any
     leading combination of `private`, `protected`, `noncomputable`, `partial`,
     or `unsafe` modifiers. The block runs from the declaration header through
     the line before the next top-level declaration (or EOF), so multi-line
@@ -63,7 +68,7 @@ def _extract_declaration_block(content: str, name: str) -> str | None:
     authoritative check; this is the cheap collision/idempotency probe.
     """
     header = re.compile(
-        r"^" + _MODIFIERS + r"(?:theorem|lemma|def|abbrev|instance)\s+"
+        r"^" + _MODIFIERS + r"(?:" + _NAMED_DECL + r")\s+"
         + re.escape(name) + r"\b",
         re.MULTILINE,
     )

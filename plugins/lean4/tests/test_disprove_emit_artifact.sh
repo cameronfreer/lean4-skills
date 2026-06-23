@@ -138,6 +138,18 @@ run_with_stdin "$SNIPPET" --scope-file="$TARGET3" --theorem-name="foo_counterexa
 assert_exit "2i. Identical artifact before a docstring'd decl → idempotent (exit 0)" 0
 assert_stderr_contains "2j. Treated as idempotent, not collision" "already present"
 
+echo "-- Collision across decl kinds (existing axiom of same name) --"
+TARGET4="$WORK_DIR/Qux.lean"
+cat > "$TARGET4" <<'EOF'
+import Mathlib
+
+axiom foo_counterexample : True
+EOF
+run_with_stdin "$SNIPPET" --scope-file="$TARGET4" --theorem-name="foo_counterexample"
+assert_exit "2k. Existing axiom of same name → collision (exit 2)" 2
+assert_stderr_contains "2l. Collision error message" "different body"
+assert_file_line_count "2m. No duplicate written (still one foo_counterexample)" "$TARGET4" "foo_counterexample"
+
 echo "-- Dry run --"
 TARGET2="$WORK_DIR/Bar.lean"
 cat > "$TARGET2" <<'EOF'
