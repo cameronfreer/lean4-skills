@@ -619,8 +619,9 @@ the qualified-name target resolved to in Phase 1):
 5. License the outcome:
    - **`certified` (→ `FALSE`)** only if the `¬ TARGET`-typed declaration
      typechecked (no `sorry`/`admit`) **and** its axiom set ⊆ the allowed whitelist.
-     Commit only `T_counterexample` (drop the gate-only `*_negates_target` wrapper);
-     proceed to Review.
+     Commit only `T_counterexample` (drop the gate-only `*_negates_target` wrapper
+     if it was appended this cycle — don't delete a pre-existing identical
+     declaration); proceed to Review.
    - **Typecheck fails** → revert all declarations appended this cycle (the
      artifact and, for witness shapes, the gate-only `*_negates_target` wrapper);
      downgrade to `near-miss`, capture the error signature.
