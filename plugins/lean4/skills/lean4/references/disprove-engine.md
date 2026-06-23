@@ -643,8 +643,10 @@ nothing was written this cycle.
 ### Per-Shape Recipes
 
 Snippets shown as `example : …` below are pre-screen / certification **templates**;
-the emitted-and-committed artifact is named `T_counterexample` and is what Phase 3
-typecheck- and axiom-checks **by that name**. The emitted `T_counterexample` must be
+the emitted-and-committed artifact is named `T_counterexample`. Phase 3 typecheck-
+and axiom-checks the declaration carrying `¬ TARGET` **by name** — `T_counterexample`
+itself for direct shapes, or the temporary `T_counterexample_negates_target` wrapper
+for witness shapes. The emitted `T_counterexample` must be
 a **closed** term — Shapes 4/5 must inline/apply their sub-counterproofs (never a
 partially-applied wrapper). For **witness-shaped** artifacts (Shapes 1/2, whose
 `T_counterexample` is existential, not `¬ TARGET`), Phase 3 additionally typecheck-
