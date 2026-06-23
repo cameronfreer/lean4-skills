@@ -16,7 +16,7 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 | `/lean4:autoformalize` | Autonomous end-to-end formalization from informal sources |
 | `/lean4:prove` | Guided cycle-by-cycle theorem proving with explicit checkpoints |
 | `/lean4:autoprove` | Autonomous multi-cycle theorem proving with explicit stop budgets |
-| `/lean4:disprove` | Guided search for counterexamples and produce a certified Lean refutation |
+| `/lean4:disprove` | Guided counterexample search with certified refutation |
 | `/lean4:checkpoint` | Save progress with a safe commit checkpoint |
 | `/lean4:review` | Read-only code review of Lean proofs |
 | `/lean4:refactor` | Leverage mathlib, extract helpers, simplify proof strategies |

@@ -1,6 +1,6 @@
 ---
 name: disprove
-description: Search for counterexamples and produce a certified Lean refutation
+description: Guided counterexample search with certified refutation
 user_invocable: true
 argument-hint: '<File.lean:LINE | Namespace.theoremName> [--max-cycles=N] [--max-stuck-cycles=N] [--max-runtime=DURATION] [--negation-policy=counterexample-only] [--commit=auto|ask|never] [--knowledge-search-budget=N]'
 ---
