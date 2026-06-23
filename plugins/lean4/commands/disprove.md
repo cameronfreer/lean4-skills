@@ -2,7 +2,7 @@
 name: disprove
 description: Guided counterexample search with certified refutation
 user_invocable: true
-argument-hint: '<File.lean:LINE | Namespace.theoremName> [--max-cycles=N] [--max-stuck-cycles=N] [--max-runtime=DURATION] [--negation-policy=counterexample-only] [--commit=auto|ask|never] [--knowledge-search-budget=N]'
+argument-hint: '<File.lean:LINE | Namespace.theoremName> [--max-cycles=N] [--max-stuck-cycles=N] [--max-runtime=DURATION] [--commit=auto|ask|never] [--knowledge-search-budget=N]'
 ---
 
 # Lean4 Disprove
@@ -75,7 +75,7 @@ Startup requirements:
 | --max-cycles | No | 3 | Max widening passes. Each cycle picks one method via the Step 1 menu and configures its parameters via the Step 2 menu. |
 | --max-stuck-cycles | No | 2 | Bail after this many consecutive cycles where the next cycle's Step 1 menu has no non-failed `(family, config)` pair to place in its top 3 (no remaining widening lever). |
 | --max-runtime | No | 5m | Best-effort wall-clock session budget across all cycles. |
-| --negation-policy | No | counterexample-only | v1: locked. Reserved for future `with-salvage`. |
+| --negation-policy | No | counterexample-only | Reserved for future salvage modes; locked in v1. |
 | --commit | No | ask | Per-cycle Checkpoint behavior. `ask` prompts before each commit; `auto` commits without prompting; `never` skips committing (leave staging to `/lean4:checkpoint`). |
 | --knowledge-search-budget | No | 3 | Max Step 0 (knowledge search) visits per cycle. Cycle 1 always runs Step 0 once; later cycles only re-enter Step 0 if their Step 1 menu surfaces `knowledge search` and the user picks it. After the Nth visit completes, `knowledge search` is disabled in that cycle's Step 1 menu. |
 
