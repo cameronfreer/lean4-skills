@@ -465,8 +465,8 @@ Method outcomes for this cycle (consumed by Review):
 
 | Outcome | Meaning |
 |---------|---------|
-| `certified` | A candidate passed pre-screen AND the file compile gate. |
-| `near-miss` | A candidate passed pre-screen but `lake env lean` rejected it. The error signature is captured. |
+| `certified` | A candidate passed pre-screen, the file typecheck gate, AND the axiom gate (axioms ⊆ whitelist — see Phase 3). |
+| `near-miss` | A candidate passed pre-screen but the Phase 3 gate rejected it — `lake env lean` failed, OR a non-whitelisted axiom appeared / axiom inspection was inconclusive (→ `WITNESS_UNCERTIFIED`). The error signature is captured. |
 | `exhausted-no-witness` | The method's budget was spent; no candidate was produced. |
 | `no-candidate` | The method produced zero candidates (e.g., enumerate hit no `DecidablePred`, or an external script timed out / failed to parse). |
 
@@ -517,8 +517,9 @@ snippet:
   in stdout → `outcome = no-candidate`; reason captured in
   `near_miss_signature` (e.g. `"external: timeout after 60s"`).
 - At least one witness produced AND one passes pre-screen → standard
-  Checkpoint flow → `outcome = certified` (or `near-miss` if the
-  compile gate later rejects).
+  Checkpoint flow → `outcome = certified` only if the Phase 3 typecheck
+  **and** axiom gate both pass (otherwise `near-miss` → `WITNESS_UNCERTIFIED`
+  per the Phase 3 failure rule).
 - Witness produced but pre-screen rejects all → `outcome = near-miss`
   with the Lean error signature.
 
