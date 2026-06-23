@@ -30,8 +30,11 @@ accumulated evidence and the Target Profile.
 ## Prime Directive
 
 Report `FALSE` **only** when a Lean term of the negation typechecks under
-`lake env lean` with no `sorry` or `admit`. Fast witnesses and informal
-heuristics are *hypotheses* until Lean certifies them. See
+`lake env lean` with no `sorry` or `admit` **and** its axiom set is within the
+allowed whitelist (`propext`, `Classical.choice`, `Quot.sound`; plus
+`Lean.ofReduceBool` only under an explicit `native_decide` opt-in this cycle).
+Fast witnesses and informal heuristics are *hypotheses* until Lean certifies
+them. See
 [disprove-engine.md § Prime Directive](../skills/lean4/references/disprove-engine.md#prime-directive--epistemological-strictness).
 
 ## Invocation Contract
@@ -113,7 +116,7 @@ See [disprove-engine.md § Phase 2 — Work](../skills/lean4/references/disprove
 
 ### Phase 3: Checkpoint
 
-See [disprove-engine.md § Phase 3 — Checkpoint](../skills/lean4/references/disprove-engine.md#phase-3--checkpoint). On certification, append `T_counterexample` via `disprove_emit_artifact.py`, then run `lake env lean <target-file>` from the project root. `<target-file>` is the resolved source file — for a qualified-name target, the declaration's **writable** source file from Phase 1 (disprove refuses if it resolves only to a read-only dependency).
+See [disprove-engine.md § Phase 3 — Checkpoint](../skills/lean4/references/disprove-engine.md#phase-3--checkpoint). On certification, append `T_counterexample` via `$LEAN4_SCRIPTS/disprove_emit_artifact.py`, run `lake env lean <target-file>` from the project root, then **inspect the artifact's axioms** (`lean_verify` / `#print axioms`). Report `FALSE` only if it typechecks **and** the axiom set ⊆ `{propext, Classical.choice, Quot.sound}` (plus `Lean.ofReduceBool` only under an explicit `native_decide` opt-in this cycle); otherwise revert the appended hunk and report `WITNESS_UNCERTIFIED`. `<target-file>` is the resolved source file — for a qualified-name target, the declaration's **writable** source file from Phase 1 (disprove refuses if it resolves only to a read-only dependency).
 
 **Commit prompt** (when `--commit=ask`):
 
@@ -187,6 +190,7 @@ When the command stops (any branch), emit:
 | Artifact theorem | T_counterexample (or "—") |
 | Artifact file | <path or "—"> |
 | Build gate | passed | failed | skipped |
+| Axiom gate | <axioms listed, e.g. "propext, Classical.choice, Quot.sound" \| failed \| skipped> |
 | Cycles run | <N> |
 | Stuck cycles | <N> |
 | Time elapsed | <T> |
@@ -237,9 +241,12 @@ of the originating Step 0 finding); all other cycles show `—`. See
   the cycling LLM surfaces it as such in Step 2 and records it in the
   cycle's evidence. Enabling admits the `Lean.ofReduceBool` axiom, which the
   compile/axiom gate then permits only for that cycle.
-- **No `FALSE` without compile gate.** `lean_multi_attempt` is the cheap
-  pre-screen; only `lake env lean <path>` from the project root licenses
-  the `FALSE` claim.
+- **No `FALSE` without compile gate + axiom gate.** `lean_multi_attempt` is the
+  cheap pre-screen; `FALSE` requires `lake env lean <path>` from the project root
+  to typecheck (no `sorry`/`admit`) **and** the artifact's axioms ⊆
+  `{propext, Classical.choice, Quot.sound}` (plus `Lean.ofReduceBool` only under
+  an explicit `native_decide` opt-in). A non-whitelisted axiom, or inconclusive
+  axiom inspection, → revert the hunk and report `WITNESS_UNCERTIFIED`.
 - **No Step 0 findings without `source_url`.** Findings produced without
   a citable URL or repo-relative path are dropped at write time. Web
   counterexample candidates require `WebFetch` verification before

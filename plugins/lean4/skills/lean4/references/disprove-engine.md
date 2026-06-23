@@ -44,9 +44,13 @@
 
 `/lean4:disprove` reports `FALSE` **only** when it produces a Lean term of
 the negation that typechecks under `lake env lean` without `sorry` or
-`admit`. Fast witnesses and informal heuristics are *hypotheses* until
-Lean certifies them. Anything weaker is reported as `WITNESS_UNCERTIFIED`
-or `INCONCLUSIVE`. This invariant is non-negotiable.
+`admit` **and** whose axiom set is within the allowed whitelist
+(`propext`, `Classical.choice`, `Quot.sound`; plus `Lean.ofReduceBool`
+**only** when `native_decide` was explicitly opted in this cycle — see
+[Phase 3](#phase-3--checkpoint)). Fast witnesses and informal heuristics
+are *hypotheses* until Lean certifies them. Anything weaker — including a
+term that typechecks but pulls in a non-whitelisted axiom — is reported as
+`WITNESS_UNCERTIFIED` or `INCONCLUSIVE`. This invariant is non-negotiable.
 
 ## Six-Phase Cycle
 
@@ -562,10 +566,21 @@ the qualified-name target resolved to in Phase 1):
 2. Append via
    `python3 "$LEAN4_SCRIPTS/disprove_emit_artifact.py" --scope-file=<target-file> --theorem-name=T_counterexample`
    (snippet on stdin).
-3. Run `lake env lean <target-file>` from the project root.
-4. Pass → record outcome `certified`, proceed to Review.
-   Fail → revert the appended hunk; downgrade outcome to `near-miss`,
-   capture the error signature.
+3. Run `lake env lean <target-file>` from the project root (typecheck gate).
+4. **Axiom gate.** Inspect the axioms of `T_counterexample` via `lean_verify`
+   (or `#print axioms T_counterexample`). The allowed set is
+   `{propext, Classical.choice, Quot.sound}`, plus `Lean.ofReduceBool` **only**
+   when `native_decide` was explicitly opted in for this cycle (recorded in the
+   evidence record).
+5. License the outcome:
+   - **`certified` (→ `FALSE`)** only if the typecheck passed (no `sorry`/`admit`)
+     **and** the axiom set ⊆ the allowed whitelist. Proceed to Review.
+   - **Typecheck fails** → revert the appended hunk; downgrade to `near-miss`,
+     capture the error signature.
+   - **A non-whitelisted axiom appears, or axiom inspection is unavailable /
+     inconclusive** → revert the appended hunk if this cycle appended one (do not
+     delete a pre-existing identical declaration the emitter left untouched), do
+     **not** commit, and downgrade to `WITNESS_UNCERTIFIED` — never `FALSE`.
 
 Per `--commit`:
 - `auto` — stage the modified file (`git add <target-file>`, never `-A`)
@@ -817,10 +832,15 @@ finding). For all other cycles the column is `—`.
   evidence record must log it. Enabling admits the `Lean.ofReduceBool`
   axiom, which the Phase 3 axiom gate then allows **only** for that cycle
   (see Phase 3).
-- **No claim of `FALSE` without compile gate.** Pre-screen via
-  `lean_multi_attempt` is necessary but not sufficient; only
-  `lake env lean <path>` from the project root licenses the `FALSE`
-  claim.
+- **No claim of `FALSE` without compile gate + axiom gate.** Pre-screen via
+  `lean_multi_attempt` is necessary but not sufficient. `FALSE` requires
+  **both** `lake env lean <path>` from the project root (typecheck, no
+  `sorry`/`admit`) **and** an
+  axiom set ⊆ `{propext, Classical.choice, Quot.sound}` (plus `Lean.ofReduceBool`
+  only under an explicit `native_decide` opt-in this cycle). A term that
+  typechecks but pulls a non-whitelisted axiom — or any cycle where axiom
+  inspection is unavailable/inconclusive — is `WITNESS_UNCERTIFIED`, and the
+  appended hunk (if any) is reverted (see Phase 3).
 - **No Step 0 findings without `source_url`.** Findings produced without
   a citable URL or repo-relative path are dropped at write time. Web
   counterexample candidates require `WebFetch` verification before
