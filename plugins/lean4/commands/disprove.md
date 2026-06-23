@@ -84,52 +84,26 @@ sample count for `plausible`) are surfaced as **dynamic Step 2
 candidates** in each cycle's Plan phase, not top-level flags. See
 [disprove-engine.md § Step 2 — Config Menu](../skills/lean4/references/disprove-engine.md#step-2--config-menu).
 
-## Plan-Phase Menus (Step 0 / 1 / 2)
-
-Every cycle's Plan phase generates **dynamic menus** seeded by accumulated
-Step 0 evidence + the Target Profile + the prior cycle's Review:
-
-- **Step 0 — Knowledge Search Menu.** Runs once in Cycle 1 by default;
-  later cycles re-enter only if Step 1 surfaces `knowledge search` and
-  the user picks it. The cycling LLM proposes a menu of search tasks
-  (multi-select; lean/local/web rows, and `[custom]` and
-  `[llm]`; all pre-selected); each row shows the source/tool, tier tag (`[lean]`
-  / `[local]` / `[web]`), and executable query the LLM derives from the
-  TARGET (for `[custom]`, the LLM interprets the user's free-form
-  intent instead). The user approves / edits / reduces before selected
-  rows fire. Cap = `--knowledge-search-budget`.
-- **Step 1 — Method Menu.** The cycling LLM proposes 3–10 method
-  candidates each cycle (single-select), informed by accumulated
-  Step 0 evidence, prior-cycle outcomes, and the Target Profile. It
-  picks which of the six registry families to surface and how many
-  entries per family (e.g. two `enumerate` rows with different ranges).
-  Per-entry display: stable `family` id, LLM-emitted free-text `label`,
-  one-line description, reasoning, cost class. Always-present extras:
-  `knowledge search` (disabled after the cycle's Nth Step 0 visit) and
-  `custom method` (free-form description; the LLM maps it to the
-  nearest registry `family` and synthesizes a config).
-- **Step 2 — Config Menu.** If Step 1 picked `knowledge search`,
-  Step 2 is a multi-select of Step 0 items and returns to Step 0
-  (counting against the visit cap). Otherwise: the cycling LLM
-  proposes 3–10 candidate configs for the picked family
-  (single-select). Each candidate is a concrete instantiation of the
-  picked family's params (not a re-ordering of pre-defined configs),
-  informed by the family's parameter schema + Step 0 digest +
-  prior-cycle outcomes + Target Profile. Always-present extra:
-  `custom-config` (free-text, schema-validated against the family's
-  params).
-
-The Method Registry is the canonical vocabulary the cycling LLM draws
-from — see [`lib/data/disprove_methods.toml`](../lib/data/disprove_methods.toml)
-and [disprove-engine.md § Method Registry](../skills/lean4/references/disprove-engine.md#method-registry).
-
 ## Actions
 
 Six phases — see [disprove-engine.md](../skills/lean4/references/disprove-engine.md) for full mechanics.
 
 ### Phase 1: Plan
 
-See [disprove-engine.md § Phase 1 — Plan](../skills/lean4/references/disprove-engine.md#phase-1--plan). Cycle 1 resolves the TARGET, normalizes shape, builds the Target Profile, runs Step 0 once, and presents the Step 1 + Step 2 menus. Cycle ≥2 re-enters Step 0 only if Step 1 surfaces `knowledge search` and the user picks it.
+During Plan, the cycle builds three dynamic menus from accumulated evidence, the
+Target Profile, and the prior cycle's Review:
+
+- **Step 0 — Knowledge Search** ([engine](../skills/lean4/references/disprove-engine.md#step-0--knowledge-search-menu))
+- **Step 1 — Method** ([engine](../skills/lean4/references/disprove-engine.md#step-1--method-menu))
+- **Step 2 — Config** ([engine](../skills/lean4/references/disprove-engine.md#step-2--config-menu))
+
+Keep only the selected entries and their rationale in the cycle record. Cycle 1
+also resolves the TARGET, normalizes shape, builds the Target Profile, and runs
+Step 0 once; cycle ≥2 re-enters Step 0 only if Step 1 surfaces `knowledge search`
+and the user picks it.
+
+Full menu mechanics, invariants, and the findings schema live in
+[disprove-engine.md § Phase 1 — Plan](../skills/lean4/references/disprove-engine.md#phase-1--plan).
 
 ### Phase 2: Work
 
