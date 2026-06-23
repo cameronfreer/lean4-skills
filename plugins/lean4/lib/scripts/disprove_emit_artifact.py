@@ -70,7 +70,14 @@ def _extract_declaration_block(content: str, name: str) -> str | None:
     m = header.search(content)
     if not m:
         return None
-    nxt = re.compile(r"^" + _MODIFIERS + r"(?:" + _DECL_KEYWORDS + r")\b", re.MULTILINE)
+    # The block ends at the start of the NEXT top-level declaration — including
+    # the docstring (`/-- … -/`) or attribute (`@[…]`) that attaches to it.
+    # Without this, an intervening docstring for the following decl would be
+    # swallowed into this block and make the byte-compare spuriously differ.
+    nxt = re.compile(
+        r"^(?:/--|@\[|" + _MODIFIERS + r"(?:" + _DECL_KEYWORDS + r")\b)",
+        re.MULTILINE,
+    )
     after = nxt.search(content, m.end())
     end = after.start() if after else len(content)
     return content[m.start():end]

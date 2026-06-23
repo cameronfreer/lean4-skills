@@ -125,6 +125,19 @@ else
   PASS=$((PASS + 1))
 fi
 
+echo "-- Idempotency when a docstring'd declaration follows --"
+TARGET3="$WORK_DIR/Baz.lean"
+cat > "$TARGET3" <<'EOF'
+import Mathlib
+
+theorem foo_counterexample : ∃ n : Nat, ¬ (n < 10) := ⟨10, by decide⟩
+/-- a doc comment -/
+theorem later_decl : True := trivial
+EOF
+run_with_stdin "$SNIPPET" --scope-file="$TARGET3" --theorem-name="foo_counterexample"
+assert_exit "2i. Identical artifact before a docstring'd decl → idempotent (exit 0)" 0
+assert_stderr_contains "2j. Treated as idempotent, not collision" "already present"
+
 echo "-- Dry run --"
 TARGET2="$WORK_DIR/Bar.lean"
 cat > "$TARGET2" <<'EOF'
