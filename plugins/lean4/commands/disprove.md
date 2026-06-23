@@ -228,10 +228,13 @@ of the originating Step 0 finding); all other cycles show `—`. See
 - **Append-only.** Never rewrite an existing `theorem T : P := by sorry`
   declaration to `: ¬ P`. The artifact emitter refuses to modify existing
   declarations.
-- **No `native_decide` without opt-in.** The cycling LLM surfaces
-  `native_decide=on` in the Step 2 menu as an explicit opt-in candidate
-  (`audit_worthy=true` in the registry). Enabling adds the
-  `Lean.ofReduceBool` axiom and is audit-worthy. Default off.
+- **No `native_decide` without opt-in (any method).** `native_decide`
+  defaults off and is not in the `tactics` method's default list. Anywhere
+  it can appear — `decide-cascade`'s `native_decide=on`, a custom `tactics`
+  list, or a `custom-config` — it is the same explicit, audit-worthy opt-in:
+  the cycling LLM surfaces it as such in Step 2 and records it in the
+  cycle's evidence. Enabling admits the `Lean.ofReduceBool` axiom, which the
+  compile/axiom gate then permits only for that cycle.
 - **No `FALSE` without compile gate.** `lean_multi_attempt` is the cheap
   pre-screen; only `lake env lean <path>` from the project root licenses
   the `FALSE` claim.

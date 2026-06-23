@@ -85,7 +85,11 @@ budget_hint_seconds = 15
 false_negative_notes = "Cascade exhausted without closing the negated goal; goal is not tactic-solvable from existing imports."
 cert_template_ref = "disprove-engine.md#per-shape-recipes"
 [methods.params]
-tactics = { type = "list[string]", default = ["rfl", "simp", "decide", "native_decide", "omega", "norm_num", "grind", "linarith"] }
+# `native_decide` is intentionally NOT in the default list. Anywhere it appears
+# — added here via custom-config, or via decide-cascade's `native_decide` param —
+# it is the SAME audit-worthy opt-in: it admits the `Lean.ofReduceBool` axiom and
+# must be surfaced as audit-worthy in Step 2 and recorded in the cycle's evidence.
+tactics = { type = "list[string]", default = ["rfl", "simp", "decide", "omega", "norm_num", "grind", "linarith"] }
 
 [[methods]]
 id = "external"

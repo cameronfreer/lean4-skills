@@ -590,7 +590,7 @@ theorem T_counterexample : ∃ w, P w ∧ ¬ Q w := by
 
 ```lean
 example : ¬ P := by decide
--- escalations: native_decide → norm_num → omega
+-- escalations: native_decide (only if enabled this cycle) → norm_num → omega
 ```
 
 **Shape 3 — `∃ x : α, P x` with `[Fintype α]`:**
@@ -614,7 +614,7 @@ example : ¬ (∃ x : α, P x) := by
 Checkpoint emits the primary form first; on hot-swap failure it
 substitutes the fallback before re-running `lean_multi_attempt`. The
 per-case atom slot follows the same cascade as Shapes 1, 2, 7
-(`decide → native_decide → norm_num → omega → simp → rfl`).
+(`decide → native_decide` (only if enabled this cycle) `→ norm_num → omega → simp → rfl`).
 
 **Shape 4 — `P ∧ Q` (disprove one conjunct):**
 
@@ -793,10 +793,15 @@ finding). For all other cycles the column is `—`.
   `theorem T : P := by sorry` declaration to `: ¬ P`. The artifact
   emitter (`disprove_emit_artifact.py`) enforces this — it refuses to
   modify or duplicate existing declarations.
-- **No `native_decide` without opt-in.** The `decide-cascade` family's
-  `native_decide` parameter is `audit_worthy=true` in the registry and
-  defaults off. The Step 2 menu surfaces it as an explicit opt-in;
-  enabling adds the `Lean.ofReduceBool` axiom and is audit-worthy.
+- **No `native_decide` without opt-in (any method).** `native_decide`
+  defaults off and is excluded from the `tactics` method's default list.
+  Wherever it can appear — the `decide-cascade` family's
+  `native_decide=true` param, a custom `tactics` list, or a
+  `custom-config` — it counts as the **same** audit-worthy opt-in: the
+  Step 2 menu must surface it explicitly as audit-worthy and the cycle's
+  evidence record must log it. Enabling admits the `Lean.ofReduceBool`
+  axiom, which the Phase 3 axiom gate then allows **only** for that cycle
+  (see Phase 3).
 - **No claim of `FALSE` without compile gate.** Pre-screen via
   `lean_multi_attempt` is necessary but not sufficient; only
   `lake env lean <path>` from the project root licenses the `FALSE`

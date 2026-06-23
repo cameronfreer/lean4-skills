@@ -148,6 +148,19 @@ class TestDefaultRegistry(unittest.TestCase):
         self.assertTrue(nd.audit_worthy, "native_decide must be audit_worthy")
         self.assertEqual(nd.default, False, "native_decide default must be off")
 
+    def test_native_decide_not_in_tactics_default(self):
+        # native_decide is audit-worthy opt-in only; it must not ride in by
+        # default via the tactics cascade.
+        tac = find_by_id(self.entries, "tactics")
+        self.assertIsNotNone(tac)
+        spec = tac.params.get("tactics")
+        self.assertIsNotNone(spec, "tactics method must have a 'tactics' param")
+        self.assertIsInstance(spec.default, list)
+        self.assertNotIn(
+            "native_decide", spec.default,
+            "native_decide must NOT be in the tactics default list (opt-in only)",
+        )
+
     def test_enumerate_param_schema(self):
         en = find_by_id(self.entries, "enumerate")
         self.assertIsNotNone(en)
