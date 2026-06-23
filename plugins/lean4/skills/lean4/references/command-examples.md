@@ -1056,6 +1056,13 @@ Claude: Golfing Core.lean...
 
 ### Counterexample Discovery Example
 
+> **Legacy / prove-engine flow.** This illustrates the shared prove-engine
+> falsification-artifact path, which may also emit a `T_salvaged` sibling. The
+> dedicated `/lean4:disprove` command does **not** do this in v1: salvage is
+> locked off (`--negation-policy=counterexample-only`), so disprove emits only
+> `T_counterexample`, never `T_salvaged`. Salvage modes are future work — see the
+> [disprove section](#disprove) for the current contract.
+
 See [cycle-engine.md](cycle-engine.md#falsification-artifacts) for artifact templates.
 
 ```
