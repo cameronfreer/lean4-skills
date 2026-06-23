@@ -11,7 +11,7 @@
   "plugins": [
     {
       "name": "lean4",
-      "description": "Unified Lean 4 plugin (draft, formalize, autoformalize, prove, autoprove, checkpoint, review, refactor, golf, learn, doctor) — LSP-first, scripts fallback",
+      "description": "Unified Lean 4 plugin (draft, formalize, autoformalize, prove, autoprove, disprove, checkpoint, review, refactor, golf, learn, doctor) — LSP-first, scripts fallback",
       "source": "./plugins/lean4"
     },
     {
