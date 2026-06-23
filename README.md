@@ -61,6 +61,23 @@ Optionally, install the contribution helper to draft bug reports, feature reques
 /plugin install lean4-contribute
 ```
 
+### Codex (repo marketplace plugins)
+
+```bash
+git clone --depth 1 https://github.com/cameronfreer/lean4-skills.git
+cd lean4-skills
+codex
+/plugins
+```
+
+In the Codex plugin directory:
+- Load the repo marketplace at `.agents/plugins/marketplace.json` (if it is not auto-detected).
+- Install `lean4`.
+- Optionally install `lean4-contribute-codex` for issue-drafting workflows.
+
+After plugin updates, restart Codex so the cached local install reloads.
+See [INSTALLATION.md → OpenAI Codex](INSTALLATION.md#openai-codex-plugin-directory) for full setup, including env vars.
+
 ### Other Hosts
 
 Clone (shallow) and follow the setup for your host:
@@ -69,7 +86,6 @@ Clone (shallow) and follow the setup for your host:
 git clone --depth 1 https://github.com/cameronfreer/lean4-skills.git
 ```
 
-- **Codex CLI** — add to `AGENTS.md` + env vars. See [INSTALLATION.md → Codex](INSTALLATION.md#openai-codex-cli)
 - **Gemini CLI** — add to `GEMINI.md` + env vars. See [INSTALLATION.md → Gemini](INSTALLATION.md#gemini-cli)
 - **Cursor** — project rules → SKILL.md + env vars. See [INSTALLATION.md → Cursor](INSTALLATION.md#cursor)
 - **Windsurf** — project rules → SKILL.md + env vars. See [INSTALLATION.md → Windsurf](INSTALLATION.md#windsurf)
