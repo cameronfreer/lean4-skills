@@ -510,8 +510,12 @@ Running decide-cascade on ¬ (∀ n : Nat, n < 10)...
 === Cycle 1 — Checkpoint ===
 
 Constructing T_counterexample : ∃ n : Nat, ¬ (n < 10) := ⟨10, by decide⟩
+Gate-only T_counterexample_negates_target : ¬ (∀ n : Nat, n < 10) :=
+  not_forall.mpr T_counterexample
 Appended to Bad.lean.
 Compile gate (lake env lean Bad.lean): passed.
+Axiom gate (T_counterexample_negates_target): ⊆ {propext, Classical.choice, Quot.sound} — passed.
+Dropped gate-only wrapper; committing T_counterexample (re-checked: passed).
 
 Commit this change? [yes / no]
 > yes
@@ -704,8 +708,12 @@ Running enumerate (n = 5 → 20 → 64, atom = decide)...
 
 Constructing T_counterexample : ∃ n : Nat, ¬ Nat.Prime (n^2 + n + 41) :=
   ⟨40, by decide⟩
+Gate-only T_counterexample_negates_target : ¬ (∀ n : Nat, Nat.Prime (n^2 + n + 41)) :=
+  not_forall.mpr T_counterexample
 Appended to Conjecture.lean.
 Compile gate: passed.
+Axiom gate (T_counterexample_negates_target): ⊆ {propext, Classical.choice, Quot.sound} — passed.
+Dropped gate-only wrapper; committing T_counterexample (re-checked: passed).
 
 Commit this change? [yes / no]
 > yes
