@@ -109,6 +109,22 @@ assert_exit "2. Re-run is idempotent (exit 0)" 0
 assert_stderr_contains "2b. Idempotency note" "already present"
 assert_file_line_count "2c. Exactly one declaration of foo_counterexample" "$TARGET" "theorem foo_counterexample"
 
+echo "-- Collision (same name, different body) --"
+DIFF_SNIPPET='theorem foo_counterexample : ∃ n : Nat, ¬ (n < 10) := ⟨11, by decide⟩
+'
+run_with_stdin "$DIFF_SNIPPET" --scope-file="$TARGET" --theorem-name="foo_counterexample"
+assert_exit "2d. Same name, different body → collision (exit 2)" 2
+assert_stderr_contains "2e. Collision error message" "different body"
+assert_file_line_count "2f. Still exactly one declaration of foo_counterexample" "$TARGET" "theorem foo_counterexample"
+assert_file_contains "2g. Original body preserved (witness 10)" "$TARGET" "⟨10, by decide⟩"
+if grep -q "⟨11, by decide⟩" "$TARGET"; then
+  echo "  FAIL: 2h. Conflicting body must NOT be written"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: 2h. Conflicting body not written"
+  PASS=$((PASS + 1))
+fi
+
 echo "-- Dry run --"
 TARGET2="$WORK_DIR/Bar.lean"
 cat > "$TARGET2" <<'EOF'

@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 """Append-only writer for /lean4:disprove counterexample artifacts.
 
-Reads the full theorem block from stdin and appends it to --scope-file if a
-declaration with the same theorem name is not already present. Idempotent
-on repeat invocation with identical inputs.
+Reads the full theorem block from stdin and appends it to --scope-file unless a
+declaration with the same theorem name is already present, in which case the
+existing declaration is compared against the incoming snippet:
+
+    - no declaration with that name        → append it
+    - same name, identical (normalized)    → idempotent, no change (exit 0)
+    - same name, DIFFERENT body/type       → hard collision, refuse (exit 2)
+
+The collision case is the important safety property: a stale or unrelated
+`T_counterexample` must NOT be silently treated as the freshly-found refutation.
 
 Safety:
     - Only appends; never rewrites or deletes existing content.
     - Refuses any file path that does not end in .lean.
-    - Refuses to operate if the requested theorem name already appears in the
-      file (treated as "already present" — exit 0, no change).
+    - Refuses (exit 2) if the requested name already exists with a different body.
 
 Usage:
     disprove_emit_artifact.py --scope-file=PATH --theorem-name=NAME [--dry-run]
@@ -20,7 +26,7 @@ stdout instead of being written.
 
 Exit codes:
     0 — wrote (or determined idempotent / dry-run)
-    2 — bad invocation or refused operation (error on stderr)
+    2 — bad invocation, refused operation, or name collision (error on stderr)
 """
 from __future__ import annotations
 
@@ -29,33 +35,60 @@ import os
 import re
 import sys
 
+# Top-level declaration header (any name) — used to find where an existing
+# declaration block ends (the next top-level decl starts the next block).
+_DECL_KEYWORDS = "theorem|lemma|def|abbrev|instance|example|structure|inductive|class|opaque|axiom"
+_MODIFIERS = r"(?:(?:private|protected|noncomputable|partial|unsafe)\s+)*"
+
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(add_help=True)
     p.add_argument("--scope-file", required=True,
                    help="Path to .lean file to append to, or '-' for stdout.")
     p.add_argument("--theorem-name", required=True,
-                   help="Name of the theorem in the snippet (used for idempotency check).")
+                   help="Name of the theorem in the snippet (used for the collision check).")
     p.add_argument("--dry-run", action="store_true",
                    help="Print the snippet to stdout instead of writing.")
     return p.parse_args(argv[1:])
 
 
-def _theorem_already_present(content: str, name: str) -> bool:
-    """Return True iff a declaration named NAME already appears at start of a line.
+def _extract_declaration_block(content: str, name: str) -> str | None:
+    """Return the existing top-level declaration block named NAME, or None.
 
     Recognises `theorem`, `lemma`, `def`, `abbrev`, and `instance`, with any
     leading combination of `private`, `protected`, `noncomputable`, `partial`,
-    or `unsafe` modifiers. Best-effort: `lake env lean` is the authoritative
-    collision check; this is the cheap idempotency probe used to avoid
-    re-appending an identical artifact on retry.
+    or `unsafe` modifiers. The block runs from the declaration header through
+    the line before the next top-level declaration (or EOF), so multi-line
+    proof bodies are captured whole. Best-effort: `lake env lean` is the
+    authoritative check; this is the cheap collision/idempotency probe.
     """
-    pattern = re.compile(
-        r"^(?:(?:private|protected|noncomputable|partial|unsafe)\s+)*"
-        r"(?:theorem|lemma|def|abbrev|instance)\s+" + re.escape(name) + r"\b",
+    header = re.compile(
+        r"^" + _MODIFIERS + r"(?:theorem|lemma|def|abbrev|instance)\s+"
+        + re.escape(name) + r"\b",
         re.MULTILINE,
     )
-    return bool(pattern.search(content))
+    m = header.search(content)
+    if not m:
+        return None
+    nxt = re.compile(r"^" + _MODIFIERS + r"(?:" + _DECL_KEYWORDS + r")\b", re.MULTILINE)
+    after = nxt.search(content, m.end())
+    end = after.start() if after else len(content)
+    return content[m.start():end]
+
+
+def _normalize(block: str) -> str:
+    """Normalize a declaration block for byte-for-byte comparison.
+
+    Strips trailing whitespace on each line and leading/trailing blank lines,
+    so an appended block (with a leading separator newline) compares equal to
+    the same declaration on stdin.
+    """
+    lines = [ln.rstrip() for ln in block.splitlines()]
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return "\n".join(lines)
 
 
 def main(argv: list[str]) -> int:
@@ -88,13 +121,22 @@ def main(argv: list[str]) -> int:
     with open(args.scope_file, "r", encoding="utf-8") as f:
         content = f.read()
 
-    if _theorem_already_present(content, args.theorem_name):
+    existing = _extract_declaration_block(content, args.theorem_name)
+    if existing is not None:
+        if _normalize(existing) == _normalize(snippet):
+            print(
+                f"note: theorem {args.theorem_name!r} already present (identical) in "
+                f"{args.scope_file}; no change.",
+                file=sys.stderr,
+            )
+            return 0
         print(
-            f"note: theorem {args.theorem_name!r} already present in "
-            f"{args.scope_file}; no change.",
+            f"error: theorem {args.theorem_name!r} already exists in "
+            f"{args.scope_file} with a different body; refusing to append a "
+            f"conflicting declaration (collision).",
             file=sys.stderr,
         )
-        return 0
+        return 2
 
     needs_leading_newline = content and not content.endswith("\n")
     block = ("\n" if needs_leading_newline else "") + snippet
