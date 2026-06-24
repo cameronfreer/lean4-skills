@@ -976,10 +976,13 @@ finding). For all other cycles the column is `—`.
 
 ## Safety
 
-- **Append-only.** Never rewrite an existing
-  `theorem T : P := by sorry` declaration to `: ¬ P`. The artifact
-  emitter (`disprove_emit_artifact.py`) enforces this — it refuses to
-  modify or duplicate existing declarations.
+- **Append-only, transactional.** Never rewrite an existing
+  `theorem T : P := by sorry` declaration to `: ¬ P`. Cycle artifacts are
+  written through `disprove_artifact_txn.py` (over the collision-safe
+  `disprove_emit_artifact.py`): each append is wrapped in txn-id markers and
+  refuses to modify or duplicate an existing declaration; the cycle's writes
+  are reverted as a unit via `rollback` (failure) or `drop-role` (gate-only
+  wrapper before commit), never touching pre-existing or other-txn declarations.
 - **No `native_decide` without opt-in (any method).** `native_decide`
   defaults off and is excluded from the `tactics` method's default list.
   Wherever it can appear — the `decide-cascade` family's
