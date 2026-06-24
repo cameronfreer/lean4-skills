@@ -1,4 +1,5 @@
 """Layer 1 parser golden tests for /lean4:disprove."""
+
 import os
 import sys
 import unittest
@@ -37,7 +38,9 @@ class TestDisproveHappyPath(unittest.TestCase):
         self.assertEqual(result.options["--max-cycles"].value, 3)
         self.assertEqual(result.options["--max-stuck-cycles"].value, 2)
         self.assertEqual(result.options["--max-runtime"].value, "5m")
-        self.assertEqual(result.options["--negation-policy"].value, "counterexample-only")
+        self.assertEqual(
+            result.options["--negation-policy"].value, "counterexample-only"
+        )
         self.assertEqual(result.options["--commit"].value, "ask")
         self.assertEqual(result.options["--commit"].source, "default")
         self.assertEqual(result.options["--knowledge-search-budget"].value, 3)
@@ -58,7 +61,7 @@ class TestDisproveTargetRequired(unittest.TestCase):
 
 class TestDisproveTargetShape(unittest.TestCase):
     def test_inline_prop_rejected(self):
-        result = parse_invocation(SPEC, '"∀ n : ℕ, n^2 ≥ n"', cwd=CWD)
+        result = parse_invocation(SPEC, '"∀ n : ℕ, n^2 ≥ n"', cwd=CWD)  # noqa: RUF001
         self.assertEqual(len(result.errors), 1)
         self.assertIn("expected", result.errors[0])
 
@@ -164,7 +167,9 @@ class TestDisproveUnknownFlag(unittest.TestCase):
 
     def test_dropped_allow_native_decide_errors(self):
         """--allow-native-decide moved into the Step 2 menu for decide-cascade."""
-        result = parse_invocation(SPEC, "Foo.lean:1 --allow-native-decide=true", cwd=CWD)
+        result = parse_invocation(
+            SPEC, "Foo.lean:1 --allow-native-decide=true", cwd=CWD
+        )
         self.assertTrue(len(result.errors) > 0)
 
     def test_dropped_max_witness_bound_errors(self):
@@ -196,9 +201,7 @@ class TestDisproveKnowledgeSearchBudget(unittest.TestCase):
         )
         self.assertEqual(result.errors, [])
         self.assertEqual(result.options["--knowledge-search-budget"].value, 5)
-        self.assertEqual(
-            result.options["--knowledge-search-budget"].source, "explicit"
-        )
+        self.assertEqual(result.options["--knowledge-search-budget"].source, "explicit")
 
     def test_zero_rejected(self):
         result = parse_invocation(

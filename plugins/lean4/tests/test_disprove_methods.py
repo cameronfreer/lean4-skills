@@ -1,4 +1,5 @@
 """Schema + integration tests for the /lean4:disprove Method Registry."""
+
 from __future__ import annotations
 
 import os
@@ -64,6 +65,7 @@ def _heading_slugs(path: str) -> set[str]:
 # Default-registry tests (the shipped data file)
 # ---------------------------------------------------------------------------
 
+
 class TestDefaultRegistry(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -115,7 +117,9 @@ class TestDefaultRegistry(unittest.TestCase):
         engine_slugs = _heading_slugs(_ENGINE_MD)
         for e in self.entries:
             ref = e.cert_template_ref
-            self.assertIn("#", ref, f"{e.id}: cert_template_ref missing anchor: {ref!r}")
+            self.assertIn(
+                "#", ref, f"{e.id}: cert_template_ref missing anchor: {ref!r}"
+            )
             file_part, _, anchor = ref.partition("#")
             self.assertEqual(
                 file_part,
@@ -154,7 +158,8 @@ class TestDefaultRegistry(unittest.TestCase):
         self.assertIsNotNone(spec, "tactics method must have a 'tactics' param")
         self.assertIsInstance(spec.default, list)
         self.assertNotIn(
-            "native_decide", spec.default,
+            "native_decide",
+            spec.default,
             "native_decide must NOT be in the tactics default list (opt-in only)",
         )
 
@@ -173,6 +178,7 @@ class TestDefaultRegistry(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Loader error-path tests
 # ---------------------------------------------------------------------------
+
 
 class TestLoaderRejections(unittest.TestCase):
     def _write(self, body: str) -> str:
@@ -230,7 +236,10 @@ class TestLoaderRejections(unittest.TestCase):
             load_registry(path)
 
     def test_invalid_param_type_rejected(self):
-        body = self._minimal_entry() + '[methods.params]\nfoo = { type = "ulong", default = 0 }\n'
+        body = (
+            self._minimal_entry()
+            + '[methods.params]\nfoo = { type = "ulong", default = 0 }\n'
+        )
         path = self._write(body)
         with self.assertRaisesRegex(RegistryError, "ulong"):
             load_registry(path)

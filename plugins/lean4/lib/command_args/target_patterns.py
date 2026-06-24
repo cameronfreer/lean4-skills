@@ -26,6 +26,7 @@ qualified name. See ``specs/disprove.py:_target_shape_valid`` and
 ``FILE_LINE_RE`` requires a 1-indexed line number (``[1-9]\\d*``) so the
 parser rejects ``Foo.lean:0`` rather than passing it through to the LSP.
 """
+
 from __future__ import annotations
 
 import re

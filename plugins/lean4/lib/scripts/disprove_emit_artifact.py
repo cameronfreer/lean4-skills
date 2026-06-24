@@ -28,6 +28,7 @@ Exit codes:
     0 — wrote (or determined idempotent / dry-run)
     2 — bad invocation, refused operation, or name collision (error on stderr)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -37,7 +38,9 @@ import sys
 
 # Top-level declaration header (any name) — used to find where an existing
 # declaration block ends (the next top-level decl starts the next block).
-_DECL_KEYWORDS = "theorem|lemma|def|abbrev|instance|example|structure|inductive|class|opaque|axiom"
+_DECL_KEYWORDS = (
+    "theorem|lemma|def|abbrev|instance|example|structure|inductive|class|opaque|axiom"
+)
 # Named declarations (everything above except anonymous `example`) — used to
 # detect an existing declaration that already claims the requested name, so a
 # name clash across decl kinds (e.g. an `axiom T_counterexample`) is caught.
@@ -47,12 +50,21 @@ _MODIFIERS = r"(?:(?:private|protected|noncomputable|partial|unsafe)\s+)*"
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(add_help=True)
-    p.add_argument("--scope-file", required=True,
-                   help="Path to .lean file to append to, or '-' for stdout.")
-    p.add_argument("--theorem-name", required=True,
-                   help="Name of the theorem in the snippet (used for the collision check).")
-    p.add_argument("--dry-run", action="store_true",
-                   help="Print the snippet to stdout instead of writing.")
+    p.add_argument(
+        "--scope-file",
+        required=True,
+        help="Path to .lean file to append to, or '-' for stdout.",
+    )
+    p.add_argument(
+        "--theorem-name",
+        required=True,
+        help="Name of the theorem in the snippet (used for the collision check).",
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the snippet to stdout instead of writing.",
+    )
     return p.parse_args(argv[1:])
 
 
@@ -68,8 +80,7 @@ def _extract_declaration_block(content: str, name: str) -> str | None:
     authoritative check; this is the cheap collision/idempotency probe.
     """
     header = re.compile(
-        r"^" + _MODIFIERS + r"(?:" + _NAMED_DECL + r")\s+"
-        + re.escape(name) + r"\b",
+        r"^" + _MODIFIERS + r"(?:" + _NAMED_DECL + r")\s+" + re.escape(name) + r"\b",
         re.MULTILINE,
     )
     m = header.search(content)
@@ -85,7 +96,7 @@ def _extract_declaration_block(content: str, name: str) -> str | None:
     )
     after = nxt.search(content, m.end())
     end = after.start() if after else len(content)
-    return content[m.start():end]
+    return content[m.start() : end]
 
 
 def _normalize(block: str) -> str:
@@ -130,7 +141,7 @@ def main(argv: list[str]) -> int:
         )
         return 2
 
-    with open(args.scope_file, "r", encoding="utf-8") as f:
+    with open(args.scope_file, encoding="utf-8") as f:
         content = f.read()
 
     existing = _extract_declaration_block(content, args.theorem_name)

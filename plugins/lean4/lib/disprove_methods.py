@@ -9,13 +9,29 @@ The loader validates the registry on every load (no caching of unchecked
 data); it is cheap and runs at session startup. Errors are raised eagerly
 with the offending method ``id`` in the message.
 """
+
 from __future__ import annotations
 
 import os
-import tomllib
+import sys
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Mapping
+from typing import TYPE_CHECKING
 
+# `/lean4:disprove` requires Python 3.11+ for the stdlib `tomllib` parser used by
+# the method registry. This is a disprove-only floor — the rest of the plugin
+# targets 3.10. At runtime, fail loudly (not with an opaque ImportError) on older
+# interpreters; for type-checking, mypy (pinned to the 3.10 floor) sees the import
+# via the TYPE_CHECKING branch.
+if TYPE_CHECKING:
+    import tomllib  # type: ignore[import-not-found]
+else:
+    if sys.version_info < (3, 11):
+        raise RuntimeError(
+            "/lean4:disprove requires Python 3.11+ for the stdlib `tomllib` "
+            f"parser; detected Python {sys.version_info.major}.{sys.version_info.minor}."
+        )
+    import tomllib
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_REGISTRY_PATH = os.path.join(_HERE, "data", "disprove_methods.toml")
@@ -162,9 +178,7 @@ def _build_entry(raw: object, source: str) -> MethodEntry:
 
 def _build_param(method_id: str, name: str, spec: object) -> ParamSpec:
     if not isinstance(spec, dict):
-        raise RegistryError(
-            f"method {method_id!r} param {name!r}: spec is not a table"
-        )
+        raise RegistryError(f"method {method_id!r} param {name!r}: spec is not a table")
     if "type" not in spec:
         raise RegistryError(f"method {method_id!r} param {name!r}: missing 'type'")
     ptype = str(spec["type"])
@@ -200,9 +214,7 @@ def _build_param(method_id: str, name: str, spec: object) -> ParamSpec:
     )
 
 
-def find_by_id(
-    entries: tuple[MethodEntry, ...], method_id: str
-) -> MethodEntry | None:
+def find_by_id(entries: tuple[MethodEntry, ...], method_id: str) -> MethodEntry | None:
     """Return the entry whose ``id`` matches, or ``None``."""
     for e in entries:
         if e.id == method_id:

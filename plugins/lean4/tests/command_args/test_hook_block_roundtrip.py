@@ -342,8 +342,8 @@ class TestAutoproveRoundTrip(unittest.TestCase):
 # /lean4:disprove
 # ═══════════════════════════════════════════════════════════════════════════
 
-class TestDisproveRoundTrip(unittest.TestCase):
 
+class TestDisproveRoundTrip(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp(prefix="hook_disprove_")
 
@@ -444,7 +444,13 @@ class TestFailOpen(unittest.TestCase):
             # Copy the real specs and types so the import succeeds but
             # parse_invocation raises.
             real_pkg = os.path.join(str(_PLUGIN_ROOT), "lib", "command_args")
-            for fname in ("types.py", "tokenizer.py", "formatter.py", "coercions.py", "target_patterns.py"):
+            for fname in (
+                "types.py",
+                "tokenizer.py",
+                "formatter.py",
+                "coercions.py",
+                "target_patterns.py",
+            ):
                 src = os.path.join(real_pkg, fname)
                 if os.path.exists(src):
                     shutil.copy2(src, os.path.join(pkg_dir, fname))

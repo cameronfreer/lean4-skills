@@ -12,6 +12,7 @@ Exit codes:
     0 — successful classification (JSON on stdout)
     2 — unrecognized target shape (error on stderr)
 """
+
 from __future__ import annotations
 
 import json
@@ -25,11 +26,13 @@ if _LIB_ROOT not in sys.path:
 
 from command_args.target_patterns import (  # noqa: E402
     FILE_LINE_RE as _FILE_LINE_RE,
+)
+from command_args.target_patterns import (  # noqa: E402
     QUALIFIED_NAME_RE as _QUALIFIED_NAME_RE,
 )
 
 
-def classify(target: str) -> dict:
+def classify(target: str) -> dict[str, object]:
     """Classify a target string into a structured descriptor.
 
     Args:

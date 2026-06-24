@@ -7,18 +7,10 @@ menu (Step 0 — Knowledge Search Menu — runs once in Cycle 1 by default,
 and re-enters when Step 1 picks `knowledge search`). Per-method parameters
 are dynamic Step 2 candidates the cycling LLM proposes, not top-level flags.
 """
+
 from __future__ import annotations
 
-from typing import Mapping
-
-from ..types import (
-    CommandSpec,
-    CrossValidation,
-    FlagSpec,
-    ParseContext,
-    PositionalSpec,
-)
-
+from collections.abc import Mapping
 
 # ---------------------------------------------------------------------------
 # Target shape regexes (matched by cross-validation)
@@ -27,14 +19,20 @@ from ..types import (
 # `command_args.target_patterns` so both call sites accept exactly the
 # same set of target strings.
 # ---------------------------------------------------------------------------
-
 from ..target_patterns import FILE_LINE_RE as _FILE_LINE_RE
 from ..target_patterns import QUALIFIED_NAME_RE as _QUALIFIED_NAME_RE
-
+from ..types import (
+    CommandSpec,
+    CrossValidation,
+    FlagSpec,
+    ParseContext,
+    PositionalSpec,
+)
 
 # ---------------------------------------------------------------------------
 # Cross-validations
 # ---------------------------------------------------------------------------
+
 
 def _target_required(
     flags: Mapping[str, object],
@@ -42,7 +40,9 @@ def _target_required(
 ) -> list[str]:
     """target positional is required."""
     if not flags.get("__positional_target"):
-        return ["target positional is required (File.lean:LINE or Namespace.theoremName)"]
+        return [
+            "target positional is required (File.lean:LINE or Namespace.theoremName)"
+        ]
     return []
 
 
