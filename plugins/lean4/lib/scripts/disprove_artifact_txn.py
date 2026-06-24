@@ -21,9 +21,11 @@ Subcommands:
     rollback  --scope-file F --txn ID
 
 Append refuses (exit 2) if NAME is already declared outside this txn's blocks
-(don't clobber a pre-existing or other-txn declaration); re-appending the same
-NAME under the same txn is idempotent. drop/rollback only excise this txn's
-marker blocks and never touch other content.
+(don't clobber a pre-existing or other-txn declaration). Re-appending the same
+txn+role+decl is idempotent (exit 0) only when the normalized body is identical;
+a different body under the same txn+role+decl is a collision (exit 2) — roll back
+or drop the block, then re-append. drop/rollback only excise this txn's marker
+blocks and never touch other content.
 
 Exit codes:
     0 — success (begin prints the id; others report on stderr)
