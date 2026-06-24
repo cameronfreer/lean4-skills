@@ -416,13 +416,15 @@ future estimates.
 - *applicable* — the registry `applies_to_shapes` includes the current Target
   Profile shape;
 - *available* — prerequisites are met (cheap probes): e.g. `decide-cascade` needs a
-  `Decidable` instance, `plausible` a `SampleableExt` instance, `external` the
-  chosen solver on `$PATH`.
+  `Decidable` instance, `plausible` a `SampleableExt` instance. `external` is
+  approval-gated (generic Python/bash scripts) and stays selectable; solver-backed
+  configs additionally need z3/cvc5 on `$PATH` (reported, not gated).
 
 `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/disprove_method_probe.py" --profile=<profile.json>` computes this
 deterministically — `{method: {selectable, reason}}` from the registry's
 `applies_to_shapes` (vs `profile.shape`), the profile's `decidable`/`sampleable`
-hints, and a `shutil.which` check for the solver. The cycling LLM renders the
+hints, and a `shutil.which` solver check that is **advisory** for `external`
+(surfaced in the reason, not an availability gate). The cycling LLM renders the
 selectable set as the menu and the rest under "Unavailable this cycle".
 
 A method that is inapplicable or unavailable is **not numbered**; render it under a
@@ -433,8 +435,10 @@ registry `false_negative_notes` or the failed probe:
 Unavailable this cycle:
 - decide-cascade — target not Decidable in current imports
 - plausible      — no SampleableExt instance for the binder type
-- external       — z3/cvc5 not installed
 ```
+
+(`external` is not listed here for a missing solver — it stays selectable; the probe
+reports solver presence in its reason instead.)
 
 This filtering applies **only to registry-backed method entries**. The
 always-present special entries below are governed by their own rules, not by this

@@ -45,7 +45,10 @@ class TestMethodProbe(unittest.TestCase):
         self.assertTrue(all(not v["selectable"] for v in r.values()))
         self.assertIn("shape not set", r["tactics"]["reason"])
 
-    def test_external_depends_on_solver_on_path(self):
+    def test_external_selectable_reports_solvers(self):
+        # `external` covers generic (approval-gated) Python/bash scripts too, so it is
+        # always selectable when shape-applicable; the solver check is advisory and is
+        # surfaced in the reason rather than gating availability.
         saved = os.environ.get("PATH", "")
         tmp = tempfile.mkdtemp()
         try:
@@ -55,16 +58,15 @@ class TestMethodProbe(unittest.TestCase):
             os.chmod(fake_z3, 0o755)
 
             os.environ["PATH"] = tmp  # z3 present
-            self.assertTrue(
-                probe_mod.probe({"shape": 7, "decidable": "no"})["external"][
-                    "selectable"
-                ]
-            )
+            r = probe_mod.probe({"shape": 7, "decidable": "no"})
+            self.assertTrue(r["external"]["selectable"])
+            self.assertIn("z3", r["external"]["reason"])
 
             os.environ["PATH"] = ""  # no z3/cvc5
             r = probe_mod.probe({"shape": 7, "decidable": "no"})
-            self.assertFalse(r["external"]["selectable"])
-            self.assertIn("not installed", r["external"]["reason"])
+            self.assertTrue(r["external"]["selectable"])  # still selectable
+            self.assertIn("none", r["external"]["reason"])
+            self.assertIn("approval-gated", r["external"]["reason"])
         finally:
             os.environ["PATH"] = saved
             import shutil

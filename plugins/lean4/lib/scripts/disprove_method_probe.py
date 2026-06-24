@@ -52,9 +52,14 @@ def _availability(method_id: str, profile: dict[str, object]) -> tuple[bool, str
         )
     if method_id == "external":
         found = [s for s in ("z3", "cvc5") if shutil.which(s)]
-        if found:
-            return True, f"SMT solver(s) on PATH: {', '.join(found)}"
-        return False, "no SMT solver on PATH (z3/cvc5 not installed)"
+        solvers = ", ".join(found) if found else "none"
+        # `external` also covers generic Python/bash scripts (approval-gated), so it is
+        # always selectable when shape-applicable; the solver check is advisory, reported
+        # in the reason — solver-backed configs need z3/cvc5, generic ones do not.
+        return True, (
+            "generic external scripts are approval-gated; "
+            f"solver-backed configs need z3/cvc5 (on PATH: {solvers})"
+        )
     return True, "no special prerequisite"
 
 
