@@ -281,3 +281,4 @@ of the originating Step 0 finding); all other cycles show `—`. See
 - [Implementation Status](../skills/lean4/references/disprove-engine.md#implementation-status) — what is deterministic script vs model-mediated vs deferred
 - [Method Registry](../lib/data/disprove_methods.toml) — Stable method ids, parameter schemas, cost classes
 - [Examples](../skills/lean4/references/command-examples.md#disprove)
+- [Benchmark](https://github.com/jancio/l4s-disprove-benchmark) — 16-target evaluation suite (certified refutations) from the disprove paper

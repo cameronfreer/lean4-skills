@@ -79,8 +79,8 @@ What in this reference is a deterministic script vs. performed by the cycling LL
 | Cycle tracker / stop budgets | **implemented (deterministic)** | `lib/scripts/cycle_tracker.sh` |
 | Artifact naming `T_counterexample` | **implemented (fixed, v1)** | schematic, one artifact per file (see note) |
 | Target-derived artifact names | **deferred (future)** | collision gate already makes the fixed name safe |
-| Capability-escalation benchmark + certified-term fixtures | **deferred (future)** | **no repo fixtures yet** |
-| External-SMT (Z3) deterministic fixture | **deferred (future)** | `external` family is a supported design; **no repo fixture yet** |
+| Capability-escalation benchmark + certified-term fixtures | **released (external repo)** | [`l4s-disprove-benchmark`](https://github.com/jancio/l4s-disprove-benchmark) — 16 targets (15 false + 1 true control), paper §5 |
+| External-SMT (Z3) deterministic fixture | **released (external repo)** | `SmtBad.lean` in [`l4s-disprove-benchmark`](https://github.com/jancio/l4s-disprove-benchmark) (Z3 model (−4,3), kernel-rechecked) |
 
 **`T_counterexample` is schematic and fixed in v1.** A file holds one disprove
 artifact under this name; the collision gate (and the transaction layer) refuse a
