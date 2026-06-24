@@ -255,14 +255,18 @@ approval do the selected rows fire. Tier semantics: `[lean]` = Lean /
 mathlib name lookup, `[local]` = target-file or repo grep, `[web]` =
 open-web literature.
 
-**Menu items (standard rows, `[custom]` and `[llm]`, all pre-selected):**
+**Menu items.** The `[lean]` and `[local]` rows (plus `[custom]`/`[llm]`) are
+**pre-selected by default**; the `[web]` rows are **available but pre-selected only
+when the target has searchable names** (a recognizable named constant/operator or
+mathematical content) — knowledge search is advisory and host-dependent, so web
+isn't fired every cycle by default. The user can select any row.
 
-- `[lean]`   `lean_leansearch`
-- `[local]`  mathlib `Counterexamples/` grep
-- `[local]`  repo grep `*_counterexample` / `*_counter` / "false" comments
-- `[web]`    websearch — known counterexample search methods
-- `[web]`    websearch — known NON-counterexamples
-- `[web]`    websearch — known counterexamples
+- `[lean]`   `lean_leansearch`  *(pre-selected)*
+- `[local]`  mathlib `Counterexamples/` grep  *(pre-selected)*
+- `[local]`  repo grep `*_counterexample` / `*_counter` / "false" comments  *(pre-selected)*
+- `[web]`    websearch — known counterexample search methods  *(pre-selected only if searchable)*
+- `[web]`    websearch — known NON-counterexamples  *(available; not pre-selected by default)*
+- `[web]`    websearch — known counterexamples  *(pre-selected only if searchable)*
 - `[custom]` user-supplied free-form intent — at fire time the LLM
   interprets the user's text into an executable query and picks the
   tier, then dispatches the matching tool. The interpretation is
@@ -306,8 +310,10 @@ open-web literature.
   Step 1 / Step 2 invocation. Compact; only new evidence since the last
   cycle is re-integrated.
 - **`$LEAN4_SESSION_DIR/findings.jsonl`** — append-only, one record per
-  line. Seeds the inline digest on session resume; cited by the Disprove
-  Summary's per-cycle URL column.
+  line. Seeds the inline digest on resume **within the same ephemeral session
+  directory only**; cited by the Disprove Summary's per-cycle URL column. This is
+  online adaptation *within* a session — **no state persists across independent
+  runs by default** (a fresh run starts a fresh session dir).
 
 **Outcomes feed:**
 
@@ -828,9 +834,30 @@ Session evidence record (appended once per cycle):
   "actual_time_seconds":            "<int wall-clock>",
   "derived_from_custom":            "<user text, if custom method>",
   "derived_from_verify_known_cex":  "<source_url or repo-relative path, if [verify-known-cex]>",
-  "external_script_path":           "<path under $LEAN4_SESSION_DIR/scripts/, if family=external>"
+  "external_script_path":           "<path under $LEAN4_SESSION_DIR/scripts/, if family=external>",
+
+  // Reproducibility fields (recorded for a certified FALSE):
+  "target_hash":                    "<hash of the normalized target>",
+  "normalized_target_type":         "<the resolved/profiled type>",
+  "artifact_file":                  "<target source file>",
+  "artifact_decl":                  "<committed artifact name, e.g. T_counterexample>",
+  "negation_decl":                  "<the ¬TARGET decl checked: artifact (direct) or the gate-only wrapper>",
+  "artifact_hash":                  "<hash of the artifact text>",
+  "negation_wrapper_hash":          "<hash of the gate-only wrapper text, if a witness shape>",
+  "lake_env_lean_ok":               "<bool: typecheck gate passed>",
+  "axioms":                         ["propext", "Classical.choice", "Quot.sound"],
+  "native_decide_opt_in":           "<bool>",
+  "lean_version":                   "<toolchain version>",
+  "mathlib_revision":               "<rev>",
+  "external_solver":                "<z3 | cvc5 | null>",
+  "external_solver_version":        "<version, if external>"
 }
 ```
+
+The gate-only `*_negates_target` wrapper is **not committed**, so when it (not the
+artifact) is the declaration that licensed `FALSE`, its text/hash MUST be captured
+here (`negation_decl` + `negation_wrapper_hash`) — that is the only durable record of
+the term the kernel actually accepted.
 
 `estimated_time_seconds` / `actual_time_seconds` form the calibration
 pair the next cycle's menus read when computing their `Cost` lines —
