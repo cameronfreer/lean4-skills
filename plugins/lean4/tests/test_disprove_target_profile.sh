@@ -11,6 +11,7 @@ PROFILE="$SCRIPT_DIR/../lib/scripts/disprove_target_profile.py"
 
 PASS=0
 FAIL=0
+SKIP=0
 
 WORK=""
 trap 'chmod -R u+w "$WORK" 2>/dev/null || true; rm -rf "$WORK"' EXIT
@@ -29,6 +30,7 @@ run() {
 
 pass() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; echo "        $2"; FAIL=$((FAIL + 1)); }
+skip() { echo "  SKIP: $1 (running as root)"; SKIP=$((SKIP + 1)); }
 
 assert_exit() {
   if [ "$LAST_EXIT" -eq "$2" ]; then pass "$1"
@@ -84,13 +86,17 @@ assert_exit "4. exit 2 (dependency)" 2
 assert_err_contains "4b. dependency message" "read-only dependency"
 
 echo "-- Read-only PROJECT file → NOT refused at profile time (writable:false) --"
-printf 'import X\ntheorem ro : True := trivial\n' > "$PROJ/RO.lean"
-chmod a-w "$PROJ/RO.lean"
-run "RO.lean:2" --root="$PROJ"
-assert_exit "5. exit 0 (project, not refused)" 0
-assert_json "5b. writable false" writable "False"
-assert_json "5c. path_class project" path_class "project"
-chmod u+w "$PROJ/RO.lean"
+if [ "$(id -u)" -ne 0 ]; then
+  printf 'import X\ntheorem ro : True := trivial\n' > "$PROJ/RO.lean"
+  chmod a-w "$PROJ/RO.lean"
+  run "RO.lean:2" --root="$PROJ"
+  assert_exit "5. exit 0 (project, not refused)" 0
+  assert_json "5b. writable false" writable "False"
+  assert_json "5c. path_class project" path_class "project"
+  chmod u+w "$PROJ/RO.lean"
+else
+  skip "5/5b/5c. read-only project file write check"
+fi
 
 echo "-- File-line passthrough (writable project file) --"
 run "Bar.lean:1" --root="$PROJ"
@@ -110,5 +116,5 @@ run '"∀ n, n ≥ 0"' --root="$PROJ"
 assert_exit "8. exit 2 (bad target)" 2
 
 echo ""
-echo "=== Results: $PASS passed, $FAIL failed ==="
+echo "=== Results: $PASS passed, $FAIL failed, $SKIP skipped ==="
 [ "$FAIL" -eq 0 ]

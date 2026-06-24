@@ -11,6 +11,8 @@ EMIT="$SCRIPT_DIR/../lib/scripts/disprove_emit_artifact.py"
 
 PASS=0
 FAIL=0
+SKIP=0
+skip() { echo "  SKIP: $1 (running as root)"; SKIP=$((SKIP + 1)); }
 
 WORK_DIR=""
 trap 'rm -rf "$WORK_DIR"' EXIT
@@ -196,16 +198,20 @@ assert_exit "7. Empty stdin rejected" 2
 assert_stderr_contains "7b. Empty-stdin error message" "empty snippet"
 
 echo "-- Read-only target --"
-READONLY="$WORK_DIR/ReadOnly.lean"
-cat > "$READONLY" <<'EOF'
+if [ "$(id -u)" -ne 0 ]; then
+  READONLY="$WORK_DIR/ReadOnly.lean"
+  cat > "$READONLY" <<'EOF'
 import Mathlib
 EOF
-chmod a-w "$READONLY"
-run_with_stdin "$SNIPPET" --scope-file="$READONLY" --theorem-name="ro_counterexample"
-assert_exit "8. Read-only target rejected" 2
-assert_stderr_contains "8b. Read-only error message" "cannot append"
-chmod u+w "$READONLY"   # restore for cleanup trap
+  chmod a-w "$READONLY"
+  run_with_stdin "$SNIPPET" --scope-file="$READONLY" --theorem-name="ro_counterexample"
+  assert_exit "8. Read-only target rejected" 2
+  assert_stderr_contains "8b. Read-only error message" "cannot append"
+  chmod u+w "$READONLY"   # restore for cleanup trap
+else
+  skip "8/8b. read-only target write check"
+fi
 
 echo ""
-echo "=== Results: $PASS passed, $FAIL failed ==="
+echo "=== Results: $PASS passed, $FAIL failed, $SKIP skipped ==="
 [ "$FAIL" -eq 0 ]
