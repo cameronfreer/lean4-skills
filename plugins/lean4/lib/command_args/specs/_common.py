@@ -3,6 +3,7 @@
 Each function returns a FlagSpec (or list of FlagSpecs) so per-command
 overrides can customize defaults, coercions, or enforcement classes.
 """
+
 from __future__ import annotations
 
 from ..types import Coercion, FlagSpec

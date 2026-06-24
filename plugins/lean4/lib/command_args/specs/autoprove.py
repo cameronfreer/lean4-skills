@@ -1,7 +1,8 @@
 """Spec for /lean4:autoprove — autonomous multi-cycle theorem proving."""
+
 from __future__ import annotations
 
-from typing import Mapping
+from collections.abc import Mapping
 
 from ..types import (
     Coercion,
@@ -12,10 +13,10 @@ from ..types import (
     PositionalSpec,
 )
 
-
 # ---------------------------------------------------------------------------
 # Autoprove-specific coercions
 # ---------------------------------------------------------------------------
+
 
 def _commit_ask_coerce(
     value: object,
@@ -101,8 +102,7 @@ def _deep_rollback_never_coerce(
     """--deep-rollback=never -> coerced to on-regression (safety)."""
     if value == "never":
         return "on-regression", (
-            "--deep-rollback=never is unsafe. "
-            "Using on-regression for safety."
+            "--deep-rollback=never is unsafe. Using on-regression for safety."
         )
     return value, None
 
@@ -126,8 +126,7 @@ def _deep_regression_gate_off_coerce(
     """--deep-regression-gate=off -> coerced to strict (safety)."""
     if value == "off":
         return "strict", (
-            "--deep-regression-gate=off is unsafe. "
-            "Using strict for safety."
+            "--deep-regression-gate=off is unsafe. Using strict for safety."
         )
     return value, None
 
@@ -146,6 +145,7 @@ DEEP_REGRESSION_GATE_OFF_COERCION = Coercion(
 # ---------------------------------------------------------------------------
 # Autoprove-specific cross-validations
 # ---------------------------------------------------------------------------
+
 
 def _statement_policy_preserve_warn(
     flags: Mapping[str, object],
@@ -188,9 +188,7 @@ FORMALIZE_AUTO_REQUIRES_SOURCE = CrossValidation(
     rule_id="autoprove-formalize-auto-requires-source",
     fn=_formalize_auto_requires_source,
     severity="error",
-    doc_phrases=(
-        "--formalize=auto requires --source; error if missing.",
-    ),
+    doc_phrases=("--formalize=auto requires --source; error if missing.",),
     summary="Require --source when --formalize=auto.",
 )
 
@@ -283,9 +281,7 @@ FORMALIZE_NEVER_IGNORES_SOURCE = CrossValidation(
     rule_id="autoprove-formalize-never-ignores-source",
     fn=_formalize_never_ignores_source,
     severity="warning",
-    doc_phrases=(
-        "--formalize=never ignores --source (warn if provided)",
-    ),
+    doc_phrases=("--formalize=never ignores --source (warn if provided)",),
     summary="Warn that --formalize=never ignores --source.",
 )
 

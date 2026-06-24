@@ -1,4 +1,7 @@
 """Layer 1 parser golden tests for /lean4:formalize."""
+
+from __future__ import annotations
+
 import os
 import sys
 import unittest
@@ -28,7 +31,7 @@ class TestFormalizeHappyPath(unittest.TestCase):
         self.assertEqual(result.options["--rigor"].source, "default")
 
     def test_source_only(self):
-        result = parse_invocation(SPEC, '--source=paper.pdf', cwd=CWD)
+        result = parse_invocation(SPEC, "--source=paper.pdf", cwd=CWD)
         self.assertEqual(result.errors, [])
         self.assertNotIn("topic", result.positionals)
         self.assertEqual(result.options["--source"].value, "paper.pdf")
@@ -38,13 +41,17 @@ class TestFormalizeMissingTopicAndSource(unittest.TestCase):
     """topic OR source: missing both -> error."""
 
     def test_neither_topic_nor_source(self):
-        result = parse_invocation(SPEC, '--rigor=checked', cwd=CWD)
+        result = parse_invocation(SPEC, "--rigor=checked", cwd=CWD)
         self.assertTrue(len(result.errors) > 0)
-        matching = [e for e in result.errors if "topic" in e.lower() or "source" in e.lower()]
-        self.assertTrue(len(matching) > 0, f"Expected topic/source error, got: {result.errors}")
+        matching = [
+            e for e in result.errors if "topic" in e.lower() or "source" in e.lower()
+        ]
+        self.assertTrue(
+            len(matching) > 0, f"Expected topic/source error, got: {result.errors}"
+        )
 
     def test_empty_input(self):
-        result = parse_invocation(SPEC, '', cwd=CWD)
+        result = parse_invocation(SPEC, "", cwd=CWD)
         self.assertTrue(len(result.errors) > 0)
 
 
@@ -54,11 +61,18 @@ class TestFormalizeClaimSelectRequiresSource(unittest.TestCase):
     def test_claim_select_without_source_errors(self):
         result = parse_invocation(SPEC, '"Zorn" --claim-select=first', cwd=CWD)
         self.assertTrue(len(result.errors) > 0)
-        matching = [e for e in result.errors if "claim-select" in e and "source" in e.lower()]
-        self.assertTrue(len(matching) > 0, f"Expected claim-select/source error, got: {result.errors}")
+        matching = [
+            e for e in result.errors if "claim-select" in e and "source" in e.lower()
+        ]
+        self.assertTrue(
+            len(matching) > 0,
+            f"Expected claim-select/source error, got: {result.errors}",
+        )
 
     def test_claim_select_with_source_ok(self):
-        result = parse_invocation(SPEC, '--source=paper.pdf --claim-select=first', cwd=CWD)
+        result = parse_invocation(
+            SPEC, "--source=paper.pdf --claim-select=first", cwd=CWD
+        )
         self.assertEqual(result.errors, [])
 
 
@@ -91,8 +105,12 @@ class TestFormalizeOutputFileRequiresOut(unittest.TestCase):
     def test_output_file_without_out_errors(self):
         result = parse_invocation(SPEC, '"Zorn" --output=file', cwd=CWD)
         self.assertTrue(len(result.errors) > 0)
-        matching = [e for e in result.errors if "output" in e.lower() and "out" in e.lower()]
-        self.assertTrue(len(matching) > 0, f"Expected output/out error, got: {result.errors}")
+        matching = [
+            e for e in result.errors if "output" in e.lower() and "out" in e.lower()
+        ]
+        self.assertTrue(
+            len(matching) > 0, f"Expected output/out error, got: {result.errors}"
+        )
 
 
 if __name__ == "__main__":

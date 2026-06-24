@@ -1,5 +1,7 @@
 """Layer 1 parser golden tests for /lean4:draft."""
-import json
+
+from __future__ import annotations
+
 import os
 import sys
 import unittest
@@ -30,7 +32,9 @@ class TestDraftHappyPath(unittest.TestCase):
         self.assertEqual(result.options["--mode"].source, "explicit")
 
     def test_topic_with_spaces(self):
-        result = parse_invocation(SPEC, '"every even number > 2 is the sum of two primes"', cwd=CWD)
+        result = parse_invocation(
+            SPEC, '"every even number > 2 is the sum of two primes"', cwd=CWD
+        )
         self.assertEqual(result.errors, [])
         self.assertEqual(
             result.positionals["topic"],
@@ -67,14 +71,22 @@ class TestDraftMissingRequired(unittest.TestCase):
     def test_no_topic_no_source(self):
         result = parse_invocation(SPEC, "--mode=skeleton", cwd=CWD)
         self.assertTrue(len(result.errors) > 0)
-        matching = [e for e in result.errors if "topic" in e.lower() or "source" in e.lower()]
-        self.assertTrue(len(matching) > 0, f"Expected topic/source error, got: {result.errors}")
+        matching = [
+            e for e in result.errors if "topic" in e.lower() or "source" in e.lower()
+        ]
+        self.assertTrue(
+            len(matching) > 0, f"Expected topic/source error, got: {result.errors}"
+        )
 
     def test_empty_input(self):
         result = parse_invocation(SPEC, "", cwd=CWD)
         self.assertTrue(len(result.errors) > 0)
-        matching = [e for e in result.errors if "topic" in e.lower() or "source" in e.lower()]
-        self.assertTrue(len(matching) > 0, f"Expected topic/source error, got: {result.errors}")
+        matching = [
+            e for e in result.errors if "topic" in e.lower() or "source" in e.lower()
+        ]
+        self.assertTrue(
+            len(matching) > 0, f"Expected topic/source error, got: {result.errors}"
+        )
 
 
 class TestDraftClaimSelect(unittest.TestCase):
@@ -83,11 +95,18 @@ class TestDraftClaimSelect(unittest.TestCase):
     def test_claim_select_without_source_errors(self):
         result = parse_invocation(SPEC, '"x" --claim-select=first', cwd=CWD)
         self.assertTrue(len(result.errors) > 0)
-        matching = [e for e in result.errors if "claim-select" in e and "source" in e.lower()]
-        self.assertTrue(len(matching) > 0, f"Expected claim-select/source error, got: {result.errors}")
+        matching = [
+            e for e in result.errors if "claim-select" in e and "source" in e.lower()
+        ]
+        self.assertTrue(
+            len(matching) > 0,
+            f"Expected claim-select/source error, got: {result.errors}",
+        )
 
     def test_claim_select_with_source_ok(self):
-        result = parse_invocation(SPEC, '--source=paper.pdf --claim-select=first', cwd=CWD)
+        result = parse_invocation(
+            SPEC, "--source=paper.pdf --claim-select=first", cwd=CWD
+        )
         self.assertEqual(result.errors, [])
 
 
@@ -97,8 +116,12 @@ class TestDraftOutputFileRequiresOut(unittest.TestCase):
     def test_output_file_without_out_errors(self):
         result = parse_invocation(SPEC, '"x" --output=file', cwd=CWD)
         self.assertTrue(len(result.errors) > 0)
-        matching = [e for e in result.errors if "output" in e.lower() and "out" in e.lower()]
-        self.assertTrue(len(matching) > 0, f"Expected output/out error, got: {result.errors}")
+        matching = [
+            e for e in result.errors if "output" in e.lower() and "out" in e.lower()
+        ]
+        self.assertTrue(
+            len(matching) > 0, f"Expected output/out error, got: {result.errors}"
+        )
 
 
 class TestDraftIntentCoercion(unittest.TestCase):

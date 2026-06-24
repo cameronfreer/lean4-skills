@@ -194,11 +194,12 @@ Checks your environment (lean, lake, python, git), plugin structure, project hea
 
 Guardrails activate only in Lean project context (a directory tree containing `lakefile.lean`, `lean-toolchain`, or `lakefile.toml`). Outside Lean projects, they are silently skipped.
 
-Blocked during Lean project sessions:
-- `git push` → Use `/lean4:checkpoint`, then push manually
-- `git commit --amend` → Each change is a new commit for safe rollback
-- `gh pr create` → Review first with `/lean4:review`
-- Destructive git operations (`checkout --`, `restore`, `reset --hard`, `clean -f`) → Commit or checkpoint first
+Guarded during Lean project sessions (policy/tier details below):
+- `git push` → Use `/lean4:checkpoint`, then push manually (soft-gate, bypass-able)
+- `git commit --amend` → Each change is a new commit for safe rollback (soft-gate, bypass-able)
+- `gh pr create` → Review first with `/lean4:review` (soft-gate, bypass-able)
+- Path-scoped destructive git (`checkout -- <path>`, `checkout [-q|--quiet] <tree-ish> <path>`, `checkout {--ours,--theirs,-2,-3,--merge,--conflict=…} <path>`, `checkout {--ignore-skip-worktree-bits,--no-overlay,--overlay,--recurse-submodules,-p,--patch} <path>`, `checkout -f <path-like>`, `checkout ./<path>` (incl. dotfiles), `restore <path>` and short-flag variants) → soft-gate, bypass-able; default `ask` mode
+- Whole-worktree / force-branch / interactive-sweep destructive git (`reset --hard`, `clean -f`, `checkout .` / `-- .` / `HEAD -- .` / `-f .` / `--ours .`, `restore .` / `-SW`, `checkout --pathspec-from-file`, `restore --pathspec-from-file` (non-staged), `checkout -f|--force <branch-or-ref>`, `checkout -p`/`--patch` with no path, `switch -f|--force|--discard-changes`) → absolute hard-block; bypass does not apply
 - Deep sorry-filling has snapshot, rollback, scope budgets, and regression gates — see [Cycle Engine](skills/lean4/references/cycle-engine.md#deep-mode)
 
 **Override environment variables:**
@@ -208,28 +209,59 @@ Blocked during Lean project sessions:
 | `LEAN4_GUARDRAILS_DISABLE=1` | Skip all guardrails regardless of context |
 | `LEAN4_GUARDRAILS_FORCE=1` | Enforce guardrails even outside Lean projects |
 | `LEAN4_GUARDRAILS_COLLAB_POLICY` | Collaboration op policy: `ask` (default), `allow`, `block` |
+| `LEAN4_GUARDRAILS_DESTRUCTIVE_POLICY` | Path-scoped destructive op policy: `ask` (default), `allow`, `block` |
 
 `LEAN4_GUARDRAILS_DISABLE` overrides everything. `LEAN4_GUARDRAILS_FORCE` controls whether guardrails activate outside Lean projects.
 
+Git operations fall into **three tiers**:
+
+1. **Allow** (implicit, no gate): `git status`, `diff`, `log`, `show`, `branch`, `add`, `commit`, `stash push`, `switch <branch>`, `checkout <branch>`, `restore --staged <path>` (pure unstaging, any pathspec including `.`).
+2. **Soft-gate** (policy-controlled, bypass-able): collaboration ops + path-scoped destructive ops. See subsections below.
+3. **Hard-block** (absolute, never bypassable): `git reset --hard`, `git clean -f`/`-fd`/`-fdx`, plus the whole-worktree, opaque-pathspec, force-branch, and interactive-sweep variants — `git checkout .`/`./`/`-- .`/`-- ./`/`-- :/`/`HEAD -- .`/`-f .`/`--ours .`/`--theirs :/`, `git checkout --pathspec-from-file=…`, `git checkout -f|--force <branch-or-ref>` (incl. ref shorthand `@{-1}`, `-`, `@`, `HEAD~3`, `HEAD@{1}`), `git checkout -p`/`--patch` with no path positional (interactive whole-worktree sweep, bypassable by piped stdin), `git restore .`/`./`/`:/`, `git restore --staged --worktree` (incl. `-SW` short-flag bundle), `git restore --pathspec-from-file=…` (non-staged), `git switch -f|--force|--discard-changes <anything>`. These wipe state across the whole worktree (or untracked files), discard uncommitted edits during branch switching, sweep modified files interactively from an opaque stdin source, or accept opaque path lists the guardrail can't inspect; reflog can't recover uncommitted edits and `clean -f` can't recover untracked files at all.
+
 **Collaboration policy (`LEAN4_GUARDRAILS_COLLAB_POLICY`):**
 
-Controls how collaboration ops (`git push`, `git commit --amend`, `gh pr create`) are handled:
+Controls how collaboration ops (`git push`, `git commit --amend`, `gh pr create`) — operations that affect shared state — are handled:
 
 - **`ask`** (default) — block unless a one-shot bypass token is present. The hook is non-interactive; in `ask` mode the assistant asks you yes/no, then reruns the command with the bypass token once.
 - **`allow`** — permit collaboration ops without a bypass token.
 - **`block`** — block collaboration ops unconditionally, even with a bypass token.
 
-Invalid values fall back to `ask`. Destructive operations (`checkout --`, `restore`, `reset --hard`, `clean -f`) are always blocked regardless of policy.
+Invalid values fall back to `ask`.
 
-**One-shot bypass (collaboration ops only):**
+**Destructive policy (`LEAN4_GUARDRAILS_DESTRUCTIVE_POLICY`):**
 
-To override a single blocked collaboration command (`git push`, `git commit --amend`, `gh pr create`), prefix it with the bypass token:
+Controls how **path-scoped** destructive ops are handled. The covered forms (each with bounded blast radius — the named pathset only — but still discarding uncommitted edits the reflog can't recover):
+
+- `git checkout -- <path…>`
+- `git checkout [-q|--quiet] <tree-ish> <path…>` (without `--`, e.g. `git checkout HEAD file.lean`; non-destructive flag prefix or interleaving OK)
+- `git checkout {--ours,--theirs,-2,-3,--merge,--conflict=<style>} <path…>` (merge-conflict resolution flags; long-form `--merge` covered, short-form `-m` deferred per `_strip_optvals` limitation)
+- `git checkout {--ignore-skip-worktree-bits,--no-overlay,--overlay,--recurse-submodules,-p,--patch} <path…>` (pathspec-oriented flags; `-p`/`--patch` is interactive but pipes like `yes y | …` bypass interactivity, so soft-gated regardless of TTY)
+- `git checkout -f|--force <path-like>` (path-scoped force-restore; `-f <branch-or-ref>` is hard-blocked instead)
+- `git checkout ./<path>` / `:/<path>` / `../<path>` (explicit path-prefix positionals, including dotfiles)
+- `git restore <path…>` (any worktree-touching flag combination, including `-W`, `-SW`, etc.)
+
+`git restore --staged <path>` (pure unstaging, including pathspec `.`) is always allowed regardless of policy — it's index-only and reversible.
+
+- **`ask`** (default) — block unless a one-shot bypass token is present.
+- **`allow`** — permit path-scoped destructive ops without a bypass token (useful when routinely reverting experimental files).
+- **`block`** — block unconditionally, even with a bypass token.
+
+Invalid values fall back to `ask`. Whole-worktree destructive variants (tier 3 above) are independent of this policy and **always block** regardless of its value or the bypass token.
+
+The two policies are independent: `DESTRUCTIVE_POLICY=allow` does not unblock collab ops, and `COLLAB_POLICY=allow` does not unblock path-scoped destructive ops.
+
+**One-shot bypass (soft-gated ops):**
+
+To override a single blocked soft-gated command, prefix it with the bypass token:
 
 ```bash
 LEAN4_GUARDRAILS_BYPASS=1 git push origin main
+LEAN4_GUARDRAILS_BYPASS=1 git checkout -- experiment.lean
+LEAN4_GUARDRAILS_BYPASS=1 git restore src/some_file.lean
 ```
 
-The token must appear in the leading env-assignment prefix of the command (command prefix only, not an environment variable). Bypass is effective only in `ask` mode (default); it is unnecessary in `allow` mode and ignored in `block` mode. Destructive operations (`checkout --`, `restore`, `reset --hard`, `clean -f`) are always blocked — bypass does not apply to them.
+The token must appear in the leading env-assignment prefix of the command (command prefix only, not an environment variable). Bypass is effective only in `ask` mode (default for both policies); it is unnecessary in `allow` mode and ignored in `block` mode. Bypass does **not** apply to whole-worktree hard-blocked ops (`reset --hard`, `clean -f`, `checkout .`, etc.) — those are absolute.
 
 ### LSP-First Approach
 

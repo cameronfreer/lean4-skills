@@ -1,4 +1,7 @@
 """Layer 1 parser golden tests for cross-command / structural behaviour."""
+
+from __future__ import annotations
+
 import json
 import os
 import sys
@@ -19,14 +22,18 @@ class TestMultiPositionalRejection(unittest.TestCase):
         result = parse_invocation(spec, '"first" "second"', cwd=CWD)
         self.assertTrue(len(result.errors) > 0)
         matching = [e for e in result.errors if "positional" in e.lower()]
-        self.assertTrue(len(matching) > 0, f"Expected positional error, got: {result.errors}")
+        self.assertTrue(
+            len(matching) > 0, f"Expected positional error, got: {result.errors}"
+        )
 
     def test_prove_rejects_two_positionals(self):
         spec = COMMAND_SPECS["prove"]
         result = parse_invocation(spec, "Foo.lean Bar.lean", cwd=CWD)
         self.assertTrue(len(result.errors) > 0)
         matching = [e for e in result.errors if "positional" in e.lower()]
-        self.assertTrue(len(matching) > 0, f"Expected positional error, got: {result.errors}")
+        self.assertTrue(
+            len(matching) > 0, f"Expected positional error, got: {result.errors}"
+        )
 
 
 class TestWhitespaceHandling(unittest.TestCase):
@@ -65,8 +72,12 @@ class TestFlagEqualsVsSpace(unittest.TestCase):
         spec = COMMAND_SPECS["autoprove"]
         r1 = parse_invocation(spec, "--max-cycles=5", cwd=CWD)
         r2 = parse_invocation(spec, "--max-cycles 5", cwd=CWD)
-        self.assertEqual(r1.options["--max-cycles"].value, r2.options["--max-cycles"].value)
-        self.assertEqual(r1.options["--max-cycles"].source, r2.options["--max-cycles"].source)
+        self.assertEqual(
+            r1.options["--max-cycles"].value, r2.options["--max-cycles"].value
+        )
+        self.assertEqual(
+            r1.options["--max-cycles"].source, r2.options["--max-cycles"].source
+        )
 
 
 class TestToDict(unittest.TestCase):

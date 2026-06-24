@@ -1,4 +1,5 @@
 """CommandSpec for /lean4:draft -- draft Lean declaration skeletons from informal claims."""
+
 from __future__ import annotations
 
 from ..coercions import (

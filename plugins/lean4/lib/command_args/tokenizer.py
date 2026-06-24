@@ -1,4 +1,5 @@
 """shlex-based POSIX tokenizer for slash-command raw tails."""
+
 from __future__ import annotations
 
 import shlex

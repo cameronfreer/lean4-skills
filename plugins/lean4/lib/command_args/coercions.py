@@ -16,10 +16,11 @@ Coercion functions have signature:
 Validation functions have signature:
     (options, ctx) -> list[str]
 """
+
 from __future__ import annotations
 
 import os
-from typing import Mapping
+from collections.abc import Mapping
 
 from .types import Coercion, CrossValidation, ParseContext
 
@@ -30,8 +31,11 @@ from .types import Coercion, CrossValidation, ParseContext
 
 # -- commit_ask_to_auto ----------------------------------------------------
 
+
 def commit_ask_to_auto(
-    value: object, options: Mapping[str, object], ctx: ParseContext,
+    value: object,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> tuple[object, str | None]:
     """autoprove: --commit=ask -> auto (no interactive prompting)."""
     if value == "ask":
@@ -56,8 +60,11 @@ COMMIT_ASK_TO_AUTO = Coercion(
 
 # -- review_source_external_to_internal ------------------------------------
 
+
 def review_source_external_to_internal(
-    value: object, options: Mapping[str, object], ctx: ParseContext,
+    value: object,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> tuple[object, str | None]:
     """autoprove/autoformalize: --review-source=external|both -> internal."""
     if value in ("external", "both"):
@@ -82,8 +89,11 @@ REVIEW_SOURCE_EXTERNAL_TO_INTERNAL = Coercion(
 
 # -- deep_ask_to_stuck -----------------------------------------------------
 
+
 def deep_ask_to_stuck(
-    value: object, options: Mapping[str, object], ctx: ParseContext,
+    value: object,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> tuple[object, str | None]:
     """autoprove: --deep=ask -> stuck (no interactive prompting)."""
     if value == "ask":
@@ -108,8 +118,11 @@ DEEP_ASK_TO_STUCK = Coercion(
 
 # -- deep_rollback_safety --------------------------------------------------
 
+
 def deep_rollback_safety(
-    value: object, options: Mapping[str, object], ctx: ParseContext,
+    value: object,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> tuple[object, str | None]:
     """autoprove: --deep-rollback=never -> on-regression (safety)."""
     if value == "never":
@@ -134,8 +147,11 @@ DEEP_ROLLBACK_SAFETY = Coercion(
 
 # -- deep_regression_gate_safety -------------------------------------------
 
+
 def deep_regression_gate_safety(
-    value: object, options: Mapping[str, object], ctx: ParseContext,
+    value: object,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> tuple[object, str | None]:
     """autoprove: --deep-regression-gate=off -> strict (safety)."""
     if value == "off":
@@ -160,8 +176,11 @@ DEEP_REGRESSION_GATE_SAFETY = Coercion(
 
 # -- intent_auto_collapse --------------------------------------------------
 
+
 def intent_auto_collapse(
-    value: object, options: Mapping[str, object], ctx: ParseContext,
+    value: object,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> tuple[object, str | None]:
     """draft/formalize: --intent=auto -> usage (collapse internals/authoring).
 
@@ -178,8 +197,7 @@ def intent_auto_collapse(
     if value in ("internals", "authoring"):
         return (
             "usage",
-            f"\u26a0 --intent={value} coerced to usage "
-            "(not defined for this command).",
+            f"\u26a0 --intent={value} coerced to usage (not defined for this command).",
         )
     return value, None
 
@@ -197,8 +215,11 @@ INTENT_AUTO_COLLAPSE = Coercion(
 
 # -- track_without_game_ignore ---------------------------------------------
 
+
 def track_without_game_ignore(
-    value: object, options: Mapping[str, object], ctx: ParseContext,
+    value: object,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> tuple[object, str | None]:
     """learn: --track without --style=game -> coerce to None (warn + ignore)."""
     style = options.get("--style")
@@ -223,8 +244,11 @@ TRACK_WITHOUT_GAME_IGNORE = Coercion(
 
 # -- scope_mathlib_coerce --------------------------------------------------
 
+
 def scope_mathlib_coerce(
-    value: object, options: Mapping[str, object], ctx: ParseContext,
+    value: object,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> tuple[object, str | None]:
     """learn: --mode=mathlib + --scope=file|changed|project -> coerce to topic."""
     mode = options.get("--mode")
@@ -249,8 +273,11 @@ SCOPE_MATHLIB_COERCE = Coercion(
 
 # -- interactive_without_socratic_ignore -----------------------------------
 
+
 def interactive_without_socratic_ignore(
-    value: object, options: Mapping[str, object], ctx: ParseContext,
+    value: object,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> tuple[object, str | None]:
     """learn: --interactive without --style=socratic -> coerce to False."""
     style = options.get("--style")
@@ -265,17 +292,18 @@ def interactive_without_socratic_ignore(
 INTERACTIVE_WITHOUT_SOCRATIC_IGNORE = Coercion(
     rule_id="interactive_without_socratic_ignore",
     fn=interactive_without_socratic_ignore,
-    doc_phrases=(
-        "Valid only with `--style=socratic`; ignored with warning otherwise",
-    ),
+    doc_phrases=("Valid only with `--style=socratic`; ignored with warning otherwise",),
     summary="learn: ignore --interactive when --style is not socratic",
 )
 
 
 # -- formalize_statement_policy_coerce -------------------------------------
 
+
 def formalize_statement_policy_coerce(
-    value: object, options: Mapping[str, object], ctx: ParseContext,
+    value: object,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> tuple[object, str | None]:
     """autoprove: --formalize=restage|auto with --statement-policy=preserve
     -> coerce to rewrite-generated-only."""
@@ -307,8 +335,10 @@ FORMALIZE_STATEMENT_POLICY_COERCE = Coercion(
 
 # -- topic_or_source_required ----------------------------------------------
 
+
 def topic_or_source_required(
-    options: Mapping[str, object], ctx: ParseContext,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> list[str]:
     """draft/formalize: at least one of topic or --source must be given.
 
@@ -337,8 +367,10 @@ TOPIC_OR_SOURCE_REQUIRED = CrossValidation(
 
 # -- output_file_requires_out ----------------------------------------------
 
+
 def output_file_requires_out(
-    options: Mapping[str, object], ctx: ParseContext,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> list[str]:
     """draft/learn/formalize: --output=file without --out -> error."""
     output = options.get("--output")
@@ -362,8 +394,10 @@ OUTPUT_FILE_REQUIRES_OUT = CrossValidation(
 
 # -- output_file_overwrite_check -------------------------------------------
 
+
 def output_file_overwrite_check(
-    options: Mapping[str, object], ctx: ParseContext,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> list[str]:
     """--output=file + existing target + no --overwrite -> error."""
     output = options.get("--output")
@@ -393,8 +427,10 @@ OUTPUT_FILE_OVERWRITE_CHECK = CrossValidation(
 
 # -- statement_policy_preserve_warning -------------------------------------
 
+
 def statement_policy_preserve_warning(
-    options: Mapping[str, object], ctx: ParseContext,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> list[str]:
     """autoformalize/autoprove: --statement-policy=preserve -> warn."""
     policy = options.get("--statement-policy")
@@ -420,8 +456,10 @@ STATEMENT_POLICY_PRESERVE_WARNING = CrossValidation(
 
 # -- source_overrides_scope_warning ----------------------------------------
 
+
 def source_overrides_scope_warning(
-    options: Mapping[str, object], ctx: ParseContext,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> list[str]:
     """learn: --source + --scope=file|changed|project -> warn."""
     source = options.get("--source")
@@ -445,8 +483,10 @@ SOURCE_OVERRIDES_SCOPE_WARNING = CrossValidation(
 
 # -- claim_select_requires_source ------------------------------------------
 
+
 def claim_select_requires_source(
-    options: Mapping[str, object], ctx: ParseContext,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> list[str]:
     """draft/formalize: --claim-select without --source -> error."""
     claim_select = options.get("--claim-select")
@@ -470,8 +510,10 @@ CLAIM_SELECT_REQUIRES_SOURCE = CrossValidation(
 
 # -- formalize_auto_requires_source ----------------------------------------
 
+
 def formalize_auto_requires_source(
-    options: Mapping[str, object], ctx: ParseContext,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> list[str]:
     """autoprove: --formalize=auto requires --source."""
     formalize = options.get("--formalize")
@@ -492,8 +534,10 @@ FORMALIZE_AUTO_REQUIRES_SOURCE = CrossValidation(
 
 # -- formalize_auto_requires_claim_select ----------------------------------
 
+
 def formalize_auto_requires_claim_select(
-    options: Mapping[str, object], ctx: ParseContext,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> list[str]:
     """autoprove: --formalize=auto with --source requires --claim-select."""
     formalize = options.get("--formalize")
@@ -518,8 +562,10 @@ FORMALIZE_AUTO_REQUIRES_CLAIM_SELECT = CrossValidation(
 
 # -- formalize_auto_requires_out -------------------------------------------
 
+
 def formalize_auto_requires_out(
-    options: Mapping[str, object], ctx: ParseContext,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> list[str]:
     """autoprove: --formalize=auto requires --formalize-out."""
     formalize = options.get("--formalize")
@@ -543,8 +589,10 @@ FORMALIZE_AUTO_REQUIRES_OUT = CrossValidation(
 
 # -- formalize_restage_source_warning --------------------------------------
 
+
 def formalize_restage_source_warning(
-    options: Mapping[str, object], ctx: ParseContext,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> list[str]:
     """autoprove: --formalize=restage + --source -> warn (source ignored)."""
     formalize = options.get("--formalize")
@@ -568,8 +616,10 @@ FORMALIZE_RESTAGE_SOURCE_WARNING = CrossValidation(
 
 # -- formalize_never_source_warning ----------------------------------------
 
+
 def formalize_never_source_warning(
-    options: Mapping[str, object], ctx: ParseContext,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> list[str]:
     """autoprove: --formalize=never + --source -> warn (source ignored)."""
     formalize = options.get("--formalize")
@@ -590,8 +640,10 @@ FORMALIZE_NEVER_SOURCE_WARNING = CrossValidation(
 
 # -- autoformalize_source_required -----------------------------------------
 
+
 def autoformalize_source_required(
-    options: Mapping[str, object], ctx: ParseContext,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> list[str]:
     """autoformalize: --source is required."""
     source = options.get("--source")
@@ -611,8 +663,10 @@ AUTOFORMALIZE_SOURCE_REQUIRED = CrossValidation(
 
 # -- autoformalize_claim_select_required -----------------------------------
 
+
 def autoformalize_claim_select_required(
-    options: Mapping[str, object], ctx: ParseContext,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> list[str]:
     """autoformalize: --claim-select is required."""
     claim_select = options.get("--claim-select")
@@ -635,8 +689,10 @@ AUTOFORMALIZE_CLAIM_SELECT_REQUIRED = CrossValidation(
 
 # -- autoformalize_out_required --------------------------------------------
 
+
 def autoformalize_out_required(
-    options: Mapping[str, object], ctx: ParseContext,
+    options: Mapping[str, object],
+    ctx: ParseContext,
 ) -> list[str]:
     """autoformalize: --out is required."""
     out = options.get("--out")

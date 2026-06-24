@@ -1,8 +1,10 @@
 """Spec for /lean4:formalize — interactive formalization (draft + prove)."""
+
 from __future__ import annotations
 
-from typing import Mapping
+from collections.abc import Mapping
 
+from ..coercions import intent_auto_collapse
 from ..types import (
     Coercion,
     CommandSpec,
@@ -11,9 +13,7 @@ from ..types import (
     ParseContext,
     PositionalSpec,
 )
-from ..coercions import intent_auto_collapse
 from . import _common
-
 
 # ---------------------------------------------------------------------------
 # Formalize-specific coercions
@@ -37,6 +37,7 @@ INTENT_AUTO_COLLAPSE = Coercion(
 # Formalize-specific cross-validations
 # ---------------------------------------------------------------------------
 
+
 def _topic_or_source_full_validate(
     flags: Mapping[str, object],
     ctx: ParseContext,
@@ -54,9 +55,7 @@ def _topic_or_source_full_validate(
     has_topic = bool(flags.get("__positional_topic"))
     has_source = bool(flags.get("--source"))
     if not has_topic and not has_source:
-        return [
-            "At least one of topic (positional) or --source must be given"
-        ]
+        return ["At least one of topic (positional) or --source must be given"]
     return []
 
 
@@ -86,9 +85,7 @@ OUTPUT_FILE_REQUIRES_OUT = CrossValidation(
     rule_id="formalize-output-file-requires-out",
     fn=_output_file_requires_out_validate,
     severity="error",
-    doc_phrases=(
-        "--output=file without --out -> startup validation error",
-    ),
+    doc_phrases=("--output=file without --out -> startup validation error",),
     summary="Require --out when --output=file.",
 )
 
@@ -134,9 +131,7 @@ def _claim_select_requires_source_validate(
     claim_select = flags.get("--claim-select")
     source = flags.get("--source")
     if claim_select and not source:
-        return [
-            "--claim-select requires --source (nothing to select from)"
-        ]
+        return ["--claim-select requires --source (nothing to select from)"]
     return []
 
 

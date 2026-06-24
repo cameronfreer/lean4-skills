@@ -1,0 +1,28 @@
+# Ruff configuration for the lean4-skills repo.
+#
+# Scope: Python sources under plugins/lean4/. The workflow at
+# .github/workflows/lint.yml invokes `ruff check plugins/lean4/` and
+# `ruff format --check plugins/lean4/` against this config.
+#
+# Selected rule families:
+#   E, F, W — pycodestyle errors/warnings + pyflakes (syntax, undefined
+#             names, unused imports, basic correctness)
+#   I       — import ordering
+#   B       — flake8-bugbear (likely bugs: mutable defaults, unused
+#             loop vars, etc.)
+#   C4      — flake8-comprehensions (unnecessary list/dict/set wraps)
+#   UP      — pyupgrade (PEP 585/604 modernization)
+#   SIM     — flake8-simplify (boolean / conditional simplifications)
+#   RUF     — ruff-specific (sorted __all__, ambiguous Unicode, etc.)
+#   N       — pep8-naming (CamelCase / snake_case consistency)
+#
+# Ignored:
+#   E501    — line length not enforced; some descriptive lines are
+#             intentionally long.
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "C4", "UP", "SIM", "I", "RUF", "N"]
+ignore = ["E501"]

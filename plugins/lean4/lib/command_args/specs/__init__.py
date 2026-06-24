@@ -1,23 +1,24 @@
 """Per-command specs, assembled into COMMAND_SPECS."""
+
 from __future__ import annotations
 
 from ..types import CommandSpec
 
 # Import specs as they are added.  Each module exposes a single SPEC: CommandSpec.
-from .autoformalize import SPEC as _autoformalize
-from .autoprove import SPEC as _autoprove
-from .disprove import SPEC as _disprove
-from .draft import SPEC as _draft
-from .formalize import SPEC as _formalize
-from .learn import SPEC as _learn
-from .prove import SPEC as _prove
+from .autoformalize import SPEC as _AUTOFORMALIZE
+from .autoprove import SPEC as _AUTOPROVE
+from .disprove import SPEC as _DISPROVE
+from .draft import SPEC as _DRAFT
+from .formalize import SPEC as _FORMALIZE
+from .learn import SPEC as _LEARN
+from .prove import SPEC as _PROVE
 
 COMMAND_SPECS: dict[str, CommandSpec] = {
-    _autoformalize.name: _autoformalize,
-    _autoprove.name: _autoprove,
-    _disprove.name: _disprove,
-    _draft.name: _draft,
-    _formalize.name: _formalize,
-    _learn.name: _learn,
-    _prove.name: _prove,
+    _AUTOFORMALIZE.name: _AUTOFORMALIZE,
+    _AUTOPROVE.name: _AUTOPROVE,
+    _DISPROVE.name: _DISPROVE,
+    _DRAFT.name: _DRAFT,
+    _FORMALIZE.name: _FORMALIZE,
+    _LEARN.name: _LEARN,
+    _PROVE.name: _PROVE,
 }

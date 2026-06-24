@@ -5,6 +5,7 @@ containing pretty-printed JSON from ``result.to_dict()``. Using real JSON
 inside the fence eliminates the ad-hoc escaping problems of the previous
 line-based format (multiline input, embedded fences, string/int ambiguity).
 """
+
 from __future__ import annotations
 
 import json

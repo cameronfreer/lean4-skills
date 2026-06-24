@@ -1,4 +1,7 @@
 """Layer 1 parser golden tests for /lean4:autoprove."""
+
+from __future__ import annotations
+
 import os
 import sys
 import unittest

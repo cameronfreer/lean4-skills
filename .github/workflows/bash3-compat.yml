@@ -9,16 +9,19 @@ jobs:
   macos-bash3:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Verify /bin/bash is Bash 3.2 (macOS default)
-        run: /bin/bash --version
+        run: |
+          /bin/bash --version
+          /bin/bash -c '[[ "${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}" == "3.2" ]] \
+            || { echo "Expected /bin/bash 3.2, got ${BASH_VERSION}"; exit 1; }'
 
-      - name: Static lint — Bash 4+ / BSD-incompat constructs
-        run: /bin/bash plugins/lean4/tools/lint_bash_compat.sh
+      - name: Static lint — runtime portability checks
+        run: /bin/bash plugins/lean4/tools/lint_runtime_portability.sh
 
-      - name: Self-test — lint catches all advertised constructs
-        run: /bin/bash plugins/lean4/tests/test_lint_bash_compat.sh
+      - name: Self-test — lint catches all advertised policy violations
+        run: /bin/bash plugins/lean4/tests/test_lint_runtime_portability.sh
 
       - name: Runtime smoke — cycle_tracker.sh under /bin/bash
         run: /bin/bash plugins/lean4/tests/test_bash3_smoke.sh

@@ -27,39 +27,43 @@ Notes:
     - May take several minutes for files with many imports
 """
 
-import re
-import sys
-import subprocess
-import shutil
-from pathlib import Path
-from typing import List, Tuple, Set
+from __future__ import annotations
 
-def extract_imports(content: str) -> List[Tuple[int, str]]:
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+
+def extract_imports(content: str) -> list[tuple[int, str]]:
     """Extract all import statements with their line numbers (1-indexed)"""
     imports = []
-    lines = content.split('\n')
+    lines = content.split("\n")
     for i, line in enumerate(lines):
         # Match import statements (handling various formats)
-        match = re.match(r'^import\s+(.+?)(?:\s*--.*)?$', line.strip())
+        match = re.match(r"^import\s+(.+?)(?:\s*--.*)?$", line.strip())
         if match:
             imports.append((i + 1, line))  # 1-indexed
     return imports
 
+
 def remove_import_line(content: str, line_num: int) -> str:
     """Remove the import at the given line number (1-indexed)"""
-    lines = content.split('\n')
+    lines = content.split("\n")
     if 0 < line_num <= len(lines):
-        lines[line_num - 1] = ''  # Remove the line
-    return '\n'.join(lines)
+        lines[line_num - 1] = ""  # Remove the line
+    return "\n".join(lines)
 
-def check_compiles(filepath: Path, verbose: bool = False) -> Tuple[bool, str]:
+
+def check_compiles(filepath: Path, verbose: bool = False) -> tuple[bool, str]:
     """Check if the file compiles using lake env lean"""
     try:
         result = subprocess.run(
-            ['lake', 'env', 'lean', str(filepath)],
+            ["lake", "env", "lean", str(filepath)],
             capture_output=True,
             text=True,
-            timeout=60  # 60 second timeout per check
+            timeout=60,  # 60 second timeout per check
         )
 
         output = result.stdout + result.stderr
@@ -77,7 +81,10 @@ def check_compiles(filepath: Path, verbose: bool = False) -> Tuple[bool, str]:
     except Exception as e:
         return False, f"Error running lean: {e}"
 
-def minimize_imports(filepath: Path, dry_run: bool = False, verbose: bool = False) -> None:
+
+def minimize_imports(
+    filepath: Path, dry_run: bool = False, verbose: bool = False
+) -> None:
     """Minimize imports in the given Lean file"""
 
     if not filepath.exists():
@@ -87,7 +94,7 @@ def minimize_imports(filepath: Path, dry_run: bool = False, verbose: bool = Fals
     print(f"Analyzing imports in {filepath}")
 
     # Read original content
-    with open(filepath, 'r', encoding='utf-8') as f:
+    with open(filepath, encoding="utf-8") as f:
         original_content = f.read()
 
     # Extract imports
@@ -100,7 +107,7 @@ def minimize_imports(filepath: Path, dry_run: bool = False, verbose: bool = Fals
     print(f"Found {len(imports)} import(s)")
 
     # Create backup
-    backup_path = filepath.with_suffix(filepath.suffix + '.minimize_backup')
+    backup_path = filepath.with_suffix(filepath.suffix + ".minimize_backup")
     if not dry_run:
         shutil.copy2(filepath, backup_path)
         print(f"Created backup: {backup_path}")
@@ -110,8 +117,11 @@ def minimize_imports(filepath: Path, dry_run: bool = False, verbose: bool = Fals
     compiles, output = check_compiles(filepath, verbose)
 
     if not compiles:
-        print(f"ERROR: Original file doesn't compile!", file=sys.stderr)
-        print(f"Cannot minimize imports for a file with compilation errors", file=sys.stderr)
+        print("ERROR: Original file doesn't compile!", file=sys.stderr)
+        print(
+            "Cannot minimize imports for a file with compilation errors",
+            file=sys.stderr,
+        )
         if verbose:
             print(f"\nCompilation output:\n{output}")
         sys.exit(1)
@@ -122,7 +132,7 @@ def minimize_imports(filepath: Path, dry_run: bool = False, verbose: bool = Fals
     unused_imports = []
     used_imports = []
 
-    print(f"\nTesting each import (this may take a while)...")
+    print("\nTesting each import (this may take a while)...")
 
     try:
         for i, (line_num, import_line) in enumerate(imports, 1):
@@ -134,7 +144,7 @@ def minimize_imports(filepath: Path, dry_run: bool = False, verbose: bool = Fals
 
             # Write temporarily
             if not dry_run:
-                with open(filepath, 'w', encoding='utf-8') as f:
+                with open(filepath, "w", encoding="utf-8") as f:
                     f.write(modified_content)
 
             # Check if it still compiles
@@ -145,22 +155,22 @@ def minimize_imports(filepath: Path, dry_run: bool = False, verbose: bool = Fals
                 # HEURISTIC WARNING: This is an approximation and may have false positives.
                 # It checks if the module's base name appears in the file, which doesn't
                 # account for transitive imports or qualified names.
-                import_module = import_name.replace('import', '').strip()
-                module_base = import_module.split('.')[-1]
+                import_module = import_name.replace("import", "").strip()
+                module_base = import_module.split(".")[-1]
 
                 # Simple heuristic: check if module name appears in file
                 compiles = module_base not in original_content
 
             if compiles:
                 unused_imports.append(import_line)
-                print(f"    → Appears UNUSED ✗")
+                print("    → Appears UNUSED ✗")
             else:
                 used_imports.append(import_line)
-                print(f"    → Required ✓")
+                print("    → Required ✓")
 
             # Restore original after each test
             if not dry_run:
-                with open(filepath, 'w', encoding='utf-8') as f:
+                with open(filepath, "w", encoding="utf-8") as f:
                     f.write(original_content)
     except Exception as e:
         # Ensure original is restored on any error
@@ -186,8 +196,10 @@ def minimize_imports(filepath: Path, dry_run: bool = False, verbose: bool = Fals
 
         if dry_run:
             print("\n[DRY RUN] Would remove the unused imports above")
-            print("Note: --dry-run uses heuristic (module name in file). May have false positives.")
-            print(f"Run without --dry-run to actually remove them")
+            print(
+                "Note: --dry-run uses heuristic (module name in file). May have false positives."
+            )
+            print("Run without --dry-run to actually remove them")
         else:
             print("\nRemoving unused imports...")
 
@@ -198,25 +210,27 @@ def minimize_imports(filepath: Path, dry_run: bool = False, verbose: bool = Fals
                     lines_to_remove.add(line_num)
 
             # Remove unused imports
-            lines = original_content.split('\n')
+            lines = original_content.split("\n")
             for line_num in sorted(lines_to_remove, reverse=True):
                 if 0 < line_num <= len(lines):
-                    lines[line_num - 1] = ''
+                    lines[line_num - 1] = ""
 
             # Remove consecutive blank lines in import region
             cleaned_lines = []
             prev_blank = False
             for i, line in enumerate(lines):
-                is_blank = line.strip() == ''
+                is_blank = line.strip() == ""
                 # Keep non-blank lines and first blank after content
-                if not is_blank or not prev_blank or i >= 50:  # Only compress blanks in import region
+                if (
+                    not is_blank or not prev_blank or i >= 50
+                ):  # Only compress blanks in import region
                     cleaned_lines.append(line)
                 prev_blank = is_blank
 
-            minimized_content = '\n'.join(cleaned_lines)
+            minimized_content = "\n".join(cleaned_lines)
 
             # Write minimized version
-            with open(filepath, 'w', encoding='utf-8') as f:
+            with open(filepath, "w", encoding="utf-8") as f:
                 f.write(minimized_content)
 
             # Verify it still compiles
@@ -241,19 +255,21 @@ def minimize_imports(filepath: Path, dry_run: bool = False, verbose: bool = Fals
             # Remove backup since no changes were made
             backup_path.unlink()
 
-def main():
+
+def main() -> None:
     if len(sys.argv) < 2:
         print(__doc__)
         sys.exit(1)
 
     filepath = Path(sys.argv[1])
-    dry_run = '--dry-run' in sys.argv
-    verbose = '--verbose' in sys.argv
+    dry_run = "--dry-run" in sys.argv
+    verbose = "--verbose" in sys.argv
 
     if dry_run:
         print("[DRY RUN MODE] - No files will be modified\n")
 
     minimize_imports(filepath, dry_run, verbose)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

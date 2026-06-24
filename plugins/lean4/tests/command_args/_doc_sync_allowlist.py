@@ -11,6 +11,8 @@ exclusions mechanism at _doc_sync_forward_exclusions.py.
 This list must stay under ~10 entries.
 """
 
+from __future__ import annotations
+
 ALLOWLIST: list[str | tuple[str, str, str, str]] = [
     # Currently empty — all spec-encoded rules have corresponding doc prose.
     # If a rule is added to COMMAND_SPECS without a doc update, add it here

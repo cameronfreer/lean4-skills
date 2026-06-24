@@ -1,0 +1,100 @@
+name: lint
+
+# Tool versions are deliberately pinned (exact, not range) to prevent
+# silent CI drift — e.g. a new ruff release adding rules to a selected
+# sub-code set, or a shellcheck release enabling additional checks by
+# default. Bump intentionally via PR; update both pyproject.toml's
+# target-version and the pins below together when relevant.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install ruff (pinned)
+        run: pip install 'ruff==0.15.13'
+
+      - name: ruff check (config in pyproject.toml)
+        run: ruff check plugins/lean4/
+
+      - name: ruff format --check
+        run: ruff format --check plugins/lean4/
+
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          # Pin to the documented runtime floor (pyproject.toml's
+          # target-version = "py310") so mypy's stdlib stubs and
+          # version-sensitive checks match what the code actually runs
+          # against. mypy's --python-version flag below makes the
+          # target explicit even when the runner Python drifts.
+          python-version: "3.10"
+
+      - name: Install mypy (pinned)
+        run: pip install 'mypy==1.20.2'
+
+      - name: mypy --strict (lib/ + hooks/, targeting Python 3.10)
+        # MYPYPATH=lib mirrors validate_user_prompt.py's sys.path
+        # manipulation so `from command_args import ...` resolves the way
+        # it does at runtime, without needing a packaged install.
+        # --python-version 3.10 is the documented compatibility floor;
+        # without it mypy would analyze under whatever interpreter
+        # version it runs on.
+        working-directory: plugins/lean4
+        env:
+          MYPYPATH: lib
+        run: mypy --python-version 3.10 --strict lib/ hooks/
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Install a pinned shellcheck binary from the upstream release
+      # tarball rather than relying on ubuntu-latest's pre-installed
+      # version (which floats — 0.9.0 today, anything later tomorrow).
+      - name: Install shellcheck 0.10.0
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fsSL \
+            https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz \
+            -o shellcheck.tar.xz
+          tar -xJf shellcheck.tar.xz
+          echo "$RUNNER_TEMP/shellcheck-v0.10.0" >> "$GITHUB_PATH"
+
+      - name: Verify shellcheck version (assert exactly 0.10.0)
+        # Belt-and-suspenders against PATH-order surprises: even though
+        # the previous step prepends our pinned binary's dir to
+        # GITHUB_PATH, the grep ensures any other shellcheck on PATH
+        # (e.g. ubuntu-latest's preinstalled 0.9.0) doesn't silently
+        # win the lookup. -F treats the pattern as a fixed literal
+        # string; -x requires a full-line match so neither future
+        # "0.10.0-rc1" nor "0.10.01" would pass.
+        run: |
+          shellcheck --version
+          shellcheck --version | grep -Fxq 'version: 0.10.0'
+
+      - name: shellcheck (hooks/, lib/scripts/, tools/)
+        # Flags match the invocation Holger validated against in PR #120:
+        # --shell=bash forces bash dialect; -x follows `source` references;
+        # SC2016 (expressions in single quotes) is excluded because several
+        # scripts use single-quoted regex literals intentionally.
+        run: |
+          shellcheck --shell=bash -x --exclude=SC2016 \
+            plugins/lean4/hooks/*.sh \
+            plugins/lean4/lib/scripts/*.sh \
+            plugins/lean4/tools/*.sh

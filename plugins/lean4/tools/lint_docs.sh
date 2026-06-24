@@ -9,7 +9,13 @@
 set -euo pipefail
 
 VERBOSE="${1:-}"
-PLUGIN_ROOT="${LEAN4_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+# Always derive PLUGIN_ROOT from this script's own location. Honoring
+# LEAN4_PLUGIN_ROOT (the harness-exported install-cache path) caused
+# false-positive failures when the cache was stale, because internal
+# checks like the lint_runtime_portability.sh invocation would run against the
+# cache instead of the working copy. This is a maintainer dev tool;
+# it should operate on the working tree exclusively.
+PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ISSUES=0
 
 # Single source of truth for known commands (used by check_commands and check_cross_refs)
@@ -35,7 +41,8 @@ check_commands() {
 
     local cmd_dir="$PLUGIN_ROOT/commands"
     local actual_commands
-    actual_commands=$(find "$cmd_dir" -name "*.md" -type f | xargs -I{} basename {} .md | sort)
+    actual_commands=$(find "$cmd_dir" -name "*.md" -type f -print0 \
+        | xargs -0 -I{} basename {} .md | sort)
     local count
     count=$(echo "$actual_commands" | wc -l | tr -d ' ')
 
@@ -101,7 +108,8 @@ check_agents() {
 
     local agent_dir="$PLUGIN_ROOT/agents"
     local actual_agents
-    actual_agents=$(find "$agent_dir" -name "*.md" -type f | xargs -I{} basename {} .md | sort)
+    actual_agents=$(find "$agent_dir" -name "*.md" -type f -print0 \
+        | xargs -0 -I{} basename {} .md | sort)
     local count
     count=$(echo "$actual_agents" | wc -l | tr -d ' ')
 
@@ -1280,9 +1288,6 @@ check_description_alignment() {
     local cmd_dir="$PLUGIN_ROOT/commands"
     local skill_md="$PLUGIN_ROOT/skills/lean4/SKILL.md"
     local plugin_readme="$PLUGIN_ROOT/README.md"
-    local repo_root
-    repo_root="$(cd "$PLUGIN_ROOT" && cd ../.. && pwd)"
-    local repo_readme="$repo_root/README.md"
 
     local _da_cmd _da_desc _da_mismatches
     _da_mismatches=0
@@ -1661,11 +1666,11 @@ check_command_invocation_contract
 check_proof_complete_shortcut
 
 log ""
-log "Checking Bash 3.2 compatibility..."
-if bash "$PLUGIN_ROOT/tools/lint_bash_compat.sh" >/dev/null 2>&1; then
-    ok "All shell scripts are Bash 3.2 compatible"
+log "Checking runtime portability lint..."
+if bash "$PLUGIN_ROOT/tools/lint_runtime_portability.sh" >/dev/null 2>&1; then
+    ok "Runtime portability lint passed"
 else
-    warn "Bash 3.2 compatibility lint failed — run: bash plugins/lean4/tools/lint_bash_compat.sh"
+    warn "Runtime portability lint failed — run: bash plugins/lean4/tools/lint_runtime_portability.sh"
 fi
 
 log ""
