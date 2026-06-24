@@ -419,7 +419,7 @@ future estimates.
   `Decidable` instance, `plausible` a `SampleableExt` instance, `external` the
   chosen solver on `$PATH`.
 
-`$LEAN4_SCRIPTS/disprove_method_probe.py --profile=<profile.json>` computes this
+`${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/disprove_method_probe.py" --profile=<profile.json>` computes this
 deterministically — `{method: {selectable, reason}}` from the registry's
 `applies_to_shapes` (vs `profile.shape`), the profile's `decidable`/`sampleable`
 hints, and a `shutil.which` check for the solver. The cycling LLM renders the
@@ -654,7 +654,7 @@ the qualified-name target resolved to in Phase 1):
    wrapper>` (see the Per-Shape Recipes intro) — this is the declaration that
    actually carries the `¬ TARGET` type.
 2. Append within a **transaction** so the cycle's writes are revertible by id.
-   Open one with `txn=$(python3 "$LEAN4_SCRIPTS/disprove_artifact_txn.py" begin)`,
+   Open one with `txn=$(${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/disprove_artifact_txn.py" begin)`,
    then append the artifact (snippet on stdin):
    `… disprove_artifact_txn.py append --scope-file=<target-file> --txn=$txn --role=artifact --decl=T_counterexample --cycle=<N>`.
    For witness shapes, append the gate-only declaration under the same txn with
