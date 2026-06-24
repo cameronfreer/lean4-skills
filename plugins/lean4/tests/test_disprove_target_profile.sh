@@ -100,9 +100,14 @@ assert_json "6c. source_file" source_file "Bar.lean"
 assert_json "6d. line" line "1"
 assert_json "6e. writable true" writable "True"
 
+echo "-- File-line target whose file is absent → fail fast (exit 2) --"
+run "Missing.lean:3" --root="$PROJ"
+assert_exit "7. exit 2 (missing file)" 2
+assert_err_contains "7b. missing-file message" "does not exist"
+
 echo "-- Inline Prop / malformed target rejected --"
 run '"∀ n, n ≥ 0"' --root="$PROJ"
-assert_exit "7. exit 2 (bad target)" 2
+assert_exit "8. exit 2 (bad target)" 2
 
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="

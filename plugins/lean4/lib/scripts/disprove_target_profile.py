@@ -20,6 +20,8 @@ the LLM to complete.
 
 Refusal: a target that resolves into a read-only ``dependency`` path is refused
 here (exit 2) — disprove only writes artifacts into writable project sources. A
+``File.lean:LINE`` target whose file does not exist is also refused here (exit 2),
+so startup errors stay deterministic instead of surfacing later via the LSP. A
 writable-but-chmod'd ``project`` file is NOT refused here; the artifact emitter
 fails at append time instead.
 
@@ -28,7 +30,7 @@ Usage:
 
 Exit codes:
     0 — profile on stdout (JSON)
-    2 — bad target, or target resolves into a read-only dependency (stderr)
+    2 — bad target, a missing file-line file, or a read-only-dependency target (stderr)
 """
 
 from __future__ import annotations
@@ -108,12 +110,18 @@ def build_profile(target: str, root: str) -> dict[str, object]:
     m = _FILE_LINE_RE.match(target)
     if m:
         file = m.group("file")
+        abspath = os.path.abspath(os.path.join(root, file))
+        if not os.path.exists(abspath):
+            raise ValueError(
+                f"target {target!r}: file does not exist ({abspath}); "
+                "use an existing 'File.lean:LINE'."
+            )
         return _envelope(
             "file-line",
             source_file=file,
             line=int(m.group("line")),
             path_class="dependency" if _is_dependency_path(file) else "project",
-            writable=os.access(os.path.join(root, file), os.W_OK),
+            writable=os.access(abspath, os.W_OK),
         )
     if target.endswith(".lean"):
         raise ValueError(
