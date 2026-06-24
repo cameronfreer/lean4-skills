@@ -386,6 +386,12 @@ future estimates.
   `Decidable` instance, `plausible` a `SampleableExt` instance, `external` the
   chosen solver on `$PATH`.
 
+`$LEAN4_SCRIPTS/disprove_method_probe.py --profile=<profile.json>` computes this
+deterministically — `{method: {selectable, reason}}` from the registry's
+`applies_to_shapes` (vs `profile.shape`), the profile's `decidable`/`sampleable`
+hints, and a `shutil.which` check for the solver. The cycling LLM renders the
+selectable set as the menu and the rest under "Unavailable this cycle".
+
 A method that is inapplicable or unavailable is **not numbered**; render it under a
 separate **"Unavailable this cycle"** block with a one-line reason drawn from the
 registry `false_negative_notes` or the failed probe:
