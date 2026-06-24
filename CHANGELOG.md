@@ -12,7 +12,7 @@ Add `/lean4:disprove`, an always-interactive command for **certified counterexam
 ### Deterministic primitives
 
 - `disprove_target_resolve.py` (target classifier) and `disprove_target_profile.py` (deterministic profile envelope: non-authoritative grep resolution, `path_class`/`writable`, fail-fast on a missing `File.lean:LINE` target, read-only-dependency refusal; LSP/kernel fields left for the cycling LLM)
-- `disprove_artifact_txn.py` — transactional append / drop-role / rollback keyed by a txn id (revert a cycle's writes as a unit), over the collision-safe `disprove_emit_artifact.py`
+- `disprove_artifact_txn.py` — transactional append / drop-role / rollback keyed by a txn id (revert a cycle's writes as a unit), alongside the companion collision-safe `disprove_emit_artifact.py`
 - `disprove_method_probe.py` — deterministic method applicability/availability filter (registry shape vs profile, prerequisite hints, solver-on-PATH advisory for `external`)
 - `disprove_methods.toml` + `disprove_methods.py` registry; `cycle_tracker.sh` gains `kw-search-can` / `kw-search` budget actions
 
@@ -22,8 +22,8 @@ Add `/lean4:disprove`, an always-interactive command for **certified counterexam
 
 ### Tests & docs
 
-- New suites for every script (`test_disprove_{emit_artifact,artifact_txn,target_resolve,target_profile,method_probe,methods,flow}`, parser specs, hook round-trip); chmod-based read-only assertions skip under root
-- README (root + plugin), SKILL.md, command-examples.md, and cross-references list `disprove` (six → seven parameter-heavy commands). All green at local CI parity (ruff, ruff format --check, mypy --strict)
+- New/updated suites for the disprove surface (`test_disprove_{emit_artifact,artifact_txn,target_resolve,target_profile,method_probe,methods,flow}`, parser specs, hook round-trip); chmod-based read-only assertions skip under root
+- README (root + plugin), SKILL.md, command-examples.md, and cross-references list `disprove` (six → seven parameter-heavy commands). Validated locally with ruff, ruff format --check, and mypy --strict
 
 ## v4.4.11 (May 2026)
 
