@@ -58,6 +58,11 @@ See [Validated Invocation Block](../skills/lean4/references/command-invocation.m
 parse the raw invocation text against this command's input table before
 Phase 1.
 
+**Runtime requirement:** `/lean4:disprove` requires **Python 3.11+** — its method
+registry loader (`lib/disprove_methods.py`) uses the stdlib `tomllib` parser. The rest
+of the lean4 plugin targets Python 3.10+. On an older interpreter the command fails fast
+with a clear "requires Python 3.11+" error rather than an opaque `ImportError`.
+
 Startup requirements:
 
 1. Emit a **Resolved Inputs** block with explicit values, defaults,
