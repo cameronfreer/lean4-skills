@@ -1,5 +1,30 @@
 # Changelog
 
+## v4.5.0 (June 2026)
+
+Add `/lean4:disprove`, an always-interactive command for **certified counterexample search**. It reports `FALSE` **only** when Lean typechecks a proof of the negation under `lake env lean` (no `sorry`/`admit`) with its axioms inside an explicit whitelist; otherwise `WITNESS_UNCERTIFIED` (candidate found, gate rejected) or `INCONCLUSIVE` (no candidate within budgets). New command (the 7th parameter-heavy command); existing workflows are unaffected. **Requires Python 3.11+** for the method-registry loader (`tomllib`); the rest of the plugin remains 3.10+.
+
+### Command & engine
+
+- `commands/disprove.md` + `skills/lean4/references/disprove-engine.md` (full engine reference, including an Implementation Status table separating deterministic / model-mediated (LSP) / deferred capabilities)
+- Reuses the shared 6-phase cycle, specializing Phase 5 as **Accumulate** and Phase 1 with three dynamic, evidence-seeded menus: Step 0 Knowledge Search, Step 1 Method, Step 2 Config
+
+### Deterministic primitives
+
+- `disprove_target_resolve.py` (target classifier) and `disprove_target_profile.py` (deterministic profile envelope: non-authoritative grep resolution, `path_class`/`writable`, fail-fast on a missing `File.lean:LINE` target, read-only-dependency refusal; LSP/kernel fields left for the cycling LLM)
+- `disprove_artifact_txn.py` — transactional append / drop-role / rollback keyed by a txn id (revert a cycle's writes as a unit), over the collision-safe `disprove_emit_artifact.py`
+- `disprove_method_probe.py` — deterministic method applicability/availability filter (registry shape vs profile, prerequisite hints, solver-on-PATH advisory for `external`)
+- `disprove_methods.toml` + `disprove_methods.py` registry; `cycle_tracker.sh` gains `kw-search-can` / `kw-search` budget actions
+
+### Parser / host integration
+
+- `command_args/specs/disprove.py` + shared `command_args/target_patterns.py`; registered in `specs/__init__.py` and the host-agnostic `UserPromptSubmit` validation (`_COVERED_COMMANDS`)
+
+### Tests & docs
+
+- New suites for every script (`test_disprove_{emit_artifact,artifact_txn,target_resolve,target_profile,method_probe,methods,flow}`, parser specs, hook round-trip); chmod-based read-only assertions skip under root
+- README (root + plugin), SKILL.md, command-examples.md, and cross-references list `disprove` (six → seven parameter-heavy commands). All green at local CI parity (ruff, ruff format --check, mypy --strict)
+
 ## v4.4.11 (May 2026)
 
 Three-tier git-op policy. Path-scoped `git checkout` / `git restore` operations move from absolute hard-block to a new policy-controlled soft-gate; whole-worktree and force-branch-switch destructive ops remain absolute. No new commands or workflow changes; default behavior is backward-compatible.
