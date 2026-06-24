@@ -672,18 +672,19 @@ the qualified-name target resolved to in Phase 1):
 5. License the outcome:
    - **`certified` (→ `FALSE`)** only if the `¬ TARGET`-typed declaration
      typechecked (no `sorry`/`admit`) **and** its axiom set ⊆ the allowed whitelist.
-     For witness shapes, `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/disprove_artifact_txn.py" drop-role --txn=$txn --role=gate`
+     For witness shapes, `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/disprove_artifact_txn.py" drop-role --scope-file=<target-file> --txn=$txn --role=gate`
      **before** the commit, then from the project root re-run
      `lake env lean <target-file>` on the wrapper-free file, so the committed state
      (`T_counterexample` alone, which still typechecks) is itself gate-verified — the
      committed file equals the gate-checked file. Commit only `T_counterexample`;
      proceed to Review.
-   - **Typecheck fails** → `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/disprove_artifact_txn.py" rollback --txn=$txn`
+   - **Typecheck fails** → `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/disprove_artifact_txn.py" rollback --scope-file=<target-file> --txn=$txn`
      (removes the artifact and, for witness shapes, the gate-only wrapper — only this
      txn's marker blocks); downgrade to `near-miss`, capture the error signature.
    - **A non-whitelisted axiom appears, or axiom inspection is unavailable /
-     inconclusive** → `rollback --txn=$txn` (never touches pre-existing or other-txn
-     declarations), do **not** commit, downgrade to `WITNESS_UNCERTIFIED` — never `FALSE`.
+     inconclusive** → `rollback --scope-file=<target-file> --txn=$txn` (never touches
+     pre-existing or other-txn declarations), do **not** commit, downgrade to
+     `WITNESS_UNCERTIFIED` — never `FALSE`.
 
 Per `--commit`:
 - `auto` — stage the modified file (`git add <target-file>`, never `-A`)
