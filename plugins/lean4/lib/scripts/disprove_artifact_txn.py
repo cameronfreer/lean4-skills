@@ -94,6 +94,19 @@ def _decl_declared_outside(lines: list[str], name: str, own_txn: str) -> bool:
     return False
 
 
+def _normalize(block_lines: list[str]) -> str:
+    """Normalize a declaration body for byte-for-byte comparison.
+
+    Strips trailing whitespace per line and leading/trailing blank lines.
+    """
+    norm = [ln.rstrip() for ln in block_lines]
+    while norm and not norm[0].strip():
+        norm.pop(0)
+    while norm and not norm[-1].strip():
+        norm.pop()
+    return "\n".join(norm)
+
+
 def _read(scope_file: str) -> list[str]:
     with open(scope_file, encoding="utf-8") as f:
         return f.read().splitlines()
@@ -140,14 +153,22 @@ def _cmd_append(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 2
+    incoming = _normalize(snippet.splitlines())
     for b in _parse_blocks(lines):
         if b.txn == args.txn and b.role == args.role and b.decl == args.decl:
+            if _normalize(lines[b.begin + 1 : b.end]) == incoming:
+                print(
+                    f"note: {args.decl!r} (role={args.role}) already present "
+                    f"(identical) under txn {args.txn!r}; no change.",
+                    file=sys.stderr,
+                )
+                return 0
             print(
-                f"note: {args.decl!r} (role={args.role}) already present under txn "
-                f"{args.txn!r}; no change.",
+                f"error: {args.decl!r} (role={args.role}) already present under txn "
+                f"{args.txn!r} with a different body; rollback/drop-role then re-append.",
                 file=sys.stderr,
             )
-            return 0
+            return 2
     block = [
         f"-- lean4:disprove-begin txn={args.txn} cycle={args.cycle} "
         f"role={args.role} decl={args.decl}",

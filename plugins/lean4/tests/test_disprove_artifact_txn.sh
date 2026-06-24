@@ -62,6 +62,16 @@ run 'theorem foo_counterexample : True := trivial' append --scope-file="$F" --tx
 assert_exit "5. re-append idempotent (exit 0)" 0
 assert_count "5b. still exactly one foo_counterexample" "$F" "^theorem foo_counterexample" 1
 
+echo "-- same txn/role/decl with a DIFFERENT body → collision (exit 2) --"
+run 'theorem foo_counterexample : True := by trivial' append --scope-file="$F" --txn="$TXN1" --role=artifact --decl=foo_counterexample --cycle=2
+assert_exit "5c. different body, same txn → exit 2" 2
+assert_count "5d. no duplicate foo_counterexample" "$F" "^theorem foo_counterexample" 1
+if grep -q ":= by trivial" "$F"; then
+  fail "5e. rejected body NOT written" "found ':= by trivial' in file"
+else
+  pass "5e. rejected body NOT written"
+fi
+
 echo "-- collision: name already declared outside the txn (pre) --"
 run 'theorem pre : True := trivial' append --scope-file="$F" --txn="$TXN1" --role=artifact --decl=pre
 assert_exit "6. collision with pre-existing decl → exit 2" 2
