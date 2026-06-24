@@ -275,5 +275,6 @@ of the originating Step 0 finding); all other cycles show `—`. See
 - `/lean4:autoprove` — Autonomous multi-cycle proving
 - `/lean4:checkpoint` — Manual save point
 - [Disprove Engine](../skills/lean4/references/disprove-engine.md) — Phase mechanics, Step 0 / 1 / 2 menus (Knowledge Search / Method / Config), Per-Shape Recipes
+- [Implementation Status](../skills/lean4/references/disprove-engine.md#implementation-status) — what is deterministic script vs model-mediated vs deferred
 - [Method Registry](../lib/data/disprove_methods.toml) — Stable method ids, parameter schemas, cost classes
 - [Examples](../skills/lean4/references/command-examples.md#disprove)

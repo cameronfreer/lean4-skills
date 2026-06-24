@@ -19,6 +19,7 @@
 ## Contents
 
 - [Prime Directive — Epistemological Strictness](#prime-directive--epistemological-strictness)
+- [Implementation Status](#implementation-status)
 - [Six-Phase Cycle](#six-phase-cycle)
 - [Phase 1 — Plan](#phase-1--plan)
   - [Target Resolution Flow](#target-resolution-flow)
@@ -58,6 +59,32 @@ whitelist). The emitted `T_counterexample` artifact may be that `¬ TARGET` theo
 directly, **or** a witness theorem from which `¬ TARGET` is derived by a named
 per-shape wrapper that is itself typecheck- and axiom-checked (see
 [Per-Shape Recipes](#per-shape-recipes) and [Phase 3](#phase-3--checkpoint)).
+
+## Implementation Status
+
+What in this reference is a deterministic script vs. performed by the cycling LLM
+(LSP/judgment) vs. deferred. Honest about the script-vs-LSP boundary.
+
+| Capability | Status | Where |
+|------------|--------|-------|
+| Target classification + grep source-resolution + path-class/writable + dependency refusal | **implemented (deterministic)** | `disprove_target_profile.py` (grep is non-authoritative; LLM confirms via `lean_declaration_file`) |
+| Shape / decidability / type / free-vars / candidate-grid | **model-mediated (LSP)** | LLM fills the profile's `_lsp_filled` fields |
+| Method registry (6 families: schemas, shapes, costs) | **implemented (deterministic)** | `lib/data/disprove_methods.toml` + `lib/disprove_methods.py` |
+| Method applicability + availability filter | **implemented (deterministic)** | `disprove_method_probe.py` (registry + profile + `shutil.which`) |
+| Step 0/1/2 menu proposal + evidence-driven ranking | **model-mediated (LLM)** | cycling LLM (no hardcoded escalation table) |
+| Knowledge search + WebFetch verification | **model-mediated (LLM)** | advisory; never bypasses the kernel gate |
+| Collision-safe artifact writer | **implemented (deterministic)** | `disprove_emit_artifact.py` |
+| Transactional append / drop-gate / rollback | **implemented (deterministic)** | `disprove_artifact_txn.py` (txn-id markers) |
+| Compile gate (`lake env lean`) + axiom-whitelist gate | **model-mediated (tool calls)** | Checkpoint runs `lake env lean` + `#print axioms` / `lean_verify` |
+| Cycle tracker / stop budgets | **implemented (deterministic)** | `lib/scripts/cycle_tracker.sh` |
+| Artifact naming `T_counterexample` | **implemented (fixed, v1)** | schematic, one artifact per file (see note) |
+| Target-derived artifact names | **deferred (future)** | collision gate already makes the fixed name safe |
+| Capability-escalation benchmark + certified-term fixtures | **deferred (future)** | **no repo fixtures yet** |
+| External-SMT (Z3) deterministic fixture | **deferred (future)** | `external` family is a supported design; **no repo fixture yet** |
+
+**`T_counterexample` is schematic and fixed in v1.** A file holds one disprove
+artifact under this name; the collision gate (and the transaction layer) refuse a
+conflicting reuse. Target-derived names (`<decl>_counterexample`) are deferred.
 
 ## Six-Phase Cycle
 
@@ -646,10 +673,11 @@ the qualified-name target resolved to in Phase 1):
    - **`certified` (→ `FALSE`)** only if the `¬ TARGET`-typed declaration
      typechecked (no `sorry`/`admit`) **and** its axiom set ⊆ the allowed whitelist.
      For witness shapes, `disprove_artifact_txn.py drop-role --txn=$txn --role=gate`
-     **before** the commit and re-run `lake env lean <target-file>` from the project
-     root on the wrapper-free file, so the committed state (`T_counterexample` alone,
-     which still typechecks) is itself gate-verified — the committed file equals the
-     gate-checked file. Commit only `T_counterexample`; proceed to Review.
+     **before** the commit, then from the project root re-run
+     `lake env lean <target-file>` on the wrapper-free file, so the committed state
+     (`T_counterexample` alone, which still typechecks) is itself gate-verified — the
+     committed file equals the gate-checked file. Commit only `T_counterexample`;
+     proceed to Review.
    - **Typecheck fails** → `disprove_artifact_txn.py rollback --txn=$txn` (removes the
      artifact and, for witness shapes, the gate-only wrapper — only this txn's marker
      blocks); downgrade to `near-miss`, capture the error signature.
