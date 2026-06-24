@@ -138,6 +138,17 @@ mathlib) or no source file can be located, **refuse before Phase 2** with:
 a `File.lean:LINE` target in a writable file."* There is no silent scratch-file
 fallback in v1.
 
+The **deterministic** half of this — target classification, best-effort grep
+resolution of a qualified name to a *single unambiguous* project source location
+(0 or ≥2 hits → `needs_lsp_resolution`; grep is non-authoritative), `path_class`
+(project vs read-only `dependency`) + `writable`, and the dependency-path refusal
+— is produced by `$LEAN4_SCRIPTS/disprove_target_profile.py` as one JSON envelope.
+The cycling LLM then fills the LSP/kernel fields it lists under `_lsp_filled`
+(`shape`, `decidable`, `type`, `free_vars`, `candidate_grid`) and confirms an
+ambiguous/unresolved name via `lean_declaration_file`. (A merely read-only
+*project* file is reported `writable:false` but not refused here — the artifact
+emitter fails at append time.)
+
 **v1 grammar limitation.** Qualified-name targets containing a prime (`'`, e.g.
 `Nat.foo'`) or an escaped `«…»` identifier are **not accepted in v1** (the shared
 tokenizer/parser rejects them before resolution). Target such declarations by
