@@ -614,12 +614,15 @@ the qualified-name target resolved to in Phase 1):
    named, gate-only `T_counterexample_negates_target : ¬ TARGET := <shape-specific
    wrapper>` (see the Per-Shape Recipes intro) — this is the declaration that
    actually carries the `¬ TARGET` type.
-2. Append `T_counterexample` via
-   `python3 "$LEAN4_SCRIPTS/disprove_emit_artifact.py" --scope-file=<target-file> --theorem-name=T_counterexample`
-   (snippet on stdin). For witness shapes, append the gate-only
-   `T_counterexample_negates_target` the same way (same collision-safe writer);
-   it is excluded from the commit — the committed artifact is `T_counterexample`
-   only.
+2. Append within a **transaction** so the cycle's writes are revertible by id.
+   Open one with `txn=$(python3 "$LEAN4_SCRIPTS/disprove_artifact_txn.py" begin)`,
+   then append the artifact (snippet on stdin):
+   `… disprove_artifact_txn.py append --scope-file=<target-file> --txn=$txn --role=artifact --decl=T_counterexample --cycle=<N>`.
+   For witness shapes, append the gate-only declaration under the same txn with
+   `--role=gate --decl=T_counterexample_negates_target`. Each append is wrapped in
+   `-- lean4:disprove-begin/-end txn=… role=…` markers and refuses to clobber a decl
+   already declared outside the txn. (The standalone collision-safe writer
+   `disprove_emit_artifact.py` remains for non-transactional appends.)
 3. Run `lake env lean <target-file>` from the project root (typecheck gate).
 4. **Axiom gate.** Inspect the axioms via `lean_verify` (or `#print axioms`) of the
    declaration that carries the `¬ TARGET` type — `T_counterexample` for direct
@@ -630,21 +633,17 @@ the qualified-name target resolved to in Phase 1):
 5. License the outcome:
    - **`certified` (→ `FALSE`)** only if the `¬ TARGET`-typed declaration
      typechecked (no `sorry`/`admit`) **and** its axiom set ⊆ the allowed whitelist.
-     Commit only `T_counterexample` (drop the gate-only `*_negates_target` wrapper
-     if it was appended this cycle — don't delete a pre-existing identical
-     declaration); proceed to Review. For witness shapes, drop the wrapper
-     **before** the commit and re-run `lake env lean <target-file>` from the
-     project root on the wrapper-free file, so the committed state
-     (`T_counterexample` alone, which
-     still typechecks) is itself gate-verified — the committed file must equal the
-     gate-checked file.
-   - **Typecheck fails** → revert all declarations appended this cycle (the
-     artifact and, for witness shapes, the gate-only `*_negates_target` wrapper);
-     downgrade to `near-miss`, capture the error signature.
+     For witness shapes, `disprove_artifact_txn.py drop-role --txn=$txn --role=gate`
+     **before** the commit and re-run `lake env lean <target-file>` from the project
+     root on the wrapper-free file, so the committed state (`T_counterexample` alone,
+     which still typechecks) is itself gate-verified — the committed file equals the
+     gate-checked file. Commit only `T_counterexample`; proceed to Review.
+   - **Typecheck fails** → `disprove_artifact_txn.py rollback --txn=$txn` (removes the
+     artifact and, for witness shapes, the gate-only wrapper — only this txn's marker
+     blocks); downgrade to `near-miss`, capture the error signature.
    - **A non-whitelisted axiom appears, or axiom inspection is unavailable /
-     inconclusive** → revert all declarations appended this cycle, if any (do not
-     delete a pre-existing identical declaration the emitter left untouched), do
-     **not** commit, and downgrade to `WITNESS_UNCERTIFIED` — never `FALSE`.
+     inconclusive** → `rollback --txn=$txn` (never touches pre-existing or other-txn
+     declarations), do **not** commit, downgrade to `WITNESS_UNCERTIFIED` — never `FALSE`.
 
 Per `--commit`:
 - `auto` — stage the modified file (`git add <target-file>`, never `-A`)
