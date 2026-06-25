@@ -282,3 +282,18 @@ of the originating Step 0 finding); all other cycles show `—`. See
 - [Method Registry](../lib/data/disprove_methods.toml) — Stable method ids, parameter schemas, cost classes
 - [Examples](../skills/lean4/references/command-examples.md#disprove)
 - [Benchmark](https://github.com/jancio/l4s-disprove-benchmark) — 16-target evaluation suite (certified refutations) from the disprove paper
+
+## Citation
+
+The `/lean4:disprove` skill is described in:
+
+```bibtex
+@inproceedings{ondras2026disprove,
+  title     = {Disprove Skill: Certified Counterexample Search for {AI}-Assisted Formal Mathematics},
+  author    = {Jan Ondras and Cameron Freer},
+  booktitle = {3rd AI for Math Workshop: Toward Self-Evolving Scientific Agents},
+  note      = {Workshop at ICML 2026},
+  year      = {2026},
+  url       = {https://openreview.net/forum?id=5ck1jRE65S}
+}
+```
