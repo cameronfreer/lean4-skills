@@ -533,7 +533,7 @@ Committed: "disprove: T_counterexample — cycle 1"
 
 ## Disprove Summary
 
-**Outcome:** FALSE
+**Outcome:** REFUTED
 
 | Metric | Value |
 |--------|-------|
@@ -722,7 +722,7 @@ Committed: "disprove: T_counterexample — cycle 2"
 
 ## Disprove Summary
 
-**Outcome:** FALSE
+**Outcome:** REFUTED
 
 | Metric | Value |
 |--------|-------|

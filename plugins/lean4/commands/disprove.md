@@ -8,7 +8,7 @@ argument-hint: '<File.lean:LINE | Namespace.theoremName> [--max-cycles=N] [--max
 # Lean4 Disprove
 
 Search for a counterexample to a target proposition and, when possible,
-produce a Lean proof of its negation. Reports `FALSE` only when Lean
+produce a Lean proof of its negation. Reports `REFUTED` only when Lean
 certifies the refutation; otherwise `WITNESS_UNCERTIFIED` (a candidate was
 found but Lean refused to certify it) or `INCONCLUSIVE` (no candidate
 found within budgets).
@@ -29,7 +29,7 @@ accumulated evidence and the Target Profile.
 
 ## Prime Directive
 
-Report `FALSE` **only** when a Lean term of the negation typechecks under
+Report `REFUTED` **only** when a Lean term of the negation typechecks under
 `lake env lean` with no `sorry` or `admit` **and** its axiom set is within the
 allowed whitelist (`propext`, `Classical.choice`, `Quot.sound`; plus
 `Lean.ofReduceBool` only under an explicit `native_decide` opt-in this cycle).
@@ -37,7 +37,7 @@ Fast witnesses and informal heuristics are *hypotheses* until Lean certifies
 them. See
 [disprove-engine.md § Prime Directive](../skills/lean4/references/disprove-engine.md#prime-directive--epistemological-strictness).
 
-`FALSE` is licensed by a **checked closed term of type `¬ TARGET`**, not by the
+`REFUTED` is licensed by a **checked closed term of type `¬ TARGET`**, not by the
 artifact's surface form: `T_counterexample` may be a direct `¬ TARGET` theorem **or**
 a witness theorem whose named per-shape wrapper (also axiom-checked) derives
 `¬ TARGET`.
@@ -126,7 +126,7 @@ See [disprove-engine.md § Phase 2 — Work](../skills/lean4/references/disprove
 
 ### Phase 3: Checkpoint
 
-See [disprove-engine.md § Phase 3 — Checkpoint](../skills/lean4/references/disprove-engine.md#phase-3--checkpoint). On a **pre-screen-passing candidate**, open a transaction (`txn=$(${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/disprove_artifact_txn.py" begin)`) and append `T_counterexample` via its `append --txn=$txn --role=artifact` subcommand (witness shapes also append the gate-only `*_negates_target` with `--role=gate`), run `lake env lean <target-file>` from the project root, then **inspect the axioms of the declaration carrying `¬ TARGET`** (`T_counterexample` for direct shapes, `T_counterexample_negates_target` for witness shapes) via `lean_verify` / `#print axioms`. Report `FALSE` only if it typechecks **and** that declaration's axioms ⊆ `{propext, Classical.choice, Quot.sound}` (plus `Lean.ofReduceBool` only under an explicit `native_decide` opt-in this cycle): on `FALSE`, `drop-role --txn=$txn --role=gate` (witness shapes) and commit only `T_counterexample`. Otherwise `rollback --txn=$txn` (reverts every declaration appended this cycle), distinguishing the non-FALSE outcomes: a **typecheck failure** is a `near-miss` cycle outcome (capture the error signature for the next cycle), while a **non-whitelisted axiom or inconclusive axiom inspection** is `WITNESS_UNCERTIFIED`. `<target-file>` is the resolved source file — for a qualified-name target, the declaration's **writable** source file from Phase 1 (disprove refuses if it resolves only to a read-only dependency).
+See [disprove-engine.md § Phase 3 — Checkpoint](../skills/lean4/references/disprove-engine.md#phase-3--checkpoint). On a **pre-screen-passing candidate**, open a transaction (`txn=$(${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/disprove_artifact_txn.py" begin)`) and append `T_counterexample` via its `append --txn=$txn --role=artifact` subcommand (witness shapes also append the gate-only `*_negates_target` with `--role=gate`), run `lake env lean <target-file>` from the project root, then **inspect the axioms of the declaration carrying `¬ TARGET`** (`T_counterexample` for direct shapes, `T_counterexample_negates_target` for witness shapes) via `lean_verify` / `#print axioms`. Report `REFUTED` only if it typechecks **and** that declaration's axioms ⊆ `{propext, Classical.choice, Quot.sound}` (plus `Lean.ofReduceBool` only under an explicit `native_decide` opt-in this cycle): on `REFUTED`, `drop-role --txn=$txn --role=gate` (witness shapes) and commit only `T_counterexample`. Otherwise `rollback --txn=$txn` (reverts every declaration appended this cycle), distinguishing the non-REFUTED outcomes: a **typecheck failure** is a `near-miss` cycle outcome (capture the error signature for the next cycle), while a **non-whitelisted axiom or inconclusive axiom inspection** is `WITNESS_UNCERTIFIED`. `<target-file>` is the resolved source file — for a qualified-name target, the declaration's **writable** source file from Phase 1 (disprove refuses if it resolves only to a read-only dependency).
 
 **Commit prompt** (when `--commit=ask`):
 
@@ -178,7 +178,7 @@ menu opens.
 The cycle-tracker enforces budgets at each `tick` boundary. The session
 stops on the **first** of:
 
-1. **FALSE outcome** — a cycle produced a certified counterexample
+1. **REFUTED outcome** — a cycle produced a certified counterexample
 2. **Max stuck cycles** — `--max-stuck-cycles` consecutive stuck cycles
 3. **Max cycles** — `--max-cycles` total cycles run
 4. **Max runtime** — wall-clock budget reached (best-effort, checked at cycle boundaries)
@@ -191,7 +191,7 @@ When the command stops (any branch), emit:
 ```text
 ## Disprove Summary
 
-**Outcome:** [FALSE | WITNESS_UNCERTIFIED | INCONCLUSIVE]
+**Outcome:** [REFUTED | WITNESS_UNCERTIFIED | INCONCLUSIVE]
 
 | Metric | Value |
 |--------|-------|
@@ -222,7 +222,7 @@ elevated via `[verify-known-cex]` (the URL is the verified `source_url`
 of the originating Step 0 finding); all other cycles show `—`. See
 [disprove-engine.md § Step 2 — Config Menu](../skills/lean4/references/disprove-engine.md#step-2--config-menu).
 
-[FALSE]
+[REFUTED]
   Counterexample certified.
   - If already committed (`--commit=auto`, or `ask` accepted): committed as
     `disprove: T_counterexample — cycle N` (see `git log -1`).
@@ -257,8 +257,8 @@ of the originating Step 0 finding); all other cycles show `—`. See
   the cycling LLM surfaces it as such in Step 2 and records it in the
   cycle's evidence. Enabling admits the `Lean.ofReduceBool` axiom, which the
   compile/axiom gate then permits only for that cycle.
-- **No `FALSE` without compile gate + axiom gate.** `lean_multi_attempt` is the
-  cheap pre-screen; `FALSE` requires `lake env lean <path>` from the project root
+- **No `REFUTED` without compile gate + axiom gate.** `lean_multi_attempt` is the
+  cheap pre-screen; `REFUTED` requires `lake env lean <path>` from the project root
   to typecheck (no `sorry`/`admit`) **and** the `¬ TARGET` declaration's axioms
   (`T_counterexample`, or `T_counterexample_negates_target` for witness shapes) ⊆
   `{propext, Classical.choice, Quot.sound}` (plus `Lean.ofReduceBool` only under

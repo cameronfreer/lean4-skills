@@ -43,7 +43,7 @@
 
 ## Prime Directive — Epistemological Strictness
 
-`/lean4:disprove` reports `FALSE` **only** when it produces a Lean term of
+`/lean4:disprove` reports `REFUTED` **only** when it produces a Lean term of
 the negation that typechecks under `lake env lean` without `sorry` or
 `admit` **and** whose axiom set is within the allowed whitelist
 (`propext`, `Classical.choice`, `Quot.sound`; plus `Lean.ofReduceBool`
@@ -53,7 +53,7 @@ are *hypotheses* until Lean certifies them. Anything weaker — including a
 term that typechecks but pulls in a non-whitelisted axiom — is reported as
 `WITNESS_UNCERTIFIED` or `INCONCLUSIVE`. This invariant is non-negotiable.
 
-Certification is by the **term, not its surface form**: `FALSE` is licensed when
+Certification is by the **term, not its surface form**: `REFUTED` is licensed when
 Lean checks a **closed** term of type `¬ TARGET` (no `sorry`/`admit`, axioms ⊆
 whitelist). The emitted `T_counterexample` artifact may be that `¬ TARGET` theorem
 directly, **or** a witness theorem from which `¬ TARGET` is derived by a named
@@ -101,7 +101,7 @@ session evidence so the next cycle's menus can re-rank.
 |-------|----------------------------|
 | 1. Plan | Cycle 1 resolves TARGET, normalizes shape, builds the Target Profile, runs Step 0 (Knowledge Search) once. Every cycle: Step 1 menu + Step 2 menu. Later cycles re-enter Step 0 only if Step 1 picks `knowledge search`. |
 | 2. Work | Run the chosen method with the chosen config. Pre-screen candidates via `lean_multi_attempt`. |
-| 3. Checkpoint | If Work produced a **pre-screen-passing candidate**: append `T_counterexample`, run `lake env lean` + axiom check (⊆ whitelist) → `certified` (`FALSE`) only if both pass, else revert hunk → `near-miss`/`WITNESS_UNCERTIFIED`; stage + commit per `--commit`. If no candidate: no artifact. |
+| 3. Checkpoint | If Work produced a **pre-screen-passing candidate**: append `T_counterexample`, run `lake env lean` + axiom check (⊆ whitelist) → `certified` (`REFUTED`) only if both pass, else revert hunk → `near-miss`/`WITNESS_UNCERTIFIED`; stage + commit per `--commit`. If no candidate: no artifact. |
 | 4. Review | Classify the cycle's outcome (certified / near-miss / exhausted / no-candidate). Capture error signatures. |
 | 5. Accumulate | Append `(family, config, outcome, near-miss_signature)` to session evidence. No hardcoded recommendation table — the next cycle's menus absorb the logic. |
 | 6. Continue/Stop | Always prompt the user: `continue / stop`. |
@@ -674,7 +674,7 @@ the qualified-name target resolved to in Phase 1):
    when `native_decide` was explicitly opted in for this cycle (recorded in the
    evidence record).
 5. License the outcome:
-   - **`certified` (→ `FALSE`)** only if the `¬ TARGET`-typed declaration
+   - **`certified` (→ `REFUTED`)** only if the `¬ TARGET`-typed declaration
      typechecked (no `sorry`/`admit`) **and** its axiom set ⊆ the allowed whitelist.
      For witness shapes, `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/disprove_artifact_txn.py" drop-role --scope-file=<target-file> --txn=$txn --role=gate`
      **before** the commit, then from the project root re-run
@@ -688,7 +688,7 @@ the qualified-name target resolved to in Phase 1):
    - **A non-whitelisted axiom appears, or axiom inspection is unavailable /
      inconclusive** → `rollback --scope-file=<target-file> --txn=$txn` (never touches
      pre-existing or other-txn declarations), do **not** commit, downgrade to
-     `WITNESS_UNCERTIFIED` — never `FALSE`.
+     `WITNESS_UNCERTIFIED` — never `REFUTED`.
 
 Per `--commit`:
 - `auto` — stage the modified file (`git add <target-file>`, never `-A`)
@@ -869,7 +869,7 @@ Session evidence record (appended once per cycle):
   "derived_from_verify_known_cex":  "<source_url or repo-relative path, if [verify-known-cex]>",
   "external_script_path":           "<path under $LEAN4_SESSION_DIR/scripts/, if family=external>",
 
-  // Reproducibility fields (recorded for a certified FALSE):
+  // Reproducibility fields (recorded for a certified REFUTED):
   "target_hash":                    "<hash of the normalized target>",
   "normalized_target_type":         "<the resolved/profiled type>",
   "artifact_file":                  "<target source file>",
@@ -888,7 +888,7 @@ Session evidence record (appended once per cycle):
 ```
 
 The gate-only `*_negates_target` wrapper is **not committed**, so when it (not the
-artifact) is the declaration that licensed `FALSE`, its text/hash MUST be captured
+artifact) is the declaration that licensed `REFUTED`, its text/hash MUST be captured
 here (`negation_decl` + `negation_wrapper_hash`) — that is the only durable record of
 the term the kernel actually accepted.
 
@@ -968,7 +968,7 @@ checked here too (best-effort).
 
 ## Disprove Summary
 
-The Disprove Summary is a single tri-state report: `FALSE`,
+The Disprove Summary is a single tri-state report: `REFUTED`,
 `WITNESS_UNCERTIFIED`, or `INCONCLUSIVE`. For the full template and the
 per-outcome handoff bullets, see
 [commands/disprove.md § Disprove Summary](../../../commands/disprove.md#disprove-summary)
@@ -997,8 +997,8 @@ finding). For all other cycles the column is `—`.
   evidence record must log it. Enabling admits the `Lean.ofReduceBool`
   axiom, which the Phase 3 axiom gate then allows **only** for that cycle
   (see Phase 3).
-- **No claim of `FALSE` without compile gate + axiom gate.** Pre-screen via
-  `lean_multi_attempt` is necessary but not sufficient. `FALSE` requires
+- **No claim of `REFUTED` without compile gate + axiom gate.** Pre-screen via
+  `lean_multi_attempt` is necessary but not sufficient. `REFUTED` requires
   **both** `lake env lean <path>` from the project root (typecheck, no
   `sorry`/`admit`) **and** an
   axiom set ⊆ `{propext, Classical.choice, Quot.sound}` (plus `Lean.ofReduceBool`

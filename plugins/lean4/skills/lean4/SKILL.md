@@ -122,7 +122,7 @@ Use `/lean4:learn` at any point to explore repo structure or navigate mathlib. T
 - Review supports `--mode=batch` (default) or `--mode=stuck` (triage); review is always read-only
 - `/lean4:autoformalize` wraps draft+autoprove in a single command (source → claims → skeletons → proofs); replaces `autoprove --formalize=auto`
 - Proof engines (`prove`/`autoprove`) never modify declaration headers (header fence)
-- `/lean4:disprove` reports `FALSE` only when Lean typechecks the negation; otherwise `WITNESS_UNCERTIFIED` or `INCONCLUSIVE`
+- `/lean4:disprove` reports `REFUTED` only when Lean typechecks the negation; otherwise `WITNESS_UNCERTIFIED` or `INCONCLUSIVE`
 - If you hit environment issues, run `/lean4:doctor` to diagnose
 
 ## LSP Tools (Preferred)
