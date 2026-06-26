@@ -68,7 +68,7 @@ Startup requirements:
 1. Emit a **Resolved Inputs** block with explicit values, defaults,
    coercions, ignored flags, and startup validation errors.
 2. Refuse to start on startup validation errors.
-3. Call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" init` with resolved
+3. Call `lean4-skills-cycle-tracker init` with resolved
    numeric values for `--max-cycles`, `--max-stuck-cycles`,
    `--max-runtime`, and
    `--max-knowledge-search-per-cycle=<--knowledge-search-budget>`.

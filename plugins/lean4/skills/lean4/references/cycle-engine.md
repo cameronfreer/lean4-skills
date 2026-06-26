@@ -35,12 +35,12 @@ LSP tools are the normative first-pass for all discovery, search, and validation
 5. `lean_diagnostic_messages(file)` — verify; if "Try this" → `lean_code_actions(file, line)` → apply → `lean_diagnostic_messages(file)` to re-verify
 6. Prefer shortest passing candidate; only then edit/commit
 
-**Fallback gate:** Script fallback (`$LEAN4_SCRIPTS/smart_search.sh`, `$LEAN4_SCRIPTS/search_mathlib.sh`) and repair agents are permitted when:
+**Fallback gate:** Script fallback (`lean4-skills-smart-search`, `lean4-skills-search-mathlib`) and repair agents are permitted when:
 - LSP search budget is exhausted (at least 2 searches returning empty/inconclusive), OR
 - LSP server is confirmed unavailable, timing out, or rate-limited
 
 For sorry discovery fallback, prefer one-pass structured output:
-`${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" <target> --format=json --report-only`.
+`lean4-skills-sorry-analyzer <target> --format=json --report-only`.
 Use default `text` for quick human review and `summary` only for counts.
 Do not suppress script stderr via `/dev/null`; surfaced errors are part of the fallback signal.
 
@@ -238,14 +238,14 @@ Do NOT create an empty commit. Checkpoint requires a non-empty diff.
 
 > This section describes the concrete Claude Code implementation of the enforcement classes defined in [command-invocation.md](command-invocation.md). The invocation contract is host-agnostic; `cycle_tracker.sh` is one implementation that fulfills it. Other hosts may provide equivalent enforcement through different mechanisms, or may rely on model-mediated tracking alone.
 
-Autonomous commands (`autoprove`, `autoformalize`) use `$LEAN4_SCRIPTS/cycle_tracker.sh` for deterministic session counter tracking. Guided commands (`prove`, `formalize`) do not — user presence provides the control loop.
+Autonomous commands (`autoprove`, `autoformalize`) use `lean4-skills-cycle-tracker` for deterministic session counter tracking. Guided commands (`prove`, `formalize`) do not — user presence provides the control loop.
 
 ### Initialization
 
 After emitting the Resolved Inputs block, call:
 
 ```bash
-bash "$LEAN4_SCRIPTS/cycle_tracker.sh" init \
+lean4-skills-cycle-tracker init \
   --max-cycles=<resolved> \
   --max-stuck=<resolved> \
   --max-runtime=<resolved> \
@@ -260,7 +260,7 @@ A failed init (exit 2) is a startup validation error — do not proceed. On succ
 At the end of every cycle, call:
 
 ```bash
-bash "$LEAN4_SCRIPTS/cycle_tracker.sh" tick --stuck=yes|no
+lean4-skills-cycle-tracker tick --stuck=yes|no
 ```
 
 This is one atomic operation that:
@@ -276,11 +276,11 @@ If exit code is 1 (`LIMIT_REACHED`), stop immediately and emit the structured su
 
 Before dispatching a deep-mode subagent:
 
-1. Call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" can-deep`
+1. Call `lean4-skills-cycle-tracker can-deep`
 2. If exit 1 (`denied`), handle based on the `reason` field:
    - `reason=max-deep-per-cycle` or `reason=max-consecutive-deep`: deep denied by policy — skip deep for this sorry without marking it stuck
    - `reason=max-runtime`: session budget exhausted — let the next `tick` trigger session stop
-3. If exit 0: call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" deep` to record the invocation, then dispatch
+3. If exit 0: call `lean4-skills-cycle-tracker deep` to record the invocation, then dispatch
 
 ### Claim Boundary Protocol (autoformalize)
 
@@ -288,15 +288,15 @@ Autoformalize processes claims sequentially. `--max-cycles` and `--max-stuck-cyc
 
 **Lifecycle:** `init` → (`start-claim` → inner cycle ticks → `reset-claim`) × N-1 → `start-claim` → inner cycle ticks → `status`/`stop`
 
-- Call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" start-claim` when dequeuing each claim
-- Call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" reset-claim` when a claim completes or stops (before the next `start-claim`)
+- Call `lean4-skills-cycle-tracker start-claim` when dequeuing each claim
+- Call `lean4-skills-cycle-tracker reset-claim` when a claim completes or stops (before the next `start-claim`)
 - The final claim does not need `reset-claim` — session totals (`cycles_total`, `stuck_cycles_total`, `deep_total`) are accumulated live by `tick`/`deep`
 
 `status` always reflects the full session: `claims_attempted` includes the in-progress claim. Summary metrics (`Cycles run`, `Stuck cycles`, `Deep invocations`) come from session-total accumulators.
 
 ### On Stop
 
-Call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" status` for the structured summary counters, then `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" stop` for cleanup.
+Call `lean4-skills-cycle-tracker status` for the structured summary counters, then `lean4-skills-cycle-tracker stop` for cleanup.
 
 ### Enforcement Levels
 

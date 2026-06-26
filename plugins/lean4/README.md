@@ -299,9 +299,9 @@ Optional user overrides (not set by bootstrap):
 
 **Script troubleshooting:**
 ```bash
-echo "$LEAN4_SCRIPTS"
-ls -l "$LEAN4_SCRIPTS/sorry_analyzer.py"
-${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary --report-only
+echo "$LEAN4_SCRIPTS"                       # bootstrap set the env var
+command -v lean4-skills-sorry-analyzer       # wrapper resolves on PATH
+lean4-skills-sorry-analyzer . --format=summary --report-only
 ```
 
 If `$LEAN4_SCRIPTS` is unset, run `/lean4:doctor` to reinitialize.
