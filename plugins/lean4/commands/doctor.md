@@ -58,7 +58,14 @@ plugins/lean4/
 ├── hooks/        (executable .sh)
 ├── skills/lean4/ (SKILL.md + references/)
 ├── agents/       (4 files)
-└── lib/scripts/  (12 files, executable)
+├── bin/          (lean4-skills-* model-facing wrappers)
+└── lib/scripts/  (executable .py / .sh internals)
+```
+
+Verify wrappers resolve on PATH:
+```bash
+command -v lean4-skills-cycle-tracker  # autoprove hot path
+command -v lean4-skills-sorry-analyzer
 ```
 
 ### 3. Project Check
@@ -195,8 +202,9 @@ No changes made. Run `/lean4:doctor cleanup --apply` to remove.
 | Issue | Fix |
 |-------|-----|
 | LEAN4_SCRIPTS not set | Restart session, check hooks.json |
+| `lean4-skills-*` wrapper not found on PATH | Verify bootstrap appended `$LEAN4_PLUGIN_ROOT/bin` to `PATH`; restart session if missing |
 | lake not found | Install via elan |
-| Scripts not executable | `chmod +x $LEAN4_SCRIPTS/*.sh` |
+| Scripts not executable | Wrappers should be shipped executable — check `command -v lean4-skills-sorry-analyzer`. For unwrapped internals: `chmod +x $LEAN4_SCRIPTS/*.sh $LEAN4_SCRIPTS/*.py` |
 | Build fails | `lake update && lake clean && lake build` |
 | Fresh worktree rebuild is slow / LSP times out on first use | Prime cache (`lake cache get` or `lake exe cache get`), then `lake build`; do not symlink `.lake/build` from another worktree |
 | Stale build after `lake clean` | Hydrate cache (`lake cache get` or `lake exe cache get`), then `lake build` |
