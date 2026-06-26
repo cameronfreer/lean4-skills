@@ -289,7 +289,7 @@ The `/lean4:disprove` skill is described in:
 
 ```bibtex
 @inproceedings{ondras2026disprove,
-  title     = {Disprove Skill: Certified Counterexample Search for {AI}-Assisted Formal Mathematics},
+  title     = {Lean Disprove: Certified Counterexample Search for {AI}-Assisted Formal Mathematics},
   author    = {Jan Ondras and Cameron Freer},
   booktitle = {3rd AI for Math Workshop: Toward Self-Evolving Scientific Agents},
   note      = {Workshop at ICML 2026},

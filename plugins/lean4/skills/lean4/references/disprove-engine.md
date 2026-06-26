@@ -1026,6 +1026,6 @@ finding). For all other cycles the column is `—`.
 ## Reference
 
 The `/lean4:disprove` skill is described in: Jan Ondras and Cameron Freer,
-"Disprove Skill: Certified Counterexample Search for AI-Assisted Formal
+"Lean Disprove: Certified Counterexample Search for AI-Assisted Formal
 Mathematics," 3rd AI for Math Workshop: Toward Self-Evolving Scientific Agents (ICML 2026). <https://openreview.net/forum?id=5ck1jRE65S>
 (BibTeX in [`commands/disprove.md`](../../../commands/disprove.md#citation).)
