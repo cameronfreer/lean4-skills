@@ -93,7 +93,7 @@ jobs:
         # --shell=bash forces bash dialect; -x follows `source` references;
         # SC2016 (expressions in single quotes) is excluded because several
         # scripts use single-quoted regex literals intentionally.
-        # The bin/lean4-skills-* wrappers (added in #129) are extensionless
+        # The bin/lean4-skills-* wrappers (added in #130, for #117) are extensionless
         # bash scripts, included explicitly so shellcheck covers them too.
         run: |
           shellcheck --shell=bash -x --exclude=SC2016 \
