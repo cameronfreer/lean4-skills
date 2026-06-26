@@ -288,7 +288,7 @@ of the originating Step 0 finding); all other cycles show `—`. See
 The `/lean4:disprove` skill is described in:
 
 ```bibtex
-@inproceedings{ondras2026disprove,
+@inproceedings{ondras2026lean,
   title     = {Lean Disprove: Certified Counterexample Search for {AI}-Assisted Formal Mathematics},
   author    = {Jan Ondras and Cameron Freer},
   booktitle = {3rd AI for Math Workshop: Toward Self-Evolving Scientific Agents},
