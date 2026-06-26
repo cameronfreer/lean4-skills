@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# lean4-skills-smart-search — model-facing wrapper around lib/scripts/smart_search.sh.
+# See lean4-skills-cycle-tracker for the rationale.
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+exec bash "$PLUGIN_ROOT/lib/scripts/smart_search.sh" "$@"

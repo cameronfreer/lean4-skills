@@ -32,7 +32,7 @@ Structured error context (JSON):
 2. **Apply error-specific strategy** (see table below)
 3. **Search** if needed (LSP-first; fall back to scripts only when LSP is unavailable, rate-limited, or inconclusive after bounded attempts):
    - `lean_leanfinder("query")` or `lean_local_search("keyword")` first
-   - Script fallback: `$LEAN4_SCRIPTS/search_mathlib.sh` only after LSP exhausted
+   - Script fallback: `lean4-skills-search-mathlib` only after LSP exhausted
 4. **Generate minimal diff** (1-5 lines)
 5. **Output unified diff ONLY** - no explanations
 
@@ -108,8 +108,8 @@ lean_run_code("code")               # Isolated scratch experiments
 
 **Script fallback** (only when LSP is unavailable, rate-limited, or inconclusive after bounded attempts):
 ```bash
-$LEAN4_SCRIPTS/search_mathlib.sh    # Search by pattern
-$LEAN4_SCRIPTS/smart_search.sh      # Multi-source
+lean4-skills-search-mathlib    # Search by pattern
+lean4-skills-smart-search      # Multi-source
 ```
 
 ## See Also

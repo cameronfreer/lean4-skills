@@ -88,7 +88,7 @@
 
 **When to use:**
 - "Find all files using MeasurableSpace"
-- "Run $LEAN4_SCRIPTS/sorry_analyzer.py and report count"
+- "Run lean4-skills-sorry-analyzer and report count"
 - "Search mathlib for continuous function lemmas"
 
 ### General-Purpose Agent (Thorough, Multi-Step)
@@ -126,10 +126,10 @@ You do not invoke these directly. See [agent-workflows.md](agent-workflows.md) f
 ```
 Task: "Optimize these 5 proofs"
 ✅ Use /lean4:golf (specialized workflow with safety checks)
-❌ Dispatch general-purpose agent to run $LEAN4_SCRIPTS/find_golfable.py (misses false-positive filtering)
+❌ Dispatch general-purpose agent to run lean4-skills-find-golfable (misses false-positive filtering)
 
 Task: "Find mathlib lemmas for this sorry"
-✅ Dispatch Explore agent to run $LEAN4_SCRIPTS/smart_search.sh (simple delegation)
+✅ Dispatch Explore agent to run lean4-skills-smart-search (simple delegation)
 ✅ Use lean_local_search or lean_leanfinder LSP tools directly
 
 Task: "Fill all 15 sorries in this file"
@@ -143,7 +143,7 @@ Task: "Fill all 15 sorries in this file"
 
 **Instead of this (inefficient):**
 ```
-You: Run $LEAN4_SCRIPTS/sorry_analyzer.py on the whole project
+You: Run lean4-skills-sorry-analyzer on the whole project
 
 Claude (in main conversation):
 [Executes script directly]
@@ -153,7 +153,7 @@ Claude (in main conversation):
 
 **Do this (efficient):**
 ```
-You: Dispatch an Explore agent to run $LEAN4_SCRIPTS/sorry_analyzer.py and report top 5 sorries
+You: Dispatch an Explore agent to run lean4-skills-sorry-analyzer and report top 5 sorries
 
 Claude (in main conversation):
 "I'm dispatching an Explore agent to analyze sorries..."
@@ -176,7 +176,7 @@ Claude (in main conversation):
 Claude: "I'm dispatching an Explore agent to search for relevant lemmas..."
 
 [Dispatches with prompt]:
-"Run $LEAN4_SCRIPTS/smart_search.sh 'continuous functions compact spaces' --source=leansearch
+"Run lean4-skills-smart-search 'continuous functions compact spaces' --source=leansearch
  and report the top 3 most relevant results with their import paths"
 
 [Agent reports back]:
@@ -225,8 +225,8 @@ Claude: "I'm dispatching an Explore agent to run verification checks..."
 
 [Dispatches with prompt]:
 "Run the following verification tasks and report summary:
- 1. $LEAN4_SCRIPTS/sorry_analyzer.py src/ --format=json (count sorries)
- 2. $LEAN4_SCRIPTS/check_axioms_inline.sh 'src/**/*.lean' (check for non-standard axioms)
+ 1. lean4-skills-sorry-analyzer src/ --format=json (count sorries)
+ 2. lean4-skills-check-axioms-inline 'src/**/*.lean' (check for non-standard axioms)
  3. Report: Total sorries, any axiom issues, ready to commit?"
 
 [Agent reports back]:
@@ -248,7 +248,7 @@ Claude: "Let's use the interactive sorry navigator. This runs on your terminal
 so you can browse and select which sorry to tackle."
 
 You (in terminal):
-$ $LEAN4_SCRIPTS/sorry_analyzer.py . --interactive
+$ lean4-skills-sorry-analyzer . --interactive
 
 [TUI shows]:
 Files with sorries:
@@ -291,8 +291,8 @@ to find the right mathlib lemma..."
 **Example:**
 ```
 "Dispatch Explore agent to:
- 1. Run $LEAN4_SCRIPTS/sorry_analyzer.py src/ and report total count
- 2. Run $LEAN4_SCRIPTS/check_axioms_inline.sh 'src/**/*.lean' and report any issues
+ 1. Run lean4-skills-sorry-analyzer src/ and report total count
+ 2. Run lean4-skills-check-axioms-inline 'src/**/*.lean' and report any issues
  3. Analyze proofs in src/ and report 5 largest proofs with sorries
  4. Summarize: What's the state of the codebase?"
 ```
@@ -313,7 +313,7 @@ to find the right mathlib lemma..."
 **Example:**
 ```
 "Dispatch general-purpose agent to:
- 1. Search mathlib for continuous function lemmas using $LEAN4_SCRIPTS/smart_search.sh
+ 1. Search mathlib for continuous function lemmas using lean4-skills-smart-search
  2. Filter results to those mentioning compact spaces
  3. For top 3 results, check their type signatures
  4. Recommend which lemma best fits our use case: proving f(K) is compact when K is compact
@@ -337,7 +337,7 @@ to find the right mathlib lemma..."
 **Example:**
 ```
 "Dispatch Explore agent to investigate how conditional expectation is used in this project:
- 1. Run $LEAN4_SCRIPTS/search_mathlib.sh 'condExp' name in project files (not mathlib)
+ 1. Run lean4-skills-search-mathlib 'condExp' name in project files (not mathlib)
  2. Read the top 3 files that use it most
  3. Report: What patterns do you see? How is it typically combined with other operations?"
 ```
@@ -354,7 +354,7 @@ to find the right mathlib lemma..."
 
 ### Token Economics
 
-**Scenario:** Running $LEAN4_SCRIPTS/sorry_analyzer.py on a medium project
+**Scenario:** Running lean4-skills-sorry-analyzer on a medium project
 
 **Without subagent (direct execution):**
 - Script output: ~500 tokens (100 lines @ 5 tokens/line)
@@ -427,7 +427,7 @@ lean_local_search("keyword")       # Search results
  Search: lean_local_search('Nat.add_comm') → [Nat.add_comm]"
 
 # Delegate batch operations to subagents
-"Dispatch Explore agent to run $LEAN4_SCRIPTS/check_axioms_inline.sh on all changed files"
+"Dispatch Explore agent to run lean4-skills-check-axioms-inline on all changed files"
 ```
 
 **Why pre-collect context?**
@@ -581,7 +581,7 @@ Alternatives:
 **Use script directly (faster, simpler):**
 ```
 "Dispatch Explore agent to:
-Run $LEAN4_SCRIPTS/sorry_analyzer.py . --format=text
+Run lean4-skills-sorry-analyzer . --format=text
 and report total sorry count"
 ```
 

@@ -308,25 +308,30 @@ expect_py_lint_pass 'no shebang — library module is out of scope' '"""Library 
 def f(): pass'
 
 # ---------------------------------------------------------------------------
-# Check 10 self-tests — no plugins/lean4/bin shortcut path
+# Check 10 self-tests — bin/ shape (curated lean4-skills-* wrappers only)
 #
-# Creates $TMPDIR_ROOT/bin as a symlink, file, or directory and asserts
-# the linter exits 1. Cleans up after each. The no-bin negative case is
-# implicitly verified by every other probe (none of them creates bin/),
-# so all the prior "lint exits 0" expectations also cover Check 10.
+# bin/ may be absent OR a real directory containing only `lean4-skills-*`
+# regular executable files. The implicit no-bin negative case is verified
+# by every other probe (none of them creates bin/). These tests cover the
+# bin/-exists shape rules.
+#
+# Each helper sets up a bin/ in $TMPDIR_ROOT, runs the lint, and tears
+# down. Inner setup blocks can populate `lib/scripts/` symlink targets,
+# add extra files inside bin/, etc.
 # ---------------------------------------------------------------------------
 echo ""
-echo "-- Check 10 self-tests (no bin shortcut) --"
+echo "-- Check 10 self-tests (bin/ shape) --"
 
-expect_bin_lint_fail() {
-  local desc="$1" kind="$2" output  # kind: symlink|file|dir
+# expect_bin_setup_fail "description" "setup commands"
+#   `setup` is bash code that runs in a fresh $TMPDIR_ROOT/bin context.
+#   The helper expects the lint to exit 1 (Check 10 catches the bad shape).
+expect_bin_setup_fail() {
+  local desc="$1" setup="$2" output
   local bin="$TMPDIR_ROOT/bin"
-  case "$kind" in
-    symlink) ln -s lib/scripts "$bin" ;;
-    file) touch "$bin" ;;
-    dir) mkdir "$bin" ;;
-    *) echo "  FAIL: $desc (internal: unknown kind '$kind')"; ((FAIL++)) || true; return ;;
-  esac
+  rm -rf "$bin"
+  ( cd "$TMPDIR_ROOT" && eval "$setup" ) || {
+    echo "  FAIL: $desc (internal: setup failed)"; ((FAIL++)) || true; return
+  }
   local exit_code=0
   output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_runtime_portability.sh" 2>&1) || exit_code=$?
   if [[ "$exit_code" -eq 1 ]]; then
@@ -340,9 +345,71 @@ expect_bin_lint_fail() {
   rm -rf "$bin"
 }
 
-expect_bin_lint_fail 'bin/ as symlink to lib/scripts' symlink
-expect_bin_lint_fail 'bin/ as plain directory'        dir
-expect_bin_lint_fail 'bin/ as plain file'             file
+# expect_bin_setup_pass "description" "setup commands"
+#   Same as expect_bin_setup_fail but expects exit 0.
+expect_bin_setup_pass() {
+  local desc="$1" setup="$2" output
+  local bin="$TMPDIR_ROOT/bin"
+  rm -rf "$bin"
+  ( cd "$TMPDIR_ROOT" && eval "$setup" ) || {
+    echo "  FAIL: $desc (internal: setup failed)"; ((FAIL++)) || true; return
+  }
+  local exit_code=0
+  output=$("$BASH_FOR_COMPAT" "$TMPDIR_ROOT/tools/lint_runtime_portability.sh" 2>&1) || exit_code=$?
+  if [[ "$exit_code" -eq 0 ]]; then
+    echo "  PASS: $desc"
+    ((PASS++)) || true
+  else
+    echo "  FAIL: $desc (expected exit 0, got $exit_code)"
+    echo "$output" | sed 's/^/      /'
+    ((FAIL++)) || true
+  fi
+  rm -rf "$bin"
+}
+
+# --- Failure cases ---
+
+# Whole-directory symlink — the original PR #120 mistake.
+expect_bin_setup_fail 'bin/ as symlink to lib/scripts (the #120 mistake)' \
+  'ln -s lib/scripts bin'
+
+# bin/ as a regular file (not a directory).
+expect_bin_setup_fail 'bin/ as a plain file (not a directory)' \
+  'touch bin'
+
+# bin/ directory containing a non-prefixed file.
+expect_bin_setup_fail 'bin/ contains non-prefixed file oops.sh' \
+  'mkdir bin && printf "#!/usr/bin/env bash\nexit 0\n" > bin/oops.sh && chmod +x bin/oops.sh'
+
+# bin/ directory containing a file with the right prefix but uppercase chars.
+expect_bin_setup_fail 'bin/ contains lean4-skills-FOO (uppercase rejected)' \
+  'mkdir bin && printf "#!/usr/bin/env bash\nexit 0\n" > bin/lean4-skills-FOO && chmod +x bin/lean4-skills-FOO'
+
+# Prefixed file but not executable.
+expect_bin_setup_fail 'bin/lean4-skills-foo not executable' \
+  'mkdir bin && printf "#!/usr/bin/env bash\nexit 0\n" > bin/lean4-skills-foo'
+
+# Prefixed file but a symlink (not a regular file).
+expect_bin_setup_fail 'bin/lean4-skills-foo as symlink (not regular file)' \
+  'mkdir -p lib/scripts && printf "#!/usr/bin/env bash\nexit 0\n" > lib/scripts/target.sh && chmod +x lib/scripts/target.sh && mkdir bin && ln -s ../lib/scripts/target.sh bin/lean4-skills-foo'
+
+# Nested directory inside bin/.
+expect_bin_setup_fail 'bin/ contains nested directory' \
+  'mkdir -p bin/nested && printf "#!/usr/bin/env bash\nexit 0\n" > bin/nested/inner && chmod +x bin/nested/inner'
+
+# --- Pass cases ---
+
+# Empty bin/ directory — vacuously OK.
+expect_bin_setup_pass 'empty bin/ directory' \
+  'mkdir bin'
+
+# bin/ with a single valid wrapper.
+expect_bin_setup_pass 'bin/ with one valid lean4-skills-foo wrapper' \
+  'mkdir bin && printf "#!/usr/bin/env bash\nexit 0\n" > bin/lean4-skills-foo && chmod +x bin/lean4-skills-foo'
+
+# bin/ with multiple valid wrappers.
+expect_bin_setup_pass 'bin/ with three valid lean4-skills-* wrappers' \
+  'mkdir bin && for w in lean4-skills-alpha lean4-skills-beta-gamma lean4-skills-delta9; do printf "#!/usr/bin/env bash\nexit 0\n" > "bin/$w" && chmod +x "bin/$w"; done'
 
 # ---------------------------------------------------------------------------
 # Summary

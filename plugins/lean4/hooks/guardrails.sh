@@ -372,9 +372,18 @@ seg_match() {
 # Lean script invocation + stderr suppression guard.
 # Rationale: hidden stderr from analysis scripts causes silent failures.
 # This guard is intentionally non-bypassable.
+#
+# The token alternation covers:
+#   * `$LEAN4_SCRIPTS/foo.sh` / `${LEAN4_SCRIPTS}/foo.py` — env-var paths
+#   * `plugins/lean4/lib/scripts/foo.sh` — repo-relative path
+#   * `(./)?(lib/scripts|scripts)/foo.sh` — `cd`-relative invocations
+#   * `lean4-skills-foo` — model-facing prefixed wrappers (issue #117),
+#     matching bare names (PATH lookup), `bin/lean4-skills-foo`,
+#     `./bin/lean4-skills-foo`, and `plugins/lean4/bin/lean4-skills-foo`.
+#     The leading boundary `(^|[[:space:]]|/)` accepts any of those.
 _has_lean_script_token() {
   local s="$1"
-  echo "$s" | grep -qE -- '(\$LEAN4_SCRIPTS/|\$\{LEAN4_SCRIPTS\}/|plugins/lean4/(lib/scripts|scripts)/|(^|[[:space:]])(\./)?(lib/scripts|scripts)/[^[:space:]]+\.(py|sh)\b)'
+  echo "$s" | grep -qE -- '(\$LEAN4_SCRIPTS/|\$\{LEAN4_SCRIPTS\}/|plugins/lean4/(lib/scripts|scripts)/|(^|[[:space:]])(\./)?(lib/scripts|scripts)/[^[:space:]]+\.(py|sh)\b|(^|[[:space:]]|/)lean4-skills-[a-z][a-z0-9-]*\b)'
 }
 
 _strip_quoted_literals() {

@@ -147,7 +147,7 @@ Stage 1 outputs (after 3 failures, escalates to Stage 2):
 ```
 
 LSP search: `lean_leanfinder("continuous real function")` → `Real.continuous_ofReal`
-Fallback if needed: `$LEAN4_SCRIPTS/search_mathlib.sh "continuous.*real" name`
+Fallback if needed: `lean4-skills-search-mathlib "continuous.*real" name`
 
 ```diff
 --- Core.lean
@@ -174,7 +174,7 @@ Pattern found at line 45:
   have h := property x
   exact h
 
-Running: $LEAN4_SCRIPTS/analyze_let_usage.py Core.lean --line 45
+Running: lean4-skills-analyze-let-usage Core.lean --line 45
 Result: x used 1 time, h used 1 time
 
 Safety: ✓ Safe to inline (both used ≤2 times)
@@ -199,7 +199,7 @@ Pattern found at line 78:
   let bound := expensive_computation
   ...uses bound 6 times...
 
-Running: $LEAN4_SCRIPTS/analyze_let_usage.py Core.lean --line 78
+Running: lean4-skills-analyze-let-usage Core.lean --line 78
 Result: bound used 6 times
 
 Safety: ✗ SKIP - would expand code 6× (from 1 expr to 6)
@@ -314,7 +314,7 @@ Handoff: not needed (single-line, no statement change)
 
 **Search results:**
 LSP: lean_leanfinder("continuous composition") → Continuous.comp (Mathlib.Topology.Basic)
-Fallback: $LEAN4_SCRIPTS/search_mathlib.sh "continuous.*comp" name
+Fallback: lean4-skills-search-mathlib "continuous.*comp" name
 
 **Changes made:**
 - Removed `axiom helper_continuous`

@@ -1,5 +1,32 @@
 # Changelog
 
+## v4.5.1 (June 2026)
+
+Adds prefixed `bin/` wrappers for model-facing scripts (closes #117). Claude Code's plugin loader appends `plugins/lean4/bin/` to the Bash tool's `PATH`, so wrappers like `lean4-skills-cycle-tracker` resolve as bare commands and become statically allowlistable as `Bash(lean4-skills-cycle-tracker:*)` — eliminating the per-invocation permission prompts that issue #117 reported on every `$LEAN4_SCRIPTS/...` call.
+
+### `bin/` wrappers (model-facing, curated)
+
+- 9 new executables under `plugins/lean4/bin/`, each a thin Bash wrapper resolving `PLUGIN_ROOT` via `BASH_SOURCE` and delegating to `lib/scripts/<script>`:
+  - `lean4-skills-cycle-tracker` (autoprove hot path — mandatory)
+  - `lean4-skills-sorry-analyzer`, `lean4-skills-find-golfable`, `lean4-skills-find-exact-candidates`, `lean4-skills-analyze-let-usage`
+  - `lean4-skills-check-axioms-inline`
+  - `lean4-skills-find-usages`, `lean4-skills-search-mathlib`, `lean4-skills-smart-search`
+- Bootstrap hook adds `plugins/lean4/bin/` to the Bash tool's `PATH` so wrappers resolve bare; non-Claude hosts can mirror via `export PATH="$LEAN4_BIN:$PATH"` (`INSTALLATION.md` documents both).
+- Internal helpers (`parse_command_args.py`, `parse_lean_errors.py`, `solver_cascade.py`, test fixtures, etc.) intentionally stay unwrapped — wrappers are a curated public surface, not a CLI for every script.
+
+### Guardrails & lint
+
+- `hooks/guardrails.sh`'s Lean-script stderr-suppression detector recognizes wrapper invocations in all four call forms (bare, `bin/...`, `./bin/...`, full-path).
+- `tools/lint_runtime_portability.sh` Check 10 enforces shape on `bin/` contents: only `lean4-skills-*` regular executables, no symlinks, no non-prefixed files. Checks 1–8 (Bash 3.2 portability, exact shebang) extended to scan the wrappers as runtime targets.
+- `tools/test_contracts.sh` Check 26 asserts every wrapper is referenced by at least one model-facing doc surface; Check 27 (new) asserts no stale `$LEAN4_SCRIPTS/<wrapped-script>` examples remain outside marked compatibility-fallback regions.
+- `.github/workflows/lint.yml` extends shellcheck scope to `bin/lean4-skills-*`.
+
+### Docs
+
+- Model-facing references (`subagent-workflows`, `axiom-elimination`, `compiler-guided-repair`, `command-examples`, `agent-workflows`) updated to invoke wrappers directly.
+- `INSTALLATION.md` rewritten to show wrapper-first usage; legacy `$LEAN4_SCRIPTS/...` form kept only for intentionally-unwrapped scripts.
+- `commands/doctor.md` lists the `bin/` directory and recommends `command -v lean4-skills-*` as the wrapper-first check.
+
 ## v4.5.0 (June 2026)
 
 Add `/lean4:disprove`, an always-interactive command for **certified counterexample search**. It reports `REFUTED` **only** when Lean typechecks a proof of the negation under `lake env lean` (no `sorry`/`admit`) with its axioms inside an explicit whitelist; otherwise `WITNESS_UNCERTIFIED` (candidate found, gate rejected) or `INCONCLUSIVE` (no candidate within budgets). New command (the 7th parameter-heavy command); existing workflows are unaffected. **Requires Python 3.11+** for the method-registry loader (`tomllib`); the rest of the plugin remains 3.10+.

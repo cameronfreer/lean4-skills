@@ -88,13 +88,16 @@ jobs:
           shellcheck --version
           shellcheck --version | grep -Fxq 'version: 0.10.0'
 
-      - name: shellcheck (hooks/, lib/scripts/, tools/)
+      - name: shellcheck (hooks/, lib/scripts/, tools/, bin/lean4-skills-*)
         # Flags match the invocation Holger validated against in PR #120:
         # --shell=bash forces bash dialect; -x follows `source` references;
         # SC2016 (expressions in single quotes) is excluded because several
         # scripts use single-quoted regex literals intentionally.
+        # The bin/lean4-skills-* wrappers (added in #130, for #117) are extensionless
+        # bash scripts, included explicitly so shellcheck covers them too.
         run: |
           shellcheck --shell=bash -x --exclude=SC2016 \
             plugins/lean4/hooks/*.sh \
             plugins/lean4/lib/scripts/*.sh \
-            plugins/lean4/tools/*.sh
+            plugins/lean4/tools/*.sh \
+            plugins/lean4/bin/lean4-skills-*

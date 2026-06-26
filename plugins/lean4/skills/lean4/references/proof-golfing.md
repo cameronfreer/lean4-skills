@@ -133,7 +133,7 @@ grep -A 1 "rw \[" file.lean | grep "exact"
 
 For each let+have+exact pattern:
 
-1. Count let binding uses (or use `$LEAN4_SCRIPTS/analyze_let_usage.py`)
+1. Count let binding uses (or use `lean4-skills-analyze-let-usage`)
 2. If used ≥3 times → SKIP (false positive)
 3. If used ≤2 times → Proceed with optimization
 

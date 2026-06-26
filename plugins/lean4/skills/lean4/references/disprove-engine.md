@@ -249,7 +249,7 @@ etc.). Examples per shape:
 ### Cycle-Tracker init
 
 ```bash
-bash "$LEAN4_SCRIPTS/cycle_tracker.sh" init \
+lean4-skills-cycle-tracker init \
   --max-cycles=<resolved> --max-stuck-cycles=<resolved> \
   --max-runtime=<resolved> \
   --max-knowledge-search-per-cycle=<resolved --knowledge-search-budget>
@@ -955,11 +955,11 @@ After the user decides:
 
 ```bash
 # At every cycle boundary:
-bash "$LEAN4_SCRIPTS/cycle_tracker.sh" tick --stuck=<yes|no>
+lean4-skills-cycle-tracker tick --stuck=<yes|no>
 
 # Just before emitting the Disprove Summary (on session stop):
-bash "$LEAN4_SCRIPTS/cycle_tracker.sh" status
-bash "$LEAN4_SCRIPTS/cycle_tracker.sh" stop
+lean4-skills-cycle-tracker status
+lean4-skills-cycle-tracker stop
 ```
 
 `tick` enforces `--max-cycles` and `--max-stuck-cycles` at the cycle

@@ -17,8 +17,8 @@ Quick reference for systematically eliminating custom axioms from Lean 4 proofs.
 
 **Check axiom usage:**
 ```bash
-bash $LEAN4_SCRIPTS/check_axioms_inline.sh FILE.lean
-bash $LEAN4_SCRIPTS/check_axioms_inline.sh .          # scan entire project
+lean4-skills-check-axioms-inline FILE.lean
+lean4-skills-check-axioms-inline .          # scan entire project
 ```
 
 **For individual theorems:**
@@ -32,8 +32,8 @@ EOF
 
 **Always prefer the script over manual checks:**
 ```bash
-$LEAN4_SCRIPTS/check_axioms_inline.sh path/to/file.lean
-$LEAN4_SCRIPTS/check_axioms_inline.sh src/   # scan directory recursively
+lean4-skills-check-axioms-inline path/to/file.lean
+lean4-skills-check-axioms-inline src/   # scan directory recursively
 ```
 
 The script handles namespace inference and filters standard axioms automatically.
@@ -92,17 +92,17 @@ axiom helper_theorem : P
 
 **Search by name:**
 ```bash
-bash $LEAN4_SCRIPTS/search_mathlib.sh "axiom_name_pattern" name
+lean4-skills-search-mathlib "axiom_name_pattern" name
 ```
 
 **Search by type/description:**
 ```bash
-bash $LEAN4_SCRIPTS/smart_search.sh "property description" --source=leansearch
+lean4-skills-smart-search "property description" --source=leansearch
 ```
 
 **Search by type pattern:**
 ```bash
-bash $LEAN4_SCRIPTS/smart_search.sh "type signature pattern" --source=loogle
+lean4-skills-smart-search "type signature pattern" --source=loogle
 ```
 
 ### Phase 4: Eliminate Axioms
@@ -185,7 +185,7 @@ theorem infrastructure : Property := by
 **Dependency tracking:**
 ```bash
 # Find what uses an axiom
-bash $LEAN4_SCRIPTS/find_usages.sh axiom_name
+lean4-skills-find-usages axiom_name
 ```
 
 ## Progress Tracking
@@ -193,7 +193,7 @@ bash $LEAN4_SCRIPTS/find_usages.sh axiom_name
 After each elimination:
 ```bash
 # Verify axiom count decreased
-bash $LEAN4_SCRIPTS/check_axioms_inline.sh FILE.lean
+lean4-skills-check-axioms-inline FILE.lean
 
 # Compare before/after
 echo "Before: N custom axioms"

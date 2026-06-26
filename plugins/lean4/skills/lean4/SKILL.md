@@ -176,7 +176,7 @@ Use `$LEAN4_SCRIPTS` for search and `lake env lean` / `lake build` for validatio
 - **No live goal inspection** — `lean_goal` is unavailable; you can read the file and check compilation output, but cannot see proof state at a specific line
 - **No tactic testing** — `lean_multi_attempt` is unavailable; edits must be validated by compiling the file (`lake env lean`)
 - **No real-time diagnostics** — `lean_diagnostic_messages` is unavailable; use `lake env lean <file>` (from project root) for compilation errors, but feedback is file-level, not line-level
-- **Search is script-based** — `$LEAN4_SCRIPTS/smart_search.sh` replaces LSP search tools
+- **Search is script-based** — `lean4-skills-smart-search` replaces LSP search tools
 
 This mode is functional for straightforward proofs but significantly slower and less precise than MCP-backed workflows.
 
@@ -210,13 +210,37 @@ See [sorry-filling.md](references/sorry-filling.md) for the full scratch-work pr
 
 **Usage:** Invoked by commands automatically. See [references/](references/) for details.
 
-**Invocation contract:** Never run bare script names. Always use:
-- Python: `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/script.py" ...`
-- Shell: `bash "$LEAN4_SCRIPTS/script.sh" ...`
-- Report-only calls: add `--report-only` to `sorry_analyzer.py`, `check_axioms_inline.sh`, `unused_declarations.sh` — suppresses exit 1 on findings; real errors still exit 1. Do not use in gate commands like `/lean4:checkpoint`.
-- Keep stderr visible for Lean scripts (no `/dev/null` redirection), so real errors are not hidden.
+**Invocation contract.** Preferred model-facing form:
 
-If `$LEAN4_SCRIPTS` is unset or missing, run `/lean4:doctor` and stay LSP-only until resolved.
+- **Use `lean4-skills-*` wrappers** for the supported helper scripts
+  (`lean4-skills-sorry-analyzer`, `lean4-skills-check-axioms-inline`,
+  `lean4-skills-find-golfable`, `lean4-skills-find-exact-candidates`,
+  `lean4-skills-analyze-let-usage`, `lean4-skills-find-usages`,
+  `lean4-skills-search-mathlib`, `lean4-skills-smart-search`,
+  `lean4-skills-cycle-tracker`). These are bare commands on PATH —
+  no `$LEAN4_SCRIPTS`, no `${LEAN4_PYTHON_BIN:-python3}`, no `~`, no
+  command substitution. Stable invocation surface that Claude Code
+  can statically allowlist.
+- **Report-only calls**: add `--report-only` to
+  `lean4-skills-sorry-analyzer`, `lean4-skills-check-axioms-inline`
+  (and `unused_declarations.sh` if invoked via env-var fallback) —
+  suppresses exit 1 on findings; real errors still exit 1. Do not
+  use in gate commands like `/lean4:checkpoint`.
+- **Keep stderr visible** for Lean script invocations (no `/dev/null`
+  redirection). The guardrails detector recognizes both wrapper and
+  env-var call forms; suppressing stderr is blocked either way.
+
+Compatibility fallback (when a wrapper is unavailable):
+
+- If `lean4-skills-*` isn't resolvable on PATH, use the host's
+  documented setup (see INSTALLATION.md) to add `$LEAN4_PLUGIN_ROOT/bin`
+  to PATH. Claude Code does this automatically.
+- Only as a last resort for an unwrapped script, use the explicit
+  env-var form: `bash "$LEAN4_SCRIPTS/script.sh" …` or
+  `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/script.py" …`.
+
+If `$LEAN4_SCRIPTS` is unset or missing, run `/lean4:doctor` and stay
+LSP-only until resolved.
 
 ## Automation
 
@@ -279,9 +303,9 @@ If LSP tools aren't responding, check your operating profile above. In `scripts_
 **Script environment check:**
 ```bash
 echo "$LEAN4_SCRIPTS"
-ls -l "$LEAN4_SCRIPTS/sorry_analyzer.py"
+command -v lean4-skills-sorry-analyzer
 # One-pass discovery for troubleshooting (human-readable default text):
-${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --report-only
+lean4-skills-sorry-analyzer . --report-only
 # Structured output (optional): --format=json
 # Counts only (optional): --format=summary
 ```

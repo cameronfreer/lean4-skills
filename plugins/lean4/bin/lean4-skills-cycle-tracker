@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# lean4-skills-cycle-tracker — model-facing wrapper around lib/scripts/cycle_tracker.sh.
+# Lives in plugins/lean4/bin/ so Claude Code's auto-PATH allowlists it
+# statically as Bash(lean4-skills-cycle-tracker:*) without needing
+# $LEAN4_SCRIPTS env-var resolution. See issue #117.
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+exec bash "$PLUGIN_ROOT/lib/scripts/cycle_tracker.sh" "$@"

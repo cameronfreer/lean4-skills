@@ -39,7 +39,7 @@ Startup requirements:
 1. Emit a **Resolved Inputs** block with explicit values, defaults, coercions,
    ignored flags, and startup validation errors.
 2. Refuse to start on startup validation errors.
-3. Call `bash "$LEAN4_SCRIPTS/cycle_tracker.sh" init` with resolved numeric
+3. Call `lean4-skills-cycle-tracker init` with resolved numeric
    values for `--max-cycles`, `--max-stuck-cycles`, `--max-total-runtime`,
    `--max-deep-per-cycle`, and `--max-consecutive-deep-cycles`.
    A failed init (exit 2) is a startup validation error — do not proceed.
@@ -178,15 +178,15 @@ The inner 6-phase cycle is unchanged. The outer loop reads the stuck-mode `next_
 
 ## Stop Conditions
 
-Autoprove checks stop budgets at cycle boundaries via `$LEAN4_SCRIPTS/cycle_tracker.sh tick --stuck=yes|no`.
+Autoprove checks stop budgets at cycle boundaries via `lean4-skills-cycle-tracker tick --stuck=yes|no`.
 Limits are checked at cycle boundaries only — a long-running tool call within a cycle
 will not be interrupted.
 
 Autoprove stops when the **first** of these is satisfied:
 
 1. **Completion** — all sorries in scope are filled
-2. **Max stuck cycles** — `--max-stuck-cycles` consecutive stuck cycles (default: 3). Session-enforced via `$LEAN4_SCRIPTS/cycle_tracker.sh`.
-3. **Max cycles** — `--max-cycles` total cycles reached (default: 20). Session-enforced via `$LEAN4_SCRIPTS/cycle_tracker.sh`.
+2. **Max stuck cycles** — `--max-stuck-cycles` consecutive stuck cycles (default: 3). Session-enforced via `lean4-skills-cycle-tracker`.
+3. **Max cycles** — `--max-cycles` total cycles reached (default: 20). Session-enforced via `lean4-skills-cycle-tracker`.
 4. **Max runtime** — best-effort wall-clock budget reached (`--max-total-runtime`, default: 120m). Checked at cycle boundaries and deep preflight.
 5. **Manual user stop** — user interrupts
 6. **Queue empty** — all claims attempted; expected completion for `--formalize=auto` sessions
