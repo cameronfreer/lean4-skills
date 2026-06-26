@@ -16,6 +16,7 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 | `/lean4:autoformalize` | Autonomous end-to-end formalization from informal sources |
 | `/lean4:prove` | Guided cycle-by-cycle theorem proving with explicit checkpoints |
 | `/lean4:autoprove` | Autonomous multi-cycle theorem proving with explicit stop budgets |
+| `/lean4:disprove` | Guided counterexample search with certified refutation |
 | `/lean4:checkpoint` | Save progress with a safe commit checkpoint |
 | `/lean4:review` | Read-only code review of Lean proofs |
 | `/lean4:refactor` | Leverage mathlib, extract helpers, simplify proof strategies |
@@ -31,6 +32,7 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 /lean4:autoformalize       # Autonomous synthesis (source → proof)
 /lean4:prove               # Guided sorry filling (interactive)
 /lean4:autoprove           # Autonomous sorry filling (unattended)
+/lean4:disprove Foo.lean:42  # Guided counterexample search with certified refutation (target required)
 /lean4:checkpoint          # Build-checked save point
 /lean4:review              # Check quality (read-only)
 /lean4:refactor            # Simplify proof strategies
@@ -41,7 +43,9 @@ git push                   # Manual, after review
 ```
 
 This plugin ships a host-agnostic parser (`lib/command_args/`) that covers the
-parser-decidable startup rules of the six parameter-heavy commands. The Claude
+parser-decidable startup rules of the seven parameter-heavy commands
+(`draft`, `learn`, `formalize`, `autoformalize`, `prove`, `autoprove`,
+`disprove`). The Claude
 Code adapter pre-validates `/lean4:*` prompts via a `UserPromptSubmit` hook
 that reuses the same parser; other hosts MAY invoke it via
 `lib/scripts/parse_command_args.py` but otherwise fall back to model-parsed
@@ -106,7 +110,7 @@ On stop, emits a structured summary (sorries before/after, cycles, time, handoff
 
 ### The Cycle Engine (Shared)
 
-Both commands run the same 6-phase cycle:
+The proof engines (`prove`, `autoprove`, `formalize`, `autoformalize`) all run the same 6-phase cycle:
 
 ```
 Plan → Work → Checkpoint → Review → Replan → Continue/Stop
@@ -120,6 +124,30 @@ Plan → Work → Checkpoint → Review → Replan → Continue/Stop
 - **Continue/Stop** — `prove` asks you; `autoprove` auto-continues
 
 When stuck (same blocker seen twice), both force a review + replan regardless of settings.
+
+`disprove` uses the same phase skeleton but specializes Phase 5 as **Accumulate** (per-cycle evidence append) and Phase 1 with dynamic Step 0 / Step 1 / Step 2 menus seeded by accumulated evidence.
+
+### `/lean4:disprove` — Counterexample Search
+
+Use when you suspect a statement is false and want a Lean-certified refutation. Always interactive: each cycle prompts you through dynamic menus seeded by accumulated evidence.
+
+Takes a target (`File.lean:LINE` or `Namespace.theoremName`). Runs a 6-phase cycle — **Plan → Work → Checkpoint → Review → Accumulate → Continue/Stop** — where a "cycle" is a widening pass over the same target rather than a batch of sorries (Phase 5 — Accumulate — replaces prove's Replan).
+
+Each cycle's **Plan** phase generates three dynamic menus:
+
+1. **Step 0 — Knowledge Search Menu** (Cycle 1 by default; later cycles re-enter only if Step 1 picks `knowledge search`, subject to `--knowledge-search-budget`). Eight menu items: six pre-tagged across `[lean]` / `[local]` / `[web]` tiers, plus `[custom]` (user-supplied free-form intent — LLM picks tier at fire time) and `[llm]` (LLM-proposed query + tier). Each pre-tagged row shows the source/tool, tier tag, and executable query the cycling LLM derives from the TARGET. Findings without a citable URL are dropped at write time; web counterexample candidates are spot-verified via `WebFetch` before elevation to `[verify-known-cex]`.
+2. **Step 1 — Method Menu**: the cycling LLM proposes 3–10 method candidates from a stable Method Registry (`decide-cascade`, `mine`, `enumerate`, `plausible`, `tactics`, `external`), plus always-present `knowledge search` and `custom method` extras. Each entry shows the stable `family` id, a free-text label, the LLM's reasoning, and a cost class.
+3. **Step 2 — Config Menu**: if Step 1 picked `knowledge search`, this is a multi-select Step 0 re-run. Otherwise, the cycling LLM proposes 3–10 candidate configs for the picked family, plus a `custom-config` extra (free-text, schema-validated against the family's parameter table).
+
+Phase 5 — **Accumulate** — appends the cycle's `(family, config, outcome, near-miss_signature)` to session evidence. The next cycle's menus absorb the recommendation logic; there is no hardcoded Replan table.
+
+Tri-state outcome:
+
+- **REFUTED** — Lean typechecks the negation. The only outcome that certifies a refutation.
+- **WITNESS_UNCERTIFIED** — candidate found but Lean refused certification.
+- **INCONCLUSIVE** — no candidate within `--max-cycles` widening passes (default 3) or `--max-stuck-cycles` consecutive cycles with no widening lever left.
+
+Append-only by design: never rewrites an existing `theorem T : P := by sorry`. See [disprove-engine.md](skills/lean4/references/disprove-engine.md).
 
 ### `/lean4:checkpoint` — Save Point
 

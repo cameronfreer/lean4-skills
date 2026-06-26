@@ -317,6 +317,7 @@ See [Codex SDK Cookbook](https://cookbook.openai.com/examples/codex/build_code_r
 
 - `/lean4:prove` - Guided cycle-by-cycle proving
 - `/lean4:autoprove` - Autonomous multi-cycle proving
+- `/lean4:disprove` - Guided counterexample search with certified refutation
 - `/lean4:golf` - Apply golfing optimizations
 - [mathlib-style.md](../skills/lean4/references/mathlib-style.md)
 - [Examples](../skills/lean4/references/command-examples.md#review)

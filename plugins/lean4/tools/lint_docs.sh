@@ -19,7 +19,7 @@ PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ISSUES=0
 
 # Single source of truth for known commands (used by check_commands and check_cross_refs)
-KNOWN_COMMANDS="autoformalize autoprove checkpoint doctor draft formalize golf learn prove refactor review"
+KNOWN_COMMANDS="autoformalize autoprove checkpoint disprove doctor draft formalize golf learn prove refactor review"
 
 log() {
     echo "$1"
@@ -66,6 +66,7 @@ check_commands() {
             autoformalize) max_lines=180 ;;
             autoprove)  max_lines=275 ;;
             checkpoint) max_lines=90 ;;
+            disprove)   max_lines=300 ;;
             doctor)     max_lines=225 ;;
             draft)      max_lines=160 ;;
             formalize)  max_lines=180 ;;

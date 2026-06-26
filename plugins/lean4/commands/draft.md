@@ -143,3 +143,4 @@ Output format follows `--presentation`: `informal` → prose with math notation 
 - [Learning Pathways](../skills/lean4/references/learn-pathways.md) — intent taxonomy, source handling
 - `/lean4:formalize` — interactive synthesis (draft + prove)
 - `/lean4:autoformalize` — autonomous synthesis (draft + autoprove)
+- `/lean4:disprove` — guided counterexample search with certified refutation (use when you suspect a drafted claim is false)

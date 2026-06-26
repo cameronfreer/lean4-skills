@@ -536,6 +536,7 @@ The lean4 plugin provides these main commands:
 | `/lean4:autoformalize` | Autonomous synthesis (draft → prove loop with claim queue) |
 | `/lean4:prove` | Guided cycle-by-cycle proving |
 | `/lean4:autoprove` | Autonomous multi-cycle proving |
+| `/lean4:disprove` | Guided counterexample search with certified refutation |
 | `/lean4:checkpoint` | Save point (per-file + project build, best-effort axiom scan, commit) |
 | `/lean4:review` | Read-only quality review |
 | `/lean4:refactor` | Strategy-level proof simplification |

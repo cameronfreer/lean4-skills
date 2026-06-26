@@ -158,6 +158,8 @@ assert_contains "status shows consecutive_stuck=0/3" "consecutive_stuck=0/3"
 assert_contains "status shows elapsed_display" "elapsed_display="
 assert_contains "status shows deep_this_cycle=0/1" "deep_this_cycle=0/1"
 assert_contains "status shows consecutive_deep_cycles=0/2" "consecutive_deep_cycles=0/2"
+assert_contains "status shows kw_search_this_cycle=0/3 (default)" "kw_search_this_cycle=0/3"
+assert_contains "status shows kw_search_total=0" "kw_search_total=0"
 
 # Verify JSON fields
 CYCLES=$(read_field "$FILE" "cycles")
@@ -796,6 +798,127 @@ cleanup_session
 
 # =========================================================================
 echo ""
+echo "-- Knowledge-search state machine --"
+
+# Default --max-knowledge-search-per-cycle is 3
+init_session --max-cycles=10 --max-stuck=3
+FILE=$(state_file)
+KW_MAX=$(read_field "$FILE" "max_kw_search_per_cycle")
+if [[ "$KW_MAX" == "3" ]]; then
+  echo "  PASS: default max_kw_search_per_cycle=3"
+  (( ++PASS ))
+else
+  echo "  FAIL: default max_kw_search_per_cycle=$KW_MAX, expected 3"
+  (( ++FAIL ))
+fi
+cleanup_session
+
+# Custom budget honored
+init_session --max-cycles=10 --max-stuck=3 --max-knowledge-search-per-cycle=5
+FILE=$(state_file)
+KW_MAX=$(read_field "$FILE" "max_kw_search_per_cycle")
+if [[ "$KW_MAX" == "5" ]]; then
+  echo "  PASS: --max-knowledge-search-per-cycle=5 → max_kw_search_per_cycle=5"
+  (( ++PASS ))
+else
+  echo "  FAIL: max_kw_search_per_cycle=$KW_MAX, expected 5"
+  (( ++FAIL ))
+fi
+cleanup_session
+
+# kw-search-can allowed when fresh; kw-search increments; counter resets at tick
+init_session --max-cycles=10 --max-stuck=3 --max-knowledge-search-per-cycle=3
+FILE=$(state_file)
+run kw-search-can
+assert_exit "kw-search-can allowed" 0
+assert_contains "kw-search-can result=ok" "result=ok"
+assert_contains "kw-search-can shows 0/3" "kw_search_this_cycle=0/3"
+
+run kw-search
+assert_exit "kw-search records visit" 0
+KW_COUNT=$(read_field "$FILE" "kw_search_this_cycle")
+if [[ "$KW_COUNT" == "1" ]]; then
+  echo "  PASS: kw_search_this_cycle=1 after one kw-search"
+  (( ++PASS ))
+else
+  echo "  FAIL: kw_search_this_cycle=$KW_COUNT, expected 1"
+  (( ++FAIL ))
+fi
+
+run kw-search
+run kw-search
+KW_COUNT=$(read_field "$FILE" "kw_search_this_cycle")
+KW_TOTAL=$(read_field "$FILE" "kw_search_total")
+if [[ "$KW_COUNT" == "3" && "$KW_TOTAL" == "3" ]]; then
+  echo "  PASS: three kw-search calls → kw_search_this_cycle=3, kw_search_total=3"
+  (( ++PASS ))
+else
+  echo "  FAIL: kw_search_this_cycle=$KW_COUNT (expected 3), kw_search_total=$KW_TOTAL (expected 3)"
+  (( ++FAIL ))
+fi
+
+# Budget exhausted: kw-search-can denied
+run kw-search-can
+assert_exit "kw-search-can denied at max-knowledge-search-per-cycle" 1
+assert_contains "reason=max-knowledge-search-per-cycle" "reason=max-knowledge-search-per-cycle"
+assert_contains "kw-search-can shows 3/3 when denied" "kw_search_this_cycle=3/3"
+
+# tick resets kw_search_this_cycle; kw_search_total preserved
+run tick --stuck=no
+assert_contains "after tick: kw_search_this_cycle=0" "kw_search_this_cycle=0/"
+# kw_search_total is not in tick output; verify via state file
+KW_TOTAL=$(read_field "$FILE" "kw_search_total")
+if [[ "$KW_TOTAL" == "3" ]]; then
+  echo "  PASS: kw_search_total=3 preserved across tick"
+  (( ++PASS ))
+else
+  echo "  FAIL: kw_search_total=$KW_TOTAL, expected 3"
+  (( ++FAIL ))
+fi
+
+# kw-search-can allowed again after tick
+run kw-search-can
+assert_exit "kw-search-can allowed again after tick" 0
+cleanup_session
+
+# kw-search-can denied by max-runtime
+init_session --max-cycles=10 --max-stuck=3 --max-runtime=1s --max-knowledge-search-per-cycle=3
+FILE=$(state_file)
+PAST_EPOCH=$(( $(date +%s) - 10 ))
+write_field "$FILE" "start_epoch" "$PAST_EPOCH"
+run kw-search-can
+assert_exit "kw-search-can denied at max-runtime" 1
+assert_contains "reason=max-runtime" "reason=max-runtime"
+cleanup_session
+
+# status emits both fields after activity
+init_session --max-cycles=10 --max-stuck=3 --max-knowledge-search-per-cycle=4
+run kw-search
+run kw-search
+run status
+assert_contains "status shows kw_search_this_cycle=2/4" "kw_search_this_cycle=2/4"
+assert_contains "status shows kw_search_total=2" "kw_search_total=2"
+cleanup_session
+
+# reset-claim resets kw_search_this_cycle (kw_search_total preserved)
+init_session --max-cycles=5 --max-stuck=3 --max-knowledge-search-per-cycle=3
+run start-claim
+run kw-search
+run kw-search
+run reset-claim
+run start-claim
+run status
+assert_contains "after reset-claim: kw_search_this_cycle=0" "kw_search_this_cycle=0/"
+assert_contains "kw_search_total=2 preserved across reset-claim" "kw_search_total=2"
+cleanup_session
+
+# init rejects --max-knowledge-search-per-cycle=0
+run init --max-cycles=5 --max-stuck=3 --max-knowledge-search-per-cycle=0
+assert_exit "init rejects --max-knowledge-search-per-cycle=0" 2
+assert_contains "init error mentions --max-knowledge-search-per-cycle" "--max-knowledge-search-per-cycle"
+
+# =========================================================================
+echo ""
 echo "-- Claim lifecycle (start-claim / reset-claim / session totals) --"
 
 # Basic lifecycle: init → start-claim → ticks → reset-claim → start-claim → ticks → status
@@ -941,6 +1064,21 @@ if command -v python3 >/dev/null 2>&1; then
     run deep
     run status
     assert_contains "py3: deep_total=1" "deep_total=1"
+
+    # Knowledge-search tracking
+    run kw-search-can
+    assert_exit "py3: kw-search-can allowed" 0
+    run kw-search
+    assert_exit "py3: kw-search records visit" 0
+    run kw-search
+    run kw-search
+    run kw-search-can
+    assert_exit "py3: kw-search-can denied after default budget" 1
+    assert_contains "py3: reason=max-knowledge-search-per-cycle" "reason=max-knowledge-search-per-cycle"
+    run tick --stuck=no
+    assert_contains "py3: tick resets kw_search_this_cycle" "kw_search_this_cycle=0/"
+    run status
+    assert_contains "py3: kw_search_total=3 in status" "kw_search_total=3"
 
     cleanup_session
   fi
