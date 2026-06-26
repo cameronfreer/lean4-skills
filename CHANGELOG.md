@@ -1,5 +1,51 @@
 # Changelog
 
+## v4.5.0 (June 2026)
+
+Add `/lean4:disprove`, an always-interactive command for **certified counterexample search**. It reports `REFUTED` **only** when Lean typechecks a proof of the negation under `lake env lean` (no `sorry`/`admit`) with its axioms inside an explicit whitelist; otherwise `WITNESS_UNCERTIFIED` (candidate found, gate rejected) or `INCONCLUSIVE` (no candidate within budgets). New command (the 7th parameter-heavy command); existing workflows are unaffected. **Requires Python 3.11+** for the method-registry loader (`tomllib`); the rest of the plugin remains 3.10+.
+
+### Command & engine
+
+- `commands/disprove.md` + `skills/lean4/references/disprove-engine.md` (full engine reference, including an Implementation Status table separating deterministic / model-mediated (LSP) / deferred capabilities)
+- Reuses the shared 6-phase cycle, specializing Phase 5 as **Accumulate** and Phase 1 with three dynamic, evidence-seeded menus: Step 0 Knowledge Search, Step 1 Method, Step 2 Config
+
+### Deterministic primitives
+
+- `disprove_target_resolve.py` (target classifier) and `disprove_target_profile.py` (deterministic profile envelope: non-authoritative grep resolution, `path_class`/`writable`, fail-fast on a missing `File.lean:LINE` target, read-only-dependency refusal; LSP/kernel fields left for the cycling LLM)
+- `disprove_artifact_txn.py` — transactional append / drop-role / rollback keyed by a txn id (revert a cycle's writes as a unit), alongside the companion collision-safe `disprove_emit_artifact.py`
+- `disprove_method_probe.py` — deterministic method applicability/availability filter (registry shape vs profile, prerequisite hints, solver-on-PATH advisory for `external`)
+- `disprove_methods.toml` + `disprove_methods.py` registry; `cycle_tracker.sh` gains `kw-search-can` / `kw-search` budget actions
+
+### Parser / host integration
+
+- `command_args/specs/disprove.py` + shared `command_args/target_patterns.py`; registered in `specs/__init__.py` and the host-agnostic `UserPromptSubmit` validation (`_COVERED_COMMANDS`)
+
+### Tests & docs
+
+- New/updated suites for the disprove surface (`test_disprove_{emit_artifact,artifact_txn,target_resolve,target_profile,method_probe,methods,flow}`, parser specs, hook round-trip); chmod-based read-only assertions skip under root
+- README (root + plugin), SKILL.md, command-examples.md, and cross-references list `disprove` (six → seven parameter-heavy commands). Validated locally with ruff, ruff format --check, and mypy --strict
+
+## v4.4.11 (May 2026)
+
+Three-tier git-op policy. Path-scoped `git checkout` / `git restore` operations move from absolute hard-block to a new policy-controlled soft-gate; whole-worktree and force-branch-switch destructive ops remain absolute. No new commands or workflow changes; default behavior is backward-compatible.
+
+### Guardrail tiers (`plugins/lean4/hooks/guardrails.sh`)
+
+- Add `LEAN4_GUARDRAILS_DESTRUCTIVE_POLICY` (`ask` default, `allow`, `block`) covering path-scoped `git checkout` / `git restore` forms — independent of the existing `LEAN4_GUARDRAILS_COLLAB_POLICY` (#131)
+- `LEAN4_GUARDRAILS_BYPASS=1` one-shot prefix applies to either soft-gate category
+- Whole-worktree variants (`git checkout .` / `./` / `:/` / `HEAD -- .`, `git restore .` / `--staged --worktree`, `git reset --hard`, `git clean -f`) stay absolute hard-block; pure unstaging (`git restore --staged <path>`) stays implicit-allow
+- Force-branch checkout/switch (`git checkout -f|--force <branch-or-ref>`, `git switch -f|--force|--discard-changes`) hard-block; option ordering and ref shorthand (`@{-1}`, `-`, `@`, `HEAD~3`, `HEAD@{1}`) all covered
+- `--pathspec-from-file=…` hard-blocks for both checkout and restore (opaque paths file the guardrail can't inspect); `--staged --pathspec-from-file=…` stays allowed
+- Path-scoped soft-gate covers `<tree-ish> <path>`, `--ours` / `--theirs` / `-2` / `-3` / `--merge` / `--conflict=<style>`, `-f <path-like>`, `./<path>` / `:/<path>` / `../<path>` (incl. dotfiles), `--ignore-skip-worktree-bits` / `--no-overlay` / `--overlay` / `--recurse-submodules`, `-p` / `--patch`, all with non-destructive flag prefix/interleaving
+
+### Tests
+
+- `test_guardrails.sh` grows from 75 to 251 probes; new tier-boundary coverage for the forms above, including empirical temp-repo verification of which checkout/switch shapes actually discard a dirty worktree (audit posted as a PR comment)
+
+### Docs
+
+- `plugins/lean4/README.md` and `plugins/lean4/MIGRATION.md` document the three-tier model, the new env var, the bypass token's scope, and the path-scoped vs whole-worktree distinction
+
 ## v4.4.10 (May 2026)
 
 Portability hardening, lint/CI infrastructure, and a broad code-quality sweep. No new commands or user-facing behavior changes.

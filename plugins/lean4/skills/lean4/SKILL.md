@@ -1,6 +1,6 @@
 ---
 name: lean4
-description: "Use when editing .lean files, debugging Lean 4 builds (type mismatch, sorry, failed to synthesize instance, axiom warnings, lake build errors), searching mathlib for lemmas, formalizing mathematics in Lean, or learning Lean 4 concepts. Also trigger when the user asks for help with Lean 4, mathlib, or lakefile. Do NOT trigger for Coq/Rocq, Agda, Isabelle, HOL4, Mizar, Idris, Megalodon, or other non-Lean theorem provers."
+description: "Use when editing .lean files, debugging Lean 4 builds (type mismatch, sorry, failed to synthesize instance, axiom warnings, lake build errors), searching mathlib for lemmas, formalizing mathematics in Lean, finding a counterexample to, refuting, or disproving a Lean statement, or learning Lean 4 concepts. Also trigger when the user asks for help with Lean 4, mathlib, or lakefile. Do NOT trigger for Coq/Rocq, Agda, Isabelle, HOL4, Mizar, Idris, Megalodon, or other non-Lean theorem provers."
 ---
 
 # Lean 4 Theorem Proving
@@ -28,6 +28,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | `/lean4:autoformalize` | Autonomous end-to-end formalization from informal sources |
 | `/lean4:prove` | Guided cycle-by-cycle theorem proving with explicit checkpoints |
 | `/lean4:autoprove` | Autonomous multi-cycle theorem proving with explicit stop budgets |
+| `/lean4:disprove` | Guided counterexample search with certified refutation |
 | `/lean4:checkpoint` | Save progress with a safe commit checkpoint |
 | `/lean4:review` | Read-only code review of Lean proofs |
 | `/lean4:refactor` | Leverage mathlib, extract helpers, simplify proof strategies |
@@ -36,14 +37,14 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | `/lean4:doctor` | Diagnostics, cleanup, and migration help |
 
 This plugin ships a host-agnostic parser (`lib/command_args/`) that covers the
-parser-decidable startup rules of the six parameter-heavy commands (`draft`,
-`learn`, `formalize`, `autoformalize`, `prove`, `autoprove`). A small set of
+parser-decidable startup rules of the seven parameter-heavy commands (`draft`,
+`learn`, `formalize`, `autoformalize`, `prove`, `autoprove`, `disprove`). A small set of
 documented startup rules in these commands depend on runtime context (repo-
 level search, interactive prompting) and are applied by the command after
 reading the parser's output. The other commands (`checkpoint`, `review`,
 `refactor`, `golf`, `doctor`) remain model-parsed.
 When a host adapter installs the `UserPromptSubmit` hook, the parser runs
-before the model sees a `/lean4:*` prompt matching one of the six covered
+before the model sees a `/lean4:*` prompt matching one of the seven covered
 commands, injects a `validated-invocation` block into context, and rejects
 invalid invocations at the hook level; invocations of the other commands pass
 through unchanged. Hosts without the hook fall back to model-parsed startup
@@ -61,6 +62,7 @@ best-effort.
 | Draft + prove interactively | `/lean4:formalize` |
 | Filling sorries (interactive) | `/lean4:prove` |
 | Filling sorries (unattended) | `/lean4:autoprove` |
+| Searching for a counterexample to refute a claim | `/lean4:disprove` |
 | Save point (per-file + project build, best-effort axiom scan, commit) | `/lean4:checkpoint` |
 | Quality check (read-only) | `/lean4:review` |
 | Simplify proof strategies (mathlib leverage, helpers) | `/lean4:refactor` |
@@ -111,6 +113,8 @@ best-effort.
 
 Use `/lean4:learn` at any point to explore repo structure or navigate mathlib. Three entry points: `/lean4:draft` for skeletons, `/lean4:formalize` for interactive synthesis (draft + guided proving), `/lean4:autoformalize` for unattended source-to-proof.
 
+**Refutation branch:** Use `/lean4:disprove <target>` when the goal is to **refute** a statement rather than prove it. Always interactive; runs a 6-phase cycle (Plan → Work → Checkpoint → Review → Accumulate → Continue/Stop) where Phase 1 generates dynamic Step 0 / Step 1 / Step 2 menus seeded by accumulated evidence (Phase 5 — Accumulate — replaces prove's Replan). Each cycle is a widening search pass over the same target. Append-only — it adds a `T_counterexample` theorem alongside the original sorry, never rewrites the original declaration. Requires Python 3.11+ (registry loader). See [disprove-engine.md](references/disprove-engine.md), incl. its [Implementation Status](references/disprove-engine.md#implementation-status) table (deterministic vs model-mediated vs deferred).
+
 **Notes:**
 - `/lean4:prove` asks before each cycle; `/lean4:autoprove` loops autonomously with explicit stop budgets
 - Both trigger `/lean4:review` at configured intervals (`--review-every`)
@@ -118,6 +122,7 @@ Use `/lean4:learn` at any point to explore repo structure or navigate mathlib. T
 - Review supports `--mode=batch` (default) or `--mode=stuck` (triage); review is always read-only
 - `/lean4:autoformalize` wraps draft+autoprove in a single command (source → claims → skeletons → proofs); replaces `autoprove --formalize=auto`
 - Proof engines (`prove`/`autoprove`) never modify declaration headers (header fence)
+- `/lean4:disprove` reports `REFUTED` only when Lean typechecks the negation; otherwise `WITNESS_UNCERTIFIED` or `INCONCLUSIVE`
 - If you hit environment issues, run `/lean4:doctor` to diagnose
 
 ## LSP Tools (Preferred)

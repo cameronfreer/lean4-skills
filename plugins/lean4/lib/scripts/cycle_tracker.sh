@@ -30,11 +30,13 @@ export TMPDIR
 #   LEAN4_SESSION_ID=$SID LEAN4_SESSION_DIR=<dir> cycle_tracker.sh tick ...
 #
 # Subcommands:
-#   init   --max-cycles=N --max-stuck=N [--max-runtime=Xm] [--max-deep-per-cycle=N] [--max-consecutive-deep=N]
+#   init   --max-cycles=N --max-stuck=N [--max-runtime=Xm] [--max-deep-per-cycle=N] [--max-consecutive-deep=N] [--max-knowledge-search-per-cycle=N]
 #          Aliases (long user-facing forms): --max-stuck-cycles, --max-total-runtime, --max-consecutive-deep-cycles
 #   tick   --stuck=yes|no
 #   can-deep
 #   deep
+#   kw-search-can
+#   kw-search
 #   status
 #   stop
 
@@ -265,6 +267,7 @@ _parse_duration() {
 # ---------------------------------------------------------------------------
 cmd_init() {
   local max_cycles="" max_stuck="" max_runtime="" max_deep_per_cycle="1" max_consecutive_deep="2"
+  local max_kw_search_per_cycle="3"
 
   # Track the flag name the caller actually used, for error messages
   local name_stuck="--max-stuck" name_consec_deep="--max-consecutive-deep"
@@ -279,6 +282,7 @@ cmd_init() {
       --max-deep-per-cycle=*) max_deep_per_cycle="${arg#*=}" ;;
       --max-consecutive-deep=*) max_consecutive_deep="${arg#*=}" ;;
       --max-consecutive-deep-cycles=*) max_consecutive_deep="${arg#*=}"; name_consec_deep="--max-consecutive-deep-cycles" ;;
+      --max-knowledge-search-per-cycle=*) max_kw_search_per_cycle="${arg#*=}" ;;
       *) echo "error=unknown argument: $arg" >&2; exit 2 ;;
     esac
   done
@@ -288,6 +292,7 @@ cmd_init() {
   _require_positive_int "$name_stuck" "$max_stuck"
   _require_positive_int "--max-deep-per-cycle" "$max_deep_per_cycle"
   _require_positive_int "$name_consec_deep" "$max_consecutive_deep"
+  _require_positive_int "--max-knowledge-search-per-cycle" "$max_kw_search_per_cycle"
 
   # Parse duration (optional)
   local runtime_seconds
@@ -344,13 +349,16 @@ cmd_init() {
   "max_runtime_seconds": $runtime_seconds,
   "max_deep_per_cycle": $max_deep_per_cycle,
   "max_consecutive_deep": $max_consecutive_deep,
+  "max_kw_search_per_cycle": $max_kw_search_per_cycle,
   "cycles": 0,
   "consecutive_stuck": 0,
   "deep_this_cycle": 0,
   "consecutive_deep_cycles": 0,
+  "kw_search_this_cycle": 0,
   "cycles_total": 0,
   "stuck_cycles_total": 0,
   "deep_total": 0,
+  "kw_search_total": 0,
   "claims_attempted": 0,
   "claim_active": false
 }
@@ -426,6 +434,9 @@ cmd_tick() {
       .consecutive_deep_cycles = $new_consec_deep |
       .deep_this_cycle = 0 |
 
+      # Reset per-cycle knowledge-search counter
+      .kw_search_this_cycle = 0 |
+
       # Compute elapsed
       ($now - .start_epoch) as $elapsed |
 
@@ -457,7 +468,8 @@ cmd_tick() {
           "elapsed_seconds=" + ($elapsed | tostring) + "\n" +
           "elapsed_display=" + $elapsed_display + "\n" +
           "deep_this_cycle=" + (.deep_this_cycle | tostring) + "/" + (.max_deep_per_cycle | tostring) + "\n" +
-          "consecutive_deep_cycles=" + (.consecutive_deep_cycles | tostring) + "/" + (.max_consecutive_deep | tostring)
+          "consecutive_deep_cycles=" + (.consecutive_deep_cycles | tostring) + "/" + (.max_consecutive_deep | tostring) + "\n" +
+          "kw_search_this_cycle=" + (.kw_search_this_cycle | tostring) + "/" + (.max_kw_search_per_cycle | tostring)
         ),
         _state: (del(._output))
       }
@@ -509,6 +521,9 @@ else:
     d['consecutive_deep_cycles'] = 0
 d['deep_this_cycle'] = 0
 
+# Reset per-cycle knowledge-search counter
+d['kw_search_this_cycle'] = 0
+
 # Check violations
 elapsed = now - d['start_epoch']
 violations = []
@@ -539,6 +554,7 @@ lines.extend([
     f'elapsed_display={elapsed_display}',
     f\"deep_this_cycle={d['deep_this_cycle']}/{d['max_deep_per_cycle']}\",
     f\"consecutive_deep_cycles={d['consecutive_deep_cycles']}/{d['max_consecutive_deep']}\",
+    f\"kw_search_this_cycle={d['kw_search_this_cycle']}/{d['max_kw_search_per_cycle']}\",
 ])
 
 # Write state atomically
@@ -655,6 +671,99 @@ os.rename(tmp, '$file')
 }
 
 # ---------------------------------------------------------------------------
+# Subcommand: kw-search-can
+# ---------------------------------------------------------------------------
+cmd_kw_search_can() {
+  local file
+  file=$(_state_file)
+  _validate_state "$file"
+  _detect_backend
+
+  local now
+  now=$(date +%s)
+
+  if [[ "$_json_backend" == "jq" ]]; then
+    jq -r --argjson now "$now" '
+      ($now - .start_epoch) as $elapsed |
+      (
+        if .kw_search_this_cycle >= .max_kw_search_per_cycle then "max-knowledge-search-per-cycle"
+        elif .max_runtime_seconds > 0 and $elapsed >= .max_runtime_seconds then "max-runtime"
+        else "" end
+      ) as $reason |
+      "result=" + (if $reason == "" then "ok" else "denied" end),
+      (if $reason != "" then "reason=" + $reason else empty end),
+      "kw_search_this_cycle=" + (.kw_search_this_cycle | tostring) + "/" + (.max_kw_search_per_cycle | tostring),
+      "elapsed_seconds=" + ($elapsed | tostring)
+    ' "$file" 2>/dev/null
+
+    local reason
+    reason=$(jq -r --argjson now "$now" '
+      ($now - .start_epoch) as $elapsed |
+      if .kw_search_this_cycle >= .max_kw_search_per_cycle then "max-knowledge-search-per-cycle"
+      elif .max_runtime_seconds > 0 and $elapsed >= .max_runtime_seconds then "max-runtime"
+      else "" end
+    ' "$file" 2>/dev/null)
+    if [[ -n "$reason" ]]; then exit 1; fi
+  else
+    python3 -c "
+import json, sys
+
+with open('$file') as f:
+    d = json.load(f)
+
+now = $now
+elapsed = now - d['start_epoch']
+
+reason = ''
+if d['kw_search_this_cycle'] >= d['max_kw_search_per_cycle']:
+    reason = 'max-knowledge-search-per-cycle'
+elif d['max_runtime_seconds'] > 0 and elapsed >= d['max_runtime_seconds']:
+    reason = 'max-runtime'
+
+result = 'denied' if reason else 'ok'
+lines = ['result=' + result]
+if reason:
+    lines.append('reason=' + reason)
+lines.extend([
+    f\"kw_search_this_cycle={d['kw_search_this_cycle']}/{d['max_kw_search_per_cycle']}\",
+    f'elapsed_seconds={elapsed}',
+])
+print('\n'.join(lines))
+sys.exit(1 if reason else 0)
+" 2>/dev/null
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Subcommand: kw-search
+# ---------------------------------------------------------------------------
+cmd_kw_search() {
+  local file
+  file=$(_state_file)
+  _validate_state "$file"
+  _detect_backend
+
+  if [[ "$_json_backend" == "jq" ]]; then
+    local tmp
+    tmp=$(mktemp "${file}.tmp.XXXXXX")
+    jq '.kw_search_this_cycle += 1 | .kw_search_total += 1' "$file" > "$tmp" 2>/dev/null
+    mv "$tmp" "$file"
+  else
+    python3 -c "
+import json, tempfile, os
+with open('$file') as f:
+    d = json.load(f)
+d['kw_search_this_cycle'] += 1
+d['kw_search_total'] += 1
+fd, tmp = tempfile.mkstemp(prefix=os.path.basename('$file') + '.tmp.', dir=os.path.dirname('$file'))
+with os.fdopen(fd, 'w') as f:
+    json.dump(d, f)
+os.rename(tmp, '$file')
+" 2>/dev/null
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Subcommand: start-claim
 # ---------------------------------------------------------------------------
 cmd_start_claim() {
@@ -724,7 +833,8 @@ cmd_reset_claim() {
       .cycles = 0 |
       .consecutive_stuck = 0 |
       .deep_this_cycle = 0 |
-      .consecutive_deep_cycles = 0
+      .consecutive_deep_cycles = 0 |
+      .kw_search_this_cycle = 0
     ' "$file" > "$tmp" 2>/dev/null
     mv "$tmp" "$file"
   else
@@ -738,6 +848,7 @@ d['cycles'] = 0
 d['consecutive_stuck'] = 0
 d['deep_this_cycle'] = 0
 d['consecutive_deep_cycles'] = 0
+d['kw_search_this_cycle'] = 0
 fd, tmp = tempfile.mkstemp(prefix=os.path.basename('$file') + '.tmp.', dir=os.path.dirname('$file'))
 with os.fdopen(fd, 'w') as f:
     json.dump(d, f)
@@ -778,9 +889,11 @@ cmd_status() {
       "elapsed_display=" + $elapsed_display,
       "deep_this_cycle=" + (.deep_this_cycle | tostring) + "/" + (.max_deep_per_cycle | tostring),
       "consecutive_deep_cycles=" + (.consecutive_deep_cycles | tostring) + "/" + (.max_consecutive_deep | tostring),
+      "kw_search_this_cycle=" + (.kw_search_this_cycle | tostring) + "/" + (.max_kw_search_per_cycle | tostring),
       "cycles_total=" + (.cycles_total | tostring),
       "stuck_cycles_total=" + (.stuck_cycles_total | tostring),
       "deep_total=" + (.deep_total | tostring),
+      "kw_search_total=" + (.kw_search_total | tostring),
       "claims_attempted=" + ($claims_display | tostring)
     ' "$file" 2>/dev/null
   else
@@ -807,9 +920,11 @@ lines = [
     f'elapsed_display={elapsed_display}',
     f\"deep_this_cycle={d['deep_this_cycle']}/{d['max_deep_per_cycle']}\",
     f\"consecutive_deep_cycles={d['consecutive_deep_cycles']}/{d['max_consecutive_deep']}\",
+    f\"kw_search_this_cycle={d['kw_search_this_cycle']}/{d['max_kw_search_per_cycle']}\",
     f\"cycles_total={d['cycles_total']}\",
     f\"stuck_cycles_total={d['stuck_cycles_total']}\",
     f\"deep_total={d['deep_total']}\",
+    f\"kw_search_total={d['kw_search_total']}\",
     f'claims_attempted={claims_display}',
 ]
 print('\n'.join(lines))
@@ -889,14 +1004,16 @@ subcmd="${1:-}"
 shift || true
 
 case "$subcmd" in
-  init)        cmd_init "$@" ;;
-  tick)        cmd_tick "$@" ;;
-  can-deep)    cmd_can_deep "$@" ;;
-  deep)        cmd_deep "$@" ;;
-  start-claim) cmd_start_claim "$@" ;;
-  reset-claim) cmd_reset_claim "$@" ;;
-  status)      cmd_status "$@" ;;
-  stop)        cmd_stop "$@" ;;
-  "")          echo "error=no subcommand specified (init|tick|can-deep|deep|start-claim|reset-claim|status|stop)" >&2; exit 2 ;;
-  *)        echo "error=unknown subcommand: $subcmd" >&2; exit 2 ;;
+  init)          cmd_init "$@" ;;
+  tick)          cmd_tick "$@" ;;
+  can-deep)      cmd_can_deep "$@" ;;
+  deep)          cmd_deep "$@" ;;
+  kw-search-can) cmd_kw_search_can "$@" ;;
+  kw-search)     cmd_kw_search "$@" ;;
+  start-claim)   cmd_start_claim "$@" ;;
+  reset-claim)   cmd_reset_claim "$@" ;;
+  status)        cmd_status "$@" ;;
+  stop)          cmd_stop "$@" ;;
+  "")            echo "error=no subcommand specified (init|tick|can-deep|deep|kw-search-can|kw-search|start-claim|reset-claim|status|stop)" >&2; exit 2 ;;
+  *)             echo "error=unknown subcommand: $subcmd" >&2; exit 2 ;;
 esac

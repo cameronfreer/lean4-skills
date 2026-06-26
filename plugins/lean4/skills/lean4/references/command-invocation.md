@@ -1,8 +1,8 @@
 # Command Invocation Contract
 
 This plugin ships a host-agnostic parser (`lib/command_args/`) that covers the
-**parser-decidable** startup rules of the six parameter-heavy commands —
-`draft`, `learn`, `formalize`, `autoformalize`, `prove`, and `autoprove`.
+**parser-decidable** startup rules of the seven parameter-heavy commands —
+`draft`, `learn`, `formalize`, `autoformalize`, `prove`, `autoprove`, and `disprove`.
 Parser-decidable rules are those whose outcome can be fully determined from
 flags, positionals, and `os.path.exists` checks alone, without repo-level
 search or interactive user prompting. A small set of documented startup rules
@@ -13,7 +13,7 @@ output. Other commands in this plugin (`checkpoint`, `review`, `refactor`,
 `golf`, `doctor`) are not parameter-heavy and are not covered by
 `lib/command_args/`; they remain model-parsed on every host.
 
-For the six covered commands, whether the parser actually runs before the
+For the seven covered commands, whether the parser actually runs before the
 model sees a slash-command invocation depends on the host adapter:
 
 - The **Claude Code adapter** invokes the parser from a `UserPromptSubmit`

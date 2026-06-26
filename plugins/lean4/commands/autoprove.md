@@ -274,6 +274,7 @@ Guardrailed git commands are blocked. See [cycle-engine.md](../skills/lean4/refe
 - `/lean4:draft` - Draft Lean declaration skeletons
 - `/lean4:formalize` - Interactive formalization (drafting + guided proving)
 - `/lean4:prove` - Guided cycle-by-cycle proving
+- `/lean4:disprove` - Guided counterexample search with certified refutation
 - `/lean4:checkpoint` - Manual save point
 - `/lean4:review` - Quality check (read-only)
 - `/lean4:refactor` - Strategy-level proof simplification

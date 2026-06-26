@@ -7,6 +7,7 @@ from ..types import CommandSpec
 # Import specs as they are added.  Each module exposes a single SPEC: CommandSpec.
 from .autoformalize import SPEC as _AUTOFORMALIZE
 from .autoprove import SPEC as _AUTOPROVE
+from .disprove import SPEC as _DISPROVE
 from .draft import SPEC as _DRAFT
 from .formalize import SPEC as _FORMALIZE
 from .learn import SPEC as _LEARN
@@ -15,6 +16,7 @@ from .prove import SPEC as _PROVE
 COMMAND_SPECS: dict[str, CommandSpec] = {
     _AUTOFORMALIZE.name: _AUTOFORMALIZE,
     _AUTOPROVE.name: _AUTOPROVE,
+    _DISPROVE.name: _DISPROVE,
     _DRAFT.name: _DRAFT,
     _FORMALIZE.name: _FORMALIZE,
     _LEARN.name: _LEARN,
