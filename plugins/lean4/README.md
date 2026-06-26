@@ -143,7 +143,7 @@ Phase 5 — **Accumulate** — appends the cycle's `(family, config, outcome, ne
 
 Tri-state outcome:
 
-- **REFUTED** — Lean typechecks the negation. The only outcome that asserts falsehood.
+- **REFUTED** — Lean typechecks the negation. The only outcome that certifies a refutation.
 - **WITNESS_UNCERTIFIED** — candidate found but Lean refused certification.
 - **INCONCLUSIVE** — no candidate within `--max-cycles` widening passes (default 3) or `--max-stuck-cycles` consecutive cycles with no widening lever left.
 
