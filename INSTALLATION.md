@@ -77,6 +77,17 @@ The `LEAN4_SCRIPTS` etc. variables are set by the bootstrap hook. If missing:
 
 #### Scripts Not Executable
 
+The `lean4-skills-*` wrappers under `$LEAN4_PLUGIN_ROOT/bin/` are shipped
+executable. Confirm with:
+
+```bash
+command -v lean4-skills-sorry-analyzer
+```
+
+If you invoke the unwrapped internals under `$LEAN4_SCRIPTS/` directly
+(e.g. test fixtures, internal helpers), and a fresh clone left them
+non-executable:
+
 ```bash
 chmod +x $LEAN4_SCRIPTS/*.sh $LEAN4_SCRIPTS/*.py
 ```
@@ -240,13 +251,13 @@ lean4-skills-sorry-analyzer . --format=summary --report-only
 Any LLM coding agent that can read markdown and run shell commands can use this pack:
 
 1. Clone the repo
-2. Set the three env vars (see [Environment Bootstrap](#environment-bootstrap-all-hosts) above)
+2. Set the four env vars (see [Environment Bootstrap](#environment-bootstrap-all-hosts) above) — including `PATH` so the `lean4-skills-*` wrappers resolve as bare commands
 3. Point your agent at `plugins/lean4/skills/lean4/SKILL.md` as system context
 4. Scripts work standalone — no adapter needed:
    ```bash
    lean4-skills-sorry-analyzer . --format=summary --report-only
-   bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" path/to/YourFile.lean --report-only
-   bash "$LEAN4_SCRIPTS/search_mathlib.sh" "continuous" name
+   lean4-skills-check-axioms-inline path/to/YourFile.lean --report-only
+   lean4-skills-search-mathlib "continuous" name
    ```
 5. If your agent supports MCP, add lean-lsp-mcp for faster mathlib search and sub-second feedback
 
@@ -275,8 +286,8 @@ Copy-Item -Recurse "path\to\lean4-skills\plugins\lean4\skills\lean4" .agents\ski
 ### Verify
 
 ```bash
-echo "$LEAN4_SCRIPTS"
-ls "$LEAN4_SCRIPTS/sorry_analyzer.py"
+echo "$LEAN4_SCRIPTS"                        # bootstrap set the env var
+command -v lean4-skills-sorry-analyzer        # wrapper resolves on PATH
 lean4-skills-sorry-analyzer . --format=summary --report-only
 ```
 
