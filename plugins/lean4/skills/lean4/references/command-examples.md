@@ -123,7 +123,7 @@ theorem padic_complete (p : ℕ) [hp : Fact (Nat.Prime p)] :
   sorry -- ⚠ proof blocked: needs Mathlib.NumberTheory.Padics.PadicIntegers
 ```
 
-bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" <target>.lean --report-only → ✓ standard axioms only
+lean4-skills-check-axioms-inline <target>.lean --report-only → ✓ standard axioms only
 
 Note: Mathlib likely has this as an instance. Searching...
 lean_leanfinder("CompleteSpace Padic") → `Padic.instCompleteSpace`

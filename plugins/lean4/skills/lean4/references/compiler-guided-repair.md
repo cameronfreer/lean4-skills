@@ -542,7 +542,7 @@ lean_loogle("type pattern")        # Type-based
 
 **Fallback scripts:**
 ```bash
-bash $LEAN4_SCRIPTS/smart_search.sh "query" --source=all
+lean4-skills-smart-search "query" --source=all
 ```
 
 ---
