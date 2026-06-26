@@ -58,14 +58,8 @@ plugins/lean4/
 ├── hooks/        (executable .sh)
 ├── skills/lean4/ (SKILL.md + references/)
 ├── agents/       (4 files)
-├── bin/          (lean4-skills-* model-facing wrappers)
+├── bin/          (lean4-skills-* wrappers; verify on PATH: `command -v lean4-skills-cycle-tracker`)
 └── lib/scripts/  (executable .py / .sh internals)
-```
-
-Verify wrappers resolve on PATH:
-```bash
-command -v lean4-skills-cycle-tracker  # autoprove hot path
-command -v lean4-skills-sorry-analyzer
 ```
 
 ### 3. Project Check
