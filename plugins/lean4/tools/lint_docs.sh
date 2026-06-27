@@ -602,9 +602,11 @@ check_python_script_interpreters() {
 # usages exist in references). For new `fun ... =>` introductions
 # in unrelated files, rely on review.
 #
-# Guard strength is local/doctor only (same caveat as Check 8a from
-# #136 and Check 8c from #138). lint_docs.sh is not invoked in CI;
-# the only lint_docs check exercised in CI is 8c via test_lint_docs.sh.
+# Guard strength is local/doctor only, same as Check 8a from #136.
+# Unlike Check 8c from #138, this invariant has no dedicated CI
+# self-test; test_lint_docs.sh (added in #138) invokes lint_docs.sh
+# incidentally in CI, but it only asserts the Check 8c fixture
+# behavior.
 check_mathlib_style_lambda_guidance() {
     log ""
     log "Checking mathlib style checklist surfaced (issue #133)..."
