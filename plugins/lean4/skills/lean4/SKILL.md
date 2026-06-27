@@ -289,6 +289,20 @@ open scoped Topology MeasureTheory
 
 Order matters: provide outer structures before inner ones.
 
+`omit [Inst] in` removes an unused section instance from the following declaration.
+Place it **before the declaration docstring**; putting it between the docstring and
+`lemma`/`theorem` makes Lean parse it as a separate `omit` command.
+
+```lean
+variable {α : Type*} [MeasurableSpace α]
+
+omit [MeasurableSpace α] in
+/-- doc -/
+theorem foo : True := trivial
+```
+
+See [domain-patterns](references/domain-patterns.md#pattern-7-managing-section-variables-with-omit) for more.
+
 ## Automation Tactics
 
 Try in order (stop on first success):
