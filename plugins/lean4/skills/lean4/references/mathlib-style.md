@@ -232,7 +232,11 @@ See [domain-patterns.md](domain-patterns.md) for detailed implicit parameter con
   Use `=>` for `match`/`do` branches and metaprogramming callback idioms.
 - **Short lambdas:** consider placeholder notation (`·`) when it is clearer.
 - **`show`:** prefer `show P by tac` for tactic proofs. Use
-  `show P from term` only when giving a proof term; avoid `show P from by tac`.
+  `show P from term` only when giving a proof term — `from` in front
+  of a tactic block is redundant. Examples:
+  - ❌ `show P from by simp`     — anti-pattern; `from` is redundant
+  - ✅ `show P by simp`           — tactic proof
+  - ✅ `show P from h.symm`       — term proof (`from` introduces the term)
 
 ## Documentation Content Guidelines
 
