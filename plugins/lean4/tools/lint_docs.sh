@@ -479,6 +479,41 @@ check_bare_scripts() {
     ok "Bare script check done"
 }
 
+# Check 8a: SKILL.md Type Class Patterns section must teach the
+# `omit [Inst] in` ordering rule (issue #136). Docs-surface invariant
+# only — locks in the always-loaded surface so future edits can't
+# strip the rule out and re-introduce the parse-error footgun.
+# NOT a Lean parse test; not CI-enforced (lint_docs.sh runs
+# locally / via /lean4:doctor).
+check_skill_omit_rule() {
+    log ""
+    log "Checking SKILL.md teaches omit [Inst] in ordering rule..."
+
+    local _so_skill _so_section
+    _so_skill="$PLUGIN_ROOT/skills/lean4/SKILL.md"
+    if [[ ! -f "$_so_skill" ]]; then
+        warn "SKILL.md not found at $_so_skill (cannot check omit rule)"
+        return
+    fi
+    # Slice the `## Type Class Patterns` section: from its heading to
+    # the next top-level heading.
+    _so_section=$(awk '
+        /^## Type Class Patterns/ {p=1; next}
+        p && /^## / {exit}
+        p {print}
+    ' "$_so_skill")
+    if [[ -z "$_so_section" ]]; then
+        warn "SKILL.md: '## Type Class Patterns' section not found — omit ordering rule cannot be asserted (see issue #136)"
+        return
+    fi
+    if ! grep -q 'omit \[' <<<"$_so_section" \
+       || ! grep -q 'before the declaration docstring' <<<"$_so_section"; then
+        warn "SKILL.md Type Class Patterns: omit ordering rule missing — see issue #136 and references/domain-patterns.md Pattern 7"
+        return
+    fi
+    ok "SKILL.md teaches the omit [Inst] in ordering rule"
+}
+
 # Check 8b: Lean script invocations must not suppress stderr
 check_script_stderr_suppression() {
     log ""
@@ -1641,6 +1676,7 @@ check_cross_refs
 check_reference_links
 check_stale_commands
 check_bare_scripts
+check_skill_omit_rule
 check_script_stderr_suppression
 check_deep_safety
 check_guardrail_docs
