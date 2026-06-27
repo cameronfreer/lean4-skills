@@ -91,7 +91,7 @@ Output returned by hooks (via stdout):
       "severity": "hint",
       "category": "sorry",
       "message": "Try tendsto_atTop from Mathlib.Topology.Order.Basic",
-      "fix": "exact tendsto_atTop.mpr fun n => ⟨n, fun m hm => hm⟩"
+      "fix": "exact tendsto_atTop.mpr fun n ↦ ⟨n, fun m hm ↦ hm⟩"
     },
     {
       "file": "Core.lean",

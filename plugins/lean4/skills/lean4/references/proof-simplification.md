@@ -100,7 +100,7 @@ apply Finset.induction_on s
 **After:**
 ```lean
 exact Finset.card_image_of_injective s hinj
--- or: Finset.sum_image fun x _ y _ h => hinj h
+-- or: Finset.sum_image fun x _ y _ h ↦ hinj h
 -- or: Finset.prod_image ...
 ```
 
@@ -125,7 +125,7 @@ rw [map_add, map_mul, map_one]
 ```lean
 ext x <;> simp
 -- or when simp needs guidance:
--- exact RingHom.ext fun x => by simp [h_comm]
+-- exact RingHom.ext fun x ↦ by simp [h_comm]
 ```
 
 `MonoidHom.ext`, `RingHom.ext`, `LinearMap.ext`, and `AlgHom.ext` reduce morphism equality to pointwise equality with the correct coercion context. Combined with `simp`, this eliminates manual `DFunLike.ext` + `map_*` chains.

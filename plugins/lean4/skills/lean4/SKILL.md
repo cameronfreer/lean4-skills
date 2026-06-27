@@ -17,6 +17,8 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 
 **Use 100-character line width for Lean files.** Do not wrap lines at 80 characters — Lean and mathlib convention is 100. If a line fits within 100 characters, keep it on one line. See [mathlib-style](references/mathlib-style.md) for breaking strategies when lines exceed 100.
 
+**Mathlib style quick check.** For ordinary mathematical lambdas, write `fun x ↦ ...` (`\mapsto`), not `fun x => ...`. Use `=>` for `match`/`do` branches and metaprogramming callback idioms. Prefer `show P by tac` for tactic proofs; use `show P from term` only for term proofs. See [mathlib-style](references/mathlib-style.md).
+
 **Never change statements or add axioms without explicit permission.** Theorem/lemma statements, type signatures, and docstrings are off-limits unless the user requests changes. Inline comments may be adjusted; docstrings may not (they're part of the API). Custom axioms require explicit approval—if a proof seems to need one, stop and discuss. Exception: within synthesis wrappers (`/lean4:formalize`, `/lean4:autoformalize`), session-generated declarations may be redrafted under the outer-loop statement-safety rules; see cycle-engine.md.
 
 ## Commands

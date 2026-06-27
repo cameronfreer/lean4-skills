@@ -26,7 +26,7 @@
 |---------|---------|------|
 | `by exact t` → `t` | 1 line | Zero |
 | `by rfl` → `rfl` | 1 line | Zero |
-| Eta-reduction `fun x => f x` → `f` | Tokens | Zero |
+| Eta-reduction `fun x ↦ f x` → `f` | Tokens | Zero |
 | `.mpr`/`.mp` over `rwa` for trivial | 1 line | Zero |
 | Dot notation `.rfl`/`.symm` | Tokens | Zero |
 | `apply f; exact h` → `exact f h` | 1 line | Zero |
@@ -73,7 +73,7 @@
 
 **Example - DON'T optimize:**
 ```lean
-let μ_map := Measure.map (fun ω i => X (k i) ω) μ  -- 20 tokens
+let μ_map := Measure.map (fun ω i ↦ X (k i) ω) μ  -- 20 tokens
 -- Used 7 times in proof
 -- Current: 20 + (2 × 7) = 34 tokens
 -- Inlined: 20 × 7 = 140 tokens (4× WORSE!)
@@ -297,7 +297,7 @@ Nat.add_lt_add_left hij k
 
 ```text
 ~1 token each:   let, have, exact, intro, by, fun
-~2 tokens each:  :=, =>, (fun x => ...), StrictMono
+~2 tokens each:  :=, =>, (fun x ↦ ...), StrictMono
 ~5-10 tokens:    let x : Type := definition
                  have h : Property := by proof
 ```

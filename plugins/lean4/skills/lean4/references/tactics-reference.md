@@ -441,10 +441,10 @@ fun_prop (disch := simp)
 
 **Example - Measurability:**
 ```lean
--- Goal: Measurable (fun ω => fun j : Fin n => X (k j) ω)
+-- Goal: Measurable (fun ω ↦ fun j : Fin n ↦ X (k j) ω)
 -- Without disch: fun_prop generates subgoals you must solve manually
 -- With disch: automation solves them
-have h : Measurable (fun ω => fun j : Fin n => X (k j) ω) := by
+have h : Measurable (fun ω ↦ fun j : Fin n ↦ X (k j) ω) := by
   fun_prop (disch := measurability)
 ```
 
@@ -472,7 +472,7 @@ lemma measurable_shiftℤ : Measurable (shiftℤ (α := α)) := by
   measurability
 
 -- Now fun_prop can automatically use this when it encounters shiftℤ
-example : Measurable (fun ω => shiftℤ ω) := by
+example : Measurable (fun ω ↦ shiftℤ ω) := by
   fun_prop  -- Automatically finds and applies measurable_shiftℤ
 ```
 
@@ -484,11 +484,11 @@ example : Measurable (fun ω => shiftℤ ω) := by
 **Real example from practice:**
 ```lean
 -- Without @[fun_prop]: manual proof needed
-have h : Measurable (fun ω => f (ω (-1))) := by
+have h : Measurable (fun ω ↦ f (ω (-1))) := by
   exact hf_meas.comp (measurable_pi_apply (-1))
 
 -- With @[fun_prop] on component lemmas: automated
-have h : Measurable (fun ω => f (ω (-1))) := by
+have h : Measurable (fun ω ↦ f (ω (-1))) := by
   fun_prop (disch := measurability)
 ```
 

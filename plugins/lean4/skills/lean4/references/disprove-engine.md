@@ -777,8 +777,8 @@ Pick whichever conjunct yields the smaller search; obtain `h : ¬ P` (or
 match:
 
 ```lean
-theorem T_counterexample (h : ¬ P) : ¬ (P ∧ Q) := fun ⟨hp, _⟩ => h hp
--- mirror with `fun ⟨_, hq⟩ => h hq` when disproving Q
+theorem T_counterexample (h : ¬ P) : ¬ (P ∧ Q) := fun ⟨hp, _⟩ ↦ h hp
+-- mirror with `fun ⟨_, hq⟩ ↦ h hq` when disproving Q
 ```
 
 **Shape 5 — `P ∨ Q` (disprove both disjuncts):**
@@ -788,7 +788,7 @@ Shape 1/2/7 recipes, then combine:
 
 ```lean
 theorem T_counterexample (hp : ¬ P) (hq : ¬ Q) : ¬ (P ∨ Q) :=
-  fun h => h.elim hp hq
+  fun h ↦ h.elim hp hq
 ```
 
 **Shape 6 — `a = b` or `a ≤ b` / arithmetic ineq:**
