@@ -221,10 +221,18 @@ theorem bar {μ : Measure Ω} (X : ℕ → Ω → α) : Statement
 
 -- ✅ GOOD: n used in body
 def baz (n : ℕ) (F : Ω[α] → ℝ) : Ω[α] → ℝ :=
-  fun ω => F ((shift^[n]) ω)
+  fun ω ↦ F ((shift^[n]) ω)
 ```
 
 See [domain-patterns.md](domain-patterns.md) for detailed implicit parameter conversion patterns.
+
+### 9. Style Conventions Generators Often Miss
+
+- **Lambdas:** use `fun x ↦ ...` (`\mapsto`), not `fun x => ...`.
+  Use `=>` for `match`/`do` branches and metaprogramming callback idioms.
+- **Short lambdas:** consider placeholder notation (`·`) when it is clearer.
+- **`show`:** prefer `show P by tac` for tactic proofs. Use
+  `show P from term` only when giving a proof term; avoid `show P from by tac`.
 
 ## Documentation Content Guidelines
 
