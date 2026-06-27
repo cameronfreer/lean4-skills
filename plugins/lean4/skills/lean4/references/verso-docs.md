@@ -32,7 +32,7 @@ Use these small transforms in sequence:
 
 - Wrap inline code in backticks and add a role:
   - `{name}``TensorLayout.transpose``
-  - `{lean}``fun x => x + 1``
+  - `{lean}``fun x ↦ x + 1``
   - `{lit}``x[i,j]``
 - Use `{given}` to declare variables, then reference with `{lean}`:
   - `{given}``n`` then `{lean}``#[n]``

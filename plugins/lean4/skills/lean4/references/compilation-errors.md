@@ -419,14 +419,14 @@ but is expected to have type
 have h_sp_le : ∀ n a, (sp n a) ≤ φp a := by
   intro n a
   have := SimpleFunc.iSup_eapprox_apply
-    (fun a => ENNReal.ofReal (max (φ a) 0))  -- 'a' shadows!
+    (fun a ↦ ENNReal.ofReal (max (φ a) 0))  -- 'a' shadows!
     ... a  -- ERROR: which 'a'?
 
 -- ✅ CORRECT: Rename lambda variable or add type annotation
 have h_sp_le : ∀ n a, (sp n a) ≤ φp a := by
   intro n a
   have := SimpleFunc.iSup_eapprox_apply
-    (fun (x : α) => ENNReal.ofReal (max (φ x) 0))
+    (fun (x : α) ↦ ENNReal.ofReal (max (φ x) 0))
     ... a  -- ✓ Clear: outer 'a'
 ```
 
@@ -537,7 +537,7 @@ have := h1.atTop_add 1
 
 ```lean
 -- ✅ CORRECT: Pass a proof term
-have := h1.atTop_add (tendsto_const_nhds : Tendsto (fun _ => (1 : ℝ)) atTop (nhds 1))
+have := h1.atTop_add (tendsto_const_nhds : Tendsto (fun _ ↦ (1 : ℝ)) atTop (nhds 1))
 ```
 
 **Pattern:** Functions like `atTop_add` work on limits and need proof terms:
@@ -547,7 +547,7 @@ have := h1.atTop_add (tendsto_const_nhds : Tendsto (fun _ => (1 : ℝ)) atTop (n
 **Common fixes:**
 ```lean
 -- For constant functions
-tendsto_const_nhds : Tendsto (fun _ => c) filter (nhds c)
+tendsto_const_nhds : Tendsto (fun _ ↦ c) filter (nhds c)
 
 -- For simple expressions
 use lemmas like Filter.tendsto_id, Filter.tendsto_const_pure
@@ -605,25 +605,25 @@ tactic 'simp' failed
 
 **Example failure:**
 ```lean
-have h := integral_condExp (f := fun ω => μ[g|m] ω * ξ ω)
+have h := integral_condExp (f := fun ω ↦ μ[g|m] ω * ξ ω)
 -- h : ∫ (x : Ω), F x ∂μ = ∫ (x : Ω), μ[F|m] x ∂μ
 -- Goal: ∫ (ω : Ω), μ[g|m] ω * ξ ω ∂μ = ...
 
 simpa using h.symm  -- Error: binder x ≠ binder ω
 ```
 
-**Why it fails:** Lean doesn't automatically recognize that `fun x => F x` and `fun ω => F ω` are the same when comparing goal to hypothesis.
+**Why it fails:** Lean doesn't automatically recognize that `fun x ↦ F x` and `fun ω ↦ F ω` are the same when comparing goal to hypothesis.
 
 **Solution: Use `set ... with` pattern to name expression once**
 
 ```lean
 -- Name the integrand once and for all
-set F : Ω → ℝ := fun ω => μ[g | m] ω * ξ ω with hF
+set F : Ω → ℝ := fun ω ↦ μ[g | m] ω * ξ ω with hF
 
 -- Apply lemma to named function F
 have h_goal :
     ∫ (ω : Ω), μ[g | m] ω * ξ ω ∂μ
-  = ∫ (ω : Ω), μ[(fun ω => μ[g | m] ω * ξ ω) | m] ω ∂μ := by
+  = ∫ (ω : Ω), μ[(fun ω ↦ μ[g | m] ω * ξ ω) | m] ω ∂μ := by
   simpa [hF] using
     (MeasureTheory.integral_condExp (μ := μ) (m := m) (hm := hm) (f := F)).symm
 

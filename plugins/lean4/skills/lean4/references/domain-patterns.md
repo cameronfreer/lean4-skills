@@ -184,11 +184,11 @@ def IsMartingale (X : ℕ → Ω → ℝ) (f : ℕ → MeasurableSpace Ω) : Pro
 ```lean
 -- Infinite product via Ionescu-Tulcea
 noncomputable def productMeasure (ν : Measure α) : Measure (ℕ → α) :=
-  Measure.pi (fun _ => ν)
+  Measure.pi (fun _ ↦ ν)
 
 lemma independent_of_product :
     ∀ n m, n ≠ m →
-    IndepFun (fun ω => ω n) (fun ω => ω m) (productMeasure ν) := by
+    IndepFun (fun ω ↦ ω n) (fun ω ↦ ω m) (productMeasure ν) := by
   sorry
 ```
 
@@ -220,13 +220,13 @@ end IntegrationHelpers
 ```lean
 -- ❌ Manual: verbose
 lemma measurable_projection {n : ℕ} :
-    Measurable (fun (x : ℕ → α) => fun (i : Fin n) => x i.val) := by
-  refine measurable_pi_lambda _ (fun i => ?_)
+    Measurable (fun (x : ℕ → α) ↦ fun (i : Fin n) ↦ x i.val) := by
+  refine measurable_pi_lambda _ (fun i ↦ ?_)
   exact measurable_pi_apply i.val
 
 -- ✅ Automated: clean
 lemma measurable_projection {n : ℕ} :
-    Measurable (fun (x : ℕ → α) => fun (i : Fin n) => x i.val) := by
+    Measurable (fun (x : ℕ → α) ↦ fun (i : Fin n) ↦ x i.val) := by
   measurability
 ```
 
@@ -242,7 +242,7 @@ lemma measurable_shiftSeq {d : ℕ} : Measurable (shiftSeq (β:=β) d) := by
 
 ```lean
 -- Use fun_prop with measurability discharger
-have h : Measurable (fun ω => fun i => X (k i) ω) := by
+have h : Measurable (fun ω ↦ fun i ↦ X (k i) ω) := by
   fun_prop (disch := measurability)
 ```
 
@@ -286,7 +286,7 @@ theorem deFinetti (μ : Measure Ω) (X : ℕ → Ω → α) : ...
 
 -- ✅ Used in body, not types
 def shiftedCylinder (n : ℕ) (F : Ω[α] → ℝ) : Ω[α] → ℝ :=
-  fun ω => F ((shift^[n]) ω)
+  fun ω ↦ F ((shift^[n]) ω)
 
 -- ✅ In return type
 lemma foo (n : ℕ) : Fin n → α := ...
@@ -300,13 +300,13 @@ When using `Measurable.const_mul` with sums, structure must match goal's parenth
 
 ```lean
 -- ❌ WRONG: constant inside each term
-have h : Measurable (fun ω => (1/(m:ℝ)) * ∑ k, f k ω) :=
-  Finset.measurable_sum _ (fun k _ => Measurable.const_mul ...)
+have h : Measurable (fun ω ↦ (1/(m:ℝ)) * ∑ k, f k ω) :=
+  Finset.measurable_sum _ (fun k _ ↦ Measurable.const_mul ...)
 -- Applies const_mul to EACH TERM - wrong variable binding!
 
 -- ✅ CORRECT: constant wraps entire sum
-have h : Measurable (fun ω => (1/(m:ℝ)) * ∑ k, f k ω) :=
-  Measurable.const_mul (Finset.measurable_sum _ (fun k _ => ...)) _
+have h : Measurable (fun ω ↦ (1/(m:ℝ)) * ∑ k, f k ω) :=
+  Measurable.const_mul (Finset.measurable_sum _ (fun k _ ↦ ...)) _
 -- const_mul wraps whole sum, matching goal structure
 ```
 
@@ -318,13 +318,13 @@ Bound expression in measurability hypothesis must match canonical form after `si
 
 ```lean
 -- ❌ WRONG: Definition uses 1/(m:ℝ) but goal has (m:ℝ)⁻¹ after simp
-have h_meas : Measurable (fun ω => 1/(m:ℝ) * ∑ i, f i ω) := ...
+have h_meas : Measurable (fun ω ↦ 1/(m:ℝ) * ∑ i, f i ω) := ...
 apply Integrable.of_bound h_meas.aestronglyMeasurable 1
 filter_upwards with ω; simp [Real.norm_eq_abs]
 -- Type mismatch: goal has (m:ℝ)⁻¹ but h_meas has 1/(m:ℝ)
 
 -- ✅ CORRECT: Use canonical form (m:ℝ)⁻¹ from start
-have h_meas : Measurable (fun ω => (m:ℝ)⁻¹ * ∑ i, f i ω) := ...
+have h_meas : Measurable (fun ω ↦ (m:ℝ)⁻¹ * ∑ i, f i ω) := ...
 apply Integrable.of_bound h_meas.aestronglyMeasurable 1
 filter_upwards with ω; simp [Real.norm_eq_abs]
 -- Matches exactly after simp!
@@ -380,7 +380,7 @@ lemma continuous_of_isOpen_preimage
 
 -- Using automation
 lemma continuous_comp_add :
-    Continuous (fun (p : ℝ × ℝ) => p.1 + p.2) := by
+    Continuous (fun (p : ℝ × ℝ) ↦ p.1 + p.2) := by
   continuity
 ```
 
@@ -623,9 +623,9 @@ instance : Ring MyType := {
 lemma quotient_ring_hom (I : Ideal R) : RingHom R (R ⧸ I) := by
   refine { toFun := Ideal.Quotient.mk I,
            map_one' := rfl,
-           map_mul' := fun x y => rfl,
+           map_mul' := fun x y ↦ rfl,
            map_zero' := rfl,
-           map_add' := fun x y => rfl }
+           map_add' := fun x y ↦ rfl }
 ```
 
 ### Pattern 3: Universal Properties

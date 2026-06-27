@@ -75,7 +75,7 @@ When polymorphic goals like `eLpNorm` or `MemLp` contain complex function expres
 **Example that times out:**
 ```lean
 -- This hits 500k heartbeat limit during elaboration:
-have : eLpNorm (fun ω => blockAvg f X 0 n ω - blockAvg f X 0 n' ω) 2 μ < ⊤ := by
+have : eLpNorm (fun ω ↦ blockAvg f X 0 n ω - blockAvg f X 0 n' ω) 2 μ < ⊤ := by
   -- Lean unfolds blockAvg → (n:ℝ)⁻¹ * Finset.sum ...
   -- Then chases typeclass instances through every layer
   -- WHNF TIMEOUT!
@@ -84,7 +84,7 @@ have : eLpNorm (fun ω => blockAvg f X 0 n ω - blockAvg f X 0 n' ω) 2 μ < ⊤
 **Root cause:** The expansion of `blockAvg`:
 ```lean
 def blockAvg (f : α → ℝ) (X : ℕ → Ω → α) (m n : ℕ) (ω : Ω) : ℝ :=
-  (n : ℝ)⁻¹ * (Finset.range n).sum (fun k => f (X (m + k) ω))
+  (n : ℝ)⁻¹ * (Finset.range n).sum (fun k ↦ f (X (m + k) ω))
 ```
 
 becomes deeply nested when substituted into `eLpNorm`, triggering expensive typeclass synthesis.
@@ -98,7 +98,7 @@ becomes deeply nested when substituted into `eLpNorm`, triggering expensive type
     will *not* unfold during type-checking. -/
 @[irreducible]
 def blockAvgFrozen {Ω : Type*} (f : ℝ → ℝ) (X : ℕ → Ω → ℝ) (n : ℕ) : Ω → ℝ :=
-  fun ω => blockAvg f X 0 n ω
+  fun ω ↦ blockAvg f X 0 n ω
 ```
 
 **Key point:** `@[irreducible]` prevents definitional unfolding but allows `rw` for manual expansion.
@@ -128,7 +128,7 @@ lemma blockAvgFrozen_diff_memLp_two {Ω : Type*} [MeasurableSpace Ω] {μ : Meas
     (f : ℝ → ℝ) (X : ℕ → Ω → ℝ)
     (hf : Measurable f) (hX : ∀ i, Measurable (X i))
     (hf_bdd : ∀ x, |f x| ≤ 1) (n n' : ℕ) :
-    MemLp (fun ω => blockAvgFrozen f X n ω - blockAvgFrozen f X n' ω) (2 : ℝ≥0∞) μ := by
+    MemLp (fun ω ↦ blockAvgFrozen f X n ω - blockAvgFrozen f X n' ω) (2 : ℝ≥0∞) μ := by
   apply memLp_two_of_bounded (M := 2)
   · exact (blockAvgFrozen_measurable f X hf hX n).sub
       (blockAvgFrozen_measurable f X hf hX n')
@@ -150,8 +150,8 @@ have hblockAvg_memLp : ∀ n, n > 0 → MemLp (blockAvg f X 0 n) 2 μ := by
   intro n hn_pos
   apply memLp_two_of_bounded
   · -- Measurable: blockAvg is a finite sum of measurable functions
-    show Measurable (fun ω => (n : ℝ)⁻¹ * (Finset.range n).sum (fun k => f (X (0 + k) ω)))
-    exact Measurable.const_mul (Finset.measurable_sum _ fun k _ =>
+    show Measurable (fun ω ↦ (n : ℝ)⁻¹ * (Finset.range n).sum (fun k ↦ f (X (0 + k) ω)))
+    exact Measurable.const_mul (Finset.measurable_sum _ fun k _ ↦
       hf_meas.comp (hX_meas (0 + k))) _
   intro ω
   -- 20+ line calc proof
@@ -166,7 +166,7 @@ have hblockAvg_memLp : ∀ n, n > 0 → MemLp (blockAvg f X 0 n) 2 μ := by
   rw [h_eq]
   apply memLp_two_of_bounded (M := 1)
   · exact blockAvgFrozen_measurable f X hf_meas hX_meas n
-  exact fun ω => blockAvgFrozen_abs_le_one f X hf_bdd n ω
+  exact fun ω ↦ blockAvgFrozen_abs_le_one f X hf_bdd n ω
 ```
 
 ---
@@ -182,7 +182,7 @@ have hblockAvg_memLp : ∀ n, n > 0 → MemLp (blockAvg f X 0 n) 2 μ := by
 have : eLpNorm (blockAvg f X 0 n - blockAvg f X 0 n') 2 μ < ⊤
 
 -- ✅ GOOD: Explicit parameters (cheap)
-have : eLpNorm (fun ω => BA n ω - BA n' ω) (2 : ℝ≥0∞) (μ := μ) < ⊤
+have : eLpNorm (fun ω ↦ BA n ω - BA n' ω) (2 : ℝ≥0∞) (μ := μ) < ⊤
 ```
 
 **Why:** Explicit `(p := (2 : ℝ≥0∞))` and `(μ := μ)` prevent type class search through function body.
@@ -210,7 +210,7 @@ have : blockAvg f X 0 n = blockAvgFrozen f X n := by
 ```lean
 -- ❌ BAD: Recompute MemLp every time (expensive)
 intro n n'
-have : MemLp (fun ω => blockAvg f X 0 n ω - blockAvg f X 0 n' ω) 2 μ := by
+have : MemLp (fun ω ↦ blockAvg f X 0 n ω - blockAvg f X 0 n' ω) 2 μ := by
   apply memLp_two_of_bounded
   · -- 10 lines proving measurability
   intro ω
@@ -237,7 +237,7 @@ have hn  : eLpNorm (blockAvgFrozen f X n - blockAvgFrozen f X n') 2 μ < ⊤
 have hn' : MemLp (blockAvgFrozen f X n - blockAvgFrozen f X n') 2 μ
 
 -- ✅ GOOD: Bind once, reuse
-let diff := fun ω => blockAvgFrozen f X n ω - blockAvgFrozen f X n' ω
+let diff := fun ω ↦ blockAvgFrozen f X n ω - blockAvgFrozen f X n' ω
 have hn  : eLpNorm diff (2 : ℝ≥0∞) μ < ⊤
 have hn' : MemLp diff (2 : ℝ≥0∞) μ
 ```
@@ -501,12 +501,12 @@ If `@[irreducible]` still causes timeouts, consider:
 ```lean
 -- Instead of one complex frozen function:
 @[irreducible]
-def complexFrozen := fun ω => f (g (h (X ω)))
+def complexFrozen := fun ω ↦ f (g (h (X ω)))
 
 -- Split into parts:
-@[irreducible] def frozenH (X : Ω → α) : Ω → β := fun ω => h (X ω)
-@[irreducible] def frozenG (Y : Ω → β) : Ω → γ := fun ω => g (Y ω)
-@[irreducible] def frozenF (Z : Ω → γ) : Ω → ℝ := fun ω => f (Z ω)
+@[irreducible] def frozenH (X : Ω → α) : Ω → β := fun ω ↦ h (X ω)
+@[irreducible] def frozenG (Y : Ω → β) : Ω → γ := fun ω ↦ g (Y ω)
+@[irreducible] def frozenF (Z : Ω → γ) : Ω → ℝ := fun ω ↦ f (Z ω)
 
 -- Compose:
 def complexFrozen := frozenF (frozenG (frozenH X))

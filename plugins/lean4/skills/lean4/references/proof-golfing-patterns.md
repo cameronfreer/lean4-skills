@@ -67,12 +67,12 @@ When terms are definitionally equal, `rfl` suffices. Low risk - test with build,
 
 ```lean
 -- Before
-eq_empty_iff_forall_notMem.mpr (fun x hx => hU_sub_int hx)
+eq_empty_iff_forall_notMem.mpr (fun x hx ↦ hU_sub_int hx)
 -- After
 eq_empty_iff_forall_notMem.mpr hU_sub_int
 ```
 
-Pattern: `fun x => f x` is just `f`. Zero risk.
+Pattern: `fun x ↦ f x` is just `f`. Zero risk.
 
 ### Pattern 2C: Direct `.mpr`/`.mp` (Directness)
 
@@ -91,7 +91,7 @@ When `rwa` does trivial work, use direct term application. Zero risk.
 -- Before
 have h : ∀ i : Fin m, p (ι i) := by intro i; dsimp [p, ι]; exact i.isLt
 -- After
-have h : ∀ i : Fin m, p (ι i) := fun i => i.isLt
+have h : ∀ i : Fin m, p (ι i) := fun i ↦ i.isLt
 ```
 
 Convert `intro x; dsimp; exact term` to direct lambda. 75% reduction.
@@ -101,11 +101,11 @@ Convert `intro x; dsimp; exact term` to direct lambda. 75% reduction.
 ```lean
 -- Before
 lemma foo := by
-  let k' := fun i => (k i).val
+  let k' := fun i ↦ (k i).val
   have hk' : StrictMono k' := by ...
   exact hX m k' hk'
 -- After
-lemma foo := by exact hX m (fun i => (k i).val) (fun i j hij => ...)
+lemma foo := by exact hX m (fun i ↦ (k i).val) (fun i j hij ↦ ...)
 ```
 
 **⚠️ HIGH RISK:** 60-80% reduction but 93% false positive rate! MUST verify let used ≤2 times.
@@ -368,9 +368,9 @@ Skip explicit `exact` when simp makes goal trivial. 67% reduction.
 
 ```lean
 -- Before (linter warns)
-fun i j hij => proof_not_using_i_or_j
+fun i j hij ↦ proof_not_using_i_or_j
 -- After
-fun _ _ hij => proof_not_using_i_or_j
+fun _ _ hij ↦ proof_not_using_i_or_j
 ```
 
 Replace unused lambda parameters with `_`. Zero risk.

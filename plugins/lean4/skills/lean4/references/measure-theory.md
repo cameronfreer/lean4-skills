@@ -77,7 +77,7 @@ let mW : MeasurableSpace Ω := MeasurableSpace.comap W m0
    - Easy: `set_integral_condexp` gives `∫_{s} μ[g|m] = ∫_{s} g` for s ∈ m
 
 4. **❌ Don't force product measurability**
-   - Fragile: `AEStronglyMeasurable (fun ω => f ω * g ω)`
+   - Fragile: `AEStronglyMeasurable (fun ω ↦ f ω * g ω)`
    - Robust: Rewrite to `indicator` and use `Integrable.indicator`
 
 5. **❌ Don't use `set` with `MeasurableSpace.comap ... inferInstance`**
@@ -244,7 +244,7 @@ theorem my_theorem ... := by
 
   -- ✅ STEP 2: NOW define sub-σ-algebras
   let mW  : MeasurableSpace Ω := MeasurableSpace.comap W m0
-  let mZW : MeasurableSpace Ω := MeasurableSpace.comap (fun ω => (Z ω, W ω)) m0
+  let mZW : MeasurableSpace Ω := MeasurableSpace.comap (fun ω ↦ (Z ω, W ω)) m0
 
   -- ✅ STEP 3: Work with sub-σ-algebras
   have hmW_le : mW ≤ m0 := hW.comap_le
@@ -316,7 +316,7 @@ have hmζ_le : MeasurableSpace.comap ζ mγ ≤ mΩ := by
 
 -- Use inlined comaps in all lemma applications
 have hCEη : μ[f | MeasurableSpace.comap η mγ] =ᵐ[μ]
-            (fun ω => ∫ y, f y ∂(condExpKernel μ (MeasurableSpace.comap η mγ) ω)) :=
+            (fun ω ↦ ∫ y, f y ∂(condExpKernel μ (MeasurableSpace.comap η mγ) ω)) :=
   condExp_ae_eq_integral_condExpKernel hmη_le hint
 ```
 
@@ -361,13 +361,13 @@ lemma setIntegral_condExp_eq (μ : Measure Ω) (m : MeasurableSpace Ω) (hm : m 
 
 ```lean
 -- Rewrite product to indicator
-have hMulAsInd : (fun ω => μ[f|mW] ω * gB ω) = (Z ⁻¹' B).indicator (μ[f|mW]) := by
+have hMulAsInd : (fun ω ↦ μ[f|mW] ω * gB ω) = (Z ⁻¹' B).indicator (μ[f|mW]) := by
   funext ω; by_cases hω : ω ∈ Z ⁻¹' B
   · simp [gB, hω, Set.indicator_of_mem, mul_one]
   · simp [gB, hω, Set.indicator_of_notMem, mul_zero]
 
 -- Integrability without product measurability
-have : Integrable (fun ω => μ[f|mW] ω * gB ω) μ := by
+have : Integrable (fun ω ↦ μ[f|mW] ω * gB ω) μ := by
   simpa [hMulAsInd] using (integrable_condexp).indicator (hB.preimage hZ)
 ```
 
@@ -381,7 +381,7 @@ have : Integrable (fun ω => μ[f|mW] ω * gB ω) μ := by
 -- From |f| ≤ R to ‖μ[f|m]‖ ≤ R a.e.
 have hbdd_f : ∀ᵐ ω ∂μ, |f ω| ≤ (1 : ℝ) := …
 have hbdd_f' : ∀ᵐ ω ∂μ, |f ω| ≤ ((1 : ℝ≥0) : ℝ) :=
-  hbdd_f.mono (fun ω h => by simpa [NNReal.coe_one] using h)
+  hbdd_f.mono (fun ω h ↦ by simpa [NNReal.coe_one] using h)
 have : ∀ᵐ ω ∂μ, ‖μ[f|m] ω‖ ≤ (1 : ℝ) := by
   simpa [Real.norm_eq_abs, NNReal.coe_one] using
     ae_bdd_condExp_of_ae_bdd (μ := μ) (m := m) (R := (1 : ℝ≥0)) (f := f) hbdd_f'
@@ -415,7 +415,7 @@ have hsm_ceAmb : StronglyMeasurable (μ[f|mW]) := hsm_ce.mono hmW_le
 -- Restricted:  ∫_{S} (Z⁻¹ B).indicator h = ∫_{S ∩ Z⁻¹ B} h
 
 -- Rewrite pattern (avoids fragile lemma names):
-have : (fun ω => h ω * indicator (Z⁻¹' B) 1 ω) = indicator (Z⁻¹' B) h := by
+have : (fun ω ↦ h ω * indicator (Z⁻¹' B) 1 ω) = indicator (Z⁻¹' B) h := by
   funext ω; by_cases hω : ω ∈ Z⁻¹' B
   · simp [hω, Set.indicator_of_mem, mul_one]
   · simp [hω, Set.indicator_of_notMem, mul_zero]
@@ -441,7 +441,7 @@ have h : μ[ψ | m] = ... -- Error: Instance synthesis confused!
 
 ```lean
 -- Explicit: condExpKernel takes μ and m as parameters
-μ[ψ | m] =ᵐ[μ] (fun ω => ∫ y, ψ y ∂(condExpKernel μ m ω))
+μ[ψ | m] =ᵐ[μ] (fun ω ↦ ∫ y, ψ y ∂(condExpKernel μ m ω))
 ```
 
 **Why kernel form is better for complex cases:**
@@ -457,7 +457,7 @@ have h : μ[ψ | m] = ... -- Error: Instance synthesis confused!
 ```lean
 -- ❌ DON'T: Reinvent condExpKernel
 axiom directingMeasure : Ω → Measure α
-axiom directingMeasure_measurable_eval : ∀ s, Measurable (fun ω => directingMeasure ω s)
+axiom directingMeasure_measurable_eval : ∀ s, Measurable (fun ω ↦ directingMeasure ω s)
 axiom directingMeasure_isProb : ∀ ω, IsProbabilityMeasure (directingMeasure ω)
 axiom directingMeasure_marginal : ...
 ```
@@ -490,7 +490,7 @@ have h : ∫ ω in s, φ ω * μ[ψ | m] ω ∂μ = ∫ ω in s, φ ω * V ω �
 **After (kernel, explicit):**
 ```lean
 -- Step 1: Convert scalar to kernel form
-have hCE : μ[ψ | m] =ᵐ[μ] (fun ω => ∫ y, ψ y ∂(condExpKernel μ m ω))
+have hCE : μ[ψ | m] =ᵐ[μ] (fun ω ↦ ∫ y, ψ y ∂(condExpKernel μ m ω))
 
 -- Step 2: Work with kernel form
 have h : ∫ ω in s, φ ω * (∫ y, ψ y ∂(condExpKernel μ m ω)) ∂μ = ...
@@ -517,10 +517,10 @@ have h : ∫ ω in s, φ ω * (∫ y, ψ y ∂(condExpKernel μ m ω)) ∂μ = .
 
 ```lean
 -- Conversion between forms
-condExp_ae_eq_integral_condExpKernel : μ[f | m] =ᵐ[μ] (fun ω => ∫ y, f y ∂(condExpKernel μ m ω))
+condExp_ae_eq_integral_condExpKernel : μ[f | m] =ᵐ[μ] (fun ω ↦ ∫ y, f y ∂(condExpKernel μ m ω))
 
 -- Kernel measurability
-Measurable.eval_condExpKernel : Measurable (fun ω => condExpKernel μ m ω s)
+Measurable.eval_condExpKernel : Measurable (fun ω ↦ condExpKernel μ m ω s)
 
 -- Markov kernel property
 IsMarkovKernel.condExpKernel : IsMarkovKernel (condExpKernel μ m)
@@ -555,7 +555,7 @@ condExpKernel μ (tailSigma X) : @Kernel Ω Ω (tailSigma X) inst
 Kernel.map (condExpKernel μ m) f  -- Type error!
 
 -- ✅ RIGHT: Evaluate kernel first, then map the resulting measure
-fun ω => (condExpKernel μ m ω).map f
+fun ω ↦ (condExpKernel μ m ω).map f
 ```
 
 **Lesson:** When your kernel changes measurable spaces (like `condExpKernel`), you can't use `Kernel.map`. Instead, evaluate the kernel at a point to get a `Measure`, then use `Measure.map`.
@@ -585,7 +585,7 @@ isProbabilityMeasure_map : IsProbabilityMeasure μ → AEMeasurable f μ →
 -- Want: Pushforward each μ_ω along f
 
 -- Correct approach
-fun ω => (μ_ω ω).map f
+fun ω ↦ (μ_ω ω).map f
 
 -- Search with lean_leanfinder:
 -- "Measure.map pushforward measurable function"
@@ -594,14 +594,14 @@ fun ω => (μ_ω ω).map f
 
 ### 3. Kernel Measurability Proofs
 
-**Pattern:** Proving `Measurable (fun ω => κ ω s)` where `κ : Kernel α β`.
+**Pattern:** Proving `Measurable (fun ω ↦ κ ω s)` where `κ : Kernel α β`.
 
 ```lean
 -- Step 1: Recognize this is kernel evaluation at a set
-have : (fun ω => κ ω s) = fun ω => Kernel.eval κ s ω
+have : (fun ω ↦ κ ω s) = fun ω ↦ Kernel.eval κ s ω
 
 -- Step 2: Use Kernel.measurable_coe
-have : Measurable (fun a => κ a s) := Kernel.measurable_coe κ hs
+have : Measurable (fun a ↦ κ a s) := Kernel.measurable_coe κ hs
   -- where hs : MeasurableSet s
 ```
 
@@ -611,7 +611,7 @@ have : Measurable (fun a => κ a s) := Kernel.measurable_coe κ hs
 
 **API lemmas:**
 ```lean
-Kernel.measurable_coe : MeasurableSet s → Measurable (fun a => κ a s)
+Kernel.measurable_coe : MeasurableSet s → Measurable (fun a ↦ κ a s)
 ```
 
 ### 4. condExpKernel API Gaps
@@ -654,7 +654,7 @@ lean_leanfinder(query="Markov kernel conditional expectation")
 -- Different forms (not all recognized by API)
 if x ∈ B then 1 else 0           -- if-then-else
 Set.indicator B 1                 -- Set.indicator
-Set.indicator B (fun _ => 1)      -- Function form
+Set.indicator B (fun _ ↦ 1)      -- Function form
 (B.indicator 1) ∘ f               -- Composed
 ```
 
@@ -663,7 +663,7 @@ Set.indicator B (fun _ => 1)      -- Function form
 **Pattern:**
 ```lean
 -- Normalize to canonical form first
-have : (fun x => if x ∈ B then 1 else 0) = B.indicator 1 := by
+have : (fun x ↦ if x ∈ B then 1 else 0) = B.indicator 1 := by
   funext x; by_cases hx : x ∈ B <;> simp [hx, Set.indicator]
 
 -- Now apply integration lemma
