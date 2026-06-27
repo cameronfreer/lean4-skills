@@ -543,6 +543,52 @@ check_script_stderr_suppression() {
     ok "Lean script stderr suppression check done"
 }
 
+# Check 8c: Python helper invocations must use ${LEAN4_PYTHON_BIN:-python3}
+# rather than bare `python3`. The bootstrap hook persists LEAN4_PYTHON_BIN
+# (used by /lean4:disprove which requires Python 3.11+ for tomllib), so
+# docs that bypass it route the model around the operator's Python pin.
+# Closes issue #135.
+#
+# Regex anchors `python3` to a leading boundary (start of line, whitespace,
+# or a few shell metacharacters) so the `python3` inside parameter
+# expansion `${LEAN4_PYTHON_BIN:-python3}` does NOT match — its preceding
+# char is `-`, not in the boundary class.
+#
+# Skip rules (parallel to check_bare_scripts):
+#   - MIGRATION.md (historical doc)
+#   - lib/scripts/, tools/ (internals)
+#   - lines tagged with explicit anti-pattern markers so docs can still
+#     demonstrate the wrong form deliberately
+check_python_script_interpreters() {
+    log ""
+    log "Checking Python helper interpreter prefixes..."
+
+    local _pi_base _pi_line _pi_match _pi_trimmed _pi_found
+    _pi_found=0
+
+    while IFS= read -r file; do
+        _pi_base=$(basename "$file")
+        [[ "$_pi_base" == "MIGRATION.md" ]] && continue
+        case "$file" in
+            */lib/scripts/*|*/tools/*) continue ;;
+        esac
+
+        while IFS=: read -r _pi_line _pi_match; do
+            [[ -z "$_pi_line" ]] && continue
+            # Anti-pattern allow-list so deliberate bad examples don't trip.
+            if echo "$_pi_match" | grep -qiE '(Never|Do not|Wrong|Incorrect|anti.?pattern|forbidden|avoid)'; then
+                continue
+            fi
+            _pi_trimmed=$(echo "$_pi_match" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            warn "$_pi_base:$_pi_line: Python helper uses bare python3 — use \${LEAN4_PYTHON_BIN:-python3} prefix"
+            log "    matched: $_pi_trimmed"
+            _pi_found=1
+        done < <(grep -nE '(^|[[:space:]`;&|()])python3[[:space:]]+"?\$\{?LEAN4_SCRIPTS\}?/[A-Za-z0-9._/-]+\.py' "$file" 2>/dev/null || true)
+    done < <(find "$PLUGIN_ROOT" -name "*.md" -type f)
+
+    [[ $_pi_found -eq 0 ]] && ok "Python helper interpreter prefixes checked"
+}
+
 # Check 9: Deep-safety invariants in prove/autoprove/cycle-engine
 check_deep_safety() {
     log ""
@@ -1678,6 +1724,7 @@ check_stale_commands
 check_bare_scripts
 check_skill_omit_rule
 check_script_stderr_suppression
+check_python_script_interpreters
 check_deep_safety
 check_guardrail_docs
 check_guardrail_impl
