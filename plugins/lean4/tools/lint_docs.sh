@@ -589,6 +589,62 @@ check_python_script_interpreters() {
     [[ $_pi_found -eq 0 ]] && ok "Python helper interpreter prefixes checked"
 }
 
+# Check 8d: Mathlib style quick checklist surfaced in SKILL.md +
+# mathlib-style.md (issue #133). Three substring invariants:
+#   1. SKILL.md mentions `fun x ↦` (always-loaded lambda reminder).
+#   2. mathlib-style.md has a section "Style Conventions Generators
+#      Often Miss".
+#   3. That section mentions both `fun x ↦` AND `show P by tac`.
+#
+# Scope: this guards the ALWAYS-LOADED CHECKLIST SURFACE only. It
+# does NOT police the broader reference-file sweep — that policing
+# would be too noisy (legitimate metaprogramming/callback `=>`
+# usages exist in references). For new `fun ... =>` introductions
+# in unrelated files, rely on review.
+#
+# Guard strength is local/doctor only (same caveat as Check 8a from
+# #136 and Check 8c from #138). lint_docs.sh is not invoked in CI;
+# the only lint_docs check exercised in CI is 8c via test_lint_docs.sh.
+check_mathlib_style_lambda_guidance() {
+    log ""
+    log "Checking mathlib style checklist surfaced (issue #133)..."
+
+    local _ml_skill _ml_ref _ml_section
+    _ml_skill="$PLUGIN_ROOT/skills/lean4/SKILL.md"
+    _ml_ref="$PLUGIN_ROOT/skills/lean4/references/mathlib-style.md"
+    if [[ ! -f "$_ml_skill" ]]; then
+        warn "SKILL.md not found at $_ml_skill (cannot check mathlib style checklist)"
+        return
+    fi
+    if [[ ! -f "$_ml_ref" ]]; then
+        warn "mathlib-style.md not found at $_ml_ref (cannot check mathlib style checklist)"
+        return
+    fi
+    # 1. SKILL.md must mention `fun x ↦`.
+    if ! grep -qF 'fun x ↦' "$_ml_skill"; then
+        warn "SKILL.md: missing mathlib lambda style reminder ('fun x ↦' not present — see issue #133 and references/mathlib-style.md)"
+        return
+    fi
+    # 2. mathlib-style.md must have the section heading.
+    if ! grep -qF 'Style Conventions Generators Often Miss' "$_ml_ref"; then
+        warn "mathlib-style.md: missing 'Style Conventions Generators Often Miss' section — see issue #133"
+        return
+    fi
+    # 3. That section must mention both `fun x ↦` and `show P by tac`.
+    _ml_section=$(awk '
+        /^### .*Style Conventions Generators Often Miss/ {p=1; next}
+        p && /^### / {exit}
+        p && /^## / {exit}
+        p {print}
+    ' "$_ml_ref")
+    if ! grep -qF 'fun x ↦' <<<"$_ml_section" \
+       || ! grep -qF 'show P by tac' <<<"$_ml_section"; then
+        warn "mathlib-style.md 'Style Conventions Generators Often Miss': must mention both 'fun x ↦' and 'show P by tac' — see issue #133"
+        return
+    fi
+    ok "Mathlib style lambda/show checklist surfaced in SKILL.md + mathlib-style.md"
+}
+
 # Check 9: Deep-safety invariants in prove/autoprove/cycle-engine
 check_deep_safety() {
     log ""
@@ -1725,6 +1781,7 @@ check_bare_scripts
 check_skill_omit_rule
 check_script_stderr_suppression
 check_python_script_interpreters
+check_mathlib_style_lambda_guidance
 check_deep_safety
 check_guardrail_docs
 check_guardrail_impl
