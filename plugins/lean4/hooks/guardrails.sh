@@ -136,14 +136,21 @@ COLLAB_POLICY="${LEAN4_GUARDRAILS_COLLAB_POLICY:-}"
 PUSH_POLICY="${LEAN4_GUARDRAILS_PUSH_POLICY:-${COLLAB_POLICY:-host}}"
 PR_CREATE_POLICY="${LEAN4_GUARDRAILS_PR_CREATE_POLICY:-${COLLAB_POLICY:-host}}"
 AMEND_POLICY="${LEAN4_GUARDRAILS_AMEND_POLICY:-${COLLAB_POLICY:-host}}"
-# Validate each; invalid → fall back to `host` (the friendly default).
+# Validate each. Two distinct fallbacks:
+#   - UNSET vars already resolved to `host` (the friendly default) via the
+#     parameter-expansion chain above, before validation runs.
+#   - SET but invalid values (typos like `alow`, `bock`, `yolo`, or
+#     legitimate values that get corrupted in env propagation) fall back
+#     to `ask` — the safer choice. A typo shouldn't silently relax the
+#     plugin-level guardrail; it should ask. This means
+#     `LEAN4_GUARDRAILS_PUSH_POLICY=alow` blocks rather than allowing.
 # ${!_p} indirect expansion works on Bash 3.2+. Writing back the
 # validated value still uses eval since indirect *assignment* via the
 # same name isn't supported by `${!_p}=...` on Bash 3.2.
 for _p in PUSH_POLICY PR_CREATE_POLICY AMEND_POLICY; do
   case "${!_p}" in
     host|ask|allow|block) ;;
-    *) eval "$_p=host" ;;
+    *) eval "$_p=ask" ;;
   esac
 done
 unset _p

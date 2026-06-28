@@ -492,7 +492,7 @@ run_test_policy "block: reset --hard (still block)"     block "git reset --hard"
 
 echo ""
 echo "-- Collaboration policy: invalid/default --"
-run_test_policy "invalid: yolo push (falls back to host)" yolo "git push origin main"           0
+run_test_policy "invalid: yolo push (invalid → ask fallback, blocks)" yolo "git push origin main"           2
 run_test_policy "invalid: yolo bypass push (allow=ask)" yolo "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   0
 run_test_policy "unset: plain push (host default)"      ""   "git push origin main"           0
 run_test_policy "unset: bypass push (allow=ask)"        ""   "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   0
@@ -505,7 +505,8 @@ run_test_op_policy "PUSH_POLICY=ask: plain push (block)"          PUSH_POLICY as
 run_test_op_policy "PUSH_POLICY=ask: bypass push (allow)"         PUSH_POLICY ask   "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"  0
 run_test_op_policy "PUSH_POLICY=block: plain push (block)"        PUSH_POLICY block "git push origin main"     2
 run_test_op_policy "PUSH_POLICY=block: bypass push (still block)" PUSH_POLICY block "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"  2
-run_test_op_policy "PUSH_POLICY=yolo: plain push (host fallback)" PUSH_POLICY yolo  "git push origin main"     0
+run_test_op_policy "PUSH_POLICY=yolo: plain push (invalid → ask fallback, blocks)" PUSH_POLICY yolo  "git push origin main"     2
+run_test_op_policy "PUSH_POLICY=yolo: bypass push (invalid → ask + bypass, allows)" PUSH_POLICY yolo "LEAN4_GUARDRAILS_BYPASS=1 git push origin main" 0
 run_test_op_policy "PUSH_POLICY=host: push -u origin feat"        PUSH_POLICY host  "git push -u origin feat"  0
 run_test_op_policy "PUSH_POLICY=ask: push -u origin feat (block)" PUSH_POLICY ask   "git push -u origin feat"  2
 
