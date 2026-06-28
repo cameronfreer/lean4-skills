@@ -137,16 +137,16 @@ PUSH_POLICY="${LEAN4_GUARDRAILS_PUSH_POLICY:-${COLLAB_POLICY:-host}}"
 PR_CREATE_POLICY="${LEAN4_GUARDRAILS_PR_CREATE_POLICY:-${COLLAB_POLICY:-host}}"
 AMEND_POLICY="${LEAN4_GUARDRAILS_AMEND_POLICY:-${COLLAB_POLICY:-host}}"
 # Validate each; invalid → fall back to `host` (the friendly default).
-# Bash 3.2 doesn't support `${!_p}`-style indirect assignment universally,
-# so use eval to write back the validated value.
+# ${!_p} indirect expansion works on Bash 3.2+. Writing back the
+# validated value still uses eval since indirect *assignment* via the
+# same name isn't supported by `${!_p}=...` on Bash 3.2.
 for _p in PUSH_POLICY PR_CREATE_POLICY AMEND_POLICY; do
-  eval "_val=\$$_p"
-  case "$_val" in
+  case "${!_p}" in
     host|ask|allow|block) ;;
     *) eval "$_p=host" ;;
   esac
 done
-unset _p _val
+unset _p
 
 DESTRUCTIVE_POLICY="${LEAN4_GUARDRAILS_DESTRUCTIVE_POLICY:-ask}"
 case "$DESTRUCTIVE_POLICY" in
