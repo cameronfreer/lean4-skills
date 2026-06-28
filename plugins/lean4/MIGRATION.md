@@ -214,6 +214,14 @@ You can also mix: set `COLLAB_POLICY=ask` (everything blocks until
 bypass) but `LEAN4_GUARDRAILS_PUSH_POLICY=host` (only push delegates
 to Claude Code). Per-op vars always win for the op they cover.
 
+**Typo-safety:** an unset per-op var resolves to `host` (or the
+legacy `COLLAB_POLICY` value if you set one) via the fallback chain
+above. But an **explicitly invalid** value — e.g.
+`LEAN4_GUARDRAILS_PUSH_POLICY=alow` (typo of `allow`) — falls back
+to `ask`, not `host`. A typo shouldn't silently relax the plugin
+guardrail; the operation blocks until bypass so you notice and
+fix the value.
+
 ### Push variants hard-blocked (new tier-3, non-bypassable)
 
 Six push form families that previously fell through the soft-gate
