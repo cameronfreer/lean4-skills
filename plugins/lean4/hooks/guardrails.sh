@@ -516,6 +516,53 @@ _check_destructive_op() {
 
 # --- Collaboration ops (policy-controlled) ---
 
+# Tier-3 hard-blocks for push variants that aren't ordinary feature-branch
+# upstream pushes. These rewrite shared history (force / force-with-lease),
+# delete refs (--delete, -d, `<remote> :<ref>` legacy syntax), or wipe all
+# refs (--mirror). Non-bypassable, no policy override — matching the
+# `git reset --hard` / `git clean -f` posture. Escape hatch:
+# LEAN4_GUARDRAILS_DISABLE=1 for the specific command.
+#
+# Ordering: these run BEFORE the soft-gate _check_collab_op call below
+# so that PUSH_POLICY=allow cannot unlock them.
+#
+# Standard exemptions (--dry-run, stash push) apply to all of these
+# via the seg_match exemption arg.
+_push_exempt='\bstash\b.*\bpush\b|--dry-run\b'
+
+# `--force` / `-f` (plain force-push; rewrites remote history)
+if seg_match git '\bpush\b.*\s(-f|--force)(\s|$)' "$_push_exempt"; then
+  echo "BLOCKED (Lean guardrail): git push --force / -f rewrites shared history. Non-bypassable. Escape hatch: LEAN4_GUARDRAILS_DISABLE=1 for this command." >&2
+  exit 2
+fi
+
+# `--force-with-lease[=ref]` (safer force-push, but still history-rewriting)
+if seg_match git '\bpush\b.*\s--force-with-lease(=|\s|$)' "$_push_exempt"; then
+  echo "BLOCKED (Lean guardrail): git push --force-with-lease rewrites shared history. Non-bypassable. Escape hatch: LEAN4_GUARDRAILS_DISABLE=1 for this command." >&2
+  exit 2
+fi
+
+# `--mirror` (replicates all refs from local to remote — destructive on the remote)
+if seg_match git '\bpush\b.*\s--mirror(\s|$)' "$_push_exempt"; then
+  echo "BLOCKED (Lean guardrail): git push --mirror replicates all refs to the remote, deleting any not present locally. Non-bypassable. Escape hatch: LEAN4_GUARDRAILS_DISABLE=1 for this command." >&2
+  exit 2
+fi
+
+# `--delete` / `-d` (delete remote ref)
+if seg_match git '\bpush\b.*\s(--delete|-d)(\s|$)' "$_push_exempt"; then
+  echo "BLOCKED (Lean guardrail): git push --delete / -d removes a remote ref. Non-bypassable. Escape hatch: LEAN4_GUARDRAILS_DISABLE=1 for this command." >&2
+  exit 2
+fi
+
+# Legacy delete-ref syntax: `git push <remote> :<ref>` (the leading `:` on a
+# pathspec-shaped token, after `push`, means "delete the named ref").
+# Requires a non-empty ref name after `:` to avoid matching `:` as a literal
+# pathspec separator in other tokens.
+if seg_match git '\bpush\b.*\s:[A-Za-z0-9_./-]+(\s|$)' "$_push_exempt"; then
+  echo "BLOCKED (Lean guardrail): git push <remote> :<ref> (legacy ref-delete syntax) removes a remote ref. Non-bypassable. Use git push --delete to be explicit, or LEAN4_GUARDRAILS_DISABLE=1 for this command." >&2
+  exit 2
+fi
+
 # Block git push (not --dry-run, not stash push — exemptions scoped per-segment)
 if seg_match git '[[:space:]]push([[:space:]]|$)' '--dry-run\b|\bstash\b.*\bpush\b'; then
   _check_collab_op "git push" "use /lean4:checkpoint, then push manually" "$PUSH_POLICY"
