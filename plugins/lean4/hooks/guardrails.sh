@@ -83,37 +83,70 @@ BYPASS=0
 #                                 restore --staged <path>, etc. No gate.
 #
 #   2. SOFT-GATE (this section) — policy-controlled, bypass-token-able.
-#                                 Two independent vars cover the two
-#                                 risk categories:
-#                                   COLLAB_POLICY: push, amend, pr create
-#                                     (affects shared state, reversible
-#                                     via force-push / amend back / PR close)
-#                                   DESTRUCTIVE_POLICY: checkout -- <path…>,
-#                                     restore <path…>
-#                                     (path-scoped local data loss — one
-#                                     file, multiple files, a directory,
-#                                     or any explicit pathset; smaller
-#                                     blast radius than whole-worktree
-#                                     wipes which use `.` / `./` / `:/`)
+#                                 Per-op collab policies (v4.5.2+):
+#                                   PUSH_POLICY:       git push
+#                                   AMEND_POLICY:      git commit --amend
+#                                   PR_CREATE_POLICY:  gh pr create
+#                                 plus DESTRUCTIVE_POLICY for path-scoped
+#                                 local data loss (checkout -- <path>,
+#                                 restore <path>; smaller blast radius
+#                                 than whole-worktree wipes `.` / `:/`).
+#
+#                                 Back-compat: legacy
+#                                 LEAN4_GUARDRAILS_COLLAB_POLICY is
+#                                 honored as the fallback for any per-op
+#                                 collab policy that isn't explicitly
+#                                 set (so users who set
+#                                 COLLAB_POLICY=allow / =block keep
+#                                 their existing semantics).
 #
 #   3. HARD-BLOCK (below)       — non-bypassable, no policy override.
 #                                 reset --hard, clean -f/-fd/-fdx,
-#                                 checkout ., restore ., checkout -- .
-#                                 The blast radius is unbounded and
-#                                 git reflog can't recover uncommitted
-#                                 edits (and can't recover untracked
-#                                 files via clean -f at all).
+#                                 checkout ., restore ., checkout -- .,
+#                                 AND (v4.5.2+) push --force /
+#                                 --force-with-lease / --mirror /
+#                                 --delete / `<remote> :<ref>` ref-delete
+#                                 syntax. Blast radius is unbounded; for
+#                                 force-push it's shared-history rewrite
+#                                 (not just local). Escape hatch:
+#                                 LEAN4_GUARDRAILS_DISABLE=1 for that
+#                                 specific command.
 #
-# Each soft-gate policy independently accepts ask | allow | block:
-#   ask:   require human confirmation via one-shot bypass token (default)
-#   allow: permit without bypass token (user explicitly opted in)
-#   block: block even with bypass token (extra paranoia)
+# Each soft-gate policy independently accepts host | ask | allow | block:
+#   host:  exit 0 — defer to Claude Code's native Bash permission rule
+#          (recommended default; lets Claude Code "ask once, remember").
+#   ask:   require human confirmation via one-shot bypass token.
+#   allow: permit without bypass token (user explicitly opted in).
+#   block: block even with bypass token (extra paranoia).
 
-COLLAB_POLICY="${LEAN4_GUARDRAILS_COLLAB_POLICY:-ask}"
-case "$COLLAB_POLICY" in
-  ask|allow|block) ;;
-  *) COLLAB_POLICY="ask" ;;
-esac
+## Per-op collab policies (v4.5.2+).
+#
+# Each soft-gated collaboration op (push, --amend, gh pr create) has its
+# own policy var, accepting `host` | `ask` | `allow` | `block`. Defaults
+# are `host`, which means the hook exits 0 and Claude Code's native
+# `Bash(...)` permission rule handles the "ask once, remember" UX
+# instead of the hook fighting it with exit-2 + bypass-token retries.
+#
+# Back-compat: LEAN4_GUARDRAILS_COLLAB_POLICY (the legacy bundled var)
+# is honored as the fallback for any per-op policy that isn't explicitly
+# set. So users who already configured COLLAB_POLICY=allow / =block keep
+# their existing semantics on the soft-gate path; new users get the
+# `host` default automatically.
+COLLAB_POLICY="${LEAN4_GUARDRAILS_COLLAB_POLICY:-}"
+PUSH_POLICY="${LEAN4_GUARDRAILS_PUSH_POLICY:-${COLLAB_POLICY:-host}}"
+PR_CREATE_POLICY="${LEAN4_GUARDRAILS_PR_CREATE_POLICY:-${COLLAB_POLICY:-host}}"
+AMEND_POLICY="${LEAN4_GUARDRAILS_AMEND_POLICY:-${COLLAB_POLICY:-host}}"
+# Validate each; invalid → fall back to `host` (the friendly default).
+# Bash 3.2 doesn't support `${!_p}`-style indirect assignment universally,
+# so use eval to write back the validated value.
+for _p in PUSH_POLICY PR_CREATE_POLICY AMEND_POLICY; do
+  eval "_val=\$$_p"
+  case "$_val" in
+    host|ask|allow|block) ;;
+    *) eval "$_p=host" ;;
+  esac
+done
+unset _p _val
 
 DESTRUCTIVE_POLICY="${LEAN4_GUARDRAILS_DESTRUCTIVE_POLICY:-ask}"
 case "$DESTRUCTIVE_POLICY" in
@@ -418,16 +451,16 @@ done
 # $1 = short label (e.g. "git push")
 # $2 = user-facing message suffix
 _check_collab_op() {
-  local label="$1" msg="$2"
-  case "$COLLAB_POLICY" in
-    allow) return 0 ;;
+  local label="$1" msg="$2" policy_value="$3"
+  case "$policy_value" in
+    host|allow) return 0 ;;          # exit 0 — host: let Claude Code decide; allow: just pass.
     block)
-      echo "BLOCKED (Lean guardrail): $label - $msg [collab_policy=block]" >&2
+      echo "BLOCKED (Lean guardrail): $label - $msg [policy=block]" >&2
       exit 2
       ;;
-    *)  # ask (default): confirmation-gated; bypass is the one-time confirmed rerun path
+    *)  # ask: bypass-token-gated. Same UX as v4.5.1: confirm then rerun with the bypass prefix.
       if [[ $BYPASS -ne 1 ]]; then
-        echo "BLOCKED (Lean guardrail): $label - $msg [collab_policy=ask, confirm then rerun]" >&2
+        echo "BLOCKED (Lean guardrail): $label - $msg [policy=ask, confirm then rerun]" >&2
         echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
         exit 2
       fi
@@ -485,17 +518,17 @@ _check_destructive_op() {
 
 # Block git push (not --dry-run, not stash push — exemptions scoped per-segment)
 if seg_match git '[[:space:]]push([[:space:]]|$)' '--dry-run\b|\bstash\b.*\bpush\b'; then
-  _check_collab_op "git push" "use /lean4:checkpoint, then push manually"
+  _check_collab_op "git push" "use /lean4:checkpoint, then push manually" "$PUSH_POLICY"
 fi
 
 # Block git commit --amend
 if seg_match git '\bcommit\b.*--amend\b'; then
-  _check_collab_op "git commit --amend" "proving workflow creates new commits for safe rollback"
+  _check_collab_op "git commit --amend" "proving workflow creates new commits for safe rollback" "$AMEND_POLICY"
 fi
 
 # Block gh pr create
 if seg_match gh '\bpr\b.*\bcreate\b'; then
-  _check_collab_op "gh pr create" "review first, then create PR manually"
+  _check_collab_op "gh pr create" "review first, then create PR manually" "$PR_CREATE_POLICY"
 fi
 
 # ---------------------------------------------------------------------------

@@ -11,11 +11,18 @@ PASS=0
 FAIL=0
 
 # Run a test case.  $1=description  $2=command  $3=expected exit code (0 or 2)
+#
+# Pins LEAN4_GUARDRAILS_COLLAB_POLICY=ask so the legacy soft-gate
+# behavior (block until bypass) is the test baseline. Without this,
+# the v4.5.2 default of `host` (exit 0; let Claude Code ask) would
+# make every collab-op test trivially pass with the wrong intent.
+# Per-op policy tests (run_test_policy, run_test_op_policy) override
+# this on a per-call basis.
 run_test() {
   local desc="$1" cmd="$2" expected="$3" actual
   actual=0
   echo "{\"tool_input\":{\"command\":$(printf '%s' "$cmd" | jq -Rs .)}}" \
-    | LEAN4_GUARDRAILS_FORCE=1 bash "$HOOK" >/dev/null 2>&1 || actual=$?
+    | LEAN4_GUARDRAILS_FORCE=1 LEAN4_GUARDRAILS_COLLAB_POLICY=ask bash "$HOOK" >/dev/null 2>&1 || actual=$?
   if [[ "$actual" -eq "$expected" ]]; then
     echo "  PASS: $desc"
     (( ++PASS ))
@@ -420,7 +427,7 @@ run_test_destructive_policy "bypass git clean -fd             (still block)" all
 echo ""
 echo "-- Policy independence: COLLAB and DESTRUCTIVE govern separately --"
 # DESTRUCTIVE_POLICY=allow doesn't unblock collab ops; COLLAB_POLICY=allow doesn't unblock destructive ops.
-run_test_destructive_policy "allow: git push (still block — collab governs)" allow "git push origin main"                              2
+run_test_destructive_policy "allow: git push (collab default host → allow)" allow "git push origin main"                              0
 run_test_policy "allow: checkout -- file (still block — destructive governs)" allow "git checkout -- file.lean"                       2
 run_test_policy "allow: restore file (still block — destructive governs)"    allow "git restore file.lean"                            2
 
@@ -459,9 +466,9 @@ run_test_policy "block: reset --hard (still block)"     block "git reset --hard"
 
 echo ""
 echo "-- Collaboration policy: invalid/default --"
-run_test_policy "invalid: yolo push (block=ask)"        yolo "git push origin main"           2
+run_test_policy "invalid: yolo push (falls back to host)" yolo "git push origin main"           0
 run_test_policy "invalid: yolo bypass push (allow=ask)" yolo "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   0
-run_test_policy "unset: plain push (block=ask)"         ""   "git push origin main"           2
+run_test_policy "unset: plain push (host default)"      ""   "git push origin main"           0
 run_test_policy "unset: bypass push (allow=ask)"        ""   "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   0
 
 echo ""
