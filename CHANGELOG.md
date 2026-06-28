@@ -1,5 +1,26 @@
 # Changelog
 
+## v4.5.2 (June 2026)
+
+Collab-policy redesign so the hook stops fighting Claude Code's native permission UX, plus three folded-in docs/lint hardening PRs that landed on `main` after v4.5.1 without their own version bump.
+
+### `guardrails.sh` collab-policy refactor (primary)
+
+- Adds a new `host` policy mode meaning "exit 0 — defer to Claude Code's native `Bash(...)` permission rule" so ordinary `git push` no longer requires the exit-2 + `LEAN4_GUARDRAILS_BYPASS=1` retry dance.
+- Splits the single `LEAN4_GUARDRAILS_COLLAB_POLICY` knob into three per-op env vars: `LEAN4_GUARDRAILS_PUSH_POLICY`, `LEAN4_GUARDRAILS_AMEND_POLICY`, `LEAN4_GUARDRAILS_PR_CREATE_POLICY`. Each accepts `host` | `ask` | `allow` | `block`; default is `host`.
+- **Back-compat preserved:** `LEAN4_GUARDRAILS_COLLAB_POLICY` continues to be honored as the fallback for any per-op policy that isn't explicitly set. Users who already configured `COLLAB_POLICY=allow` / `=block` / `=ask` in their settings keep the v4.5.1 semantics on the soft-gate path.
+- **Push variants now tier-3 hard-blocked, non-bypassable** (matching `git reset --hard` posture): `--force` / `-f`, `--force-with-lease[=…]`, `--mirror`, `--delete` / `-d`, legacy `<remote> :<ref>` ref-delete syntax. Each emits a distinct BLOCKED message naming the variant. Per-command escape hatch: `LEAN4_GUARDRAILS_DISABLE=1 git push --force …`. `--dry-run` and `git stash push` remain exempted from all push gates.
+- Recommended pairing in `.claude/settings.local.json`: `"permissions": { "ask": ["Bash(git push *)", "Bash(gh pr create *)", "Bash(git commit --amend *)"] }` — Claude Code's native "ask once, remember" UI then owns the consent, with the hook only intervening on the dangerous variants.
+- See [MIGRATION.md § V4.5.1 → V4.5.2](plugins/lean4/MIGRATION.md#v451--v452) for the migration walkthrough.
+
+### Folded-in PRs (previously merged without version bumps)
+
+Three previously-merged PRs landed on `main` after the v4.5.1 release without their own CHANGELOG entries (each was scoped "no version bump" at the time). They're folded into v4.5.2 here so future archeology against `git log` reads cleanly:
+
+- **#137 (closes #136): `docs(skill): teach the omit [Inst] in ordering rule + lint guard`** — the always-loaded `SKILL.md` Type Class Patterns section now teaches that `omit [Inst] in` must appear **before** the declaration docstring (placing it between docstring and `lemma`/`theorem` is a parse error). Plus a new `lint_docs.sh` Check 8a (`check_skill_omit_rule`) regression guard.
+- **#138 (closes #135): `lint(docs): Check 8c — Python helpers must use ${LEAN4_PYTHON_BIN:-python3}`** — new Check 8c in `lint_docs.sh` flags bare `python3 "$LEAN4_SCRIPTS/<script>.py"` invocations and requires the `${LEAN4_PYTHON_BIN:-python3}` prefix so docs respect the operator's Python pin. Fixes 4 stale `compiler-guided-repair.md` invocations and ships `tests/test_lint_docs.sh` (a plant-in-real-tree self-test) wired into the `bash3-compat` CI workflow.
+- **#139 (closes #133): `docs(style): mathlib lambda + show conventions checklist + reference sweep`** — `SKILL.md` mathlib style quick-check (use `fun x ↦` for ordinary lambdas, reserve `=>` for `match`/`do` branches and metaprogramming callbacks; prefer `show P by tac` over `show P from by tac`). New `### 9. Style Conventions Generators Often Miss` section in `mathlib-style.md` with concrete ❌/✅ worked examples. ~80-line `fun ... =>` → `↦` sweep across 11 reference files (callback/elaborator contexts intentionally left alone). Plus `lint_docs.sh` Check 8d (`check_mathlib_style_lambda_guidance`) regression guard on the always-loaded checklist surface.
+
 ## v4.5.1 (June 2026)
 
 Adds prefixed `bin/` wrappers for model-facing scripts (closes #117). Claude Code's plugin loader appends `plugins/lean4/bin/` to the Bash tool's `PATH`, so wrappers like `lean4-skills-cycle-tracker` resolve as bare commands and become statically allowlistable as `Bash(lean4-skills-cycle-tracker:*)` — eliminating the per-invocation permission prompts that issue #117 reported on every `$LEAN4_SCRIPTS/...` call.
