@@ -782,9 +782,10 @@ check_guardrail_impl() {
     if ! grep -q 'LEAN4_GUARDRAILS_COLLAB_POLICY' "$_gi_file" 2>/dev/null; then
         warn "guardrails.sh: Missing LEAN4_GUARDRAILS_COLLAB_POLICY support"
     fi
-    # Invalid policy must fall back to ask (the *) default case)
-    if ! grep -qE 'COLLAB_POLICY="ask"' "$_gi_file" 2>/dev/null; then
-        warn "guardrails.sh: Missing invalid-policy fallback to ask"
+    # Per-op policies (v4.5.2+) must fall back to `host` on invalid values.
+    # The fallback line is the `eval "$_p=host"` inside the validation loop.
+    if ! grep -qE 'eval "\$_p=host"' "$_gi_file" 2>/dev/null; then
+        warn "guardrails.sh: Missing invalid-policy fallback to host for per-op collab policies"
     fi
     # At least 1 bypass hint in collaboration helper
     local _gi_hint_count

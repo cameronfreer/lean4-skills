@@ -178,6 +178,80 @@ Both `lib/scripts/` and `scripts/` (compat alias) resolve to the same directory.
 
 Run `/lean4:doctor` for full diagnostics.
 
+## V4.5.1 → V4.5.2
+
+**Collab policy split + `host` mode default.** The single
+`LEAN4_GUARDRAILS_COLLAB_POLICY` knob is replaced by three per-op
+policies, each with a new `host` value that defers to Claude Code's
+native `Bash(...)` permission rule (`allow`/`ask`/`deny`). The default
+for each per-op policy is `host`, which stops the hook from blocking
+ordinary `git push` with `exit 2` + bypass-token retries — Claude
+Code's permission layer handles consent natively (including
+"ask once, remember" UX).
+
+### Env var changes
+
+| Old (v4.5.1) | New (v4.5.2+) |
+|---|---|
+| `LEAN4_GUARDRAILS_COLLAB_POLICY=ask` (default) | Per-op default: `host` (each of PUSH/AMEND/PR_CREATE) |
+| Single knob for push + amend + pr-create | `LEAN4_GUARDRAILS_PUSH_POLICY`, `LEAN4_GUARDRAILS_AMEND_POLICY`, `LEAN4_GUARDRAILS_PR_CREATE_POLICY` (each `host` \| `ask` \| `allow` \| `block`) |
+
+### Back-compat: no action needed if you set `COLLAB_POLICY`
+
+The legacy `LEAN4_GUARDRAILS_COLLAB_POLICY` var is honored as the
+fallback for any per-op policy you haven't explicitly set. So:
+
+- If you set `COLLAB_POLICY=allow` in your settings, all three
+  ops continue to soft-gate with `allow` semantics (unchanged).
+- If you set `COLLAB_POLICY=block`, same (unchanged).
+- If you set `COLLAB_POLICY=ask` explicitly, push/amend/pr-create
+  continue to block-until-bypass (unchanged).
+- If you didn't set `COLLAB_POLICY` and relied on its `ask` default,
+  **your default is now `host`**. To preserve the old behavior,
+  add `LEAN4_GUARDRAILS_COLLAB_POLICY=ask` to your settings.
+
+You can also mix: set `COLLAB_POLICY=ask` (everything blocks until
+bypass) but `LEAN4_GUARDRAILS_PUSH_POLICY=host` (only push delegates
+to Claude Code). Per-op vars always win for the op they cover.
+
+### Push variants hard-blocked (new tier-3, non-bypassable)
+
+Five push forms that previously fell through the soft-gate are now
+hard-blocked regardless of `PUSH_POLICY` — same posture as
+`git reset --hard`:
+
+- `git push --force` / `-f`
+- `git push --force-with-lease[=<ref>]`
+- `git push --mirror`
+- `git push --delete` / `-d <ref>`
+- `git push <remote> :<ref>` (legacy ref-delete syntax)
+
+Escape hatch: `LEAN4_GUARDRAILS_DISABLE=1 git push --force ...` for
+the specific command. `--dry-run` and `git stash push` remain
+exempted from all push gates (unchanged).
+
+### Recommended `.claude/settings.local.json`
+
+With `host` as the default, you'll want to tell Claude Code to
+`ask` before push and pr-create (otherwise the model could push
+without any prompt):
+
+```json
+{
+  "permissions": {
+    "ask": [
+      "Bash(git push *)",
+      "Bash(gh pr create *)",
+      "Bash(git commit --amend *)"
+    ]
+  }
+}
+```
+
+Claude Code then handles "ask once, remember" via its native
+permission UI — typically a per-session approval that doesn't
+re-prompt on subsequent invocations.
+
 ## V4.4.0 → V4.4.1
 
 **Proof-editing agents renamed** to drop the `lean4-` prefix, fixing the dispatch name stutter.

@@ -208,8 +208,11 @@ Guarded during Lean project sessions (policy/tier details below):
 |----------|--------|
 | `LEAN4_GUARDRAILS_DISABLE=1` | Skip all guardrails regardless of context |
 | `LEAN4_GUARDRAILS_FORCE=1` | Enforce guardrails even outside Lean projects |
-| `LEAN4_GUARDRAILS_COLLAB_POLICY` | Collaboration op policy: `ask` (default), `allow`, `block` |
+| `LEAN4_GUARDRAILS_PUSH_POLICY` | `git push` policy: `host` (default), `ask`, `allow`, `block` |
+| `LEAN4_GUARDRAILS_AMEND_POLICY` | `git commit --amend` policy: `host` (default), `ask`, `allow`, `block` |
+| `LEAN4_GUARDRAILS_PR_CREATE_POLICY` | `gh pr create` policy: `host` (default), `ask`, `allow`, `block` |
 | `LEAN4_GUARDRAILS_DESTRUCTIVE_POLICY` | Path-scoped destructive op policy: `ask` (default), `allow`, `block` |
+| `LEAN4_GUARDRAILS_COLLAB_POLICY` | **Legacy** fallback for any unset per-op collab policy above (pre-v4.5.2 single-knob var, kept for back-compat) |
 
 `LEAN4_GUARDRAILS_DISABLE` overrides everything. `LEAN4_GUARDRAILS_FORCE` controls whether guardrails activate outside Lean projects.
 
@@ -219,15 +222,43 @@ Git operations fall into **three tiers**:
 2. **Soft-gate** (policy-controlled, bypass-able): collaboration ops + path-scoped destructive ops. See subsections below.
 3. **Hard-block** (absolute, never bypassable): `git reset --hard`, `git clean -f`/`-fd`/`-fdx`, plus the whole-worktree, opaque-pathspec, force-branch, and interactive-sweep variants — `git checkout .`/`./`/`-- .`/`-- ./`/`-- :/`/`HEAD -- .`/`-f .`/`--ours .`/`--theirs :/`, `git checkout --pathspec-from-file=…`, `git checkout -f|--force <branch-or-ref>` (incl. ref shorthand `@{-1}`, `-`, `@`, `HEAD~3`, `HEAD@{1}`), `git checkout -p`/`--patch` with no path positional (interactive whole-worktree sweep, bypassable by piped stdin), `git restore .`/`./`/`:/`, `git restore --staged --worktree` (incl. `-SW` short-flag bundle), `git restore --pathspec-from-file=…` (non-staged), `git switch -f|--force|--discard-changes <anything>`. These wipe state across the whole worktree (or untracked files), discard uncommitted edits during branch switching, sweep modified files interactively from an opaque stdin source, or accept opaque path lists the guardrail can't inspect; reflog can't recover uncommitted edits and `clean -f` can't recover untracked files at all.
 
-**Collaboration policy (`LEAN4_GUARDRAILS_COLLAB_POLICY`):**
+**Collaboration policies (per-op, v4.5.2+):**
 
-Controls how collaboration ops (`git push`, `git commit --amend`, `gh pr create`) — operations that affect shared state — are handled:
+Three independent env vars, one per collaboration op — `LEAN4_GUARDRAILS_PUSH_POLICY`, `LEAN4_GUARDRAILS_AMEND_POLICY`, `LEAN4_GUARDRAILS_PR_CREATE_POLICY` — each accepting:
 
-- **`ask`** (default) — block unless a one-shot bypass token is present. The hook is non-interactive; in `ask` mode the assistant asks you yes/no, then reruns the command with the bypass token once.
-- **`allow`** — permit collaboration ops without a bypass token.
-- **`block`** — block collaboration ops unconditionally, even with a bypass token.
+- **`host`** (default) — exit 0; let Claude Code's native `Bash(...)` permission rule ask the user. This stops the hook from fighting Claude Code's own "ask once, remember" UX with exit-2 + bypass-token retries. Recommended pairing in `.claude/settings.local.json`:
 
-Invalid values fall back to `ask`.
+  ```json
+  {
+    "permissions": {
+      "ask": [
+        "Bash(git push *)",
+        "Bash(gh pr create *)",
+        "Bash(git commit --amend *)"
+      ]
+    }
+  }
+  ```
+
+  Claude Code will then prompt once per command (or per session, depending on the user's "remember" choice), and the hook stays out of the way.
+
+- **`ask`** — block unless a one-shot bypass token is present. The hook is non-interactive; in `ask` mode the assistant asks you yes/no, then reruns the command with `LEAN4_GUARDRAILS_BYPASS=1` once. This is the pre-v4.5.2 default behavior.
+- **`allow`** — permit the op without a bypass token.
+- **`block`** — block the op unconditionally, even with a bypass token.
+
+Invalid values fall back to `host`.
+
+**Back-compat:** the legacy `LEAN4_GUARDRAILS_COLLAB_POLICY` var (pre-v4.5.2, single knob for all three ops) is honored as the fallback for any per-op policy that isn't explicitly set. So users who set `COLLAB_POLICY=allow` or `COLLAB_POLICY=block` in their settings keep their existing soft-gate semantics on all three ops; users who don't set it get the new `host` default on each. Setting both `COLLAB_POLICY` and a per-op var means the per-op var wins for that op.
+
+**Push variants hard-blocked (tier 3, non-bypassable):** the following push forms rewrite shared history, delete refs, or replicate-and-delete all refs, and are blocked regardless of `PUSH_POLICY` — same posture as `git reset --hard`:
+
+- `git push --force` / `-f`
+- `git push --force-with-lease[=<ref>]`
+- `git push --mirror`
+- `git push --delete` / `-d <ref>`
+- `git push <remote> :<ref>` (legacy delete-ref syntax)
+
+Escape hatch for these: `LEAN4_GUARDRAILS_DISABLE=1 git push --force ...` for the specific command.
 
 **Destructive policy (`LEAN4_GUARDRAILS_DESTRUCTIVE_POLICY`):**
 
@@ -249,7 +280,7 @@ Controls how **path-scoped** destructive ops are handled. The covered forms (eac
 
 Invalid values fall back to `ask`. Whole-worktree destructive variants (tier 3 above) are independent of this policy and **always block** regardless of its value or the bypass token.
 
-The two policies are independent: `DESTRUCTIVE_POLICY=allow` does not unblock collab ops, and `COLLAB_POLICY=allow` does not unblock path-scoped destructive ops.
+The collab and destructive policies are independent: `DESTRUCTIVE_POLICY=allow` does not unblock collab ops, and any of the collab `*_POLICY=allow` settings (or legacy `COLLAB_POLICY=allow`) do not unblock path-scoped destructive ops.
 
 **One-shot bypass (soft-gated ops):**
 
@@ -295,7 +326,10 @@ Optional user overrides (not set by bootstrap):
 |----------|---------|
 | `LEAN4_GUARDRAILS_DISABLE` | Skip all guardrails (set to `1`) |
 | `LEAN4_GUARDRAILS_FORCE` | Force guardrails outside Lean projects (set to `1`) |
-| `LEAN4_GUARDRAILS_COLLAB_POLICY` | Collaboration op policy: `ask`, `allow`, `block` |
+| `LEAN4_GUARDRAILS_PUSH_POLICY` | `git push` policy: `host` (default), `ask`, `allow`, `block` |
+| `LEAN4_GUARDRAILS_AMEND_POLICY` | `git commit --amend` policy: `host` (default), `ask`, `allow`, `block` |
+| `LEAN4_GUARDRAILS_PR_CREATE_POLICY` | `gh pr create` policy: `host` (default), `ask`, `allow`, `block` |
+| `LEAN4_GUARDRAILS_COLLAB_POLICY` | Legacy fallback for unset per-op collab policies (kept for back-compat) |
 
 **Script troubleshooting:**
 ```bash
