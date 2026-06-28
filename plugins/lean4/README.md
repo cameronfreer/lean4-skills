@@ -252,13 +252,16 @@ Invalid values fall back to `host`.
 
 **Push variants hard-blocked (tier 3, non-bypassable):** the following push forms rewrite shared history, delete refs, or replicate-and-delete all refs, and are blocked regardless of `PUSH_POLICY` — same posture as `git reset --hard`:
 
-- `git push --force` / `-f`
+- `git push --force` / `-f`, plus any bundled short-flag run containing `f` (e.g. `git push -fu origin main`, `-uf`, `-vfu`, `-fnq`)
 - `git push --force-with-lease[=<ref>]`
 - `git push --mirror`
-- `git push --delete` / `-d <ref>`
+- `git push --delete <ref>` / `-d <ref>`, plus any bundled short-flag run containing `d` (e.g. `git push -dn origin feat`, `-nd`, `-vd`)
 - `git push <remote> :<ref>` (legacy delete-ref syntax)
+- `git push <remote> +<refspec>` (leading-`+` force-refspec; e.g. `+HEAD:main`, `+main`, `+src:dst`)
 
 Escape hatch for these: `LEAN4_GUARDRAILS_DISABLE=1 git push --force ...` for the specific command.
+
+Note on bundled `-n`: the long form `--dry-run` exempts every push hard-block check (back-compat with v4.5.1), but the bundled short form `-n` inside a `-fn` / `-dn` etc. run does **not** exempt — bundled-force-with-dry-run signals force intent the hook flags regardless. To dry-run a force, use `git push --force --dry-run` (long forms).
 
 **Destructive policy (`LEAN4_GUARDRAILS_DESTRUCTIVE_POLICY`):**
 

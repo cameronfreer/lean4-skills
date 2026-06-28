@@ -216,19 +216,23 @@ to Claude Code). Per-op vars always win for the op they cover.
 
 ### Push variants hard-blocked (new tier-3, non-bypassable)
 
-Five push forms that previously fell through the soft-gate are now
-hard-blocked regardless of `PUSH_POLICY` — same posture as
+Six push form families that previously fell through the soft-gate
+are now hard-blocked regardless of `PUSH_POLICY` — same posture as
 `git reset --hard`:
 
-- `git push --force` / `-f`
+- `git push --force` / `-f`, plus bundled short-flag runs containing `f` (`-fu`, `-uf`, `-vfu`, `-fnq`)
 - `git push --force-with-lease[=<ref>]`
 - `git push --mirror`
-- `git push --delete` / `-d <ref>`
+- `git push --delete <ref>` / `-d <ref>`, plus bundled short-flag runs containing `d` (`-dn`, `-nd`, `-vd`)
 - `git push <remote> :<ref>` (legacy ref-delete syntax)
+- `git push <remote> +<refspec>` (leading-`+` force-refspec — e.g. `+HEAD:main`, `+main`, `+src:dst`)
 
 Escape hatch: `LEAN4_GUARDRAILS_DISABLE=1 git push --force ...` for
-the specific command. `--dry-run` and `git stash push` remain
-exempted from all push gates (unchanged).
+the specific command. `--dry-run` (long form) and `git stash push`
+remain exempted from all push gates (unchanged). The bundled short
+form `-n` inside a `-fn` / `-dn` etc. run does **not** exempt — the
+bundled-force-with-dry-run signals force intent. Use the long forms
+(`git push --force --dry-run`) for an actual dry-run-force.
 
 ### Recommended `.claude/settings.local.json`
 

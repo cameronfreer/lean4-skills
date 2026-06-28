@@ -569,6 +569,36 @@ run_test_op_policy "PUSH_POLICY=allow: push --dry-run (exempt)"        PUSH_POLI
 run_test_op_policy "PUSH_POLICY=allow: push --tags (not force)"        PUSH_POLICY allow "git push --tags origin main"    0
 
 echo ""
+echo "-- Bundled short flags and +-refspec push hard-blocks --"
+# Bundled -f short flags: -fu, -uf, -vfu, etc. — any single-dash run containing `f`.
+run_test "git push -fu origin main                (always block)" "git push -fu origin main"                  2
+run_test "git push -uf origin main                (always block)" "git push -uf origin main"                  2
+run_test "git push -vfu origin main               (always block)" "git push -vfu origin main"                 2
+run_test "git push -fnq origin main               (always block, bundled -n doesn't exempt)" "git push -fnq origin main" 2
+# Bundled -d short flags: -dn, -nd, -vd, etc.
+run_test "git push -dn origin feat                (always block)" "git push -dn origin feat"                  2
+run_test "git push -nd origin feat                (always block)" "git push -nd origin feat"                  2
+run_test "git push -vd origin feat                (always block)" "git push -vd origin feat"                  2
+# Leading-+ force-refspec: +HEAD:main, +main, +src:dst.
+run_test "git push origin +HEAD:main              (always block)" "git push origin +HEAD:main"                2
+run_test "git push origin +main                   (always block)" "git push origin +main"                     2
+run_test "git push origin +refs/heads/feat:refs/heads/main (always block)" "git push origin +refs/heads/feat:refs/heads/main" 2
+# Non-bypassable even with PUSH_POLICY=allow + bypass.
+run_test_op_policy "PUSH_POLICY=allow: -fu still blocks" PUSH_POLICY allow "git push -fu origin main"   2
+run_test_op_policy "PUSH_POLICY=allow: -dn still blocks" PUSH_POLICY allow "git push -dn origin feat"   2
+run_test_op_policy "PUSH_POLICY=allow: +HEAD:main still blocks" PUSH_POLICY allow "git push origin +HEAD:main" 2
+run_test "bypass git push -fu origin main         (still block)" "LEAN4_GUARDRAILS_BYPASS=1 git push -fu origin main" 2
+run_test "bypass git push origin +main            (still block)" "LEAN4_GUARDRAILS_BYPASS=1 git push origin +main"   2
+# Negative controls: ordinary short-flag bundles without f/d must NOT hard-block.
+run_test_op_policy "PUSH_POLICY=allow: -uv (verbose+upstream)"  PUSH_POLICY allow "git push -uv origin feat"  0
+run_test_op_policy "PUSH_POLICY=allow: -uvq (multi non-force)"  PUSH_POLICY allow "git push -uvq origin feat" 0
+run_test_op_policy "PUSH_POLICY=allow: -n alone (dry-run)"      PUSH_POLICY allow "git push -n origin main"   0
+# Negative control: colon refspec WITHOUT leading + must NOT match the +-refspec regex.
+run_test_op_policy "PUSH_POLICY=allow: src:dst refspec (no +)"  PUSH_POLICY allow "git push origin main:feat" 0
+# Negative control: --dry-run with long-form force does exempt (back-compat).
+run_test_op_policy "PUSH_POLICY=allow: --force --dry-run (exempt)" PUSH_POLICY allow "git push --force --dry-run origin main" 0
+
+echo ""
 echo "-- Lean script stderr-suppression detector: \$LEAN4_SCRIPTS paths --"
 run_test "\$LEAN4_SCRIPTS/cycle_tracker.sh 2>/dev/null (block)"  'bash "$LEAN4_SCRIPTS/cycle_tracker.sh" tick 2>/dev/null'    2
 run_test "\${LEAN4_SCRIPTS}/sorry_analyzer.py 2>/dev/null (block)" 'python3 "${LEAN4_SCRIPTS}/sorry_analyzer.py" . 2>/dev/null' 2

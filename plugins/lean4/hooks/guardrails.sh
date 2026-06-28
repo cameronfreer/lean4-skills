@@ -530,9 +530,18 @@ _check_destructive_op() {
 # via the seg_match exemption arg.
 _push_exempt='\bstash\b.*\bpush\b|--dry-run\b'
 
-# `--force` / `-f` (plain force-push; rewrites remote history)
-if seg_match git '\bpush\b.*\s(-f|--force)(\s|$)' "$_push_exempt"; then
-  echo "BLOCKED (Lean guardrail): git push --force / -f rewrites shared history. Non-bypassable. Escape hatch: LEAN4_GUARDRAILS_DISABLE=1 for this command." >&2
+# `--force` / `-f`, bundled `-...f...` (plain force-push; rewrites remote history).
+# Bundle detection: a single-dash short-option run containing `f` anywhere
+# (e.g. `-fu`, `-uf`, `-vfu`, `-fnq`). The `--force-with-lease` long form is
+# handled separately below; the bundle regex won't match it because the
+# single-dash class `[A-Za-z]*` excludes `-`.
+#
+# Bundled `-n` (short for --dry-run) is intentionally NOT exempted here:
+# if you want a dry-run force-push, use the long forms (--force --dry-run)
+# which the existing --dry-run exemption catches. The bundled-short form
+# signals force intent the hook flags regardless.
+if seg_match git '\bpush\b.*\s(--force|-[A-Za-z]*f[A-Za-z]*)(\s|$)' "$_push_exempt"; then
+  echo "BLOCKED (Lean guardrail): git push --force / -f / bundled -f short-flag (e.g. -fu, -uf) rewrites shared history. Non-bypassable. Escape hatch: LEAN4_GUARDRAILS_DISABLE=1 for this command." >&2
   exit 2
 fi
 
@@ -548,9 +557,13 @@ if seg_match git '\bpush\b.*\s--mirror(\s|$)' "$_push_exempt"; then
   exit 2
 fi
 
-# `--delete` / `-d` (delete remote ref)
-if seg_match git '\bpush\b.*\s(--delete|-d)(\s|$)' "$_push_exempt"; then
-  echo "BLOCKED (Lean guardrail): git push --delete / -d removes a remote ref. Non-bypassable. Escape hatch: LEAN4_GUARDRAILS_DISABLE=1 for this command." >&2
+# `--delete` / `-d`, bundled `-...d...` (delete remote ref). Same bundle
+# detection shape as force above: a single-dash short-option run containing
+# `d` anywhere (e.g. `-dn`, `-nd`, `-vd`). `--delete-this-extension` (some
+# hypothetical future long flag) won't false-match because the bundle regex
+# is single-dash.
+if seg_match git '\bpush\b.*\s(--delete|-[A-Za-z]*d[A-Za-z]*)(\s|$)' "$_push_exempt"; then
+  echo "BLOCKED (Lean guardrail): git push --delete / -d / bundled -d short-flag (e.g. -dn, -nd) removes a remote ref. Non-bypassable. Escape hatch: LEAN4_GUARDRAILS_DISABLE=1 for this command." >&2
   exit 2
 fi
 
@@ -560,6 +573,16 @@ fi
 # pathspec separator in other tokens.
 if seg_match git '\bpush\b.*\s:[A-Za-z0-9_./-]+(\s|$)' "$_push_exempt"; then
   echo "BLOCKED (Lean guardrail): git push <remote> :<ref> (legacy ref-delete syntax) removes a remote ref. Non-bypassable. Use git push --delete to be explicit, or LEAN4_GUARDRAILS_DISABLE=1 for this command." >&2
+  exit 2
+fi
+
+# Leading-`+` force-refspec: `git push origin +<ref>` or `git push origin +<src>:<dst>`.
+# Per git-push(1): a refspec prefixed with `+` requests non-fast-forward
+# (force) update for that ref, equivalent to `--force` scoped to the
+# specific refspec. The `+` must lead the token; subsequent `+` characters
+# inside a refspec are not the force prefix.
+if seg_match git '\bpush\b.*\s\+[^\s+][^\s]*(\s|$)' "$_push_exempt"; then
+  echo "BLOCKED (Lean guardrail): git push <remote> +<refspec> (leading-+ force-refspec) requests non-fast-forward update — rewrites shared history. Non-bypassable. Escape hatch: LEAN4_GUARDRAILS_DISABLE=1 for this command." >&2
   exit 2
 fi
 
