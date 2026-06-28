@@ -244,13 +244,22 @@ without any prompt):
 {
   "permissions": {
     "ask": [
+      "Bash(git push)",
       "Bash(git push *)",
+      "Bash(gh pr create)",
       "Bash(gh pr create *)",
+      "Bash(git commit --amend)",
       "Bash(git commit --amend *)"
     ]
   }
 }
 ```
+
+Per Claude Code's permission docs, `Bash(<cmd> *)` only matches
+commands that start with `<cmd> ` (a space before `*` is required),
+so `Bash(git push *)` catches `git push origin main` but **not bare
+`git push`**. List both the exact form (`Bash(git push)`) and the
+prefix form (`Bash(git push *)`) so either invocation prompts.
 
 Claude Code then handles "ask once, remember" via its native
 permission UI — typically a per-session approval that doesn't

@@ -232,21 +232,24 @@ Three independent env vars, one per collaboration op — `LEAN4_GUARDRAILS_PUSH_
   {
     "permissions": {
       "ask": [
+        "Bash(git push)",
         "Bash(git push *)",
+        "Bash(gh pr create)",
         "Bash(gh pr create *)",
+        "Bash(git commit --amend)",
         "Bash(git commit --amend *)"
       ]
     }
   }
   ```
 
-  Claude Code will then prompt once per command (or per session, depending on the user's "remember" choice), and the hook stays out of the way.
+  Per Claude Code's permission docs, `Bash(<cmd> *)` matches commands starting with `<cmd> ` (note the trailing space before `*` is required by the matcher). That covers `git push origin main` but **not bare `git push`** — the exact-form rule `Bash(<cmd>)` catches the no-args case. Both are listed above so either form is asked. Claude Code will then prompt once per command (or per session, depending on the user's "remember" choice), and the hook stays out of the way.
 
 - **`ask`** — block unless a one-shot bypass token is present. The hook is non-interactive; in `ask` mode the assistant asks you yes/no, then reruns the command with `LEAN4_GUARDRAILS_BYPASS=1` once. This is the pre-v4.5.2 default behavior.
 - **`allow`** — permit the op without a bypass token.
 - **`block`** — block the op unconditionally, even with a bypass token.
 
-Invalid values fall back to `host`.
+**Unset** vars resolve to `host` via the back-compat fallback chain (legacy `COLLAB_POLICY` is checked first; if it's also unset, `host` wins). **Explicit invalid values** (typos like `alow`, `bock`, `yolo`) fall back to `ask` — typos shouldn't silently relax the plugin-level guardrail.
 
 **Back-compat:** the legacy `LEAN4_GUARDRAILS_COLLAB_POLICY` var (pre-v4.5.2, single knob for all three ops) is honored as the fallback for any per-op policy that isn't explicitly set. So users who set `COLLAB_POLICY=allow` or `COLLAB_POLICY=block` in their settings keep their existing soft-gate semantics on all three ops; users who don't set it get the new `host` default on each. Setting both `COLLAB_POLICY` and a per-op var means the per-op var wins for that op.
 
