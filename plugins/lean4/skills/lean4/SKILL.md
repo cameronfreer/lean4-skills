@@ -19,7 +19,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 
 **Mathlib style quick check.** For ordinary mathematical lambdas, write `fun x ↦ ...` (`\mapsto`), not `fun x => ...`. Use `=>` for `match`/`do` branches and metaprogramming callback idioms. Prefer `show P by tac` for tactic proofs; use `show P from term` only for term proofs. See [mathlib-style](references/mathlib-style.md).
 
-**Never change statements or add axioms without explicit permission.** Theorem/lemma statements, type signatures, and docstrings are off-limits unless the user requests changes. Inline comments may be adjusted; docstrings may not (they're part of the API). Custom axioms require explicit approval—if a proof seems to need one, stop and discuss. Exception: within synthesis wrappers (`/lean4:formalize`, `/lean4:autoformalize`), session-generated declarations may be redrafted under the outer-loop statement-safety rules; see cycle-engine.md.
+**Preserve statements, signatures, and docstrings — they're the file's API.** Theorem/lemma statements, type signatures, and docstrings are off-limits unless the user explicitly requests changes; changing them can break callers or alter the theorem being proved. Inline comments may be adjusted, but docstrings may not. If a proof seems to require changing a statement or adding a custom axiom, stop and discuss first because that changes the contract or the proof's trust basis. Exception: within synthesis wrappers (`/lean4:formalize`, `/lean4:autoformalize`), session-generated declarations may be redrafted under the outer-loop statement-safety rules; see cycle-engine.md.
 
 ## Commands
 
@@ -194,7 +194,7 @@ Read proof state and assess quality. No edits, no commits, no subagent dispatch.
 3. `/tmp` scratch files only when `lean_run_code` is unavailable and the experiment must not touch the live file
 4. Never create scratch files in the repo root
 
-**File inspection:** Use Read and Grep to view source files. Never write Python scripts, temp files, or use `cat` pipelines just to read lines from a file you already have access to.
+**File inspection:** Use direct file-read and search tools for source files — for example Read/Grep when available, or line-range reads and `rg` in shell. Do not spin up Python scripts, temp files, or `cat` pipelines just to read accessible lines; reserve scripts for real parsing, transformation, or multi-file analysis that direct read/search tools cannot handle cleanly.
 
 **Staging:** Stage only files touched during the current session. Never use `git add -A` or broad glob patterns. Print the exact staged set before committing.
 
