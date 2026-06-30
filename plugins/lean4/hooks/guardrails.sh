@@ -83,37 +83,77 @@ BYPASS=0
 #                                 restore --staged <path>, etc. No gate.
 #
 #   2. SOFT-GATE (this section) — policy-controlled, bypass-token-able.
-#                                 Two independent vars cover the two
-#                                 risk categories:
-#                                   COLLAB_POLICY: push, amend, pr create
-#                                     (affects shared state, reversible
-#                                     via force-push / amend back / PR close)
-#                                   DESTRUCTIVE_POLICY: checkout -- <path…>,
-#                                     restore <path…>
-#                                     (path-scoped local data loss — one
-#                                     file, multiple files, a directory,
-#                                     or any explicit pathset; smaller
-#                                     blast radius than whole-worktree
-#                                     wipes which use `.` / `./` / `:/`)
+#                                 Per-op collab policies (v4.5.2+):
+#                                   PUSH_POLICY:       git push
+#                                   AMEND_POLICY:      git commit --amend
+#                                   PR_CREATE_POLICY:  gh pr create
+#                                 plus DESTRUCTIVE_POLICY for path-scoped
+#                                 local data loss (checkout -- <path>,
+#                                 restore <path>; smaller blast radius
+#                                 than whole-worktree wipes `.` / `:/`).
+#
+#                                 Back-compat: legacy
+#                                 LEAN4_GUARDRAILS_COLLAB_POLICY is
+#                                 honored as the fallback for any per-op
+#                                 collab policy that isn't explicitly
+#                                 set (so users who set
+#                                 COLLAB_POLICY=allow / =block keep
+#                                 their existing semantics).
 #
 #   3. HARD-BLOCK (below)       — non-bypassable, no policy override.
 #                                 reset --hard, clean -f/-fd/-fdx,
-#                                 checkout ., restore ., checkout -- .
-#                                 The blast radius is unbounded and
-#                                 git reflog can't recover uncommitted
-#                                 edits (and can't recover untracked
-#                                 files via clean -f at all).
+#                                 checkout ., restore ., checkout -- .,
+#                                 AND (v4.5.2+) push --force /
+#                                 --force-with-lease / --mirror /
+#                                 --delete / `<remote> :<ref>` ref-delete
+#                                 syntax. Blast radius is unbounded; for
+#                                 force-push it's shared-history rewrite
+#                                 (not just local). Escape hatch:
+#                                 LEAN4_GUARDRAILS_DISABLE=1 for that
+#                                 specific command.
 #
-# Each soft-gate policy independently accepts ask | allow | block:
-#   ask:   require human confirmation via one-shot bypass token (default)
-#   allow: permit without bypass token (user explicitly opted in)
-#   block: block even with bypass token (extra paranoia)
+# Each soft-gate policy independently accepts host | ask | allow | block:
+#   host:  exit 0 — defer to Claude Code's native Bash permission rule
+#          (recommended default; lets Claude Code "ask once, remember").
+#   ask:   require human confirmation via one-shot bypass token.
+#   allow: permit without bypass token (user explicitly opted in).
+#   block: block even with bypass token (extra paranoia).
 
-COLLAB_POLICY="${LEAN4_GUARDRAILS_COLLAB_POLICY:-ask}"
-case "$COLLAB_POLICY" in
-  ask|allow|block) ;;
-  *) COLLAB_POLICY="ask" ;;
-esac
+## Per-op collab policies (v4.5.2+).
+#
+# Each soft-gated collaboration op (push, --amend, gh pr create) has its
+# own policy var, accepting `host` | `ask` | `allow` | `block`. Defaults
+# are `host`, which means the hook exits 0 and Claude Code's native
+# `Bash(...)` permission rule handles the "ask once, remember" UX
+# instead of the hook fighting it with exit-2 + bypass-token retries.
+#
+# Back-compat: LEAN4_GUARDRAILS_COLLAB_POLICY (the legacy bundled var)
+# is honored as the fallback for any per-op policy that isn't explicitly
+# set. So users who already configured COLLAB_POLICY=allow / =block keep
+# their existing semantics on the soft-gate path; new users get the
+# `host` default automatically.
+COLLAB_POLICY="${LEAN4_GUARDRAILS_COLLAB_POLICY:-}"
+PUSH_POLICY="${LEAN4_GUARDRAILS_PUSH_POLICY:-${COLLAB_POLICY:-host}}"
+PR_CREATE_POLICY="${LEAN4_GUARDRAILS_PR_CREATE_POLICY:-${COLLAB_POLICY:-host}}"
+AMEND_POLICY="${LEAN4_GUARDRAILS_AMEND_POLICY:-${COLLAB_POLICY:-host}}"
+# Validate each. Two distinct fallbacks:
+#   - UNSET vars already resolved to `host` (the friendly default) via the
+#     parameter-expansion chain above, before validation runs.
+#   - SET but invalid values (typos like `alow`, `bock`, `yolo`, or
+#     legitimate values that get corrupted in env propagation) fall back
+#     to `ask` — the safer choice. A typo shouldn't silently relax the
+#     plugin-level guardrail; it should ask. This means
+#     `LEAN4_GUARDRAILS_PUSH_POLICY=alow` blocks rather than allowing.
+# ${!_p} indirect expansion works on Bash 3.2+. Writing back the
+# validated value still uses eval since indirect *assignment* via the
+# same name isn't supported by `${!_p}=...` on Bash 3.2.
+for _p in PUSH_POLICY PR_CREATE_POLICY AMEND_POLICY; do
+  case "${!_p}" in
+    host|ask|allow|block) ;;
+    *) eval "$_p=ask" ;;
+  esac
+done
+unset _p
 
 DESTRUCTIVE_POLICY="${LEAN4_GUARDRAILS_DESTRUCTIVE_POLICY:-ask}"
 case "$DESTRUCTIVE_POLICY" in
@@ -418,16 +458,16 @@ done
 # $1 = short label (e.g. "git push")
 # $2 = user-facing message suffix
 _check_collab_op() {
-  local label="$1" msg="$2"
-  case "$COLLAB_POLICY" in
-    allow) return 0 ;;
+  local label="$1" msg="$2" policy_value="$3"
+  case "$policy_value" in
+    host|allow) return 0 ;;          # exit 0 — host: let Claude Code decide; allow: just pass.
     block)
-      echo "BLOCKED (Lean guardrail): $label - $msg [collab_policy=block]" >&2
+      echo "BLOCKED (Lean guardrail): $label - $msg [policy=block]" >&2
       exit 2
       ;;
-    *)  # ask (default): confirmation-gated; bypass is the one-time confirmed rerun path
+    *)  # ask: bypass-token-gated. Same UX as v4.5.1: confirm then rerun with the bypass prefix.
       if [[ $BYPASS -ne 1 ]]; then
-        echo "BLOCKED (Lean guardrail): $label - $msg [collab_policy=ask, confirm then rerun]" >&2
+        echo "BLOCKED (Lean guardrail): $label - $msg [policy=ask, confirm then rerun]" >&2
         echo "  To proceed once, prefix with: LEAN4_GUARDRAILS_BYPASS=1" >&2
         exit 2
       fi
@@ -483,19 +523,89 @@ _check_destructive_op() {
 
 # --- Collaboration ops (policy-controlled) ---
 
+# Tier-3 hard-blocks for push variants that aren't ordinary feature-branch
+# upstream pushes. These rewrite shared history (force / force-with-lease),
+# delete refs (--delete, -d, `<remote> :<ref>` legacy syntax), or wipe all
+# refs (--mirror). Non-bypassable, no policy override — matching the
+# `git reset --hard` / `git clean -f` posture. Escape hatch:
+# LEAN4_GUARDRAILS_DISABLE=1 for the specific command.
+#
+# Ordering: these run BEFORE the soft-gate _check_collab_op call below
+# so that PUSH_POLICY=allow cannot unlock them.
+#
+# Standard exemptions (--dry-run, stash push) apply to all of these
+# via the seg_match exemption arg.
+_push_exempt='\bstash\b.*\bpush\b|--dry-run\b'
+
+# `--force` / `-f`, bundled `-...f...` (plain force-push; rewrites remote history).
+# Bundle detection: a single-dash short-option run containing `f` anywhere
+# (e.g. `-fu`, `-uf`, `-vfu`, `-fnq`). The `--force-with-lease` long form is
+# handled separately below; the bundle regex won't match it because the
+# single-dash class `[A-Za-z]*` excludes `-`.
+#
+# Bundled `-n` (short for --dry-run) is intentionally NOT exempted here:
+# if you want a dry-run force-push, use the long forms (--force --dry-run)
+# which the existing --dry-run exemption catches. The bundled-short form
+# signals force intent the hook flags regardless.
+if seg_match git '\bpush\b.*\s(--force|-[A-Za-z]*f[A-Za-z]*)(\s|$)' "$_push_exempt"; then
+  echo "BLOCKED (Lean guardrail): git push --force / -f / bundled -f short-flag (e.g. -fu, -uf) rewrites shared history. Non-bypassable. Escape hatch: LEAN4_GUARDRAILS_DISABLE=1 for this command." >&2
+  exit 2
+fi
+
+# `--force-with-lease[=ref]` (safer force-push, but still history-rewriting)
+if seg_match git '\bpush\b.*\s--force-with-lease(=|\s|$)' "$_push_exempt"; then
+  echo "BLOCKED (Lean guardrail): git push --force-with-lease rewrites shared history. Non-bypassable. Escape hatch: LEAN4_GUARDRAILS_DISABLE=1 for this command." >&2
+  exit 2
+fi
+
+# `--mirror` (replicates all refs from local to remote — destructive on the remote)
+if seg_match git '\bpush\b.*\s--mirror(\s|$)' "$_push_exempt"; then
+  echo "BLOCKED (Lean guardrail): git push --mirror replicates all refs to the remote, deleting any not present locally. Non-bypassable. Escape hatch: LEAN4_GUARDRAILS_DISABLE=1 for this command." >&2
+  exit 2
+fi
+
+# `--delete` / `-d`, bundled `-...d...` (delete remote ref). Same bundle
+# detection shape as force above: a single-dash short-option run containing
+# `d` anywhere (e.g. `-dn`, `-nd`, `-vd`). `--delete-this-extension` (some
+# hypothetical future long flag) won't false-match because the bundle regex
+# is single-dash.
+if seg_match git '\bpush\b.*\s(--delete|-[A-Za-z]*d[A-Za-z]*)(\s|$)' "$_push_exempt"; then
+  echo "BLOCKED (Lean guardrail): git push --delete / -d / bundled -d short-flag (e.g. -dn, -nd) removes a remote ref. Non-bypassable. Escape hatch: LEAN4_GUARDRAILS_DISABLE=1 for this command." >&2
+  exit 2
+fi
+
+# Legacy delete-ref syntax: `git push <remote> :<ref>` (the leading `:` on a
+# pathspec-shaped token, after `push`, means "delete the named ref").
+# Requires a non-empty ref name after `:` to avoid matching `:` as a literal
+# pathspec separator in other tokens.
+if seg_match git '\bpush\b.*\s:[A-Za-z0-9_./-]+(\s|$)' "$_push_exempt"; then
+  echo "BLOCKED (Lean guardrail): git push <remote> :<ref> (legacy ref-delete syntax) removes a remote ref. Non-bypassable. Use git push --delete to be explicit, or LEAN4_GUARDRAILS_DISABLE=1 for this command." >&2
+  exit 2
+fi
+
+# Leading-`+` force-refspec: `git push origin +<ref>` or `git push origin +<src>:<dst>`.
+# Per git-push(1): a refspec prefixed with `+` requests non-fast-forward
+# (force) update for that ref, equivalent to `--force` scoped to the
+# specific refspec. The `+` must lead the token; subsequent `+` characters
+# inside a refspec are not the force prefix.
+if seg_match git '\bpush\b.*\s\+[^\s+][^\s]*(\s|$)' "$_push_exempt"; then
+  echo "BLOCKED (Lean guardrail): git push <remote> +<refspec> (leading-+ force-refspec) requests non-fast-forward update — rewrites shared history. Non-bypassable. Escape hatch: LEAN4_GUARDRAILS_DISABLE=1 for this command." >&2
+  exit 2
+fi
+
 # Block git push (not --dry-run, not stash push — exemptions scoped per-segment)
 if seg_match git '[[:space:]]push([[:space:]]|$)' '--dry-run\b|\bstash\b.*\bpush\b'; then
-  _check_collab_op "git push" "use /lean4:checkpoint, then push manually"
+  _check_collab_op "git push" "use /lean4:checkpoint, then push manually" "$PUSH_POLICY"
 fi
 
 # Block git commit --amend
 if seg_match git '\bcommit\b.*--amend\b'; then
-  _check_collab_op "git commit --amend" "proving workflow creates new commits for safe rollback"
+  _check_collab_op "git commit --amend" "proving workflow creates new commits for safe rollback" "$AMEND_POLICY"
 fi
 
 # Block gh pr create
 if seg_match gh '\bpr\b.*\bcreate\b'; then
-  _check_collab_op "gh pr create" "review first, then create PR manually"
+  _check_collab_op "gh pr create" "review first, then create PR manually" "$PR_CREATE_POLICY"
 fi
 
 # ---------------------------------------------------------------------------

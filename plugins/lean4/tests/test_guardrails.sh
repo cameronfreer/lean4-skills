@@ -11,11 +11,18 @@ PASS=0
 FAIL=0
 
 # Run a test case.  $1=description  $2=command  $3=expected exit code (0 or 2)
+#
+# Pins LEAN4_GUARDRAILS_COLLAB_POLICY=ask so the legacy soft-gate
+# behavior (block until bypass) is the test baseline. Without this,
+# the v4.5.2 default of `host` (exit 0; let Claude Code ask) would
+# make every collab-op test trivially pass with the wrong intent.
+# Per-op policy tests (run_test_policy, run_test_op_policy) override
+# this on a per-call basis.
 run_test() {
   local desc="$1" cmd="$2" expected="$3" actual
   actual=0
   echo "{\"tool_input\":{\"command\":$(printf '%s' "$cmd" | jq -Rs .)}}" \
-    | LEAN4_GUARDRAILS_FORCE=1 bash "$HOOK" >/dev/null 2>&1 || actual=$?
+    | LEAN4_GUARDRAILS_FORCE=1 LEAN4_GUARDRAILS_COLLAB_POLICY=ask bash "$HOOK" >/dev/null 2>&1 || actual=$?
   if [[ "$actual" -eq "$expected" ]]; then
     echo "  PASS: $desc"
     (( ++PASS ))
@@ -33,6 +40,32 @@ run_test_policy() {
   local policy_env=()
   if [[ -n "$policy" ]]; then
     policy_env=(LEAN4_GUARDRAILS_COLLAB_POLICY="$policy")
+  fi
+  echo "{\"tool_input\":{\"command\":$(printf '%s' "$cmd" | jq -Rs .)}}" \
+    | env LEAN4_GUARDRAILS_FORCE=1 "${policy_env[@]}" bash "$HOOK" >/dev/null 2>&1 || actual=$?
+  if [[ "$actual" -eq "$expected" ]]; then
+    echo "  PASS: $desc"
+    (( ++PASS ))
+  else
+    echo "  FAIL: $desc (expected exit $expected, got $actual)"
+    (( ++FAIL ))
+  fi
+}
+
+# Run a test with a specific per-op collab policy variable set (v4.5.2+).
+# $1=desc  $2=env var name (PUSH_POLICY|AMEND_POLICY|PR_CREATE_POLICY)
+# $3=value (host|ask|allow|block|"" for unset)  $4=command  $5=expected exit
+#
+# Unlike run_test_policy (which sets the legacy COLLAB_POLICY var), this
+# helper sets one per-op var while leaving the others (and COLLAB_POLICY)
+# unset — so it exercises the per-op default-to-host behavior on the
+# other ops while testing the targeted op's specific policy value.
+run_test_op_policy() {
+  local desc="$1" var_name="$2" value="$3" cmd="$4" expected="$5" actual
+  actual=0
+  local policy_env=()
+  if [[ -n "$value" ]]; then
+    policy_env=("LEAN4_GUARDRAILS_${var_name}=${value}")
   fi
   echo "{\"tool_input\":{\"command\":$(printf '%s' "$cmd" | jq -Rs .)}}" \
     | env LEAN4_GUARDRAILS_FORCE=1 "${policy_env[@]}" bash "$HOOK" >/dev/null 2>&1 || actual=$?
@@ -420,7 +453,7 @@ run_test_destructive_policy "bypass git clean -fd             (still block)" all
 echo ""
 echo "-- Policy independence: COLLAB and DESTRUCTIVE govern separately --"
 # DESTRUCTIVE_POLICY=allow doesn't unblock collab ops; COLLAB_POLICY=allow doesn't unblock destructive ops.
-run_test_destructive_policy "allow: git push (still block — collab governs)" allow "git push origin main"                              2
+run_test_destructive_policy "allow: git push (collab default host → allow)" allow "git push origin main"                              0
 run_test_policy "allow: checkout -- file (still block — destructive governs)" allow "git checkout -- file.lean"                       2
 run_test_policy "allow: restore file (still block — destructive governs)"    allow "git restore file.lean"                            2
 
@@ -459,10 +492,112 @@ run_test_policy "block: reset --hard (still block)"     block "git reset --hard"
 
 echo ""
 echo "-- Collaboration policy: invalid/default --"
-run_test_policy "invalid: yolo push (block=ask)"        yolo "git push origin main"           2
+run_test_policy "invalid: yolo push (invalid → ask fallback, blocks)" yolo "git push origin main"           2
 run_test_policy "invalid: yolo bypass push (allow=ask)" yolo "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   0
-run_test_policy "unset: plain push (block=ask)"         ""   "git push origin main"           2
+run_test_policy "unset: plain push (host default)"      ""   "git push origin main"           0
 run_test_policy "unset: bypass push (allow=ask)"        ""   "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"   0
+
+echo ""
+echo "-- Per-op collab policies: PUSH_POLICY (v4.5.2+) --"
+run_test_op_policy "PUSH_POLICY=host: plain push (exit 0)"        PUSH_POLICY host  "git push origin main"     0
+run_test_op_policy "PUSH_POLICY=allow: plain push (exit 0)"       PUSH_POLICY allow "git push origin main"     0
+run_test_op_policy "PUSH_POLICY=ask: plain push (block)"          PUSH_POLICY ask   "git push origin main"     2
+run_test_op_policy "PUSH_POLICY=ask: bypass push (allow)"         PUSH_POLICY ask   "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"  0
+run_test_op_policy "PUSH_POLICY=block: plain push (block)"        PUSH_POLICY block "git push origin main"     2
+run_test_op_policy "PUSH_POLICY=block: bypass push (still block)" PUSH_POLICY block "LEAN4_GUARDRAILS_BYPASS=1 git push origin main"  2
+run_test_op_policy "PUSH_POLICY=yolo: plain push (invalid → ask fallback, blocks)" PUSH_POLICY yolo  "git push origin main"     2
+run_test_op_policy "PUSH_POLICY=yolo: bypass push (invalid → ask + bypass, allows)" PUSH_POLICY yolo "LEAN4_GUARDRAILS_BYPASS=1 git push origin main" 0
+run_test_op_policy "PUSH_POLICY=host: push -u origin feat"        PUSH_POLICY host  "git push -u origin feat"  0
+run_test_op_policy "PUSH_POLICY=ask: push -u origin feat (block)" PUSH_POLICY ask   "git push -u origin feat"  2
+
+echo ""
+echo "-- Per-op collab policies: AMEND_POLICY --"
+run_test_op_policy "AMEND_POLICY=host: amend (exit 0)"     AMEND_POLICY host  "git commit --amend -m x"  0
+run_test_op_policy "AMEND_POLICY=ask: amend (block)"       AMEND_POLICY ask   "git commit --amend -m x"  2
+run_test_op_policy "AMEND_POLICY=allow: amend (exit 0)"    AMEND_POLICY allow "git commit --amend -m x"  0
+run_test_op_policy "AMEND_POLICY=block: amend (block)"     AMEND_POLICY block "git commit --amend -m x"  2
+
+echo ""
+echo "-- Per-op collab policies: PR_CREATE_POLICY --"
+run_test_op_policy "PR_CREATE_POLICY=host: gh pr create (exit 0)"  PR_CREATE_POLICY host  "gh pr create --title t --body b" 0
+run_test_op_policy "PR_CREATE_POLICY=ask: gh pr create (block)"    PR_CREATE_POLICY ask   "gh pr create --title t --body b" 2
+run_test_op_policy "PR_CREATE_POLICY=allow: gh pr create (exit 0)" PR_CREATE_POLICY allow "gh pr create --title t --body b" 0
+run_test_op_policy "PR_CREATE_POLICY=block: gh pr create (block)"  PR_CREATE_POLICY block "gh pr create --title t --body b" 2
+
+echo ""
+echo "-- Per-op vs legacy COLLAB_POLICY: per-op wins --"
+# COLLAB_POLICY=block should propagate to ops without explicit per-op overrides;
+# explicit per-op overrides win.
+run_test_op_policy "COLLAB=block + PUSH_POLICY=host: push (exit 0)" PUSH_POLICY host "git push origin main" 0
+# When COLLAB is set (back-compat) and a per-op is also set, the per-op wins.
+# Simulating that requires setting both env vars; use a direct hook call.
+desc="COLLAB=block + PUSH=host: push exits 0 (per-op wins)"
+actual=0
+echo "{\"tool_input\":{\"command\":$(printf '%s' "git push origin main" | jq -Rs .)}}" \
+  | env LEAN4_GUARDRAILS_FORCE=1 LEAN4_GUARDRAILS_COLLAB_POLICY=block LEAN4_GUARDRAILS_PUSH_POLICY=host bash "$HOOK" >/dev/null 2>&1 || actual=$?
+if [[ "$actual" -eq 0 ]]; then echo "  PASS: $desc"; (( ++PASS )); else echo "  FAIL: $desc (expected 0, got $actual)"; (( ++FAIL )); fi
+# Inverse: COLLAB=allow with PUSH=block → push blocks (per-op wins).
+desc="COLLAB=allow + PUSH=block: push blocks (per-op wins)"
+actual=0
+echo "{\"tool_input\":{\"command\":$(printf '%s' "git push origin main" | jq -Rs .)}}" \
+  | env LEAN4_GUARDRAILS_FORCE=1 LEAN4_GUARDRAILS_COLLAB_POLICY=allow LEAN4_GUARDRAILS_PUSH_POLICY=block bash "$HOOK" >/dev/null 2>&1 || actual=$?
+if [[ "$actual" -eq 2 ]]; then echo "  PASS: $desc"; (( ++PASS )); else echo "  FAIL: $desc (expected 2, got $actual)"; (( ++FAIL )); fi
+# AMEND should still respect COLLAB=block via fallback when no AMEND override.
+desc="COLLAB=block + PUSH=host: amend still blocks (AMEND fallback to block)"
+actual=0
+echo "{\"tool_input\":{\"command\":$(printf '%s' "git commit --amend -m x" | jq -Rs .)}}" \
+  | env LEAN4_GUARDRAILS_FORCE=1 LEAN4_GUARDRAILS_COLLAB_POLICY=block LEAN4_GUARDRAILS_PUSH_POLICY=host bash "$HOOK" >/dev/null 2>&1 || actual=$?
+if [[ "$actual" -eq 2 ]]; then echo "  PASS: $desc"; (( ++PASS )); else echo "  FAIL: $desc (expected 2, got $actual)"; (( ++FAIL )); fi
+
+echo ""
+echo "-- Tier-3 push-variant hard-blocks (v4.5.2+): always exit 2, non-bypassable --"
+run_test "git push --force                       (always block)" "git push --force origin main"              2
+run_test "git push -f                            (always block)" "git push -f origin main"                   2
+run_test "git push --force-with-lease            (always block)" "git push --force-with-lease origin main"   2
+run_test "git push --force-with-lease=ref        (always block)" "git push --force-with-lease=ref origin main" 2
+run_test "git push --mirror                      (always block)" "git push --mirror origin"                  2
+run_test "git push --delete                      (always block)" "git push --delete origin feat"             2
+run_test "git push -d                            (always block)" "git push -d origin feat"                   2
+run_test "git push origin :feat (legacy delete)  (always block)" "git push origin :feat"                     2
+# Non-bypassable even with allow / bypass / DISABLE-not-set.
+run_test_op_policy "PUSH_POLICY=allow: --force still blocks" PUSH_POLICY allow "git push --force origin main" 2
+run_test_op_policy "PUSH_POLICY=allow: --mirror still blocks" PUSH_POLICY allow "git push --mirror origin"   2
+run_test "bypass git push --force                (still block)" "LEAN4_GUARDRAILS_BYPASS=1 git push --force origin main" 2
+run_test "bypass git push :feat                  (still block)" "LEAN4_GUARDRAILS_BYPASS=1 git push origin :feat" 2
+# Negative controls: ordinary push variants must NOT match the hard-block regexes.
+run_test_op_policy "PUSH_POLICY=allow: push -u origin feat (no force)" PUSH_POLICY allow "git push -u origin feat" 0
+run_test_op_policy "PUSH_POLICY=allow: push --dry-run (exempt)"        PUSH_POLICY allow "git push --dry-run origin main" 0
+run_test_op_policy "PUSH_POLICY=allow: push --tags (not force)"        PUSH_POLICY allow "git push --tags origin main"    0
+
+echo ""
+echo "-- Bundled short flags and +-refspec push hard-blocks --"
+# Bundled -f short flags: -fu, -uf, -vfu, etc. — any single-dash run containing `f`.
+run_test "git push -fu origin main                (always block)" "git push -fu origin main"                  2
+run_test "git push -uf origin main                (always block)" "git push -uf origin main"                  2
+run_test "git push -vfu origin main               (always block)" "git push -vfu origin main"                 2
+run_test "git push -fnq origin main               (always block, bundled -n doesn't exempt)" "git push -fnq origin main" 2
+# Bundled -d short flags: -dn, -nd, -vd, etc.
+run_test "git push -dn origin feat                (always block)" "git push -dn origin feat"                  2
+run_test "git push -nd origin feat                (always block)" "git push -nd origin feat"                  2
+run_test "git push -vd origin feat                (always block)" "git push -vd origin feat"                  2
+# Leading-+ force-refspec: +HEAD:main, +main, +src:dst.
+run_test "git push origin +HEAD:main              (always block)" "git push origin +HEAD:main"                2
+run_test "git push origin +main                   (always block)" "git push origin +main"                     2
+run_test "git push origin +refs/heads/feat:refs/heads/main (always block)" "git push origin +refs/heads/feat:refs/heads/main" 2
+# Non-bypassable even with PUSH_POLICY=allow + bypass.
+run_test_op_policy "PUSH_POLICY=allow: -fu still blocks" PUSH_POLICY allow "git push -fu origin main"   2
+run_test_op_policy "PUSH_POLICY=allow: -dn still blocks" PUSH_POLICY allow "git push -dn origin feat"   2
+run_test_op_policy "PUSH_POLICY=allow: +HEAD:main still blocks" PUSH_POLICY allow "git push origin +HEAD:main" 2
+run_test "bypass git push -fu origin main         (still block)" "LEAN4_GUARDRAILS_BYPASS=1 git push -fu origin main" 2
+run_test "bypass git push origin +main            (still block)" "LEAN4_GUARDRAILS_BYPASS=1 git push origin +main"   2
+# Negative controls: ordinary short-flag bundles without f/d must NOT hard-block.
+run_test_op_policy "PUSH_POLICY=allow: -uv (verbose+upstream)"  PUSH_POLICY allow "git push -uv origin feat"  0
+run_test_op_policy "PUSH_POLICY=allow: -uvq (multi non-force)"  PUSH_POLICY allow "git push -uvq origin feat" 0
+run_test_op_policy "PUSH_POLICY=allow: -n alone (dry-run)"      PUSH_POLICY allow "git push -n origin main"   0
+# Negative control: colon refspec WITHOUT leading + must NOT match the +-refspec regex.
+run_test_op_policy "PUSH_POLICY=allow: src:dst refspec (no +)"  PUSH_POLICY allow "git push origin main:feat" 0
+# Negative control: --dry-run with long-form force does exempt (back-compat).
+run_test_op_policy "PUSH_POLICY=allow: --force --dry-run (exempt)" PUSH_POLICY allow "git push --force --dry-run origin main" 0
 
 echo ""
 echo "-- Lean script stderr-suppression detector: \$LEAN4_SCRIPTS paths --"
