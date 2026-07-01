@@ -60,7 +60,7 @@ Brief description of what this file does.
 
 #### Placement
 
-The module docstring must come **after** the `import` block, not before. Plain comments such as the copyright header may precede imports, but a module docstring (`/-! ... -/`) before imports is parsed as file content, and Lean then reports the later imports as invalid.
+When a file has imports, the module docstring must come **after** all import lines. Plain comments such as the copyright header may precede imports, but a module docstring (`/-! ... -/`) before imports is parsed as file content, and Lean then reports the later imports as invalid. Files with no imports (rare) can place the module docstring anywhere.
 
 ```lean
 -- ✗ Fails — "invalid 'import' command, it must be used in the beginning of the file":
