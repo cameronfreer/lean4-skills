@@ -653,7 +653,7 @@ exact h_goal.symm
 error: invalid 'import' command, it must be used in the beginning of the file
 ```
 
-**What's wrong:** In Lean 4, imports must be the first non-comment content in the file (after the copyright header). Plain comments such as the copyright header are allowed before imports, but a module docstring (`/-! ... -/`) is parsed as file content — everything after it is treated as the file body, so the subsequent `import` lines become invalid.
+**What's wrong:** In Lean 4, imports must appear before any command or module-docstring content in the file. Plain comments such as the copyright header are allowed before imports, but a module docstring (`/-! ... -/`) is parsed as file content — everything after it is treated as the file body, so the subsequent `import` lines become invalid.
 
 **Example failure:**
 ```lean
