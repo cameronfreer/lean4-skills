@@ -14,6 +14,7 @@ This reference provides detailed explanations and fixes for the most common comp
 | **"numerals are data but expected Prop"** | Value where proof expected | Use proof term: `tendsto_const_nhds` not `1` |
 | **"tactic 'exact' failed"** | Goal/term type mismatch | Use `apply` for unification or restructure: `⟨h.2, h.1⟩` |
 | **"unknown identifier"** | Missing import OR namespace not opened | Import tactic OR `open Filter Topology` |
+| **"invalid 'import' command"** | Module docstring placed before imports | Move `/-! ... -/` after the `import` block; see [§ 13 below](#13-invalid-import-command-module-docstring-before-imports) |
 | **"unexpected token/identifier"** | Section comment in proof | Replace `/-! -/` with `--` in tactic mode |
 | **"no goals to be solved"** | Tactic already finished | Remove redundant tactics after `simp` |
 | **"equation compiler failed"** | Can't prove termination | Add `termination_by my_rec n => n` clause |
@@ -642,6 +643,32 @@ exact h_goal.symm
 3. Unfold with `simpa [hF]` or `rw [hF]`
 
 **See also:** [lean-phrasebook.md](lean-phrasebook.md) - "Name complex expression to avoid alpha/beta-equivalence issues"
+
+### 13. Invalid 'import' Command (Module Docstring Before Imports)
+
+**Problem:** A module-level `/-! ... -/` docstring placed before the `import` block turns the imports into a parse error.
+
+**Full error message:**
+```
+error: invalid 'import' command, it must be used in the beginning of the file
+```
+
+**What's wrong:** In Lean 4, imports must be the first non-comment content in the file (after the copyright header). Plain comments such as the copyright header are allowed before imports, but a module docstring (`/-! ... -/`) is parsed as file content — everything after it is treated as the file body, so the subsequent `import` lines become invalid.
+
+**Example failure:**
+```lean
+-- ✗ Fails:
+/-! # My Module -/
+import Mathlib.Data.Real.Basic
+
+-- ✓ Works:
+import Mathlib.Data.Real.Basic
+/-! # My Module -/
+```
+
+**Fix:** Move the `/-! ... -/` module docstring after the `import` block. The error message names `import`, not the docstring — the docstring's position is the cause.
+
+**See also:** [mathlib-style.md § 2 Placement](mathlib-style.md#placement) for the canonical file-top order (copyright → imports → module docstring).
 
 ---
 
