@@ -58,6 +58,22 @@ Brief description of what this file does.
 -/
 ```
 
+#### Placement
+
+When a file has imports, the module docstring must come **after** all import lines. Plain comments such as the copyright header may precede imports, but a module docstring (`/-! ... -/`) before imports is parsed as file content, and Lean then reports the later imports as invalid. Files with no imports (rare) can place the module docstring anywhere.
+
+```lean
+-- ✗ Fails — "invalid 'import' command, it must be used in the beginning of the file":
+/-! # My Module -/
+import Mathlib.Data.Real.Basic
+
+-- ✓ Works:
+import Mathlib.Data.Real.Basic
+/-! # My Module -/
+```
+
+The error message names `import`, not the docstring — the docstring's position is the cause.
+
 ### 3. Naming Conventions
 
 **Case conventions:**
