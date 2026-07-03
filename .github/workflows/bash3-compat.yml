@@ -23,7 +23,7 @@ jobs:
       - name: Self-test — lint catches all advertised policy violations
         run: /bin/bash plugins/lean4/tests/test_lint_runtime_portability.sh
 
-      - name: Self-test — lint_docs Check 8c (Python interpreter prefix, #135)
+      - name: Self-test — lint_docs Checks 8c/8e
         run: /bin/bash plugins/lean4/tests/test_lint_docs.sh
 
       - name: Runtime smoke — cycle_tracker.sh under /bin/bash
