@@ -2,14 +2,16 @@
 set -euo pipefail
 
 # Self-test for lint_docs.sh Check 8c (Python helper interpreter prefix,
-# closes #135). Verifies the check fires on a planted violation and
-# emits its clean-run OK line once the violation is removed.
+# closes #135) and Check 8e (compilation-errors.md heading uniqueness).
+# For each check, verify it fires on a planted violation and emits its
+# clean-run OK line once the violation is removed.
 #
-# Pattern: plant a scratch .md file inside the real plugin tree, run
-# lint_docs.sh once with the fixture present (assert WARN fires for
-# the fixture), explicitly remove the fixture, run again (assert OK
-# line present, WARN absent). A trap on EXIT stays installed as a
-# backup cleanup.
+# Pattern: plant a violation inside the real plugin tree, run
+# lint_docs.sh once (assert WARN fires), restore, run again (assert OK
+# line present, WARN absent). Check 8c uses a scratch .md file inside
+# references/; Check 8e mutates compilation-errors.md itself and restores
+# from a mktemp backup (not git checkout — checkout would clobber any
+# uncommitted user edits). A trap on EXIT stays installed as a safety net.
 #
 # Unlike test_lint_runtime_portability.sh (which copies the lint into
 # a synthetic isolated tree), lint_docs.sh runs many checks that
@@ -106,6 +108,71 @@ if echo "$output2" | grep -qF "$warn_preamble"; then
 fi
 if [[ $probe2_ok -eq 1 ]]; then
   echo "  PASS: Probe 2 — Check 8c clean on post-cleanup tree (OK line present, no WARN)"
+  ((PASS++)) || true
+else
+  ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 3 — Check 8e: compilation-errors.md numbered ### N. headings must be
+# unique. Plant two `### 99. Fixture` headings in the real file, run lint,
+# assert the new warn fires. Then restore from a mktemp backup and re-run,
+# assert the OK line. Backup pattern (not `git checkout`) is deliberate —
+# checkout would clobber any uncommitted user edits if this test races with
+# in-progress editing. Fixture number 99 is chosen far above any plausible
+# real section count so a mid-test glance at the file makes it obvious.
+# ---------------------------------------------------------------------------
+CE_FILE="$PLUGIN_ROOT/skills/lean4/references/compilation-errors.md"
+CE_BACKUP=$(mktemp)
+cp "$CE_FILE" "$CE_BACKUP"
+# Extend the EXIT trap: restore compilation-errors.md and remove backup, in
+# addition to removing the Check 8c scratch fixture (Probe 1 leftover).
+trap 'cp "$CE_BACKUP" "$CE_FILE"; rm -f "$CE_BACKUP" "$SCRATCH"' EXIT
+
+printf '\n### 99. Fixture A\n\n### 99. Fixture B\n' >> "$CE_FILE"
+
+output3=$("$BASH_FOR_COMPAT" "$LINT" 2>&1 || true)
+
+if echo "$output3" | grep -qF "compilation-errors.md: duplicate '### 99.' heading"; then
+  echo "  PASS: Probe 3 — Check 8e fires on planted duplicate '### 99.' heading"
+  ((PASS++)) || true
+else
+  echo "  FAIL: Probe 3 — Check 8e did not flag the planted duplicate"
+  echo "         expected: \"compilation-errors.md: duplicate '### 99.' heading\""
+  echo "         relevant output:"
+  echo "$output3" | grep -E "compilation-errors|numbered headings" | sed 's/^/           /' || true
+  ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
+# Explicit restore before Probe 4. Traps fire on EXIT only — not between
+# probes — so the file restoration here must be explicit. The trap stays
+# installed as a safety net.
+# ---------------------------------------------------------------------------
+cp "$CE_BACKUP" "$CE_FILE"
+
+# ---------------------------------------------------------------------------
+# Probe 4 — fixture absent: Check 8e emits its OK line and no duplicate WARN.
+# ---------------------------------------------------------------------------
+output4=$("$BASH_FOR_COMPAT" "$LINT" 2>&1 || true)
+
+ok_line_8e='✓ compilation-errors.md: numbered headings are unique'
+warn_preamble_8e="compilation-errors.md: duplicate '###"
+
+probe4_ok=1
+if ! echo "$output4" | grep -qF "$ok_line_8e"; then
+  echo "  FAIL: Probe 4 — expected OK line not found"
+  echo "         expected: '$ok_line_8e'"
+  probe4_ok=0
+fi
+if echo "$output4" | grep -qF "$warn_preamble_8e"; then
+  echo "  FAIL: Probe 4 — duplicate-heading warning unexpectedly present after restore"
+  echo "         offending lines:"
+  echo "$output4" | grep -F "$warn_preamble_8e" | sed 's/^/           /' || true
+  probe4_ok=0
+fi
+if [[ $probe4_ok -eq 1 ]]; then
+  echo "  PASS: Probe 4 — Check 8e clean on restored tree (OK line present, no WARN)"
   ((PASS++)) || true
 else
   ((FAIL++)) || true

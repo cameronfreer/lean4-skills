@@ -647,6 +647,37 @@ check_mathlib_style_lambda_guidance() {
     ok "Mathlib style lambda/show checklist surfaced in SKILL.md + mathlib-style.md"
 }
 
+# Check 8e: references/compilation-errors.md numbered error headings
+# (### 1. through ### N.) must be unique. The file is authored as one
+# continuous 1..N sequence across the "Detailed Error Explanations" and
+# "Additional Common Errors" groupings; a duplicate ### N. heading is
+# nearly always an editing mistake (see the pre-existing ### 9 / ### 10
+# duplication fixed alongside this check). Scope is intentionally narrow
+# to compilation-errors.md — other reference files (compiler-guided-repair.md,
+# measure-theory.md) legitimately restart numbering under subsection
+# boundaries, so a global rule would false-fail. Uses awk so a file with
+# no matches returns 0 (grep would exit 1 and can kill lint under pipefail).
+check_compilation_errors_heading_uniqueness() {
+    log ""
+    log "Checking references/compilation-errors.md for duplicate ### N. headings..."
+
+    local _file _dupes _found=0
+    _file="$PLUGIN_ROOT/skills/lean4/references/compilation-errors.md"
+    if [[ ! -f "$_file" ]]; then
+        warn "compilation-errors.md not found at $_file (cannot check heading uniqueness)"
+        return
+    fi
+    _dupes=$(awk '/^### [0-9]+\./ { match($0, /[0-9]+/); print substr($0, RSTART, RLENGTH) }' "$_file" \
+             | sort -n | uniq -d)
+    if [[ -n "$_dupes" ]]; then
+        while IFS= read -r n; do
+            warn "compilation-errors.md: duplicate '### $n.' heading (numbered error sections must be unique)"
+            _found=1
+        done <<<"$_dupes"
+    fi
+    [[ $_found -eq 0 ]] && ok "compilation-errors.md: numbered headings are unique"
+}
+
 # Check 9: Deep-safety invariants in prove/autoprove/cycle-engine
 check_deep_safety() {
     log ""
@@ -1788,6 +1819,7 @@ check_skill_omit_rule
 check_script_stderr_suppression
 check_python_script_interpreters
 check_mathlib_style_lambda_guidance
+check_compilation_errors_heading_uniqueness
 check_deep_safety
 check_guardrail_docs
 check_guardrail_impl
