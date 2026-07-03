@@ -64,14 +64,14 @@ check_commands() {
         local max_lines=120
         case "$cmd" in
             autoformalize) max_lines=180 ;;
-            autoprove)  max_lines=275 ;;
+            autoprove)  max_lines=290 ;;
             checkpoint) max_lines=90 ;;
             disprove)   max_lines=300 ;;
             doctor)     max_lines=225 ;;
             draft)      max_lines=160 ;;
-            formalize)  max_lines=180 ;;
+            formalize)  max_lines=195 ;;
             golf)       max_lines=170 ;;
-            learn)      max_lines=195 ;;
+            learn)      max_lines=210 ;;
             prove)      max_lines=235 ;;
             refactor)   max_lines=120 ;;
             review)     max_lines=330 ;;
