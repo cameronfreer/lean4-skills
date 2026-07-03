@@ -18,9 +18,10 @@ set -euo pipefail
 # require a fully-populated plugin tree (commands/, agents/, SKILL.md,
 # etc.). Building a minimal substitute is high-overhead; we use the
 # real tree and assert on output content. Critically the test does
-# NOT depend on lint_docs.sh exiting 0 — the linter may already exit
-# nonzero from inherited warnings on main (line-length flags, etc.)
-# unrelated to this check.
+# NOT depend on lint_docs.sh exiting 0 — if any future check surfaces a
+# new warning unrelated to the probes here, this self-test's asserts on
+# specific warning strings still hold even though the linter's overall
+# exit is nonzero.
 #
 # Helpers invoke lint_docs.sh under $BASH_FOR_COMPAT (default /bin/bash)
 # so the self-test runs under macOS Bash 3.2 in CI. On hosts without
@@ -62,8 +63,8 @@ python3 "\$LEAN4_SCRIPTS/${FIXTURE_NAME}.py" --foo
 \`\`\`
 EOF
 
-# || true — lint_docs.sh may legitimately exit nonzero from inherited
-# warnings unrelated to Check 8c. We assert on output content, not exit.
+# || true — lint_docs.sh may legitimately exit nonzero from warnings
+# in other checks. We assert on output content, not overall exit.
 output1=$("$BASH_FOR_COMPAT" "$LINT" 2>&1 || true)
 
 if echo "$output1" | grep -qE "${FIXTURE_NAME}\.md:.*Python helper uses bare python3"; then
