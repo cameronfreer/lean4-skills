@@ -400,11 +400,16 @@ check_file() {
                 fi
                 ((TOTAL_DECLARATIONS+=${#DECLARATIONS[@]}))
                 ((++TOTAL_FILES))
+            else
+                # Zero declarations resolved — a gate that can't answer must
+                # not silently pass. Track for the summary; the run's exit
+                # code will surface this (see summary block below).
+                UNVERIFIED_FILES+=("$FILE")
             fi
 
             cleanup_file
             echo
-            return 0  # Don't fail - just warn about inaccessible declarations
+            return 0  # Warned inline; UNVERIFIED_FILES surfaces the gap in the summary.
         else
             # Real error - not just unknownIdentifier in appended region
             echo -e "  ${RED}Error running Lean${NC}" >&2
@@ -418,6 +423,7 @@ check_file() {
 
 # Check all files
 FAILED_FILES=()
+UNVERIFIED_FILES=()
 for file in "${LEAN_FILES[@]}"; do
     if ! check_file "$file"; then
         FAILED_FILES+=("$file")
@@ -430,8 +436,26 @@ echo -e "${BLUE}Summary:${NC}"
 echo -e "  Files checked: $TOTAL_FILES"
 echo -e "  Declarations checked: $TOTAL_DECLARATIONS"
 
-if [[ $TOTAL_FILES -eq 0 && ${#FAILED_FILES[@]} -gt 0 ]]; then
-    echo -e "  ${YELLOW}⚠ No files were successfully checked${NC}"
+# Surface unverified files first (informational; feeds the verdict block below).
+# Length-guard the array read — bare "${arr[@]}" on empty errors under set -u.
+if [[ ${#UNVERIFIED_FILES[@]} -gt 0 ]]; then
+    echo -e "  ${YELLOW}⚠ Unverified files (declarations did not resolve): ${#UNVERIFIED_FILES[@]}${NC}"
+    for file in "${UNVERIFIED_FILES[@]}"; do
+        echo -e "    - $file"
+    done
+fi
+
+# Verdict — the green branch requires FULL coverage AND no custom axioms.
+# Priority: withhold > red > green. UNVERIFIED_FILES nonempty MUST suppress
+# the green verdict even when the files that were verified are clean —
+# otherwise a mixed clean+unverified directory run silently drops the
+# unverified files while showing green (#132's directory-mode manifestation).
+if [[ ${#UNVERIFIED_FILES[@]} -gt 0 || $TOTAL_DECLARATIONS -eq 0 ]]; then
+    if [[ $TOTAL_DECLARATIONS -eq 0 ]]; then
+        echo -e "  ${YELLOW}⚠ Zero declarations were verified — verdict withheld${NC}"
+    else
+        echo -e "  ${YELLOW}⚠ Verified files use only standard axioms, but verdict withheld because some files were unverified${NC}"
+    fi
 elif [[ $FILES_WITH_CUSTOM -eq 0 ]]; then
     echo -e "  ${GREEN}✓ All files use only standard axioms${NC}"
 else
@@ -459,6 +483,14 @@ if [[ $FILES_WITH_CUSTOM -gt 0 ]]; then
 fi
 
 if [[ ${#FAILED_FILES[@]} -gt 0 ]]; then
+    exit 1
+fi
+
+# UNVERIFIED_FILES nonempty and TOTAL_DECLARATIONS==0 are coverage failures
+# — the gate could not make a determination for one or more files. This
+# overrides --exit-zero-on-findings: `--report-only` means "treat findings
+# as non-fatal", not "silently drop what you couldn't check."
+if [[ ${#UNVERIFIED_FILES[@]} -gt 0 || $TOTAL_DECLARATIONS -eq 0 ]]; then
     exit 1
 fi
 
