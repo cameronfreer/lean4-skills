@@ -14,7 +14,7 @@ This reference provides detailed explanations and fixes for the most common comp
 | **"numerals are data but expected Prop"** | Value where proof expected | Use proof term: `tendsto_const_nhds` not `1` |
 | **"tactic 'exact' failed"** | Goal/term type mismatch | Use `apply` for unification or restructure: `⟨h.2, h.1⟩` |
 | **"unknown identifier"** | Missing import OR namespace not opened | Import tactic OR `open Filter Topology` |
-| **"invalid 'import' command"** | Module docstring placed before imports | Move `/-! ... -/` after the `import` block; see [§ 13 below](#13-invalid-import-command-module-docstring-before-imports) |
+| **"invalid 'import' command"** | Module docstring placed before imports | Move `/-! ... -/` after the `import` block; see [§ 15 below](#15-invalid-import-command-module-docstring-before-imports) |
 | **"unexpected token/identifier"** | Section comment in proof | Replace `/-! -/` with `--` in tactic mode |
 | **"no goals to be solved"** | Tactic already finished | Remove redundant tactics after `simp` |
 | **"equation compiler failed"** | Can't prove termination | Add `termination_by my_rec n => n` clause |
@@ -482,7 +482,7 @@ When facing "unexpected identifier/token" in long proofs:
 
 ## Additional Common Errors
 
-### 9. Dot Notation Namespace Confusion
+### 11. Dot Notation Namespace Confusion
 
 **Error message:**
 ```
@@ -517,7 +517,7 @@ Check if you're using dot notation for a lemma that shares a name with a type co
 
 **Rule:** For private helper lemmas extending common type names (`EventuallyEq`, `Tendsto`, `Continuous`, etc.), use standalone function call syntax, not dot notation.
 
-### 10. Numerals in Propositional Contexts
+### 12. Numerals in Propositional Contexts
 
 **Error message:**
 ```
@@ -554,7 +554,7 @@ tendsto_const_nhds : Tendsto (fun _ ↦ c) filter (nhds c)
 use lemmas like Filter.tendsto_id, Filter.tendsto_const_pure
 ```
 
-### 11. Error Location Can Be Misleading
+### 13. Error Location Can Be Misleading
 
 **Problem:** Lean reports errors where elaboration fails, not always where the mistake is.
 
@@ -594,7 +594,7 @@ let μX := pathLaw μ X  -- Should be Y not X
 **Don't:** Assume the error line is where you need to fix.
 **Do:** Trace backwards from error to find the root cause.
 
-### 12. Alpha/Beta-Equivalence Issues (Binder Mismatches)
+### 14. Alpha/Beta-Equivalence Issues (Binder Mismatches)
 
 **Problem:** Lean fails to match expressions because binder names differ (α-equivalence) or beta-redexes aren't reduced.
 
@@ -644,7 +644,7 @@ exact h_goal.symm
 
 **See also:** [lean-phrasebook.md](lean-phrasebook.md) - "Name complex expression to avoid alpha/beta-equivalence issues"
 
-### 13. Invalid 'import' Command (Module Docstring Before Imports)
+### 15. Invalid 'import' Command (Module Docstring Before Imports)
 
 **Problem:** A module-level `/-! ... -/` docstring placed before the `import` block turns the imports into a parse error.
 
