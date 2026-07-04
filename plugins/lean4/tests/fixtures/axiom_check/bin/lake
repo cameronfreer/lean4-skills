@@ -10,20 +10,22 @@
 # - For each `#print axioms <name>` line encountered:
 #     * If SEEN_PRINTS_LOG is set, append <name> on its own line to that path.
 #     * Emit canned output based on the name prefix so tests can control
-#       the verdict. Output format matches modern Lean 4:
+#       the verdict. Output format defaults to modern Lean 4:
 #         'X' depends on axioms: [ax1, ax2, ...]   — single line, bracketed,
 #                                                    decl name in single quotes.
-#         Sorry.*   -> "'<name>' depends on axioms: [sorryAx]"       (custom)
-#         Unknown.* -> stderr "<file>:<real_lineno>:0: error: unknown identifier '<name>'"
-#         otherwise -> "'<name>' depends on axioms: [propext, Classical.choice]"
+#         Sorry.*    -> "'<name>' depends on axioms: [sorryAx]"    (custom)
+#         Unknown.*  -> stderr "<file>:<real_lineno>:0: error: unknown identifier '<name>'"
+#         NoAxioms.* -> "'<name>' does not depend on any axioms"   (no deps)
+#         Legacy.*   -> "<name> depends on axioms:" + one axiom per line
+#                       (older Lean 4 output format — regression coverage)
+#         otherwise  -> "'<name>' depends on axioms: [propext, Classical.choice]"
 # - Exit 1 if any Unknown.* was emitted, else exit 0. Real Lean exits
 #   nonzero on unknown identifier; the shim must too — otherwise
 #   check_axioms_inline.sh takes the success-path branch on line 256 and
 #   never reaches the not-accessible branch we're testing.
 #
-# Output format matches the parser at lines 260–272 / 329–351 of
-# check_axioms_inline.sh: a header line "<name> depends on axioms:"
-# followed by ONE axiom name per line. Not comma-separated, not bracketed.
+# Two output formats are supported (matching modern Lean 4 and the older
+# multi-line style respectively). See prefix routing below.
 set -euo pipefail
 
 if [[ "${1:-}" != "env" || "${2:-}" != "lean" ]]; then
@@ -51,6 +53,9 @@ while IFS= read -r cmdline; do
             ;;
         Sorry.*)
             printf "'%s' depends on axioms: [sorryAx]\n" "$name"
+            ;;
+        NoAxioms.*)
+            printf "'%s' does not depend on any axioms\n" "$name"
             ;;
         Legacy.*)
             # Preserve legacy multi-line format for a compat regression probe.

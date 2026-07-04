@@ -276,6 +276,24 @@ else
     ((FAIL++)) || true
 fi
 
+# Probe 8b — no_axioms.lean: parser handles `'X' does not depend on any
+# axioms` (modern Lean's output for decls with no axiom deps, e.g. a
+# `True := trivial` proof). Must be counted as VERIFIED, not unverified.
+run_probe "P8b no-axioms" no_axioms.lean
+p8b_ok=1
+assert_log_has     "P8b" "NoAxioms.depends_on_nothing"      || p8b_ok=0
+assert_out_has     "P8b" "Files checked: 1"                 || p8b_ok=0
+assert_out_has     "P8b" "Declarations checked: 1"          || p8b_ok=0
+assert_out_has     "P8b" "All files use only standard axioms" || p8b_ok=0
+assert_out_missing "P8b" "Unverified files"                 || p8b_ok=0
+assert_exit        "P8b" 0                                  || p8b_ok=0
+if [[ $p8b_ok -eq 1 ]]; then
+    echo "  PASS: P8b no-axioms — 'does not depend on any axioms' counted as verified"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
 # Probe 9b — legacy_format.lean: parser handles the older multi-line
 # `#print axioms` output format. Locks in back-compat with older Lean
 # 4 versions after the modern-format parser update.
@@ -371,6 +389,27 @@ assert_exit        "D5" 1                                  || d5_ok=0
 assert_out_missing "D5" "All files use only standard axioms" || d5_ok=0
 if [[ $d5_ok -eq 1 ]]; then
     echo "  PASS: D5 zero-only + --exit-zero-on-findings — flag doesn't suppress zero-coverage exit"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# Probe D6 — custom_axiom + zero_coverage combined. A run that has BOTH a
+# real sorryAx finding AND an unverified file must surface the RED custom-
+# axiom counts in the summary; the previous "verdict withheld because
+# unverified" wording alone was false (the verified files were NOT clean).
+# Reviewer-caught regression on the summary priority order.
+run_probe "D6 custom+unverified" "DIR:custom_axiom.lean,zero_coverage.lean"
+d6_ok=1
+assert_exit        "D6" 1                                  || d6_ok=0
+assert_out_has     "D6" "Files with non-standard axioms: 1" || d6_ok=0
+assert_out_has     "D6" "uses non-standard axiom: sorryAx" || d6_ok=0
+assert_out_has     "D6" "Unverified files"                 || d6_ok=0
+assert_out_has     "D6" "Verdict also withheld"            || d6_ok=0
+assert_out_missing "D6" "All files use only standard axioms" || d6_ok=0
+assert_out_missing "D6" "Verified files use only standard axioms" || d6_ok=0
+if [[ $d6_ok -eq 1 ]]; then
+    echo "  PASS: D6 custom+unverified — RED count surfaces + yellow withhold note; no false-clean line"
     ((PASS++)) || true
 else
     ((FAIL++)) || true

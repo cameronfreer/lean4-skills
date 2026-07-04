@@ -94,9 +94,16 @@ parse_axioms_output() {
     _AXPARSER_PARSED_ANY=false
     local CURRENT_DECL=""
 
-    # Header line, both formats. Single quotes around name are optional.
-    # Group 1 = decl name; Group 2 = tail (may contain `[a, b, c]`).
+    # Header line for the "has axioms" case (both formats). Single quotes
+    # around name are optional. Group 1 = decl name; Group 2 = tail (may
+    # contain `[a, b, c]`).
     local header_re="^'?([a-zA-Z0-9_.]+)'?[[:space:]]+depends[[:space:]]+on[[:space:]]+axioms:(.*)$"
+    # Header line for the "no axioms" case: modern Lean 4 emits this for
+    # any decl whose only dependencies are built-in — e.g. `trivial` proofs
+    # of `True`. The parser MUST count these as verified even though there's
+    # nothing to classify, otherwise mixed accessible+inaccessible runs
+    # would misreport the accessible clean decls as unverified.
+    local noaxioms_re="^'?([a-zA-Z0-9_.]+)'?[[:space:]]+does[[:space:]]+not[[:space:]]+depend[[:space:]]+on[[:space:]]+any[[:space:]]+axioms[[:space:]]*$"
     # Bracketed axiom list capture — for the modern one-line format.
     local bracket_re='\[([^]]*)\]'
     # Bare axiom name on its own line — for the legacy multi-line format.
@@ -130,6 +137,14 @@ parse_axioms_output() {
                         fi
                     done
                 fi
+            fi
+        elif [[ "$line" =~ $noaxioms_re ]]; then
+            # "'X' does not depend on any axioms" — clean decl, count as
+            # verified but nothing to classify.
+            CURRENT_DECL="${BASH_REMATCH[1]}"
+            _AXPARSER_PARSED_ANY=true
+            if [[ "$VERBOSE" == "--verbose" ]]; then
+                echo -e "  ${BLUE}$CURRENT_DECL:${NC} ${GREEN}✓${NC} (no axioms)"
             fi
         elif [[ "$line" =~ $ident_re ]]; then
             # Legacy format: one axiom per subsequent line.
@@ -481,21 +496,28 @@ if [[ ${#UNVERIFIED_FILES[@]} -gt 0 ]]; then
 fi
 
 # Verdict — the green branch requires FULL coverage AND no custom axioms.
-# Priority: withhold > red > green. UNVERIFIED_FILES nonempty MUST suppress
-# the green verdict even when the files that were verified are clean —
-# otherwise a mixed clean+unverified directory run silently drops the
-# unverified files while showing green (#132's directory-mode manifestation).
-if [[ ${#UNVERIFIED_FILES[@]} -gt 0 || $TOTAL_DECLARATIONS -eq 0 ]]; then
+# Priority order below is deliberately shaped by what the user needs to see:
+#   1. If any file used a custom axiom, ALWAYS surface that (red) — a real
+#      finding is never suppressed by unverified files.
+#   2. Additionally, if any file is unverified, ALSO surface the coverage
+#      gap (yellow) so the user knows the run isn't a full pass either way.
+#   3. Otherwise, zero-decls-verified is the load-bearing #132 withhold case.
+#   4. Some verified but some unverified → verified-clean-but-withheld.
+#   5. Full clean coverage → green.
+if [[ $FILES_WITH_CUSTOM -gt 0 ]]; then
+    echo -e "  ${RED}⚠ Files with non-standard axioms: $FILES_WITH_CUSTOM${NC}"
+    echo -e "  ${RED}⚠ Total non-standard axiom usages: $CUSTOM_AXIOM_COUNT${NC}"
+    if [[ ${#UNVERIFIED_FILES[@]} -gt 0 ]]; then
+        echo -e "  ${YELLOW}⚠ Verdict also withheld because some files were unverified${NC}"
+    fi
+elif [[ ${#UNVERIFIED_FILES[@]} -gt 0 || $TOTAL_DECLARATIONS -eq 0 ]]; then
     if [[ $TOTAL_DECLARATIONS -eq 0 ]]; then
         echo -e "  ${YELLOW}⚠ Zero declarations were verified — verdict withheld${NC}"
     else
         echo -e "  ${YELLOW}⚠ Verified files use only standard axioms, but verdict withheld because some files were unverified${NC}"
     fi
-elif [[ $FILES_WITH_CUSTOM -eq 0 ]]; then
-    echo -e "  ${GREEN}✓ All files use only standard axioms${NC}"
 else
-    echo -e "  ${RED}⚠ Files with non-standard axioms: $FILES_WITH_CUSTOM${NC}"
-    echo -e "  ${RED}⚠ Total non-standard axiom usages: $CUSTOM_AXIOM_COUNT${NC}"
+    echo -e "  ${GREEN}✓ All files use only standard axioms${NC}"
 fi
 
 if [[ ${#FAILED_FILES[@]} -gt 0 ]]; then
