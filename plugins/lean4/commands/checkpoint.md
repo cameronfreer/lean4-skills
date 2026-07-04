@@ -33,7 +33,7 @@ Creates a checkpoint with per-file and project-wide build verification, axiom ch
    ```bash
    lean4-skills-check-axioms-inline .
    ```
-   Note: checks top-level unindented declarations in the first namespace of each file. Nested namespaces, sections, and indented declarations may not be checked. The script temporarily edits files in place while running — only use on version-controlled files, and avoid concurrent editors or watchers.
+   Note: checks top-level unindented declarations across all namespaces in each file (nested, sibling, and dotted namespaces are tracked correctly; sections are handled without leaking into the qualified name). Recognizes `theorem|lemma|def|instance|abbrev|example|structure|class|inductive|axiom|constant`, optionally prefixed by `noncomputable`, `unsafe`, `partial`, or `nonrec`. Indented declarations and unicode-identifier decls are not matched — files whose decls all fall in those classes are surfaced as UNVERIFIED (exit 1, not a silent pass). The script temporarily edits files in place while running — only use on version-controlled files, and avoid concurrent editors or watchers.
 4. **Count Sorries** - Report current sorry count:
    ```bash
    lean4-skills-sorry-analyzer . --format=summary

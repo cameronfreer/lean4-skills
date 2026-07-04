@@ -13,9 +13,13 @@
 # runs Lean to check axioms, then removes the additions.
 #
 # Limitations:
-#   - Only detects the first namespace in a file
 #   - Only captures top-level (unindented) declarations
-#   - Nested namespaces, sections, and indented declarations may be missed
+#   - Identifier regex is ASCII-only ([A-Za-z0-9_.]+): unicode-letter
+#     namespaces (`namespace α`) fall through to the not-accessible branch
+#     and are surfaced as unverified rather than passing silently.
+#   - Sections with `variable` declarations may still hit the not-accessible
+#     branch. When they do, they are surfaced via the UNVERIFIED_FILES
+#     summary and cause the run to exit non-zero rather than pass silently.
 #
 # Standard mathlib axioms (propext, quot.sound, choice) are filtered out,
 # highlighting only custom axioms or unexpected dependencies.
@@ -68,7 +72,198 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Standard acceptable axioms
-STANDARD_AXIOMS="propext|quot.sound|Classical.choice|Quot.sound"
+# Anchored + dot-escaped. Without ^…$ + `\.`, the classifier would treat any
+# axiom whose name *contains* a standard axiom as substring as standard —
+# e.g. a custom axiom `my.propext.bad` or `ClassicalxChoice` would slip
+# through. Reviewer-caught. `.` in ERE is any char, so `quot.sound` used to
+# match e.g. `quotXsound` too.
+STANDARD_AXIOMS='^(propext|quot\.sound|Quot\.sound|Classical\.choice)$'
+
+# Parse a `#print axioms` OUTPUT block, handling both Lean 4 output formats:
+#   modern (Lean 4.x current):   'X' depends on axioms: [a, b, c]
+#   legacy (older Lean 4):       X depends on axioms:
+#                                  a
+#                                  b
+# Inputs:
+#   $1 = captured OUTPUT string
+#   $2 = expected decl names (newline-separated). If non-empty, header
+#        lines whose name is NOT in this set are ignored — neither counted
+#        toward coverage nor classified for axioms. Defense against a
+#        misbehaving Lean/shim emitting unrelated headers (reviewer-caught
+#        "wrong-name" attack). Pass empty string to accept all names.
+# Outputs (via globals — bash 3.2 has no return-by-reference):
+#   _AXPARSER_HAS_CUSTOM   = true iff any non-standard axiom was seen (in
+#                            an expected-name header only)
+#   _AXPARSER_PARSED_ANY   = true iff any expected header line was matched
+#   _AXPARSER_PARSED_COUNT = number of DISTINCT expected decl names seen in
+#                            headers (deduplicated — caller compares against
+#                            ${#DECLARATIONS[@]} to detect partial coverage)
+# Side effects:
+#   Increments global CUSTOM_AXIOM_COUNT for each non-standard axiom found
+#   Emits per-axiom colored lines to stdout inline
+# Uses caller-scoped VERBOSE and STANDARD_AXIOMS. Regex patterns kept in
+# vars — inline `[^]]` inside [[ =~ ]] confuses shellcheck's parser.
+parse_axioms_output() {
+    local OUTPUT="$1"
+    local EXPECTED_NAMES="${2:-}"
+    _AXPARSER_HAS_CUSTOM=false
+    _AXPARSER_PARSED_ANY=false
+    _AXPARSER_PARSED_COUNT=0
+    local CURRENT_DECL=""
+    # State: are we currently inside a LEGACY multi-line axioms block?
+    # Only set to true when a plain (unquoted) `X depends on axioms:` header
+    # arrived WITHOUT a bracketed tail. Reset on any modern header or blank
+    # line. Gates the bare-identifier axiom-name matcher so unrelated Lean
+    # output like `#eval` results can't false-positive as axioms.
+    local IN_LEGACY_AXIOMS=false
+    # Deduplication track for expected names already counted, so a shim
+    # emitting two headers for the same decl doesn't inflate PARSED_COUNT
+    # above extracted_count (which would fail the caller's equality check).
+    local SEEN_NAMES=""
+
+    # Header lines. Lean identifiers can contain apostrophes (foo', foo'',
+    # etc. — common style for "primed" variants). The character class
+    # [a-zA-Z0-9_.] would exclude those, silently misclassifying every such
+    # decl as unrecognized and (post-parser-update) as "no axioms". So we
+    # split by shape: QUOTED forms (modern Lean 4) capture broadly inside
+    # the single quotes; UNQUOTED forms (legacy multi-line) match a
+    # whitespace-delimited token. `.+` is greedy, so `'foo'' depends on
+    # axioms: [x]` correctly captures `foo'` — backtracking finds the last
+    # single-quote before ` depends`.
+    local quoted_dep_re="^'(.+)'[[:space:]]+depends[[:space:]]+on[[:space:]]+axioms:(.*)$"
+    local plain_dep_re="^([^[:space:]'][^[:space:]]*)[[:space:]]+depends[[:space:]]+on[[:space:]]+axioms:(.*)$"
+    # "does not depend on any axioms" — modern Lean's output for decls
+    # whose only deps are built-in (e.g. `trivial` proofs of `True`).
+    # Must be counted as verified even though there's nothing to classify;
+    # otherwise mixed accessible+inaccessible runs misreport clean decls
+    # as unverified.
+    local quoted_noaxioms_re="^'(.+)'[[:space:]]+does[[:space:]]+not[[:space:]]+depend[[:space:]]+on[[:space:]]+any[[:space:]]+axioms[[:space:]]*$"
+    local plain_noaxioms_re="^([^[:space:]'][^[:space:]]*)[[:space:]]+does[[:space:]]+not[[:space:]]+depend[[:space:]]+on[[:space:]]+any[[:space:]]+axioms[[:space:]]*$"
+    # Bracketed axiom list capture — for the modern one-line format.
+    local bracket_re='\[([^]]*)\]'
+    # Bare axiom name on its own line — for the legacy multi-line format.
+    local ident_re='^[[:space:]]*([a-zA-Z0-9_.]+)[[:space:]]*$'
+
+    local line rest axiom_list axiom_name matched_dep matched_no header_shape
+    while IFS= read -r line; do
+        matched_dep=0
+        matched_no=0
+        header_shape=""
+        # Quoted form first — `[^']` would exclude apostrophes, so we must
+        # check the quoted variant before the plain one (plain_dep_re's
+        # first-char guard excludes `'`, but the order still reads better).
+        if [[ "$line" =~ $quoted_dep_re ]]; then
+            CURRENT_DECL="${BASH_REMATCH[1]}"
+            rest="${BASH_REMATCH[2]}"
+            matched_dep=1
+            header_shape="quoted"
+        elif [[ "$line" =~ $plain_dep_re ]]; then
+            CURRENT_DECL="${BASH_REMATCH[1]}"
+            rest="${BASH_REMATCH[2]}"
+            matched_dep=1
+            header_shape="plain"
+        elif [[ "$line" =~ $quoted_noaxioms_re ]]; then
+            CURRENT_DECL="${BASH_REMATCH[1]}"
+            matched_no=1
+        elif [[ "$line" =~ $plain_noaxioms_re ]]; then
+            CURRENT_DECL="${BASH_REMATCH[1]}"
+            matched_no=1
+        fi
+
+        # Any new header line ends a legacy-multi-line block. Blank lines
+        # also end it (below).
+        if [[ $matched_dep -eq 1 || $matched_no -eq 1 ]]; then
+            IN_LEGACY_AXIOMS=false
+        elif [[ -z "$line" ]]; then
+            IN_LEGACY_AXIOMS=false
+            continue
+        fi
+
+        # Expected-name filter: if a filter is set and CURRENT_DECL isn't in
+        # it, ignore this header entirely (don't count, don't classify).
+        # Reviewer-caught defense against a Lean/shim misbehavior injecting
+        # a header for a name we never asked about.
+        if [[ ($matched_dep -eq 1 || $matched_no -eq 1) && -n "$EXPECTED_NAMES" ]]; then
+            if ! grep -qFx -- "$CURRENT_DECL" <<< "$EXPECTED_NAMES"; then
+                # Unexpected name — reset CURRENT_DECL so any legacy bare
+                # lines that follow don't get attributed to this alien header
+                # under the expected-name whitelist.
+                CURRENT_DECL=""
+                matched_dep=0
+                matched_no=0
+                continue
+            fi
+        fi
+
+        if [[ $matched_dep -eq 1 ]]; then
+            # Dedupe: only count each expected name once toward PARSED_COUNT.
+            if ! grep -qFx -- "$CURRENT_DECL" <<< "$SEEN_NAMES"; then
+                SEEN_NAMES="${SEEN_NAMES}${CURRENT_DECL}"$'\n'
+                _AXPARSER_PARSED_ANY=true
+                ((++_AXPARSER_PARSED_COUNT))
+            fi
+            if [[ "$VERBOSE" == "--verbose" ]]; then
+                echo -e "  ${BLUE}$CURRENT_DECL:${NC}"
+            fi
+            # Modern format: axioms on the same line inside brackets.
+            if [[ "$rest" =~ $bracket_re ]]; then
+                axiom_list="${BASH_REMATCH[1]}"
+                local _saved_ifs="$IFS"
+                local -a _axiom_arr=()
+                IFS=',' read -r -a _axiom_arr <<< "$axiom_list"
+                IFS="$_saved_ifs"
+                if [[ ${#_axiom_arr[@]} -gt 0 ]]; then
+                    for axiom_name in "${_axiom_arr[@]}"; do
+                        axiom_name="${axiom_name#"${axiom_name%%[![:space:]]*}"}"
+                        axiom_name="${axiom_name%"${axiom_name##*[![:space:]]}"}"
+                        if [[ -n "$axiom_name" ]]; then
+                            _classify_axiom "$CURRENT_DECL" "$axiom_name"
+                        fi
+                    done
+                fi
+            elif [[ "$header_shape" == "plain" ]]; then
+                # Legacy multi-line format — bare identifier lines that follow
+                # are axiom names. Enter the gated state.
+                IN_LEGACY_AXIOMS=true
+            fi
+        elif [[ $matched_no -eq 1 ]]; then
+            if ! grep -qFx -- "$CURRENT_DECL" <<< "$SEEN_NAMES"; then
+                SEEN_NAMES="${SEEN_NAMES}${CURRENT_DECL}"$'\n'
+                _AXPARSER_PARSED_ANY=true
+                ((++_AXPARSER_PARSED_COUNT))
+            fi
+            if [[ "$VERBOSE" == "--verbose" ]]; then
+                echo -e "  ${BLUE}$CURRENT_DECL:${NC} ${GREEN}✓${NC} (no axioms)"
+            fi
+        elif [[ "$IN_LEGACY_AXIOMS" == true && "$line" =~ $ident_re ]]; then
+            # Legacy format: one axiom per subsequent line — but ONLY when
+            # we're currently inside a legacy `X depends on axioms:` block.
+            # Gate prevents unrelated Lean output (e.g. `#eval` results,
+            # elaboration diagnostics) from being misclassified as axioms.
+            axiom_name="${BASH_REMATCH[1]}"
+            if [[ -n "$axiom_name" && "$axiom_name" != "depends" ]]; then
+                _classify_axiom "$CURRENT_DECL" "$axiom_name"
+            fi
+        elif [[ "$IN_LEGACY_AXIOMS" == true ]]; then
+            # Any non-identifier line inside a legacy block ends it.
+            IN_LEGACY_AXIOMS=false
+        fi
+    done <<< "$OUTPUT"
+}
+
+# Classify one axiom name as standard or custom, emitting the RED warn line
+# and incrementing counters as appropriate. Uses caller-scoped VERBOSE.
+_classify_axiom() {
+    local current_decl="$1"
+    local axiom="$2"
+    if [[ ! "$axiom" =~ $STANDARD_AXIOMS ]]; then
+        echo -e "  ${RED}⚠ $current_decl uses non-standard axiom: $axiom${NC}"
+        _AXPARSER_HAS_CUSTOM=true
+        ((++CUSTOM_AXIOM_COUNT))
+    elif [[ "$VERBOSE" == "--verbose" ]]; then
+        echo -e "    ${GREEN}✓${NC} $axiom (standard)"
+    fi
+}
 
 # Global counter for unique marker filenames (avoids basename collisions)
 MARKER_COUNT=0
@@ -196,31 +391,103 @@ check_file() {
 
     echo -e "${BLUE}File: ${YELLOW}$FILE${NC}"
 
-    # Extract namespace if any
-    local NAMESPACE=""
-    if grep -q "^namespace " "$FILE"; then
-        NAMESPACE=$(grep "^namespace " "$FILE" | head -1 | sed 's/namespace //')
-    fi
-
-    # Extract all theorem/lemma/def declarations (including structure, class, inductive)
+    # Walk the file linearly with a kind-tagged frame stack tracking namespace
+    # and section scopes. Each frame is "ns:Name" or "sec:Name" (Name may be
+    # empty for anonymous sections). Only ns: frames contribute to declaration
+    # qualification. Bare `end` pops the top frame; `end X` pops iff top has
+    # name X. Mismatched `end X` leaves the stack alone — Lean would fail to
+    # compile such a file and the real-error branch below will surface that.
+    #
+    # Note: We match declarations that START at column 0 with the keyword
+    # directly. Lines starting with 'private ', 'protected ', or 'local '
+    # won't match; those are intentionally not accessible outside their scope
+    # and, if all decls in a file are inaccessible, the file is surfaced via
+    # the UNVERIFIED_FILES summary rather than passing silently.
+    local FRAME_STACK=()
     local DECLARATIONS=()
+    local line
+
+    # Regex patterns kept in variables — required to work around shellcheck's
+    # parser choking on character classes containing `:(` inline in [[ =~ ]].
+    local ns_re='^namespace[[:space:]]+([A-Za-z0-9_.]+)'
+    local sec_re='^section([[:space:]]+([A-Za-z0-9_.]+))?[[:space:]]*$'
+    local end_re='^end([[:space:]]+([A-Za-z0-9_.]+))?[[:space:]]*$'
+    # Declaration keywords include:
+    #   theorem|lemma|def|instance|abbrev|example|structure|class|inductive
+    #     — the definition-shaped forms
+    #   axiom|constant
+    #     — for an AXIOM CHECKER, missing `axiom foo : ...` at top level was
+    #       a real silent-green path in mixed-directory runs
+    # Optional modifier prefix covers `noncomputable def`, `unsafe def`,
+    # `partial def`, `nonrec def` — real Lean forms whose column-0 keyword
+    # is the modifier, not `def`.
+    # Group 1 = modifier (optional), Group 2 = keyword, Group 3 = short name.
+    local decl_re='^(noncomputable[[:space:]]+|unsafe[[:space:]]+|partial[[:space:]]+|nonrec[[:space:]]+)?(theorem|lemma|def|instance|abbrev|example|structure|class|inductive|axiom|constant)[[:space:]]+([^[:space:]:(]+)'
+
     while IFS= read -r line; do
-        decl=$(echo "$line" | sed -E 's/^(theorem|lemma|def|instance|abbrev|example|structure|class|inductive) +([^ :(]+).*/\2/')
-        if [[ -n "$decl" ]]; then
-            # Add namespace prefix if present
-            if [[ -n "$NAMESPACE" ]]; then
-                DECLARATIONS+=("$NAMESPACE.$decl")
-            else
-                DECLARATIONS+=("$decl")
+        if [[ "$line" =~ $ns_re ]]; then
+            FRAME_STACK+=("ns:${BASH_REMATCH[1]}")
+        elif [[ "$line" =~ $sec_re ]]; then
+            FRAME_STACK+=("sec:${BASH_REMATCH[2]:-}")
+        elif [[ "$line" =~ $end_re ]]; then
+            local end_name="${BASH_REMATCH[2]:-}"
+            if [[ ${#FRAME_STACK[@]} -gt 0 ]]; then
+                local top_idx=$((${#FRAME_STACK[@]} - 1))
+                local top="${FRAME_STACK[$top_idx]}"
+                local top_name="${top#*:}"
+                if [[ -z "$end_name" || "$end_name" == "$top_name" ]]; then
+                    unset "FRAME_STACK[$top_idx]"
+                    # Re-pack safely: bare "${arr[@]}" on empty errors under set -u.
+                    if [[ ${#FRAME_STACK[@]} -gt 0 ]]; then
+                        FRAME_STACK=("${FRAME_STACK[@]}")
+                    else
+                        FRAME_STACK=()
+                    fi
+                fi
+            fi
+        elif [[ "$line" =~ $decl_re ]]; then
+            # BASH_REMATCH indices with the new decl_re:
+            #   [1] optional modifier ("noncomputable ", "unsafe ", etc.)
+            #   [2] the declaration keyword
+            #   [3] the short (unqualified) name
+            local short="${BASH_REMATCH[3]}"
+            if [[ -n "$short" ]]; then
+                local prefix=""
+                if [[ ${#FRAME_STACK[@]} -gt 0 ]]; then
+                    local frame
+                    for frame in "${FRAME_STACK[@]}"; do
+                        if [[ "$frame" == ns:* ]]; then
+                            prefix+="${frame#ns:}."
+                        fi
+                    done
+                fi
+                DECLARATIONS+=("${prefix}${short}")
             fi
         fi
-    # Note: We match only declarations that START at column 0 with the keyword directly
-    # Lines starting with 'private ', 'protected ', or 'local ' won't match
-    # This is intentional - those declarations are not accessible outside their scope
-    done < <(grep -E '^(theorem|lemma|def|instance|abbrev|example|structure|class|inductive) ' "$FILE" 2>/dev/null || true)
+    done < "$FILE"
 
     if [[ ${#DECLARATIONS[@]} -eq 0 ]]; then
-        echo -e "  ${YELLOW}No declarations found${NC}"
+        # Distinguish two cases:
+        #   (a) legitimately declaration-free file (imports only, comments
+        #       only, etc.) — safe to skip
+        #   (b) file HAS declaration-shaped content the walk didn't match
+        #       (indented decls, private/protected/local prefixed decls,
+        #       @[attr] annotations, mutual blocks, unicode identifiers) —
+        #       gate can't verify these; must surface as UNVERIFIED
+        # Conservative heuristic scans for shape-suggestive patterns.
+        # See reviewer discussion: previous behavior was to silently return
+        # 0 in both cases, which let mixed-directory runs green through a
+        # file with only private theorems.
+        local _decl_kw_re='(theorem|lemma|def|instance|abbrev|structure|class|inductive|axiom|constant)[[:space:]]'
+        if grep -qE "^[[:space:]]+${_decl_kw_re}" "$FILE" \
+           || grep -qE "^(private|protected|local)[[:space:]]+(noncomputable[[:space:]]+|unsafe[[:space:]]+|partial[[:space:]]+|nonrec[[:space:]]+)?${_decl_kw_re}" "$FILE" \
+           || grep -qE '^@\[' "$FILE" \
+           || grep -qE '^mutual[[:space:]]*$' "$FILE"; then
+            echo -e "  ${YELLOW}⚠ Declaration-shaped lines found but not matched by the walker (indented / private / @[attr] / mutual) — file marked unverified${NC}"
+            UNVERIFIED_FILES+=("$FILE")
+        else
+            echo -e "  ${YELLOW}No declarations found${NC}"
+        fi
         echo
         return 0
     fi
@@ -254,40 +521,38 @@ check_file() {
     # Run Lean
     local HAS_CUSTOM=false
     if OUTPUT=$(lake env lean "$FILE" 2>&1); then
-        # Parse output
-        local CURRENT_DECL=""
+        # Build newline-delimited expected-name list from DECLARATIONS so
+        # the parser can filter out headers for unexpected names.
+        local _expected_names
+        _expected_names=$(printf '%s\n' "${DECLARATIONS[@]}")
+        parse_axioms_output "$OUTPUT" "$_expected_names"
+        HAS_CUSTOM="$_AXPARSER_HAS_CUSTOM"
 
-        while IFS= read -r line; do
-            # Match declaration headers like "foo depends on axioms:"
-            if [[ "$line" =~ ^([a-zA-Z0-9_.]+)[[:space:]]+depends[[:space:]]+on[[:space:]]+axioms: ]]; then
-                CURRENT_DECL="${BASH_REMATCH[1]}"
-                if [[ "$VERBOSE" == "--verbose" ]]; then
-                    echo -e "  ${BLUE}$CURRENT_DECL:${NC}"
-                fi
-            # Match axiom names (just the name on a line)
-            elif [[ "$line" =~ ^[[:space:]]*([a-zA-Z0-9_.]+)[[:space:]]*$ ]]; then
-                axiom="${BASH_REMATCH[1]}"
-                # Skip empty lines
-                if [[ -n "$axiom" && ! "$axiom" =~ ^[[:space:]]*$ ]]; then
-                    if [[ ! "$axiom" =~ $STANDARD_AXIOMS ]]; then
-                        echo -e "  ${RED}⚠ $CURRENT_DECL uses non-standard axiom: $axiom${NC}"
-                        HAS_CUSTOM=true
-                        ((++CUSTOM_AXIOM_COUNT))
-                    elif [[ "$VERBOSE" == "--verbose" ]]; then
-                        echo -e "    ${GREEN}✓${NC} $axiom (standard)"
-                    fi
-                fi
-            fi
-        done <<< "$OUTPUT"
-
-        if [[ "$HAS_CUSTOM" == false ]]; then
-            echo -e "  ${GREEN}✓ All declarations use only standard axioms${NC}"
-        else
+        # Coverage invariant: for a file to count as verified we need EVERY
+        # appended `#print axioms X` to have produced a recognizable header
+        # line in OUTPUT. If the parser missed any (unrecognized format,
+        # future Lean format change, silent skip), treat the file as
+        # unverified rather than trusting a "no custom axioms" verdict on
+        # partial coverage. Custom-axiom findings from the parsed portion
+        # still surface (a real finding is never suppressed by coverage
+        # incompleteness).
+        if [[ "$HAS_CUSTOM" == true ]]; then
             ((++FILES_WITH_CUSTOM))
         fi
 
-        ((TOTAL_DECLARATIONS+=${#DECLARATIONS[@]}))
-        ((++TOTAL_FILES))
+        if [[ "$_AXPARSER_PARSED_COUNT" -eq ${#DECLARATIONS[@]} ]]; then
+            if [[ "$HAS_CUSTOM" == false ]]; then
+                echo -e "  ${GREEN}✓ All declarations use only standard axioms${NC}"
+            fi
+            ((++TOTAL_FILES))
+        else
+            echo -e "  ${YELLOW}⚠ Only $_AXPARSER_PARSED_COUNT of ${#DECLARATIONS[@]} declarations were parseable — file marked unverified${NC}"
+            UNVERIFIED_FILES+=("$FILE")
+        fi
+
+        # Only count declarations we actually parsed — silently-lost decls
+        # inflate the "Declarations checked" counter without any coverage.
+        ((TOTAL_DECLARATIONS+=_AXPARSER_PARSED_COUNT))
 
         cleanup_file
         echo
@@ -322,47 +587,42 @@ check_file() {
             # Only unknownIdentifier errors in the appended region - treat as warning
             echo -e "  ${YELLOW}⚠ Some declarations not accessible (private/local)${NC}"
 
-            # Still try to parse any successful #print axioms results from output
-            local CURRENT_DECL=""
-            local PARSED_ANY=false
+            # Parse whatever DID resolve, then apply the coverage invariant.
+            # Build newline-delimited expected-name list from DECLARATIONS so
+            # the parser can filter out headers for unexpected names.
+            local _expected_names
+            _expected_names=$(printf '%s\n' "${DECLARATIONS[@]}")
+            parse_axioms_output "$OUTPUT" "$_expected_names"
+            HAS_CUSTOM="$_AXPARSER_HAS_CUSTOM"
 
-            while IFS= read -r line; do
-                # Match declaration headers like "foo depends on axioms:"
-                if [[ "$line" =~ ^([a-zA-Z0-9_.]+)[[:space:]]+depends[[:space:]]+on[[:space:]]+axioms: ]]; then
-                    CURRENT_DECL="${BASH_REMATCH[1]}"
-                    PARSED_ANY=true
-                    if [[ "$VERBOSE" == "--verbose" ]]; then
-                        echo -e "  ${BLUE}$CURRENT_DECL:${NC}"
-                    fi
-                # Match axiom names (just the name on a line)
-                elif [[ "$line" =~ ^[[:space:]]*([a-zA-Z0-9_.]+)[[:space:]]*$ ]]; then
-                    axiom="${BASH_REMATCH[1]}"
-                    # Skip empty lines
-                    if [[ -n "$axiom" && ! "$axiom" =~ ^[[:space:]]*$ ]]; then
-                        if [[ ! "$axiom" =~ $STANDARD_AXIOMS ]]; then
-                            echo -e "  ${RED}⚠ $CURRENT_DECL uses non-standard axiom: $axiom${NC}"
-                            HAS_CUSTOM=true
-                            ((++CUSTOM_AXIOM_COUNT))
-                        elif [[ "$VERBOSE" == "--verbose" ]]; then
-                            echo -e "    ${GREEN}✓${NC} $axiom (standard)"
-                        fi
-                    fi
-                fi
-            done <<< "$OUTPUT"
+            # Custom findings from the resolved portion still surface — a real
+            # finding is never suppressed by coverage incompleteness.
+            if [[ "$HAS_CUSTOM" == true ]]; then
+                ((++FILES_WITH_CUSTOM))
+            fi
 
-            if [[ "$PARSED_ANY" == true ]]; then
+            # Coverage invariant: any decl that didn't resolve marks the file
+            # as unverified. This catches the same-file partial case: one
+            # accessible + one inaccessible previously counted the file as
+            # verified based on PARSED_ANY=true, silently dropping the
+            # inaccessible decl. Reviewer-caught.
+            if [[ "$_AXPARSER_PARSED_COUNT" -eq ${#DECLARATIONS[@]} ]]; then
                 if [[ "$HAS_CUSTOM" == false ]]; then
                     echo -e "  ${GREEN}✓ Accessible declarations use only standard axioms${NC}"
-                else
-                    ((++FILES_WITH_CUSTOM))
                 fi
-                ((TOTAL_DECLARATIONS+=${#DECLARATIONS[@]}))
                 ((++TOTAL_FILES))
+            else
+                UNVERIFIED_FILES+=("$FILE")
+                if [[ "$_AXPARSER_PARSED_COUNT" -gt 0 ]]; then
+                    echo -e "  ${YELLOW}⚠ Only $_AXPARSER_PARSED_COUNT of ${#DECLARATIONS[@]} declarations resolved — file marked unverified${NC}"
+                fi
             fi
+
+            ((TOTAL_DECLARATIONS+=_AXPARSER_PARSED_COUNT))
 
             cleanup_file
             echo
-            return 0  # Don't fail - just warn about inaccessible declarations
+            return 0  # Warned inline; UNVERIFIED_FILES surfaces the gap in the summary.
         else
             # Real error - not just unknownIdentifier in appended region
             echo -e "  ${RED}Error running Lean${NC}" >&2
@@ -376,6 +636,7 @@ check_file() {
 
 # Check all files
 FAILED_FILES=()
+UNVERIFIED_FILES=()
 for file in "${LEAN_FILES[@]}"; do
     if ! check_file "$file"; then
         FAILED_FILES+=("$file")
@@ -388,13 +649,38 @@ echo -e "${BLUE}Summary:${NC}"
 echo -e "  Files checked: $TOTAL_FILES"
 echo -e "  Declarations checked: $TOTAL_DECLARATIONS"
 
-if [[ $TOTAL_FILES -eq 0 && ${#FAILED_FILES[@]} -gt 0 ]]; then
-    echo -e "  ${YELLOW}⚠ No files were successfully checked${NC}"
-elif [[ $FILES_WITH_CUSTOM -eq 0 ]]; then
-    echo -e "  ${GREEN}✓ All files use only standard axioms${NC}"
-else
+# Surface unverified files first (informational; feeds the verdict block below).
+# Length-guard the array read — bare "${arr[@]}" on empty errors under set -u.
+if [[ ${#UNVERIFIED_FILES[@]} -gt 0 ]]; then
+    echo -e "  ${YELLOW}⚠ Unverified files (declarations did not resolve): ${#UNVERIFIED_FILES[@]}${NC}"
+    for file in "${UNVERIFIED_FILES[@]}"; do
+        echo -e "    - $file"
+    done
+fi
+
+# Verdict — the green branch requires FULL coverage AND no custom axioms.
+# Priority order below is deliberately shaped by what the user needs to see:
+#   1. If any file used a custom axiom, ALWAYS surface that (red) — a real
+#      finding is never suppressed by unverified files.
+#   2. Additionally, if any file is unverified, ALSO surface the coverage
+#      gap (yellow) so the user knows the run isn't a full pass either way.
+#   3. Otherwise, zero-decls-verified is the load-bearing #132 withhold case.
+#   4. Some verified but some unverified → verified-clean-but-withheld.
+#   5. Full clean coverage → green.
+if [[ $FILES_WITH_CUSTOM -gt 0 ]]; then
     echo -e "  ${RED}⚠ Files with non-standard axioms: $FILES_WITH_CUSTOM${NC}"
     echo -e "  ${RED}⚠ Total non-standard axiom usages: $CUSTOM_AXIOM_COUNT${NC}"
+    if [[ ${#UNVERIFIED_FILES[@]} -gt 0 ]]; then
+        echo -e "  ${YELLOW}⚠ Verdict also withheld because some files were unverified${NC}"
+    fi
+elif [[ ${#UNVERIFIED_FILES[@]} -gt 0 || $TOTAL_DECLARATIONS -eq 0 ]]; then
+    if [[ $TOTAL_DECLARATIONS -eq 0 ]]; then
+        echo -e "  ${YELLOW}⚠ Zero declarations were verified — verdict withheld${NC}"
+    else
+        echo -e "  ${YELLOW}⚠ Verified files use only standard axioms, but verdict withheld because some files were unverified${NC}"
+    fi
+else
+    echo -e "  ${GREEN}✓ All files use only standard axioms${NC}"
 fi
 
 if [[ ${#FAILED_FILES[@]} -gt 0 ]]; then
@@ -417,6 +703,14 @@ if [[ $FILES_WITH_CUSTOM -gt 0 ]]; then
 fi
 
 if [[ ${#FAILED_FILES[@]} -gt 0 ]]; then
+    exit 1
+fi
+
+# UNVERIFIED_FILES nonempty and TOTAL_DECLARATIONS==0 are coverage failures
+# — the gate could not make a determination for one or more files. This
+# overrides --exit-zero-on-findings: `--report-only` means "treat findings
+# as non-fatal", not "silently drop what you couldn't check."
+if [[ ${#UNVERIFIED_FILES[@]} -gt 0 || $TOTAL_DECLARATIONS -eq 0 ]]; then
     exit 1
 fi
 
