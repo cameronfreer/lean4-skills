@@ -84,14 +84,20 @@ STANDARD_AXIOMS='^(propext|quot\.sound|Quot\.sound|Classical\.choice)$'
 #   legacy (older Lean 4):       X depends on axioms:
 #                                  a
 #                                  b
-# Inputs:  $1 = captured OUTPUT string
+# Inputs:
+#   $1 = captured OUTPUT string
+#   $2 = expected decl names (newline-separated). If non-empty, header
+#        lines whose name is NOT in this set are ignored — neither counted
+#        toward coverage nor classified for axioms. Defense against a
+#        misbehaving Lean/shim emitting unrelated headers (reviewer-caught
+#        "wrong-name" attack). Pass empty string to accept all names.
 # Outputs (via globals — bash 3.2 has no return-by-reference):
-#   _AXPARSER_HAS_CUSTOM  = true iff any non-standard axiom was seen
-#   _AXPARSER_PARSED_ANY  = true iff any header line was matched
-#   _AXPARSER_PARSED_COUNT = number of decl headers recognized
-#     (callers compare against ${#DECLARATIONS[@]} to detect partial coverage —
-#     the reviewer-caught false-green case where some appended `#print axioms`
-#     lines resolved and others didn't)
+#   _AXPARSER_HAS_CUSTOM   = true iff any non-standard axiom was seen (in
+#                            an expected-name header only)
+#   _AXPARSER_PARSED_ANY   = true iff any expected header line was matched
+#   _AXPARSER_PARSED_COUNT = number of DISTINCT expected decl names seen in
+#                            headers (deduplicated — caller compares against
+#                            ${#DECLARATIONS[@]} to detect partial coverage)
 # Side effects:
 #   Increments global CUSTOM_AXIOM_COUNT for each non-standard axiom found
 #   Emits per-axiom colored lines to stdout inline
@@ -99,10 +105,21 @@ STANDARD_AXIOMS='^(propext|quot\.sound|Quot\.sound|Classical\.choice)$'
 # vars — inline `[^]]` inside [[ =~ ]] confuses shellcheck's parser.
 parse_axioms_output() {
     local OUTPUT="$1"
+    local EXPECTED_NAMES="${2:-}"
     _AXPARSER_HAS_CUSTOM=false
     _AXPARSER_PARSED_ANY=false
     _AXPARSER_PARSED_COUNT=0
     local CURRENT_DECL=""
+    # State: are we currently inside a LEGACY multi-line axioms block?
+    # Only set to true when a plain (unquoted) `X depends on axioms:` header
+    # arrived WITHOUT a bracketed tail. Reset on any modern header or blank
+    # line. Gates the bare-identifier axiom-name matcher so unrelated Lean
+    # output like `#eval` results can't false-positive as axioms.
+    local IN_LEGACY_AXIOMS=false
+    # Deduplication track for expected names already counted, so a shim
+    # emitting two headers for the same decl doesn't inflate PARSED_COUNT
+    # above extracted_count (which would fail the caller's equality check).
+    local SEEN_NAMES=""
 
     # Header lines. Lean identifiers can contain apostrophes (foo', foo'',
     # etc. — common style for "primed" variants). The character class
@@ -127,10 +144,11 @@ parse_axioms_output() {
     # Bare axiom name on its own line — for the legacy multi-line format.
     local ident_re='^[[:space:]]*([a-zA-Z0-9_.]+)[[:space:]]*$'
 
-    local line rest axiom_list axiom_name matched_dep matched_no
+    local line rest axiom_list axiom_name matched_dep matched_no header_shape
     while IFS= read -r line; do
         matched_dep=0
         matched_no=0
+        header_shape=""
         # Quoted form first — `[^']` would exclude apostrophes, so we must
         # check the quoted variant before the plain one (plain_dep_re's
         # first-char guard excludes `'`, but the order still reads better).
@@ -138,10 +156,12 @@ parse_axioms_output() {
             CURRENT_DECL="${BASH_REMATCH[1]}"
             rest="${BASH_REMATCH[2]}"
             matched_dep=1
+            header_shape="quoted"
         elif [[ "$line" =~ $plain_dep_re ]]; then
             CURRENT_DECL="${BASH_REMATCH[1]}"
             rest="${BASH_REMATCH[2]}"
             matched_dep=1
+            header_shape="plain"
         elif [[ "$line" =~ $quoted_noaxioms_re ]]; then
             CURRENT_DECL="${BASH_REMATCH[1]}"
             matched_no=1
@@ -150,9 +170,38 @@ parse_axioms_output() {
             matched_no=1
         fi
 
+        # Any new header line ends a legacy-multi-line block. Blank lines
+        # also end it (below).
+        if [[ $matched_dep -eq 1 || $matched_no -eq 1 ]]; then
+            IN_LEGACY_AXIOMS=false
+        elif [[ -z "$line" ]]; then
+            IN_LEGACY_AXIOMS=false
+            continue
+        fi
+
+        # Expected-name filter: if a filter is set and CURRENT_DECL isn't in
+        # it, ignore this header entirely (don't count, don't classify).
+        # Reviewer-caught defense against a Lean/shim misbehavior injecting
+        # a header for a name we never asked about.
+        if [[ ($matched_dep -eq 1 || $matched_no -eq 1) && -n "$EXPECTED_NAMES" ]]; then
+            if ! grep -qFx -- "$CURRENT_DECL" <<< "$EXPECTED_NAMES"; then
+                # Unexpected name — reset CURRENT_DECL so any legacy bare
+                # lines that follow don't get attributed to this alien header
+                # under the expected-name whitelist.
+                CURRENT_DECL=""
+                matched_dep=0
+                matched_no=0
+                continue
+            fi
+        fi
+
         if [[ $matched_dep -eq 1 ]]; then
-            _AXPARSER_PARSED_ANY=true
-            ((++_AXPARSER_PARSED_COUNT))
+            # Dedupe: only count each expected name once toward PARSED_COUNT.
+            if ! grep -qFx -- "$CURRENT_DECL" <<< "$SEEN_NAMES"; then
+                SEEN_NAMES="${SEEN_NAMES}${CURRENT_DECL}"$'\n'
+                _AXPARSER_PARSED_ANY=true
+                ((++_AXPARSER_PARSED_COUNT))
+            fi
             if [[ "$VERBOSE" == "--verbose" ]]; then
                 echo -e "  ${BLUE}$CURRENT_DECL:${NC}"
             fi
@@ -172,19 +221,32 @@ parse_axioms_output() {
                         fi
                     done
                 fi
+            elif [[ "$header_shape" == "plain" ]]; then
+                # Legacy multi-line format — bare identifier lines that follow
+                # are axiom names. Enter the gated state.
+                IN_LEGACY_AXIOMS=true
             fi
         elif [[ $matched_no -eq 1 ]]; then
-            _AXPARSER_PARSED_ANY=true
-            ((++_AXPARSER_PARSED_COUNT))
+            if ! grep -qFx -- "$CURRENT_DECL" <<< "$SEEN_NAMES"; then
+                SEEN_NAMES="${SEEN_NAMES}${CURRENT_DECL}"$'\n'
+                _AXPARSER_PARSED_ANY=true
+                ((++_AXPARSER_PARSED_COUNT))
+            fi
             if [[ "$VERBOSE" == "--verbose" ]]; then
                 echo -e "  ${BLUE}$CURRENT_DECL:${NC} ${GREEN}✓${NC} (no axioms)"
             fi
-        elif [[ "$line" =~ $ident_re ]]; then
-            # Legacy format: one axiom per subsequent line.
+        elif [[ "$IN_LEGACY_AXIOMS" == true && "$line" =~ $ident_re ]]; then
+            # Legacy format: one axiom per subsequent line — but ONLY when
+            # we're currently inside a legacy `X depends on axioms:` block.
+            # Gate prevents unrelated Lean output (e.g. `#eval` results,
+            # elaboration diagnostics) from being misclassified as axioms.
             axiom_name="${BASH_REMATCH[1]}"
             if [[ -n "$axiom_name" && "$axiom_name" != "depends" ]]; then
                 _classify_axiom "$CURRENT_DECL" "$axiom_name"
             fi
+        elif [[ "$IN_LEGACY_AXIOMS" == true ]]; then
+            # Any non-identifier line inside a legacy block ends it.
+            IN_LEGACY_AXIOMS=false
         fi
     done <<< "$OUTPUT"
 }
@@ -439,7 +501,11 @@ check_file() {
     # Run Lean
     local HAS_CUSTOM=false
     if OUTPUT=$(lake env lean "$FILE" 2>&1); then
-        parse_axioms_output "$OUTPUT"
+        # Build newline-delimited expected-name list from DECLARATIONS so
+        # the parser can filter out headers for unexpected names.
+        local _expected_names
+        _expected_names=$(printf '%s\n' "${DECLARATIONS[@]}")
+        parse_axioms_output "$OUTPUT" "$_expected_names"
         HAS_CUSTOM="$_AXPARSER_HAS_CUSTOM"
 
         # Coverage invariant: for a file to count as verified we need EVERY
@@ -502,7 +568,11 @@ check_file() {
             echo -e "  ${YELLOW}⚠ Some declarations not accessible (private/local)${NC}"
 
             # Parse whatever DID resolve, then apply the coverage invariant.
-            parse_axioms_output "$OUTPUT"
+            # Build newline-delimited expected-name list from DECLARATIONS so
+        # the parser can filter out headers for unexpected names.
+        local _expected_names
+        _expected_names=$(printf '%s\n' "${DECLARATIONS[@]}")
+        parse_axioms_output "$OUTPUT" "$_expected_names"
             HAS_CUSTOM="$_AXPARSER_HAS_CUSTOM"
 
             # Custom findings from the resolved portion still surface — a real

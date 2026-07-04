@@ -19,6 +19,8 @@
 #         Legacy.*    -> "<name> depends on axioms:" + one axiom per line
 #                        (older Lean 4 output format — regression coverage)
 #         Silent.*    -> "-- unrecognized future format --"          (parser miss)
+#         WrongName.* -> "'Other.fake' depends on axioms: [propext]"   (name-mismatch
+#                        — parser must ignore, file must be marked unverified)
 #         Substring.* -> "'<name>' depends on axioms: [my.propext.bad, ClassicalxChoice]"
 #                        (axiom names CONTAINING standard-axiom substrings —
 #                         must be flagged as custom, not filtered as standard)
@@ -65,6 +67,11 @@ while IFS= read -r cmdline; do
             # Emit output the parser cannot classify. Coverage invariant
             # must catch this: parsed_count stays 0, file → unverified.
             printf -- '-- output in a format the parser does not recognize --\n'
+            ;;
+        WrongName.*)
+            # Emit a header for a name we were NOT asked about. The
+            # expected-name filter must ignore it; file → unverified.
+            printf "'Other.fake' depends on axioms: [propext]\n"
             ;;
         Substring.*)
             # Axiom names containing standard-axiom substrings. Must be

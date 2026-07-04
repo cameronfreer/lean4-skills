@@ -403,6 +403,23 @@ else
     ((FAIL++)) || true
 fi
 
+# Probe P17 — wrong_name.lean: shim emits a header for `Other.fake` when
+# the extracted decl is `WrongName.lost`. Expected-name filter must
+# reject the alien header, parsed_count stays 0, file → unverified.
+# Reviewer-caught: count-only invariant would have false-greened this.
+run_probe "P17 wrong-name" wrong_name.lean
+p17_ok=1
+assert_out_has     "P17" "Unverified files"                      || p17_ok=0
+assert_out_has     "P17" "Zero declarations were verified"       || p17_ok=0
+assert_out_missing "P17" "All files use only standard axioms"    || p17_ok=0
+assert_exit        "P17" 1                                       || p17_ok=0
+if [[ $p17_ok -eq 1 ]]; then
+    echo "  PASS: P17 wrong-name — alien header rejected, file marked unverified"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
 # Probe P15 — axiom_decl.lean: top-level `axiom` decls must be extracted
 # and flagged. Reviewer-caught silent-green path: pre-fix the walk only
 # knew the definition-shaped keywords and dropped `axiom` entirely.
