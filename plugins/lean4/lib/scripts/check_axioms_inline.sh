@@ -94,42 +94,66 @@ parse_axioms_output() {
     _AXPARSER_PARSED_ANY=false
     local CURRENT_DECL=""
 
-    # Header line for the "has axioms" case (both formats). Single quotes
-    # around name are optional. Group 1 = decl name; Group 2 = tail (may
-    # contain `[a, b, c]`).
-    local header_re="^'?([a-zA-Z0-9_.]+)'?[[:space:]]+depends[[:space:]]+on[[:space:]]+axioms:(.*)$"
-    # Header line for the "no axioms" case: modern Lean 4 emits this for
-    # any decl whose only dependencies are built-in — e.g. `trivial` proofs
-    # of `True`. The parser MUST count these as verified even though there's
-    # nothing to classify, otherwise mixed accessible+inaccessible runs
-    # would misreport the accessible clean decls as unverified.
-    local noaxioms_re="^'?([a-zA-Z0-9_.]+)'?[[:space:]]+does[[:space:]]+not[[:space:]]+depend[[:space:]]+on[[:space:]]+any[[:space:]]+axioms[[:space:]]*$"
+    # Header lines. Lean identifiers can contain apostrophes (foo', foo'',
+    # etc. — common style for "primed" variants). The character class
+    # [a-zA-Z0-9_.] would exclude those, silently misclassifying every such
+    # decl as unrecognized and (post-parser-update) as "no axioms". So we
+    # split by shape: QUOTED forms (modern Lean 4) capture broadly inside
+    # the single quotes; UNQUOTED forms (legacy multi-line) match a
+    # whitespace-delimited token. `.+` is greedy, so `'foo'' depends on
+    # axioms: [x]` correctly captures `foo'` — backtracking finds the last
+    # single-quote before ` depends`.
+    local quoted_dep_re="^'(.+)'[[:space:]]+depends[[:space:]]+on[[:space:]]+axioms:(.*)$"
+    local plain_dep_re="^([^[:space:]'][^[:space:]]*)[[:space:]]+depends[[:space:]]+on[[:space:]]+axioms:(.*)$"
+    # "does not depend on any axioms" — modern Lean's output for decls
+    # whose only deps are built-in (e.g. `trivial` proofs of `True`).
+    # Must be counted as verified even though there's nothing to classify;
+    # otherwise mixed accessible+inaccessible runs misreport clean decls
+    # as unverified.
+    local quoted_noaxioms_re="^'(.+)'[[:space:]]+does[[:space:]]+not[[:space:]]+depend[[:space:]]+on[[:space:]]+any[[:space:]]+axioms[[:space:]]*$"
+    local plain_noaxioms_re="^([^[:space:]'][^[:space:]]*)[[:space:]]+does[[:space:]]+not[[:space:]]+depend[[:space:]]+on[[:space:]]+any[[:space:]]+axioms[[:space:]]*$"
     # Bracketed axiom list capture — for the modern one-line format.
     local bracket_re='\[([^]]*)\]'
     # Bare axiom name on its own line — for the legacy multi-line format.
     local ident_re='^[[:space:]]*([a-zA-Z0-9_.]+)[[:space:]]*$'
 
-    local line rest axiom_list axiom_name
+    local line rest axiom_list axiom_name matched_dep matched_no
     while IFS= read -r line; do
-        if [[ "$line" =~ $header_re ]]; then
+        matched_dep=0
+        matched_no=0
+        # Quoted form first — `[^']` would exclude apostrophes, so we must
+        # check the quoted variant before the plain one (plain_dep_re's
+        # first-char guard excludes `'`, but the order still reads better).
+        if [[ "$line" =~ $quoted_dep_re ]]; then
             CURRENT_DECL="${BASH_REMATCH[1]}"
-            _AXPARSER_PARSED_ANY=true
             rest="${BASH_REMATCH[2]}"
+            matched_dep=1
+        elif [[ "$line" =~ $plain_dep_re ]]; then
+            CURRENT_DECL="${BASH_REMATCH[1]}"
+            rest="${BASH_REMATCH[2]}"
+            matched_dep=1
+        elif [[ "$line" =~ $quoted_noaxioms_re ]]; then
+            CURRENT_DECL="${BASH_REMATCH[1]}"
+            matched_no=1
+        elif [[ "$line" =~ $plain_noaxioms_re ]]; then
+            CURRENT_DECL="${BASH_REMATCH[1]}"
+            matched_no=1
+        fi
+
+        if [[ $matched_dep -eq 1 ]]; then
+            _AXPARSER_PARSED_ANY=true
             if [[ "$VERBOSE" == "--verbose" ]]; then
                 echo -e "  ${BLUE}$CURRENT_DECL:${NC}"
             fi
             # Modern format: axioms on the same line inside brackets.
             if [[ "$rest" =~ $bracket_re ]]; then
                 axiom_list="${BASH_REMATCH[1]}"
-                # Comma-split (names can contain dots; STANDARD_AXIOMS is
-                # a case-sensitive alternation, so no case folding needed).
                 local _saved_ifs="$IFS"
                 local -a _axiom_arr=()
                 IFS=',' read -r -a _axiom_arr <<< "$axiom_list"
                 IFS="$_saved_ifs"
                 if [[ ${#_axiom_arr[@]} -gt 0 ]]; then
                     for axiom_name in "${_axiom_arr[@]}"; do
-                        # Strip surrounding whitespace (leading/trailing).
                         axiom_name="${axiom_name#"${axiom_name%%[![:space:]]*}"}"
                         axiom_name="${axiom_name%"${axiom_name##*[![:space:]]}"}"
                         if [[ -n "$axiom_name" ]]; then
@@ -138,10 +162,7 @@ parse_axioms_output() {
                     done
                 fi
             fi
-        elif [[ "$line" =~ $noaxioms_re ]]; then
-            # "'X' does not depend on any axioms" — clean decl, count as
-            # verified but nothing to classify.
-            CURRENT_DECL="${BASH_REMATCH[1]}"
+        elif [[ $matched_no -eq 1 ]]; then
             _AXPARSER_PARSED_ANY=true
             if [[ "$VERBOSE" == "--verbose" ]]; then
                 echo -e "  ${BLUE}$CURRENT_DECL:${NC} ${GREEN}✓${NC} (no axioms)"

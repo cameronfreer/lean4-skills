@@ -294,6 +294,26 @@ else
     ((FAIL++)) || true
 fi
 
+# Probe 9c — primed_name.lean: parser handles decl names with apostrophes
+# (foo', foo''). Real Lean 4 output for these is `'Sorry.foo'' depends
+# on axioms: [sorryAx]` — quoted name contains an apostrophe. Pre-fix
+# regex `[a-zA-Z0-9_.]+` excluded apostrophes and silently misclassified
+# these as unrecognized. Reviewer-caught regression.
+run_probe "P9c primed-name" primed_name.lean
+p9c_ok=1
+assert_log_has "P9c"   "Sorry.primed'"                     || p9c_ok=0
+assert_log_has "P9c"   "Sorry.double_primed''"             || p9c_ok=0
+assert_out_has "P9c"   "Sorry.primed' uses non-standard axiom: sorryAx"        || p9c_ok=0
+assert_out_has "P9c"   "Sorry.double_primed'' uses non-standard axiom: sorryAx" || p9c_ok=0
+assert_out_has "P9c"   "Files with non-standard axioms: 1" || p9c_ok=0
+assert_exit    "P9c" 1                                    || p9c_ok=0
+if [[ $p9c_ok -eq 1 ]]; then
+    echo "  PASS: P9c primed-name — Sorry.primed' / Sorry.double_primed'' both flagged"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
 # Probe 9b — legacy_format.lean: parser handles the older multi-line
 # `#print axioms` output format. Locks in back-compat with older Lean
 # 4 versions after the modern-format parser update.
