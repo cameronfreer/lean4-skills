@@ -60,7 +60,7 @@ Best-effort scan for non-standard axioms in top-level declarations.
 
 **Standard axioms (acceptable):** `propext`, `Quot.sound`, `Classical.choice`
 
-**Coverage limitations:** Only detects the first namespace in a file. Only captures top-level (unindented) declarations. Nested namespaces, sections, and indented declarations may be missed.
+**Coverage limitations:** Captures top-level (unindented) declarations only, with the keywords `theorem|lemma|def|instance|abbrev|example|structure|class|inductive`. Nested and sibling `namespace` blocks are tracked correctly via a scope stack, as are `section` blocks (which don't affect qualified names). Indented declarations, top-level `axiom`/`constant`, and modifier-prefixed decls (`noncomputable def`, `unsafe def`, `partial def`) are not currently matched — any file whose decls all fall in these classes is surfaced via the UNVERIFIED_FILES summary rather than passing silently. Identifier regex is ASCII (unicode-letter names like `namespace α` also surface as unverified).
 
 **Mutation warning:** The script temporarily appends `#print axioms` commands to source files, runs Lean, then removes them. Files should be in version control, and no other process should be editing them during the scan.
 
@@ -198,7 +198,7 @@ Three grep-style scripts also exit non-zero on findings by default — useful fo
 - `check_axioms_inline.sh` — exit 1 when custom axioms found
 - `unused_declarations.sh` — exit 1 when unused declarations found
 
-**`--exit-zero-on-findings`** (alias: `--report-only`): Makes findings exit 0 while real errors still exit 1. Use in report-only contexts (reviews, troubleshooting); do not use in gate commands like `/lean4:checkpoint`:
+**`--exit-zero-on-findings`** (alias: `--report-only`): Makes findings exit 0 while real errors still exit 1. Use in report-only contexts (reviews, troubleshooting); do not use in gate commands like `/lean4:checkpoint`. **Note (`check_axioms_inline.sh`):** the flag applies to custom-axiom *findings* only. Coverage failures — unverified files or aggregate zero-declaration coverage — always exit 1 regardless of this flag, because a gate that couldn't make a determination for one or more files must not silently pass:
 
 ```bash
 ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary --report-only
