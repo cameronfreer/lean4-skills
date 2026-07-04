@@ -403,6 +403,59 @@ else
     ((FAIL++)) || true
 fi
 
+# Probe P15 — axiom_decl.lean: top-level `axiom` decls must be extracted
+# and flagged. Reviewer-caught silent-green path: pre-fix the walk only
+# knew the definition-shaped keywords and dropped `axiom` entirely.
+# For an AXIOM CHECKER, missing top-level `axiom` was the real bug.
+run_probe "P15 axiom-decl" axiom_decl.lean
+p15_ok=1
+assert_log_has     "P15" "Sorry.badAxiom"                             || p15_ok=0
+assert_out_has     "P15" "Sorry.badAxiom uses non-standard axiom: sorryAx" || p15_ok=0
+assert_out_has     "P15" "Files with non-standard axioms: 1"          || p15_ok=0
+assert_exit        "P15" 1                                            || p15_ok=0
+if [[ $p15_ok -eq 1 ]]; then
+    echo "  PASS: P15 axiom-decl — top-level 'axiom' extracted and flagged"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# Probe P15b — mixed-directory analog of the exact reviewer scenario: a
+# file with only an `axiom` decl alongside a clean file. Aggregate must
+# NOT show green: the axiom is flagged as custom, exit 1. Pre-fix, the
+# axiom file showed "No declarations found" and the aggregate went green.
+run_probe "P15b axiom-in-dir" "DIR:axiom_decl.lean,single_namespace.lean"
+p15b_ok=1
+assert_out_has     "P15b" "Sorry.badAxiom uses non-standard axiom: sorryAx" || p15b_ok=0
+assert_out_has     "P15b" "Files with non-standard axioms: 1"         || p15b_ok=0
+assert_out_missing "P15b" "All files use only standard axioms"        || p15b_ok=0
+assert_exit        "P15b" 1                                           || p15b_ok=0
+if [[ $p15b_ok -eq 1 ]]; then
+    echo "  PASS: P15b axiom-in-dir — mixed dir: axiom flagged, aggregate not green"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# Probe P16 — modifier_decls.lean: `noncomputable def`, `unsafe def`,
+# `partial def`, `nonrec def` all extracted. Pre-fix these were silent
+# no-op cases too. Locks in modifier-prefix recognition.
+run_probe "P16 modifier-decls" modifier_decls.lean
+p16_ok=1
+assert_log_has "P16"   "Sorry.opaque_def"                             || p16_ok=0
+assert_log_has "P16"   "Sorry.unsafe_def"                             || p16_ok=0
+assert_log_has "P16"   "Sorry.partial_def"                            || p16_ok=0
+assert_log_has "P16"   "Sorry.nonrec_def"                             || p16_ok=0
+assert_out_has "P16"   "Files with non-standard axioms: 1"            || p16_ok=0
+assert_out_has "P16"   "Total non-standard axiom usages: 4"           || p16_ok=0
+assert_exit    "P16" 1                                                || p16_ok=0
+if [[ $p16_ok -eq 1 ]]; then
+    echo "  PASS: P16 modifier-decls — noncomputable/unsafe/partial/nonrec all extracted"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
 # Probe 10 — zero_coverage.lean (the primary regression for #132)
 run_probe "P10 zero-coverage" zero_coverage.lean
 p10_ok=1

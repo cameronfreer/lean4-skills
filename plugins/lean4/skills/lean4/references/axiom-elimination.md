@@ -46,7 +46,7 @@ The script handles namespace inference and filters standard axioms automatically
 
 **Limitations:**
 - Private/protected/local declarations cannot be checked (they're not exported)
-- Captures top-level (column-0) declarations only; indented decls, top-level `axiom`/`constant`, and modifier-prefixed decls (`noncomputable def`, `unsafe def`, `partial def`) are not matched
+- Captures top-level (column-0) declarations only; recognized keywords: `theorem|lemma|def|instance|abbrev|example|structure|class|inductive|axiom|constant`, optionally prefixed by `noncomputable`, `unsafe`, `partial`, or `nonrec`. Indented declarations and unicode-identifier decls are not matched.
 - Nested, sibling, and dotted `namespace` blocks ARE tracked correctly (via a scope stack); `section` blocks handled without leaking into the qualified name
 - Any file whose decls all fall in the unmatched classes is surfaced as UNVERIFIED (run exits 1); the previous silent-pass failure mode is gone
 - Declarations with access modifiers will show warnings (not errors)

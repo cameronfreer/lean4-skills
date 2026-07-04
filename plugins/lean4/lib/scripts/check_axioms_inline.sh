@@ -350,7 +350,17 @@ check_file() {
     local ns_re='^namespace[[:space:]]+([A-Za-z0-9_.]+)'
     local sec_re='^section([[:space:]]+([A-Za-z0-9_.]+))?[[:space:]]*$'
     local end_re='^end([[:space:]]+([A-Za-z0-9_.]+))?[[:space:]]*$'
-    local decl_re='^(theorem|lemma|def|instance|abbrev|example|structure|class|inductive)[[:space:]]+([^[:space:]:(]+)'
+    # Declaration keywords include:
+    #   theorem|lemma|def|instance|abbrev|example|structure|class|inductive
+    #     — the definition-shaped forms
+    #   axiom|constant
+    #     — for an AXIOM CHECKER, missing `axiom foo : ...` at top level was
+    #       a real silent-green path in mixed-directory runs
+    # Optional modifier prefix covers `noncomputable def`, `unsafe def`,
+    # `partial def`, `nonrec def` — real Lean forms whose column-0 keyword
+    # is the modifier, not `def`.
+    # Group 1 = modifier (optional), Group 2 = keyword, Group 3 = short name.
+    local decl_re='^(noncomputable[[:space:]]+|unsafe[[:space:]]+|partial[[:space:]]+|nonrec[[:space:]]+)?(theorem|lemma|def|instance|abbrev|example|structure|class|inductive|axiom|constant)[[:space:]]+([^[:space:]:(]+)'
 
     while IFS= read -r line; do
         if [[ "$line" =~ $ns_re ]]; then
@@ -374,7 +384,11 @@ check_file() {
                 fi
             fi
         elif [[ "$line" =~ $decl_re ]]; then
-            local short="${BASH_REMATCH[2]}"
+            # BASH_REMATCH indices with the new decl_re:
+            #   [1] optional modifier ("noncomputable ", "unsafe ", etc.)
+            #   [2] the declaration keyword
+            #   [3] the short (unqualified) name
+            local short="${BASH_REMATCH[3]}"
             if [[ -n "$short" ]]; then
                 local prefix=""
                 if [[ ${#FRAME_STACK[@]} -gt 0 ]]; then
