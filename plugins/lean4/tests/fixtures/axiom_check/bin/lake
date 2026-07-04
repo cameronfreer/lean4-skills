@@ -10,10 +10,12 @@
 # - For each `#print axioms <name>` line encountered:
 #     * If SEEN_PRINTS_LOG is set, append <name> on its own line to that path.
 #     * Emit canned output based on the name prefix so tests can control
-#       the verdict:
-#         Sorry.*   -> "<name> depends on axioms:" + "sorryAx"       (custom)
+#       the verdict. Output format matches modern Lean 4:
+#         'X' depends on axioms: [ax1, ax2, ...]   — single line, bracketed,
+#                                                    decl name in single quotes.
+#         Sorry.*   -> "'<name>' depends on axioms: [sorryAx]"       (custom)
 #         Unknown.* -> stderr "<file>:<real_lineno>:0: error: unknown identifier '<name>'"
-#         otherwise -> "<name> depends on axioms:" + "propext" + "Classical.choice"
+#         otherwise -> "'<name>' depends on axioms: [propext, Classical.choice]"
 # - Exit 1 if any Unknown.* was emitted, else exit 0. Real Lean exits
 #   nonzero on unknown identifier; the shim must too — otherwise
 #   check_axioms_inline.sh takes the success-path branch on line 256 and
@@ -48,13 +50,16 @@ while IFS= read -r cmdline; do
             had_unknown=1
             ;;
         Sorry.*)
-            printf '%s depends on axioms:\n' "$name"
-            printf 'sorryAx\n'
+            printf "'%s' depends on axioms: [sorryAx]\n" "$name"
             ;;
-        *)
+        Legacy.*)
+            # Preserve legacy multi-line format for a compat regression probe.
             printf '%s depends on axioms:\n' "$name"
             printf 'propext\n'
             printf 'Classical.choice\n'
+            ;;
+        *)
+            printf "'%s' depends on axioms: [propext, Classical.choice]\n" "$name"
             ;;
     esac
 done < "$lean_file"

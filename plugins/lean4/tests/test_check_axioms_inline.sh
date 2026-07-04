@@ -276,6 +276,22 @@ else
     ((FAIL++)) || true
 fi
 
+# Probe 9b — legacy_format.lean: parser handles the older multi-line
+# `#print axioms` output format. Locks in back-compat with older Lean
+# 4 versions after the modern-format parser update.
+run_probe "P9b legacy-format" legacy_format.lean
+p9b_ok=1
+assert_log_has "P9b"   "Legacy.old_format_ok"        || p9b_ok=0
+assert_out_has "P9b"   "All declarations use only standard axioms" || p9b_ok=0
+assert_out_missing "P9b" "uses non-standard axiom"   || p9b_ok=0
+assert_exit    "P9b" 0                               || p9b_ok=0
+if [[ $p9b_ok -eq 1 ]]; then
+    echo "  PASS: P9b legacy-format — legacy multi-line output still parsed as clean"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
 # Probe 10 — zero_coverage.lean (the primary regression for #132)
 run_probe "P10 zero-coverage" zero_coverage.lean
 p10_ok=1

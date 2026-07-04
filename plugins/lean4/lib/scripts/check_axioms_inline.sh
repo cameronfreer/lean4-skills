@@ -74,6 +74,87 @@ NC='\033[0m'
 # Standard acceptable axioms
 STANDARD_AXIOMS="propext|quot.sound|Classical.choice|Quot.sound"
 
+# Parse a `#print axioms` OUTPUT block, handling both Lean 4 output formats:
+#   modern (Lean 4.x current):   'X' depends on axioms: [a, b, c]
+#   legacy (older Lean 4):       X depends on axioms:
+#                                  a
+#                                  b
+# Inputs:  $1 = captured OUTPUT string
+# Outputs (via globals — bash 3.2 has no return-by-reference):
+#   _AXPARSER_HAS_CUSTOM = true iff any non-standard axiom was seen
+#   _AXPARSER_PARSED_ANY = true iff any header line was matched
+# Side effects:
+#   Increments global CUSTOM_AXIOM_COUNT for each non-standard axiom found
+#   Emits per-axiom colored lines to stdout inline
+# Uses caller-scoped VERBOSE and STANDARD_AXIOMS. Regex patterns kept in
+# vars — inline `[^]]` inside [[ =~ ]] confuses shellcheck's parser.
+parse_axioms_output() {
+    local OUTPUT="$1"
+    _AXPARSER_HAS_CUSTOM=false
+    _AXPARSER_PARSED_ANY=false
+    local CURRENT_DECL=""
+
+    # Header line, both formats. Single quotes around name are optional.
+    # Group 1 = decl name; Group 2 = tail (may contain `[a, b, c]`).
+    local header_re="^'?([a-zA-Z0-9_.]+)'?[[:space:]]+depends[[:space:]]+on[[:space:]]+axioms:(.*)$"
+    # Bracketed axiom list capture — for the modern one-line format.
+    local bracket_re='\[([^]]*)\]'
+    # Bare axiom name on its own line — for the legacy multi-line format.
+    local ident_re='^[[:space:]]*([a-zA-Z0-9_.]+)[[:space:]]*$'
+
+    local line rest axiom_list axiom_name
+    while IFS= read -r line; do
+        if [[ "$line" =~ $header_re ]]; then
+            CURRENT_DECL="${BASH_REMATCH[1]}"
+            _AXPARSER_PARSED_ANY=true
+            rest="${BASH_REMATCH[2]}"
+            if [[ "$VERBOSE" == "--verbose" ]]; then
+                echo -e "  ${BLUE}$CURRENT_DECL:${NC}"
+            fi
+            # Modern format: axioms on the same line inside brackets.
+            if [[ "$rest" =~ $bracket_re ]]; then
+                axiom_list="${BASH_REMATCH[1]}"
+                # Comma-split (names can contain dots; STANDARD_AXIOMS is
+                # a case-sensitive alternation, so no case folding needed).
+                local _saved_ifs="$IFS"
+                local -a _axiom_arr=()
+                IFS=',' read -r -a _axiom_arr <<< "$axiom_list"
+                IFS="$_saved_ifs"
+                if [[ ${#_axiom_arr[@]} -gt 0 ]]; then
+                    for axiom_name in "${_axiom_arr[@]}"; do
+                        # Strip surrounding whitespace (leading/trailing).
+                        axiom_name="${axiom_name#"${axiom_name%%[![:space:]]*}"}"
+                        axiom_name="${axiom_name%"${axiom_name##*[![:space:]]}"}"
+                        if [[ -n "$axiom_name" ]]; then
+                            _classify_axiom "$CURRENT_DECL" "$axiom_name"
+                        fi
+                    done
+                fi
+            fi
+        elif [[ "$line" =~ $ident_re ]]; then
+            # Legacy format: one axiom per subsequent line.
+            axiom_name="${BASH_REMATCH[1]}"
+            if [[ -n "$axiom_name" && "$axiom_name" != "depends" ]]; then
+                _classify_axiom "$CURRENT_DECL" "$axiom_name"
+            fi
+        fi
+    done <<< "$OUTPUT"
+}
+
+# Classify one axiom name as standard or custom, emitting the RED warn line
+# and incrementing counters as appropriate. Uses caller-scoped VERBOSE.
+_classify_axiom() {
+    local current_decl="$1"
+    local axiom="$2"
+    if [[ ! "$axiom" =~ $STANDARD_AXIOMS ]]; then
+        echo -e "  ${RED}⚠ $current_decl uses non-standard axiom: $axiom${NC}"
+        _AXPARSER_HAS_CUSTOM=true
+        ((++CUSTOM_AXIOM_COUNT))
+    elif [[ "$VERBOSE" == "--verbose" ]]; then
+        echo -e "    ${GREEN}✓${NC} $axiom (standard)"
+    fi
+}
+
 # Global counter for unique marker filenames (avoids basename collisions)
 MARKER_COUNT=0
 
@@ -296,31 +377,8 @@ check_file() {
     # Run Lean
     local HAS_CUSTOM=false
     if OUTPUT=$(lake env lean "$FILE" 2>&1); then
-        # Parse output
-        local CURRENT_DECL=""
-
-        while IFS= read -r line; do
-            # Match declaration headers like "foo depends on axioms:"
-            if [[ "$line" =~ ^([a-zA-Z0-9_.]+)[[:space:]]+depends[[:space:]]+on[[:space:]]+axioms: ]]; then
-                CURRENT_DECL="${BASH_REMATCH[1]}"
-                if [[ "$VERBOSE" == "--verbose" ]]; then
-                    echo -e "  ${BLUE}$CURRENT_DECL:${NC}"
-                fi
-            # Match axiom names (just the name on a line)
-            elif [[ "$line" =~ ^[[:space:]]*([a-zA-Z0-9_.]+)[[:space:]]*$ ]]; then
-                axiom="${BASH_REMATCH[1]}"
-                # Skip empty lines
-                if [[ -n "$axiom" && ! "$axiom" =~ ^[[:space:]]*$ ]]; then
-                    if [[ ! "$axiom" =~ $STANDARD_AXIOMS ]]; then
-                        echo -e "  ${RED}⚠ $CURRENT_DECL uses non-standard axiom: $axiom${NC}"
-                        HAS_CUSTOM=true
-                        ((++CUSTOM_AXIOM_COUNT))
-                    elif [[ "$VERBOSE" == "--verbose" ]]; then
-                        echo -e "    ${GREEN}✓${NC} $axiom (standard)"
-                    fi
-                fi
-            fi
-        done <<< "$OUTPUT"
+        parse_axioms_output "$OUTPUT"
+        HAS_CUSTOM="$_AXPARSER_HAS_CUSTOM"
 
         if [[ "$HAS_CUSTOM" == false ]]; then
             echo -e "  ${GREEN}✓ All declarations use only standard axioms${NC}"
@@ -364,33 +422,10 @@ check_file() {
             # Only unknownIdentifier errors in the appended region - treat as warning
             echo -e "  ${YELLOW}⚠ Some declarations not accessible (private/local)${NC}"
 
-            # Still try to parse any successful #print axioms results from output
-            local CURRENT_DECL=""
-            local PARSED_ANY=false
-
-            while IFS= read -r line; do
-                # Match declaration headers like "foo depends on axioms:"
-                if [[ "$line" =~ ^([a-zA-Z0-9_.]+)[[:space:]]+depends[[:space:]]+on[[:space:]]+axioms: ]]; then
-                    CURRENT_DECL="${BASH_REMATCH[1]}"
-                    PARSED_ANY=true
-                    if [[ "$VERBOSE" == "--verbose" ]]; then
-                        echo -e "  ${BLUE}$CURRENT_DECL:${NC}"
-                    fi
-                # Match axiom names (just the name on a line)
-                elif [[ "$line" =~ ^[[:space:]]*([a-zA-Z0-9_.]+)[[:space:]]*$ ]]; then
-                    axiom="${BASH_REMATCH[1]}"
-                    # Skip empty lines
-                    if [[ -n "$axiom" && ! "$axiom" =~ ^[[:space:]]*$ ]]; then
-                        if [[ ! "$axiom" =~ $STANDARD_AXIOMS ]]; then
-                            echo -e "  ${RED}⚠ $CURRENT_DECL uses non-standard axiom: $axiom${NC}"
-                            HAS_CUSTOM=true
-                            ((++CUSTOM_AXIOM_COUNT))
-                        elif [[ "$VERBOSE" == "--verbose" ]]; then
-                            echo -e "    ${GREEN}✓${NC} $axiom (standard)"
-                        fi
-                    fi
-                fi
-            done <<< "$OUTPUT"
+            # Still try to parse any successful #print axioms results.
+            parse_axioms_output "$OUTPUT"
+            HAS_CUSTOM="$_AXPARSER_HAS_CUSTOM"
+            local PARSED_ANY="$_AXPARSER_PARSED_ANY"
 
             if [[ "$PARSED_ANY" == true ]]; then
                 if [[ "$HAS_CUSTOM" == false ]]; then
