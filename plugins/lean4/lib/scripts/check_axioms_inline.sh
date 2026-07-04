@@ -13,9 +13,13 @@
 # runs Lean to check axioms, then removes the additions.
 #
 # Limitations:
-#   - Only detects the first namespace in a file
 #   - Only captures top-level (unindented) declarations
-#   - Nested namespaces, sections, and indented declarations may be missed
+#   - Identifier regex is ASCII-only ([A-Za-z0-9_.]+): unicode-letter
+#     namespaces (`namespace α`) fall through to the not-accessible branch
+#     and are surfaced as unverified rather than passing silently.
+#   - Sections with `variable` declarations may still hit the not-accessible
+#     branch. When they do, they are surfaced via the UNVERIFIED_FILES
+#     summary and cause the run to exit non-zero rather than pass silently.
 #
 # Standard mathlib axioms (propext, quot.sound, choice) are filtered out,
 # highlighting only custom axioms or unexpected dependencies.
@@ -196,28 +200,66 @@ check_file() {
 
     echo -e "${BLUE}File: ${YELLOW}$FILE${NC}"
 
-    # Extract namespace if any
-    local NAMESPACE=""
-    if grep -q "^namespace " "$FILE"; then
-        NAMESPACE=$(grep "^namespace " "$FILE" | head -1 | sed 's/namespace //')
-    fi
-
-    # Extract all theorem/lemma/def declarations (including structure, class, inductive)
+    # Walk the file linearly with a kind-tagged frame stack tracking namespace
+    # and section scopes. Each frame is "ns:Name" or "sec:Name" (Name may be
+    # empty for anonymous sections). Only ns: frames contribute to declaration
+    # qualification. Bare `end` pops the top frame; `end X` pops iff top has
+    # name X. Mismatched `end X` leaves the stack alone — Lean would fail to
+    # compile such a file and the real-error branch below will surface that.
+    #
+    # Note: We match declarations that START at column 0 with the keyword
+    # directly. Lines starting with 'private ', 'protected ', or 'local '
+    # won't match; those are intentionally not accessible outside their scope
+    # and, if all decls in a file are inaccessible, the file is surfaced via
+    # the UNVERIFIED_FILES summary rather than passing silently.
+    local FRAME_STACK=()
     local DECLARATIONS=()
+    local line
+
+    # Regex patterns kept in variables — required to work around shellcheck's
+    # parser choking on character classes containing `:(` inline in [[ =~ ]].
+    local ns_re='^namespace[[:space:]]+([A-Za-z0-9_.]+)'
+    local sec_re='^section([[:space:]]+([A-Za-z0-9_.]+))?[[:space:]]*$'
+    local end_re='^end([[:space:]]+([A-Za-z0-9_.]+))?[[:space:]]*$'
+    local decl_re='^(theorem|lemma|def|instance|abbrev|example|structure|class|inductive)[[:space:]]+([^[:space:]:(]+)'
+
     while IFS= read -r line; do
-        decl=$(echo "$line" | sed -E 's/^(theorem|lemma|def|instance|abbrev|example|structure|class|inductive) +([^ :(]+).*/\2/')
-        if [[ -n "$decl" ]]; then
-            # Add namespace prefix if present
-            if [[ -n "$NAMESPACE" ]]; then
-                DECLARATIONS+=("$NAMESPACE.$decl")
-            else
-                DECLARATIONS+=("$decl")
+        if [[ "$line" =~ $ns_re ]]; then
+            FRAME_STACK+=("ns:${BASH_REMATCH[1]}")
+        elif [[ "$line" =~ $sec_re ]]; then
+            FRAME_STACK+=("sec:${BASH_REMATCH[2]:-}")
+        elif [[ "$line" =~ $end_re ]]; then
+            local end_name="${BASH_REMATCH[2]:-}"
+            if [[ ${#FRAME_STACK[@]} -gt 0 ]]; then
+                local top_idx=$((${#FRAME_STACK[@]} - 1))
+                local top="${FRAME_STACK[$top_idx]}"
+                local top_name="${top#*:}"
+                if [[ -z "$end_name" || "$end_name" == "$top_name" ]]; then
+                    unset "FRAME_STACK[$top_idx]"
+                    # Re-pack safely: bare "${arr[@]}" on empty errors under set -u.
+                    if [[ ${#FRAME_STACK[@]} -gt 0 ]]; then
+                        FRAME_STACK=("${FRAME_STACK[@]}")
+                    else
+                        FRAME_STACK=()
+                    fi
+                fi
+            fi
+        elif [[ "$line" =~ $decl_re ]]; then
+            local short="${BASH_REMATCH[2]}"
+            if [[ -n "$short" ]]; then
+                local prefix=""
+                if [[ ${#FRAME_STACK[@]} -gt 0 ]]; then
+                    local frame
+                    for frame in "${FRAME_STACK[@]}"; do
+                        if [[ "$frame" == ns:* ]]; then
+                            prefix+="${frame#ns:}."
+                        fi
+                    done
+                fi
+                DECLARATIONS+=("${prefix}${short}")
             fi
         fi
-    # Note: We match only declarations that START at column 0 with the keyword directly
-    # Lines starting with 'private ', 'protected ', or 'local ' won't match
-    # This is intentional - those declarations are not accessible outside their scope
-    done < <(grep -E '^(theorem|lemma|def|instance|abbrev|example|structure|class|inductive) ' "$FILE" 2>/dev/null || true)
+    done < "$FILE"
 
     if [[ ${#DECLARATIONS[@]} -eq 0 ]]; then
         echo -e "  ${YELLOW}No declarations found${NC}"
