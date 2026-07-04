@@ -467,7 +467,27 @@ check_file() {
     done < "$FILE"
 
     if [[ ${#DECLARATIONS[@]} -eq 0 ]]; then
-        echo -e "  ${YELLOW}No declarations found${NC}"
+        # Distinguish two cases:
+        #   (a) legitimately declaration-free file (imports only, comments
+        #       only, etc.) — safe to skip
+        #   (b) file HAS declaration-shaped content the walk didn't match
+        #       (indented decls, private/protected/local prefixed decls,
+        #       @[attr] annotations, mutual blocks, unicode identifiers) —
+        #       gate can't verify these; must surface as UNVERIFIED
+        # Conservative heuristic scans for shape-suggestive patterns.
+        # See reviewer discussion: previous behavior was to silently return
+        # 0 in both cases, which let mixed-directory runs green through a
+        # file with only private theorems.
+        local _decl_kw_re='(theorem|lemma|def|instance|abbrev|structure|class|inductive|axiom|constant)[[:space:]]'
+        if grep -qE "^[[:space:]]+${_decl_kw_re}" "$FILE" \
+           || grep -qE "^(private|protected|local)[[:space:]]+(noncomputable[[:space:]]+|unsafe[[:space:]]+|partial[[:space:]]+|nonrec[[:space:]]+)?${_decl_kw_re}" "$FILE" \
+           || grep -qE '^@\[' "$FILE" \
+           || grep -qE '^mutual[[:space:]]*$' "$FILE"; then
+            echo -e "  ${YELLOW}⚠ Declaration-shaped lines found but not matched by the walker (indented / private / @[attr] / mutual) — file marked unverified${NC}"
+            UNVERIFIED_FILES+=("$FILE")
+        else
+            echo -e "  ${YELLOW}No declarations found${NC}"
+        fi
         echo
         return 0
     fi

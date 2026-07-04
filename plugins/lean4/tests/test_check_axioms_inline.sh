@@ -403,6 +403,57 @@ else
     ((FAIL++)) || true
 fi
 
+# Probe P18 — private_decl.lean: file has only a `private theorem` at
+# column 0. Walk doesn't match, DECLARATIONS is empty. Heuristic must
+# detect the decl-shaped line and mark the file UNVERIFIED (not silently
+# skip). Reviewer-caught: mixed-directory runs previously greened through
+# private-only files.
+run_probe "P18 private-decl" private_decl.lean
+p18_ok=1
+assert_out_has     "P18" "Declaration-shaped lines found but not matched" || p18_ok=0
+assert_out_has     "P18" "Unverified files"                               || p18_ok=0
+assert_out_missing "P18" "All files use only standard axioms"             || p18_ok=0
+assert_exit        "P18" 1                                                || p18_ok=0
+if [[ $p18_ok -eq 1 ]]; then
+    echo "  PASS: P18 private-decl — private-only file marked unverified"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# Probe P19 — indented_decl.lean: file has only an indented theorem.
+# Same heuristic path as P18.
+run_probe "P19 indented-decl" indented_decl.lean
+p19_ok=1
+assert_out_has     "P19" "Declaration-shaped lines found but not matched" || p19_ok=0
+assert_out_has     "P19" "Unverified files"                               || p19_ok=0
+assert_exit        "P19" 1                                                || p19_ok=0
+if [[ $p19_ok -eq 1 ]]; then
+    echo "  PASS: P19 indented-decl — indented-only file marked unverified"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# Probe P20 — imports_only.lean: file has no decl-shaped content at all.
+# Heuristic must NOT false-positive: this is a legitimately empty file,
+# should fall through to "No declarations found" and return cleanly.
+run_probe "P20 imports-only" imports_only.lean
+p20_ok=1
+assert_out_has     "P20" "No declarations found"                          || p20_ok=0
+assert_out_missing "P20" "Unverified files"                               || p20_ok=0
+# TOTAL_DECLARATIONS is 0 → the aggregate zero-coverage guard fires and
+# the run exits 1. That's correct behavior for a single-file run with
+# nothing checked. In a mixed directory with real content elsewhere, the
+# imports-only file simply doesn't contribute.
+assert_exit        "P20" 1                                                || p20_ok=0
+if [[ $p20_ok -eq 1 ]]; then
+    echo "  PASS: P20 imports-only — legit empty file, no false-positive UNVERIFIED"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
 # Probe P17 — wrong_name.lean: shim emits a header for `Other.fake` when
 # the extracted decl is `WrongName.lost`. Expected-name filter must
 # reject the alien header, parsed_count stays 0, file → unverified.
