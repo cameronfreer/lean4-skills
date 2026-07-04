@@ -589,10 +589,10 @@ check_file() {
 
             # Parse whatever DID resolve, then apply the coverage invariant.
             # Build newline-delimited expected-name list from DECLARATIONS so
-        # the parser can filter out headers for unexpected names.
-        local _expected_names
-        _expected_names=$(printf '%s\n' "${DECLARATIONS[@]}")
-        parse_axioms_output "$OUTPUT" "$_expected_names"
+            # the parser can filter out headers for unexpected names.
+            local _expected_names
+            _expected_names=$(printf '%s\n' "${DECLARATIONS[@]}")
+            parse_axioms_output "$OUTPUT" "$_expected_names"
             HAS_CUSTOM="$_AXPARSER_HAS_CUSTOM"
 
             # Custom findings from the resolved portion still surface — a real
