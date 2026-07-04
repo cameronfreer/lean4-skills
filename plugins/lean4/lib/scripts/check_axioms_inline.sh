@@ -72,7 +72,12 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Standard acceptable axioms
-STANDARD_AXIOMS="propext|quot.sound|Classical.choice|Quot.sound"
+# Anchored + dot-escaped. Without ^…$ + `\.`, the classifier would treat any
+# axiom whose name *contains* a standard axiom as substring as standard —
+# e.g. a custom axiom `my.propext.bad` or `ClassicalxChoice` would slip
+# through. Reviewer-caught. `.` in ERE is any char, so `quot.sound` used to
+# match e.g. `quotXsound` too.
+STANDARD_AXIOMS='^(propext|quot\.sound|Quot\.sound|Classical\.choice)$'
 
 # Parse a `#print axioms` OUTPUT block, handling both Lean 4 output formats:
 #   modern (Lean 4.x current):   'X' depends on axioms: [a, b, c]
@@ -81,8 +86,12 @@ STANDARD_AXIOMS="propext|quot.sound|Classical.choice|Quot.sound"
 #                                  b
 # Inputs:  $1 = captured OUTPUT string
 # Outputs (via globals — bash 3.2 has no return-by-reference):
-#   _AXPARSER_HAS_CUSTOM = true iff any non-standard axiom was seen
-#   _AXPARSER_PARSED_ANY = true iff any header line was matched
+#   _AXPARSER_HAS_CUSTOM  = true iff any non-standard axiom was seen
+#   _AXPARSER_PARSED_ANY  = true iff any header line was matched
+#   _AXPARSER_PARSED_COUNT = number of decl headers recognized
+#     (callers compare against ${#DECLARATIONS[@]} to detect partial coverage —
+#     the reviewer-caught false-green case where some appended `#print axioms`
+#     lines resolved and others didn't)
 # Side effects:
 #   Increments global CUSTOM_AXIOM_COUNT for each non-standard axiom found
 #   Emits per-axiom colored lines to stdout inline
@@ -92,6 +101,7 @@ parse_axioms_output() {
     local OUTPUT="$1"
     _AXPARSER_HAS_CUSTOM=false
     _AXPARSER_PARSED_ANY=false
+    _AXPARSER_PARSED_COUNT=0
     local CURRENT_DECL=""
 
     # Header lines. Lean identifiers can contain apostrophes (foo', foo'',
@@ -142,6 +152,7 @@ parse_axioms_output() {
 
         if [[ $matched_dep -eq 1 ]]; then
             _AXPARSER_PARSED_ANY=true
+            ((++_AXPARSER_PARSED_COUNT))
             if [[ "$VERBOSE" == "--verbose" ]]; then
                 echo -e "  ${BLUE}$CURRENT_DECL:${NC}"
             fi
@@ -164,6 +175,7 @@ parse_axioms_output() {
             fi
         elif [[ $matched_no -eq 1 ]]; then
             _AXPARSER_PARSED_ANY=true
+            ((++_AXPARSER_PARSED_COUNT))
             if [[ "$VERBOSE" == "--verbose" ]]; then
                 echo -e "  ${BLUE}$CURRENT_DECL:${NC} ${GREEN}✓${NC} (no axioms)"
             fi
@@ -416,14 +428,31 @@ check_file() {
         parse_axioms_output "$OUTPUT"
         HAS_CUSTOM="$_AXPARSER_HAS_CUSTOM"
 
-        if [[ "$HAS_CUSTOM" == false ]]; then
-            echo -e "  ${GREEN}✓ All declarations use only standard axioms${NC}"
-        else
+        # Coverage invariant: for a file to count as verified we need EVERY
+        # appended `#print axioms X` to have produced a recognizable header
+        # line in OUTPUT. If the parser missed any (unrecognized format,
+        # future Lean format change, silent skip), treat the file as
+        # unverified rather than trusting a "no custom axioms" verdict on
+        # partial coverage. Custom-axiom findings from the parsed portion
+        # still surface (a real finding is never suppressed by coverage
+        # incompleteness).
+        if [[ "$HAS_CUSTOM" == true ]]; then
             ((++FILES_WITH_CUSTOM))
         fi
 
-        ((TOTAL_DECLARATIONS+=${#DECLARATIONS[@]}))
-        ((++TOTAL_FILES))
+        if [[ "$_AXPARSER_PARSED_COUNT" -eq ${#DECLARATIONS[@]} ]]; then
+            if [[ "$HAS_CUSTOM" == false ]]; then
+                echo -e "  ${GREEN}✓ All declarations use only standard axioms${NC}"
+            fi
+            ((++TOTAL_FILES))
+        else
+            echo -e "  ${YELLOW}⚠ Only $_AXPARSER_PARSED_COUNT of ${#DECLARATIONS[@]} declarations were parseable — file marked unverified${NC}"
+            UNVERIFIED_FILES+=("$FILE")
+        fi
+
+        # Only count declarations we actually parsed — silently-lost decls
+        # inflate the "Declarations checked" counter without any coverage.
+        ((TOTAL_DECLARATIONS+=_AXPARSER_PARSED_COUNT))
 
         cleanup_file
         echo
@@ -458,25 +487,34 @@ check_file() {
             # Only unknownIdentifier errors in the appended region - treat as warning
             echo -e "  ${YELLOW}⚠ Some declarations not accessible (private/local)${NC}"
 
-            # Still try to parse any successful #print axioms results.
+            # Parse whatever DID resolve, then apply the coverage invariant.
             parse_axioms_output "$OUTPUT"
             HAS_CUSTOM="$_AXPARSER_HAS_CUSTOM"
-            local PARSED_ANY="$_AXPARSER_PARSED_ANY"
 
-            if [[ "$PARSED_ANY" == true ]]; then
+            # Custom findings from the resolved portion still surface — a real
+            # finding is never suppressed by coverage incompleteness.
+            if [[ "$HAS_CUSTOM" == true ]]; then
+                ((++FILES_WITH_CUSTOM))
+            fi
+
+            # Coverage invariant: any decl that didn't resolve marks the file
+            # as unverified. This catches the same-file partial case: one
+            # accessible + one inaccessible previously counted the file as
+            # verified based on PARSED_ANY=true, silently dropping the
+            # inaccessible decl. Reviewer-caught.
+            if [[ "$_AXPARSER_PARSED_COUNT" -eq ${#DECLARATIONS[@]} ]]; then
                 if [[ "$HAS_CUSTOM" == false ]]; then
                     echo -e "  ${GREEN}✓ Accessible declarations use only standard axioms${NC}"
-                else
-                    ((++FILES_WITH_CUSTOM))
                 fi
-                ((TOTAL_DECLARATIONS+=${#DECLARATIONS[@]}))
                 ((++TOTAL_FILES))
             else
-                # Zero declarations resolved — a gate that can't answer must
-                # not silently pass. Track for the summary; the run's exit
-                # code will surface this (see summary block below).
                 UNVERIFIED_FILES+=("$FILE")
+                if [[ "$_AXPARSER_PARSED_COUNT" -gt 0 ]]; then
+                    echo -e "  ${YELLOW}⚠ Only $_AXPARSER_PARSED_COUNT of ${#DECLARATIONS[@]} declarations resolved — file marked unverified${NC}"
+                fi
             fi
+
+            ((TOTAL_DECLARATIONS+=_AXPARSER_PARSED_COUNT))
 
             cleanup_file
             echo

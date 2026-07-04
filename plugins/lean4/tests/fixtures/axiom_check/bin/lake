@@ -13,12 +13,16 @@
 #       the verdict. Output format defaults to modern Lean 4:
 #         'X' depends on axioms: [ax1, ax2, ...]   — single line, bracketed,
 #                                                    decl name in single quotes.
-#         Sorry.*    -> "'<name>' depends on axioms: [sorryAx]"    (custom)
-#         Unknown.*  -> stderr "<file>:<real_lineno>:0: error: unknown identifier '<name>'"
-#         NoAxioms.* -> "'<name>' does not depend on any axioms"   (no deps)
-#         Legacy.*   -> "<name> depends on axioms:" + one axiom per line
-#                       (older Lean 4 output format — regression coverage)
-#         otherwise  -> "'<name>' depends on axioms: [propext, Classical.choice]"
+#         Sorry.*     -> "'<name>' depends on axioms: [sorryAx]"    (custom)
+#         Unknown.*   -> stderr "<file>:<real_lineno>:0: error: unknown identifier '<name>'"
+#         NoAxioms.*  -> "'<name>' does not depend on any axioms"   (no deps)
+#         Legacy.*    -> "<name> depends on axioms:" + one axiom per line
+#                        (older Lean 4 output format — regression coverage)
+#         Silent.*    -> "-- unrecognized future format --"          (parser miss)
+#         Substring.* -> "'<name>' depends on axioms: [my.propext.bad, ClassicalxChoice]"
+#                        (axiom names CONTAINING standard-axiom substrings —
+#                         must be flagged as custom, not filtered as standard)
+#         otherwise   -> "'<name>' depends on axioms: [propext, Classical.choice]"
 # - Exit 1 if any Unknown.* was emitted, else exit 0. Real Lean exits
 #   nonzero on unknown identifier; the shim must too — otherwise
 #   check_axioms_inline.sh takes the success-path branch on line 256 and
@@ -56,6 +60,16 @@ while IFS= read -r cmdline; do
             ;;
         NoAxioms.*)
             printf "'%s' does not depend on any axioms\n" "$name"
+            ;;
+        Silent.*)
+            # Emit output the parser cannot classify. Coverage invariant
+            # must catch this: parsed_count stays 0, file → unverified.
+            printf -- '-- output in a format the parser does not recognize --\n'
+            ;;
+        Substring.*)
+            # Axiom names containing standard-axiom substrings. Must be
+            # flagged as custom (STANDARD_AXIOMS must be anchored + escaped).
+            printf "'%s' depends on axioms: [my.propext.bad, ClassicalxChoice]\n" "$name"
             ;;
         Legacy.*)
             # Preserve legacy multi-line format for a compat regression probe.

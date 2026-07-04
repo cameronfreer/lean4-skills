@@ -330,6 +330,79 @@ else
     ((FAIL++)) || true
 fi
 
+# Probe P11 — same_file_partial.lean: one accessible + one Unknown decl
+# in a single file. Coverage invariant must mark the file unverified
+# (parsed=1 < extracted=2), even though the accessible one resolved.
+# Reviewer-caught same-file false-green.
+run_probe "P11 same-file-partial" same_file_partial.lean
+p11_ok=1
+assert_log_has     "P11" "Clean.ok"                        || p11_ok=0
+assert_log_has     "P11" "Unknown.lost"                    || p11_ok=0
+assert_out_has     "P11" "Only 1 of 2 declarations resolved" || p11_ok=0
+assert_out_has     "P11" "Unverified files"                || p11_ok=0
+assert_out_missing "P11" "All files use only standard axioms" || p11_ok=0
+assert_exit        "P11" 1                                 || p11_ok=0
+if [[ $p11_ok -eq 1 ]]; then
+    echo "  PASS: P11 same-file-partial — partial resolution → unverified, exit 1"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# Probe P12 — same_file_custom_and_unknown.lean: one Sorry decl + one
+# Unknown decl in a single file. RED custom-axiom finding still surfaces
+# even though the file is marked unverified (finding never suppressed by
+# coverage incompleteness).
+run_probe "P12 same-file-custom+unknown" same_file_custom_and_unknown.lean
+p12_ok=1
+assert_out_has     "P12" "Sorry.needs_sorry uses non-standard axiom: sorryAx" || p12_ok=0
+assert_out_has     "P12" "Files with non-standard axioms: 1"                  || p12_ok=0
+assert_out_has     "P12" "Unverified files"                                   || p12_ok=0
+assert_out_has     "P12" "Verdict also withheld"                              || p12_ok=0
+assert_out_missing "P12" "All files use only standard axioms"                 || p12_ok=0
+assert_exit        "P12" 1                                                    || p12_ok=0
+if [[ $p12_ok -eq 1 ]]; then
+    echo "  PASS: P12 same-file-custom+unknown — RED finding + yellow withhold, exit 1"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# Probe P13 — silent_parser_miss.lean: shim exits 0 but emits output the
+# parser can't recognize. Defense against future Lean output-format
+# changes. Coverage invariant must catch this (parsed_count=0).
+run_probe "P13 silent-parser-miss" silent_parser_miss.lean
+p13_ok=1
+assert_out_has     "P13" "Unverified files"                || p13_ok=0
+assert_out_has     "P13" "Zero declarations were verified" || p13_ok=0
+assert_out_missing "P13" "All files use only standard axioms" || p13_ok=0
+assert_exit        "P13" 1                                 || p13_ok=0
+if [[ $p13_ok -eq 1 ]]; then
+    echo "  PASS: P13 silent-parser-miss — unrecognized output → unverified, exit 1"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# Probe P14 — standard_substring.lean: axiom names that CONTAIN a standard
+# axiom name as substring must NOT be filtered as standard. Pre-fix
+# STANDARD_AXIOMS was unanchored + unescaped, so `my.propext.bad` matched
+# `propext` and got filtered. Reviewer-caught. Anchoring + escaping is
+# the fix.
+run_probe "P14 standard-substring" standard_substring.lean
+p14_ok=1
+assert_out_has     "P14" "uses non-standard axiom: my.propext.bad"    || p14_ok=0
+assert_out_has     "P14" "uses non-standard axiom: ClassicalxChoice"  || p14_ok=0
+assert_out_has     "P14" "Files with non-standard axioms: 1"          || p14_ok=0
+assert_out_has     "P14" "Total non-standard axiom usages: 2"         || p14_ok=0
+assert_exit        "P14" 1                                            || p14_ok=0
+if [[ $p14_ok -eq 1 ]]; then
+    echo "  PASS: P14 standard-substring — substring names flagged as custom"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
 # Probe 10 — zero_coverage.lean (the primary regression for #132)
 run_probe "P10 zero-coverage" zero_coverage.lean
 p10_ok=1
