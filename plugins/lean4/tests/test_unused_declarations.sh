@@ -135,7 +135,7 @@ fi
 # ---------------------------------------------------------------------------
 run_probe "P2 expanded-classes" expanded_classes
 p2_ok=1
-assert_out_has     "P2" "Found 9 declarations"          || p2_ok=0
+assert_out_has     "P2" "Found 11 declarations"         || p2_ok=0
 assert_out_has     "P2" "dead_axiom"                    || p2_ok=0
 assert_out_has     "P2" "dead_constant"                 || p2_ok=0
 assert_out_has     "P2" "dead_noncomp"                  || p2_ok=0
@@ -143,10 +143,12 @@ assert_out_has     "P2" "dead_unsafe"                   || p2_ok=0
 assert_out_has     "P2" "dead_partial"                  || p2_ok=0
 assert_out_has     "P2" "dead_nonrec"                   || p2_ok=0
 assert_out_has     "P2" "DeadStruct"                    || p2_ok=0
-assert_out_has     "P2" "Potentially unused: 7"         || p2_ok=0
+assert_out_has     "P2" "DeadClass"                     || p2_ok=0
+assert_out_has     "P2" "DeadInductive"                 || p2_ok=0
+assert_out_has     "P2" "Potentially unused: 9"         || p2_ok=0
 assert_exit        "P2" 1                               || p2_ok=0
 if [[ $p2_ok -eq 1 ]]; then
-    echo "  PASS: P2 expanded-classes — axiom/constant/struct/modifier defs all extracted"
+    echo "  PASS: P2 expanded-classes — axiom/constant/struct/class/inductive/modifier defs all extracted"
     ((PASS++)) || true
 else
     ((FAIL++)) || true

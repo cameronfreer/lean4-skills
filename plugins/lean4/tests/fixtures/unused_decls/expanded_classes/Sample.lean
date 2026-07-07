@@ -1,7 +1,7 @@
 -- Fixture: two used decls (used_thm + uses_thm, the latter via the
--- trailing comment) and seven dead decls spanning the expanded keyword
--- classes (axiom, constant, structure, and the four modifier-prefixed
--- def forms). Locks in the Step 1 extraction regex.
+-- trailing comment) and nine dead decls spanning the expanded keyword
+-- classes (axiom, constant, structure, class, inductive, and the four
+-- modifier-prefixed def forms). Locks in the Step 1 extraction regex.
 theorem used_thm : True := trivial
 axiom dead_axiom : False
 constant dead_constant : Nat
@@ -11,5 +11,9 @@ partial def dead_partial : Nat := 0
 nonrec def dead_nonrec : Nat := 0
 structure DeadStruct where
   x : Nat
+class DeadClass where
+  y : Nat
+inductive DeadInductive where
+  | one
 def uses_thm := used_thm
 -- uses_thm is referenced here so it counts as used: uses_thm

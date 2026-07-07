@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 #
-# unused_declarations.sh - Find unused theorems, lemmas, and definitions in Lean 4 project
+# unused_declarations.sh - Find unused declarations in a Lean 4 project
 #
 # Usage:
 #   ./unused_declarations.sh [directory] [--exit-zero-on-findings]
 #
-# Finds declarations (theorem, lemma, def) that are never used in the project.
+# Finds top-level declarations that are never used in the project.
+# Covered keywords: theorem, lemma, def, abbrev, instance, axiom,
+# constant, structure, class, inductive — optionally prefixed by
+# noncomputable, unsafe, partial, or nonrec.
 #
 # Examples:
 #   ./unused_declarations.sh
@@ -167,7 +170,7 @@ if [[ $TOTAL_DECLS -eq 0 ]]; then
     # extraction found NOTHING, a column-0 match here means the extraction
     # itself failed (regex bug, tool misbehavior) and must be loud, not a
     # friendly zero. Also catches @[attr] lines and mutual blocks.
-    _shape_re="^[[:space:]]*((private|protected|local)[[:space:]]+)?(($DECL_MODIFIERS)[[:space:]]+)?($DECL_KEYWORDS)[[:space:]]|^[[:space:]]*@\[|^mutual[[:space:]]*$"
+    _shape_re="^[[:space:]]*((private|protected|local)[[:space:]]+)?(($DECL_MODIFIERS)[[:space:]]+)?($DECL_KEYWORDS)[[:space:]]|^[[:space:]]*@\[|^[[:space:]]*mutual[[:space:]]*$"
     if grep -rqE --include='*.lean' "$_shape_re" "$SEARCH_DIR" 2>/dev/null; then
         echo -e "${YELLOW}⚠ No top-level declarations matched, but declaration-shaped content exists (indented / private / @[attr] / mutual) — analysis cannot cover it${NC}"
         exit 1
