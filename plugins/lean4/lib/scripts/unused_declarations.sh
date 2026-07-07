@@ -105,16 +105,20 @@ if [[ "$USE_RG" == true ]]; then
     # then looks for `path:name` in file CONTENT, finds nothing, and flags
     # every declaration in the project as unused. This was the pre-fix
     # behavior whenever ripgrep was installed (the recommended configuration).
+    # `|| true` is load-bearing: rg exits 1 when it finds no matches, and
+    # under `set -euo pipefail` that killed the whole script mid-run on any
+    # declaration-free tree — exit 1 with no summary, making the
+    # TOTAL_DECLS==0 branch below unreachable in rg mode.
     rg -t lean "^(($DECL_MODIFIERS)\s+)?($DECL_KEYWORDS)\s+([\w'.]+)" \
         "$SEARCH_DIR" \
         --no-heading \
         --no-filename \
         --only-matching \
-        --replace '$4' | sort -u > "$DECLARATIONS"
+        --replace '$4' | sort -u > "$DECLARATIONS" || true
 else
     find "$SEARCH_DIR" -name "*.lean" -type f -exec \
         grep -hoP "^(($DECL_MODIFIERS)\s+)?($DECL_KEYWORDS)\s+\K[\w'.]+" {} \; | \
-        sort -u > "$DECLARATIONS"
+        sort -u > "$DECLARATIONS" || true
 fi
 
 TOTAL_DECLS=$(wc -l < "$DECLARATIONS" | tr -d ' ')
@@ -123,6 +127,23 @@ echo -e "${GREEN}Found ${BOLD}$TOTAL_DECLS${NC}${GREEN} declarations${NC}"
 echo ""
 
 if [[ $TOTAL_DECLS -eq 0 ]]; then
+    # Distinguish two cases (same policy as check_axioms_inline.sh, #145):
+    #   (a) legitimately declaration-free tree (imports only, comments only,
+    #       or no .lean files at all) — safe to report and exit 0
+    #   (b) tree HAS declaration-shaped content the extraction regex missed
+    #       (indented decls, private/protected/local prefixes, @[attr]
+    #       lines, mutual blocks) — the analysis can't see those, so a
+    #       "no declarations" report would be false reassurance; exit 1.
+    # grep -r --include (supported by both GNU and BSD grep) avoids the
+    # find|xargs pitfalls: BSD xargs skips empty input (making the pipeline
+    # exit 0 → false positive on decl-free dirs) while GNU xargs would run
+    # grep against stdin; and head-terminated pipes risk SIGPIPE flakiness
+    # under pipefail.
+    _shape_re="^[[:space:]]+($DECL_KEYWORDS)[[:space:]]|^(private|protected|local)[[:space:]]|^@\[|^mutual[[:space:]]*$"
+    if grep -rqE --include='*.lean' "$_shape_re" "$SEARCH_DIR" 2>/dev/null; then
+        echo -e "${YELLOW}⚠ No top-level declarations matched, but declaration-shaped content exists (indented / private / @[attr] / mutual) — analysis cannot cover it${NC}"
+        exit 1
+    fi
     echo -e "${YELLOW}No declarations found in $SEARCH_DIR${NC}"
     exit 0
 fi
