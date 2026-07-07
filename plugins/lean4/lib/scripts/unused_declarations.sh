@@ -88,17 +88,32 @@ trap 'rm -f "$DECLARATIONS" "$UNUSED"' EXIT
 
 echo -e "${GREEN}Step 1: Finding all declarations...${NC}"
 
-# Extract all theorem/lemma/def declarations
-# Use [\w'.]+ to match Lean identifiers (allows primes and dots for qualified names)
+# Extract all top-level declarations.
+# Use [\w'.]+ to match Lean identifiers (allows primes and dots for qualified names).
+# Keyword set covers definition-shaped forms plus `axiom|constant` (dead axioms
+# are exactly what a cleanup pass should surface) and `structure|class|inductive`
+# (type definitions can be dead code too). An optional modifier prefix covers
+# `noncomputable def`, `unsafe def`, `partial def`, `nonrec def` — real Lean
+# forms whose column-0 keyword is the modifier, not the decl keyword.
+# `example` is deliberately absent: examples are anonymous, no name to track.
+DECL_KEYWORDS='theorem|lemma|def|abbrev|instance|axiom|constant|structure|class|inductive'
+DECL_MODIFIERS='noncomputable|unsafe|partial|nonrec'
 if [[ "$USE_RG" == true ]]; then
-    rg -t lean "^(theorem|lemma|def|abbrev|instance)\s+([\w'.]+)" \
+    # --no-filename is load-bearing: without it, rg prefixes every match with
+    # `path:` when searching a directory (even with --no-heading), so every
+    # extracted "declaration" is actually `path:name`. The Step 2 usage search
+    # then looks for `path:name` in file CONTENT, finds nothing, and flags
+    # every declaration in the project as unused. This was the pre-fix
+    # behavior whenever ripgrep was installed (the recommended configuration).
+    rg -t lean "^(($DECL_MODIFIERS)\s+)?($DECL_KEYWORDS)\s+([\w'.]+)" \
         "$SEARCH_DIR" \
         --no-heading \
+        --no-filename \
         --only-matching \
-        --replace '$2' | sort -u > "$DECLARATIONS"
+        --replace '$4' | sort -u > "$DECLARATIONS"
 else
     find "$SEARCH_DIR" -name "*.lean" -type f -exec \
-        grep -hoP "^(theorem|lemma|def|abbrev|instance)\s+\K[\w'.]+" {} \; | \
+        grep -hoP "^(($DECL_MODIFIERS)\s+)?($DECL_KEYWORDS)\s+\K[\w'.]+" {} \; | \
         sort -u > "$DECLARATIONS"
 fi
 
@@ -170,14 +185,16 @@ else
 
     # Show unused declarations with file locations
     while IFS= read -r decl; do
-        # Find where it's defined (escape for regex)
+        # Find where it's defined (escape for regex). Keyword set + modifier
+        # prefix must mirror the Step 1 extraction regex, else expanded-class
+        # decls (axiom, noncomputable def, ...) report without a location.
         escaped_decl=$(escape_regex "$decl")
         if [[ "$USE_RG" == true ]]; then
-            LOCATION=$(rg -t lean "^(theorem|lemma|def|abbrev|instance)\s+$escaped_decl$LEAN_ID_AFTER" \
+            LOCATION=$(rg -t lean "^(($DECL_MODIFIERS)\s+)?($DECL_KEYWORDS)\s+$escaped_decl$LEAN_ID_AFTER" \
                 "$SEARCH_DIR" --no-heading | head -1 || echo "")
         else
             LOCATION=$(find "$SEARCH_DIR" -name "*.lean" -type f -exec \
-                grep -En "^(theorem|lemma|def|abbrev|instance)\s+$escaped_decl$LEAN_ID_AFTER" {} + | \
+                grep -En "^(($DECL_MODIFIERS)\s+)?($DECL_KEYWORDS)\s+$escaped_decl$LEAN_ID_AFTER" {} + | \
                 head -1 || echo "")
         fi
 
