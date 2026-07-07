@@ -30,6 +30,28 @@ jobs:
       - name: ruff format --check
         run: ruff format --check plugins/lean4/
 
+  python-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          # Documented runtime floor (pyproject.toml's target-version =
+          # "py310") so version-sensitive syntax breaks loudly here rather
+          # than on a user's machine.
+          python-version: "3.10"
+
+      # stdlib unittest only — no pins needed (nothing to install).
+      # Both files listed explicitly: test_ordering.py existed for months
+      # without ever being executed in CI (the same silent-coverage-gap
+      # class that #146 found for the bash suite, where a green step hid a
+      # self-SKIPping test run).
+      - name: Unit tests — lib/scripts (stdlib unittest, no deps)
+        run: |
+          python3 plugins/lean4/lib/scripts/tests/test_ordering.py
+          python3 plugins/lean4/lib/scripts/tests/test_sorry_analyzer.py
+
   mypy:
     runs-on: ubuntu-latest
     steps:
