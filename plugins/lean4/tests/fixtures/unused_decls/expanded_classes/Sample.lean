@@ -1,6 +1,7 @@
--- Fixture: one used theorem + eight dead decls spanning the expanded
--- keyword classes (axiom, constant, structure, and the four
--- modifier-prefixed def forms). Locks in the Step 1 extraction regex.
+-- Fixture: two used decls (used_thm + uses_thm, the latter via the
+-- trailing comment) and seven dead decls spanning the expanded keyword
+-- classes (axiom, constant, structure, and the four modifier-prefixed
+-- def forms). Locks in the Step 1 extraction regex.
 theorem used_thm : True := trivial
 axiom dead_axiom : False
 constant dead_constant : Nat

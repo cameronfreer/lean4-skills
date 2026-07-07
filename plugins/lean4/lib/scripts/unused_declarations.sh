@@ -15,6 +15,17 @@
 #   - List of unused declarations
 #   - Suggestions for marking as private or removing
 #   - Summary statistics
+#
+# Known limitations (grep-based analysis, no Lean elaboration):
+#   - Namespace-qualified usage is NOT credited: a decl `foo` inside
+#     `namespace A` referenced elsewhere as `A.foo` is still flagged
+#     unused, because extraction records the short name and the usage
+#     boundary deliberately excludes `.`-prefixed forms. Verify with
+#     find_usages.sh before removing anything namespaced.
+#   - Usages in comments and strings ARE counted (may hide dead code).
+#   - Indented, private/protected/local, @[attr], and mutual-block decls
+#     are not extracted; trees containing ONLY those are reported as
+#     unverifiable (exit 1) rather than clean.
 
 set -euo pipefail
 
@@ -59,6 +70,16 @@ if command -v rg &> /dev/null; then
     USE_RG=true
 else
     USE_RG=false
+    # The fallback extraction uses grep -P (PCRE, for \K). BSD grep (macOS)
+    # doesn't support -P: without this hard check, the extraction pipeline
+    # would fail, the `|| true` guard would mask it, and a tree full of
+    # ordinary declarations would report "No declarations found" with
+    # exit 0 — a false green. A tool that can't run must say so loudly.
+    if ! echo x | grep -oP 'x' >/dev/null 2>&1; then
+        echo -e "${RED}Error: this script requires ripgrep (rg) or a PCRE-capable grep (grep -P).${NC}" >&2
+        echo -e "${RED}Neither is available — cannot analyze. Install ripgrep: https://github.com/BurntSushi/ripgrep${NC}" >&2
+        exit 2
+    fi
     echo -e "${YELLOW}Note: ripgrep not found. Install ripgrep for 10-100x faster analysis${NC}"
     echo ""
 fi
@@ -139,7 +160,14 @@ if [[ $TOTAL_DECLS -eq 0 ]]; then
     # exit 0 → false positive on decl-free dirs) while GNU xargs would run
     # grep against stdin; and head-terminated pipes risk SIGPIPE flakiness
     # under pipefail.
-    _shape_re="^[[:space:]]+($DECL_KEYWORDS)[[:space:]]|^(private|protected|local)[[:space:]]|^@\[|^mutual[[:space:]]*$"
+    #
+    # Shape regex: any line that is optional-indent + optional access
+    # modifier + optional decl modifier + a decl keyword — at ANY indent
+    # depth, including column 0. Since this branch only runs when the
+    # extraction found NOTHING, a column-0 match here means the extraction
+    # itself failed (regex bug, tool misbehavior) and must be loud, not a
+    # friendly zero. Also catches @[attr] lines and mutual blocks.
+    _shape_re="^[[:space:]]*((private|protected|local)[[:space:]]+)?(($DECL_MODIFIERS)[[:space:]]+)?($DECL_KEYWORDS)[[:space:]]|^[[:space:]]*@\[|^mutual[[:space:]]*$"
     if grep -rqE --include='*.lean' "$_shape_re" "$SEARCH_DIR" 2>/dev/null; then
         echo -e "${YELLOW}⚠ No top-level declarations matched, but declaration-shaped content exists (indented / private / @[attr] / mutual) — analysis cannot cover it${NC}"
         exit 1

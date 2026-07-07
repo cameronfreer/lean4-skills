@@ -250,6 +250,80 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Probe 9 — indented_modifier: the only decl is indented AND
+# modifier-prefixed (`  noncomputable def hidden`). Extraction can't see
+# it; the shape heuristic must catch it (optional indent + optional
+# modifier before the keyword) and exit 1. Reviewer-caught: first-pass
+# heuristic matched indented `def` but not indented `noncomputable def`.
+# ---------------------------------------------------------------------------
+run_probe "P9 indented-modifier" indented_modifier
+p9_ok=1
+assert_out_has     "P9" "declaration-shaped content exists" || p9_ok=0
+assert_out_missing "P9" "No declarations found"             || p9_ok=0
+assert_exit        "P9" 1                                   || p9_ok=0
+if [[ $p9_ok -eq 1 ]]; then
+    echo "  PASS: P9 indented-modifier — heuristic catches indented noncomputable def"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 10 — no rg, no PCRE grep: the script must fail LOUDLY (exit 2
+# with an error naming the requirement), not report "No declarations
+# found" + exit 0. Reviewer-caught false green: with rg hidden and a
+# BSD-style grep that rejects -P, `|| true` masked the extraction
+# failure entirely.
+#
+# Simulated via a constrained PATH: symlinks to the real utilities the
+# script needs, a `grep` shim that rejects any -P usage (BSD behavior),
+# and NO rg.
+# ---------------------------------------------------------------------------
+((++PROBE_COUNTER))
+P10_DIR="$SCRATCH_ROOT/probe-$PROBE_COUNTER"
+mkdir -p "$P10_DIR/bin" "$P10_DIR/tree"
+cp "$FIXTURE_ROOT/has_unused/Sample.lean" "$P10_DIR/tree/"
+
+# Symlink the utilities the script needs (resolved from the current PATH).
+for util in sort wc tr find sed awk head rm mktemp cat dirname; do
+    src=$(command -v "$util" 2>/dev/null || true)
+    [[ -n "$src" ]] && ln -s "$src" "$P10_DIR/bin/$util"
+done
+REAL_GREP=$(command -v grep)
+cat > "$P10_DIR/bin/grep" <<EOF
+#!$BASH_FOR_COMPAT
+# BSD-style grep shim: reject any -P (PCRE) usage, delegate the rest.
+for a in "\$@"; do
+    case "\$a" in
+        --) break ;;
+        -*P*) echo "grep: invalid option -- P" >&2; exit 2 ;;
+        -*) ;;
+        *) break ;;
+    esac
+done
+exec "$REAL_GREP" "\$@"
+EOF
+chmod +x "$P10_DIR/bin/grep"
+
+set +e
+PROBE_OUT=$(PATH="$P10_DIR/bin" "$BASH_FOR_COMPAT" "$UNUSED_SCRIPT" "$P10_DIR/tree" 2>&1)
+PROBE_EXIT=$?
+set -e
+# shellcheck disable=SC2001  # regex replace — ${var//} can't do this
+PROBE_OUT=$(sed "s/$(printf '\033')\[[0-9;]*m//g" <<< "$PROBE_OUT")
+
+p10_ok=1
+assert_out_has     "P10" "requires ripgrep"             || p10_ok=0
+assert_out_missing "P10" "No declarations found"        || p10_ok=0
+assert_exit        "P10" 2                              || p10_ok=0
+if [[ $p10_ok -eq 1 ]]; then
+    echo "  PASS: P10 no-PCRE-grep — loud config error, exit 2 (not false green)"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
 echo ""
 echo "=== test_unused_declarations.sh: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]
