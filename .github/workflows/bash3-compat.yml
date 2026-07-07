@@ -29,5 +29,18 @@ jobs:
       - name: Self-test — check_axioms_inline (#132)
         run: /bin/bash plugins/lean4/tests/test_check_axioms_inline.sh
 
+      - name: Install ripgrep (unused_declarations self-test needs rg or PCRE grep)
+        run: brew install ripgrep
+
+      - name: Self-test — unused_declarations
+        # rg --version is a hard assertion: macOS runners ship neither
+        # ripgrep nor a PCRE-capable grep, so without the install step the
+        # suite self-SKIPs (exit 0) and the rg-regression coverage silently
+        # vanishes while the job stays green. Printing the version makes
+        # the coverage auditable from logs.
+        run: |
+          rg --version
+          /bin/bash plugins/lean4/tests/test_unused_declarations.sh
+
       - name: Runtime smoke — cycle_tracker.sh under /bin/bash
         run: /bin/bash plugins/lean4/tests/test_bash3_smoke.sh

@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 #
-# unused_declarations.sh - Find unused theorems, lemmas, and definitions in Lean 4 project
+# unused_declarations.sh - Find unused declarations in a Lean 4 project
 #
 # Usage:
 #   ./unused_declarations.sh [directory] [--exit-zero-on-findings]
 #
-# Finds declarations (theorem, lemma, def) that are never used in the project.
+# Finds top-level declarations that are never used in the project.
+# Covered keywords: theorem, lemma, def, abbrev, instance, axiom,
+# constant, structure, class, inductive — optionally prefixed by
+# noncomputable, unsafe, partial, or nonrec.
 #
 # Examples:
 #   ./unused_declarations.sh
@@ -15,6 +18,17 @@
 #   - List of unused declarations
 #   - Suggestions for marking as private or removing
 #   - Summary statistics
+#
+# Known limitations (grep-based analysis, no Lean elaboration):
+#   - Namespace-qualified usage is NOT credited: a decl `foo` inside
+#     `namespace A` referenced elsewhere as `A.foo` is still flagged
+#     unused, because extraction records the short name and the usage
+#     boundary deliberately excludes `.`-prefixed forms. Verify with
+#     find_usages.sh before removing anything namespaced.
+#   - Usages in comments and strings ARE counted (may hide dead code).
+#   - Indented, private/protected/local, @[attr], and mutual-block decls
+#     are not extracted; trees containing ONLY those are reported as
+#     unverifiable (exit 1) rather than clean.
 
 set -euo pipefail
 
@@ -59,6 +73,16 @@ if command -v rg &> /dev/null; then
     USE_RG=true
 else
     USE_RG=false
+    # The fallback extraction uses grep -P (PCRE, for \K). BSD grep (macOS)
+    # doesn't support -P: without this hard check, the extraction pipeline
+    # would fail, the `|| true` guard would mask it, and a tree full of
+    # ordinary declarations would report "No declarations found" with
+    # exit 0 — a false green. A tool that can't run must say so loudly.
+    if ! echo x | grep -oP 'x' >/dev/null 2>&1; then
+        echo -e "${RED}Error: this script requires ripgrep (rg) or a PCRE-capable grep (grep -P).${NC}" >&2
+        echo -e "${RED}Neither is available — cannot analyze. Install ripgrep: https://github.com/BurntSushi/ripgrep${NC}" >&2
+        exit 2
+    fi
     echo -e "${YELLOW}Note: ripgrep not found. Install ripgrep for 10-100x faster analysis${NC}"
     echo ""
 fi
@@ -88,18 +112,37 @@ trap 'rm -f "$DECLARATIONS" "$UNUSED"' EXIT
 
 echo -e "${GREEN}Step 1: Finding all declarations...${NC}"
 
-# Extract all theorem/lemma/def declarations
-# Use [\w'.]+ to match Lean identifiers (allows primes and dots for qualified names)
+# Extract all top-level declarations.
+# Use [\w'.]+ to match Lean identifiers (allows primes and dots for qualified names).
+# Keyword set covers definition-shaped forms plus `axiom|constant` (dead axioms
+# are exactly what a cleanup pass should surface) and `structure|class|inductive`
+# (type definitions can be dead code too). An optional modifier prefix covers
+# `noncomputable def`, `unsafe def`, `partial def`, `nonrec def` — real Lean
+# forms whose column-0 keyword is the modifier, not the decl keyword.
+# `example` is deliberately absent: examples are anonymous, no name to track.
+DECL_KEYWORDS='theorem|lemma|def|abbrev|instance|axiom|constant|structure|class|inductive'
+DECL_MODIFIERS='noncomputable|unsafe|partial|nonrec'
 if [[ "$USE_RG" == true ]]; then
-    rg -t lean "^(theorem|lemma|def|abbrev|instance)\s+([\w'.]+)" \
+    # --no-filename is load-bearing: without it, rg prefixes every match with
+    # `path:` when searching a directory (even with --no-heading), so every
+    # extracted "declaration" is actually `path:name`. The Step 2 usage search
+    # then looks for `path:name` in file CONTENT, finds nothing, and flags
+    # every declaration in the project as unused. This was the pre-fix
+    # behavior whenever ripgrep was installed (the recommended configuration).
+    # `|| true` is load-bearing: rg exits 1 when it finds no matches, and
+    # under `set -euo pipefail` that killed the whole script mid-run on any
+    # declaration-free tree — exit 1 with no summary, making the
+    # TOTAL_DECLS==0 branch below unreachable in rg mode.
+    rg -t lean "^(($DECL_MODIFIERS)\s+)?($DECL_KEYWORDS)\s+([\w'.]+)" \
         "$SEARCH_DIR" \
         --no-heading \
+        --no-filename \
         --only-matching \
-        --replace '$2' | sort -u > "$DECLARATIONS"
+        --replace '$4' | sort -u > "$DECLARATIONS" || true
 else
     find "$SEARCH_DIR" -name "*.lean" -type f -exec \
-        grep -hoP "^(theorem|lemma|def|abbrev|instance)\s+\K[\w'.]+" {} \; | \
-        sort -u > "$DECLARATIONS"
+        grep -hoP "^(($DECL_MODIFIERS)\s+)?($DECL_KEYWORDS)\s+\K[\w'.]+" {} \; | \
+        sort -u > "$DECLARATIONS" || true
 fi
 
 TOTAL_DECLS=$(wc -l < "$DECLARATIONS" | tr -d ' ')
@@ -108,6 +151,30 @@ echo -e "${GREEN}Found ${BOLD}$TOTAL_DECLS${NC}${GREEN} declarations${NC}"
 echo ""
 
 if [[ $TOTAL_DECLS -eq 0 ]]; then
+    # Distinguish two cases (same policy as check_axioms_inline.sh, #145):
+    #   (a) legitimately declaration-free tree (imports only, comments only,
+    #       or no .lean files at all) — safe to report and exit 0
+    #   (b) tree HAS declaration-shaped content the extraction regex missed
+    #       (indented decls, private/protected/local prefixes, @[attr]
+    #       lines, mutual blocks) — the analysis can't see those, so a
+    #       "no declarations" report would be false reassurance; exit 1.
+    # grep -r --include (supported by both GNU and BSD grep) avoids the
+    # find|xargs pitfalls: BSD xargs skips empty input (making the pipeline
+    # exit 0 → false positive on decl-free dirs) while GNU xargs would run
+    # grep against stdin; and head-terminated pipes risk SIGPIPE flakiness
+    # under pipefail.
+    #
+    # Shape regex: any line that is optional-indent + optional access
+    # modifier + optional decl modifier + a decl keyword — at ANY indent
+    # depth, including column 0. Since this branch only runs when the
+    # extraction found NOTHING, a column-0 match here means the extraction
+    # itself failed (regex bug, tool misbehavior) and must be loud, not a
+    # friendly zero. Also catches @[attr] lines and mutual blocks.
+    _shape_re="^[[:space:]]*((private|protected|local)[[:space:]]+)?(($DECL_MODIFIERS)[[:space:]]+)?($DECL_KEYWORDS)[[:space:]]|^[[:space:]]*@\[|^[[:space:]]*mutual[[:space:]]*$"
+    if grep -rqE --include='*.lean' "$_shape_re" "$SEARCH_DIR" 2>/dev/null; then
+        echo -e "${YELLOW}⚠ No top-level declarations matched, but declaration-shaped content exists (indented / private / @[attr] / mutual) — analysis cannot cover it${NC}"
+        exit 1
+    fi
     echo -e "${YELLOW}No declarations found in $SEARCH_DIR${NC}"
     exit 0
 fi
@@ -170,14 +237,16 @@ else
 
     # Show unused declarations with file locations
     while IFS= read -r decl; do
-        # Find where it's defined (escape for regex)
+        # Find where it's defined (escape for regex). Keyword set + modifier
+        # prefix must mirror the Step 1 extraction regex, else expanded-class
+        # decls (axiom, noncomputable def, ...) report without a location.
         escaped_decl=$(escape_regex "$decl")
         if [[ "$USE_RG" == true ]]; then
-            LOCATION=$(rg -t lean "^(theorem|lemma|def|abbrev|instance)\s+$escaped_decl$LEAN_ID_AFTER" \
+            LOCATION=$(rg -t lean "^(($DECL_MODIFIERS)\s+)?($DECL_KEYWORDS)\s+$escaped_decl$LEAN_ID_AFTER" \
                 "$SEARCH_DIR" --no-heading | head -1 || echo "")
         else
             LOCATION=$(find "$SEARCH_DIR" -name "*.lean" -type f -exec \
-                grep -En "^(theorem|lemma|def|abbrev|instance)\s+$escaped_decl$LEAN_ID_AFTER" {} + | \
+                grep -En "^(($DECL_MODIFIERS)\s+)?($DECL_KEYWORDS)\s+$escaped_decl$LEAN_ID_AFTER" {} + | \
                 head -1 || echo "")
         fi
 
