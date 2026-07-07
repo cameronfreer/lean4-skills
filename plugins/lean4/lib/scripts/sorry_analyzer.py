@@ -138,14 +138,36 @@ def strip_lean_comments_and_strings(
 
 
 def extract_declaration_name(lines: list[str], sorry_idx: int) -> str | None:
-    """Extract the theorem/lemma/def name containing this sorry"""
-    # Search backwards for declaration
-    # Support Unicode and qualified names (e.g., Foo.bar, foo', foo'')
-    # Handle optional visibility modifiers (private, protected) and attributes (@[...])
-    for i in range(sorry_idx - 1, max(0, sorry_idx - 50), -1):
+    """Extract the declaration name containing this sorry.
+
+    Returns "keyword name" (e.g. "def foo") — visibility and decl
+    modifiers are deliberately dropped from the label: keyword+name is
+    the declaration's identity; modifiers are noise for attribution.
+    Anonymous `example : ...` has no name to capture and stays
+    unattributed (None).
+    """
+    # Search backwards for declaration.
+    # Support Unicode and qualified names (e.g., Foo.bar, foo', foo'').
+    # Handles optional same-line attributes (@[...]), visibility
+    # (private/protected/local), and decl modifiers
+    # (noncomputable/unsafe/partial/nonrec). An attribute on its OWN
+    # line above the declaration also works — the backward search hits
+    # the declaration line before the attribute line.
+    # axiom/constant deliberately absent: they have no proof body, so a
+    # sorry can never be inside one; matching them would only create
+    # misattribution risk for the nearest-header-wins backward search.
+    #
+    # The search STARTS AT the sorry's own line (not the line before):
+    # single-line declarations (`def foo : Nat := by sorry`) put the
+    # header and the sorry on the same line, and starting one line up
+    # left every such sorry unattributed. Stop bound is -1 so line 0 is
+    # included in the window.
+    for i in range(sorry_idx, max(-1, sorry_idx - 50), -1):
         match = re.match(
-            r"^\s*(?:@\[.*?\]\s*)?(?:private\s+|protected\s+)?"
-            r"(theorem|lemma|def|example|instance|structure|class)\s+([\w.']+)",
+            r"^\s*(?:@\[.*?\]\s*)?"
+            r"(?:(?:private|protected|local)\s+)?"
+            r"(?:(?:noncomputable|unsafe|partial|nonrec)\s+)?"
+            r"(theorem|lemma|def|abbrev|example|instance|structure|class|inductive)\s+([\w.']+)",
             lines[i],
         )
         if match:
