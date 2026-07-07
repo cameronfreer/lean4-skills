@@ -29,5 +29,8 @@ jobs:
       - name: Self-test — check_axioms_inline (#132)
         run: /bin/bash plugins/lean4/tests/test_check_axioms_inline.sh
 
+      - name: Self-test — unused_declarations
+        run: /bin/bash plugins/lean4/tests/test_unused_declarations.sh
+
       - name: Runtime smoke — cycle_tracker.sh under /bin/bash
         run: /bin/bash plugins/lean4/tests/test_bash3_smoke.sh
