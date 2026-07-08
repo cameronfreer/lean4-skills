@@ -21,6 +21,8 @@ Run:
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import subprocess
 import sys
@@ -210,8 +212,31 @@ class TestScanResultCoverage(unittest.TestCase):
     def test_unreadable_file_returns_none(self) -> None:
         # Passing a directory where a file is expected forces the open()
         # exception portably (no chmod games that break as root/CI).
-        with tempfile.TemporaryDirectory() as td:
+        # redirect_stderr keeps the intentional "Could not read" warning
+        # out of the test runner's output.
+        with (
+            tempfile.TemporaryDirectory() as td,
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
             self.assertIsNone(find_sorries_in_file(Path(td)))
+
+    def test_partial_coverage_some_scanned_some_failed(self) -> None:
+        # One readable .lean + one unreadable .lean (a broken symlink,
+        # which os.walk lists as a file but open() then fails on). Locks
+        # in the "some scanned + some failed" case — distinct from the
+        # zero-coverage case: files_scanned>0 AND files_failed>0.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "Clean.lean").write_text("theorem ok : True := trivial\n")
+            broken = root / "Broken.lean"
+            try:
+                broken.symlink_to(root / "does_not_exist.lean")
+            except (OSError, NotImplementedError):
+                self.skipTest("symlinks not supported on this platform")
+            with contextlib.redirect_stderr(io.StringIO()):
+                result = find_sorries(root)
+            self.assertEqual(result.files_scanned, 1)
+            self.assertEqual(result.files_failed, 1)
 
 
 class TestExitCodes(unittest.TestCase):
@@ -261,6 +286,27 @@ class TestExitCodes(unittest.TestCase):
             self.assertIn("Skipping dependency file", proc.stderr)
             proc_deps = run_analyzer(str(dep), "--include-deps")
             self.assertEqual(proc_deps.returncode, 1)  # the sorry is found
+
+    def test_partial_coverage_exits_two(self) -> None:
+        # A directory with one clean .lean and one unreadable .lean
+        # (broken symlink) is PARTIAL coverage: something was scanned,
+        # something failed. Must still exit 2 (a gate that missed part of
+        # the tree can't answer), with files_scanned=1 / files_failed=1
+        # visible in the JSON. stderr carries "coverage is incomplete".
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "Clean.lean").write_text("theorem ok : True := trivial\n")
+            broken = root / "Broken.lean"
+            try:
+                broken.symlink_to(root / "does_not_exist.lean")
+            except (OSError, NotImplementedError):
+                self.skipTest("symlinks not supported on this platform")
+            proc = run_analyzer(str(root), "--format=json")
+            self.assertEqual(proc.returncode, 2)
+            self.assertIn("coverage is incomplete", proc.stderr)
+            data = json.loads(proc.stdout)
+            self.assertEqual(data["files_scanned"], 1)
+            self.assertEqual(data["files_failed"], 1)
 
     def test_json_on_empty_dir_is_valid_json(self) -> None:
         # Warnings go to stderr; stdout must remain parseable JSON even on
