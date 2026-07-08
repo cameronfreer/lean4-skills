@@ -42,5 +42,20 @@ jobs:
           rg --version
           /bin/bash plugins/lean4/tests/test_unused_declarations.sh
 
+      - name: Self-test — bootstrap env honesty + PATH persistence (#108)
+        run: /bin/bash plugins/lean4/tests/test_bootstrap_env.sh
+
+      - name: Self-test — preflight_env + doctor wording agreement (#108)
+        run: /bin/bash plugins/lean4/tests/test_preflight_env.sh
+
+      # These hook self-tests existed but ran in NO workflow (the same
+      # silent-coverage-gap class #146/#147 fixed for the script suites) —
+      # wire them in here so they actually execute.
+      - name: Self-test — guardrails hook
+        run: /bin/bash plugins/lean4/tests/test_guardrails.sh
+
+      - name: Self-test — validate_user_prompt hook
+        run: /bin/bash plugins/lean4/tests/test_validate_user_prompt.sh
+
       - name: Runtime smoke — cycle_tracker.sh under /bin/bash
         run: /bin/bash plugins/lean4/tests/test_bash3_smoke.sh
