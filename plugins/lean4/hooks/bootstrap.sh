@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
-: "${CLAUDE_PLUGIN_ROOT:?missing CLAUDE_PLUGIN_ROOT}"
+
+# Resolve the plugin root. CLAUDE_PLUGIN_ROOT is set by Claude Code at hook
+# time; if it's missing the hook was invoked abnormally. We do NOT hard-fail
+# on that (a `:?` abort would bypass the honest degraded-warning path below);
+# instead we self-locate a fallback root from BASH_SOURCE purely so we can
+# still emit the canonical recovery message, and treat missing
+# CLAUDE_PLUGIN_ROOT as a degraded state (no persistence, no "ready").
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FALLBACK_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+PREFLIGHT="${PLUGIN_ROOT:-$FALLBACK_ROOT}/lib/scripts/preflight_env.sh"
+
 ENV_OUT="${CLAUDE_ENV_FILE:-}"
 
 # Persist env var: update if exists with different value, add if missing
@@ -18,12 +29,74 @@ persist_env() {
   fi
 }
 
+# Emit the canonical recovery block and exit 0. We warn (not hard-fail)
+# because a nonzero SessionStart exit risks disrupting session start and the
+# self-locating lean4-skills-* wrappers may still function; a loud,
+# actionable stderr warning is the right severity. Reuses preflight_env.sh's
+# wording when reachable so bootstrap and doctor never drift; falls back to
+# an inline copy only if the helper itself can't be located.
+warn_degraded_and_exit() {
+  local problem="$1"
+  if [[ -f "$PREFLIGHT" ]]; then
+    # Re-run the helper so the exact canonical block is emitted. Its own
+    # checks will restate the concrete problem; suppress its exit status.
+    CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$PREFLIGHT" --bootstrap "$PLUGIN_ROOT" || true
+  else
+    {
+      echo "Lean4 bootstrap environment is not fully set up in this Claude Code session."
+      echo "  Problem: ${problem}"
+      echo "  Recovery:"
+      echo "    1. Run /lean4:doctor env for a full diagnosis."
+      echo "    2. Restart the Claude Code session (re-runs the SessionStart bootstrap hook)."
+      echo "    3. If it persists, check the plugin hook/bootstrap state (hooks.json, bootstrap.sh)."
+    } >&2
+  fi
+  exit 0
+}
+
+# Missing CLAUDE_PLUGIN_ROOT: degraded — warn via the canonical block and
+# exit 0 without persisting off a guessed root.
+if [[ -z "$PLUGIN_ROOT" ]]; then
+  warn_degraded_and_exit "CLAUDE_PLUGIN_ROOT is not set (bootstrap hook invoked without it)"
+fi
+
+# Step 1: validate INPUTS (tree layout + CLAUDE_ENV_FILE usability) before
+# persisting anything. If they don't hold, nothing gets written — warn.
+if ! bash "$PREFLIGHT" --bootstrap "$PLUGIN_ROOT"; then
+  exit 0  # preflight already emitted the canonical block on stderr
+fi
+
+# Step 2: persist LEAN4_* and PATH. The PATH line keeps `:$PATH` literal
+# (escaped) so each fresh shell prepends bin/ to its own PATH; persist_env's
+# dedup keeps re-bootstraps from stacking duplicate lines. This is what makes
+# the lean4-skills-* wrappers resolvable in later tool calls (and makes
+# INSTALLATION.md's "bootstrap adds bin/ to PATH" claim true).
 PYTHON_BIN="$(command -v python3 || command -v python || true)"
 
-persist_env "export LEAN4_PLUGIN_ROOT=\"${CLAUDE_PLUGIN_ROOT}\""
-persist_env "export LEAN4_SCRIPTS=\"${CLAUDE_PLUGIN_ROOT}/lib/scripts\""
-persist_env "export LEAN4_REFS=\"${CLAUDE_PLUGIN_ROOT}/skills/lean4/references\""
+persist_env "export LEAN4_PLUGIN_ROOT=\"${PLUGIN_ROOT}\""
+persist_env "export LEAN4_SCRIPTS=\"${PLUGIN_ROOT}/lib/scripts\""
+persist_env "export LEAN4_REFS=\"${PLUGIN_ROOT}/skills/lean4/references\""
+persist_env "export PATH=\"${PLUGIN_ROOT}/bin:\$PATH\""
 [[ -n "${PYTHON_BIN}" ]] && persist_env "export LEAN4_PYTHON_BIN=\"${PYTHON_BIN}\""
 
-echo "Lean4 v4 ready: PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}"
+# Step 3: re-validate that persistence actually happened — "ready" must mean
+# the environment was written, not merely that inputs looked okay. Confirm
+# the env file now carries the expected exports.
+persisted_ok=true
+for expected in \
+  "export LEAN4_PLUGIN_ROOT=" \
+  "export LEAN4_SCRIPTS=" \
+  "export LEAN4_REFS=" \
+  "export PATH="; do
+  if ! grep -q "^${expected}" "${ENV_OUT}" 2>/dev/null; then
+    persisted_ok=false
+    break
+  fi
+done
+
+if [[ "$persisted_ok" != true ]]; then
+  warn_degraded_and_exit "env persistence to CLAUDE_ENV_FILE did not take effect"
+fi
+
+echo "Lean4 v4 ready: PLUGIN_ROOT=${PLUGIN_ROOT}"
 exit 0
