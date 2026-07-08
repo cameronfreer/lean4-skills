@@ -6,7 +6,7 @@ Test results and validation status for Lean 4 scripts.
 
 | Script | Status | Notes |
 |--------|--------|-------|
-| `sorry_analyzer.py` | ✅ Production Ready | Multi-format output, interactive mode |
+| `sorry_analyzer.py` | ✅ Production Ready | Multi-format output, interactive mode; coverage-aware exit codes (exit 2 on zero-scan/unreadable paths); unit+subprocess suite in tests/, run by lint.yml's python-tests CI job (which also runs test_ordering.py — previously never executed in CI) |
 | `check_axioms_inline.sh` | ✅ Production Ready | Namespace-stack tracking (all namespaces + sections); top-level unindented declarations; batch mode, directory support; coverage-invariant surfaces unverified files rather than silently passing |
 | `search_mathlib.sh` | ✅ Production Ready | Pattern search with ripgrep |
 | `smart_search.sh` | ✅ Production Ready | Multi-source (LeanSearch, Loogle) |

@@ -17,6 +17,15 @@ Modes:
     --include-deps: Include .lake/ directories (dependencies) in search (excluded by default)
     --exit-zero-on-findings (or --report-only): Exit 0 even when sorries are found (real errors still exit 1)
 
+Exit codes:
+    0 - scanned at least one file, no sorries found (or findings present
+        with --exit-zero-on-findings)
+    1 - sorries found (without --exit-zero-on-findings); also usage errors
+    2 - coverage failure: zero .lean files were scanned, or one or more
+        paths could not be read. NOT excused by --exit-zero-on-findings:
+        that flag means "findings are non-fatal for reporting" — a gate
+        that scanned nothing (or missed part of the tree) must not pass.
+
 Examples:
     ./sorry_analyzer.py MyFile.lean
     ./sorry_analyzer.py src/DeFinetti/ --format=markdown
@@ -48,6 +57,22 @@ class Sorry:
     context_after: list[str]
     documentation: list[str]
     in_declaration: str | None = None
+
+
+@dataclass
+class ScanResult:
+    """Findings plus the coverage they rest on.
+
+    files_scanned counts .lean files actually read; files_failed counts
+    paths (files OR directories) that could not be read. Coverage travels
+    with the findings so callers can distinguish "clean" from "checked
+    nothing" — the distinction whose absence caused the silent-green
+    failure modes fixed in #145/#146 for the sibling bash tools.
+    """
+
+    sorries: list[Sorry]
+    files_scanned: int
+    files_failed: int
 
 
 SORRY_TOKEN_PATTERN = re.compile(r"(?<![A-Za-z0-9_!?'])sorry(?![A-Za-z0-9_!?'])")
@@ -113,14 +138,37 @@ def strip_lean_comments_and_strings(
 
 
 def extract_declaration_name(lines: list[str], sorry_idx: int) -> str | None:
-    """Extract the theorem/lemma/def name containing this sorry"""
-    # Search backwards for declaration
-    # Support Unicode and qualified names (e.g., Foo.bar, foo', foo'')
-    # Handle optional visibility modifiers (private, protected) and attributes (@[...])
-    for i in range(sorry_idx - 1, max(0, sorry_idx - 50), -1):
+    """Extract the declaration name containing this sorry.
+
+    Returns "keyword name" (e.g. "def foo") — visibility and decl
+    modifiers are deliberately dropped from the label: keyword+name is
+    the declaration's identity; modifiers are noise for attribution.
+    Anonymous `example : ...` has no name to capture and stays
+    unattributed (None).
+    """
+    # Search backwards for declaration.
+    # Support Unicode and qualified names (e.g., Foo.bar, foo', foo'').
+    # Handles optional same-line attributes (@[...]) followed by any number
+    # of scope/visibility/decl modifiers in any order — private, protected,
+    # local, scoped, noncomputable, unsafe, partial, nonrec. (A single
+    # fixed "visibility then modifier" slot missed real forms like
+    # `scoped instance`, which mathlib uses heavily.) An attribute on its
+    # OWN line above the declaration also works — the backward search hits
+    # the declaration line before the attribute line.
+    # axiom/constant deliberately absent: they have no proof body, so a
+    # sorry can never be inside one; matching them would only create
+    # misattribution risk for the nearest-header-wins backward search.
+    #
+    # The search STARTS AT the sorry's own line (not the line before):
+    # single-line declarations (`def foo : Nat := by sorry`) put the
+    # header and the sorry on the same line, and starting one line up
+    # left every such sorry unattributed. Stop bound is -1 so line 0 is
+    # included in the window.
+    for i in range(sorry_idx, max(-1, sorry_idx - 50), -1):
         match = re.match(
-            r"^\s*(?:@\[.*?\]\s*)?(?:private\s+|protected\s+)?"
-            r"(theorem|lemma|def|example|instance|structure|class)\s+([\w.']+)",
+            r"^\s*(?:@\[.*?\]\s*)?"
+            r"(?:(?:private|protected|local|scoped|noncomputable|unsafe|partial|nonrec)\s+)*"
+            r"(theorem|lemma|def|abbrev|example|instance|structure|class|inductive)\s+([\w.']+)",
             lines[i],
         )
         if match:
@@ -153,14 +201,19 @@ def extract_documentation(lines: list[str], sorry_idx: int) -> list[str]:
     return docs
 
 
-def find_sorries_in_file(filepath: Path) -> list[Sorry]:
-    """Find all sorries in a single Lean file"""
+def find_sorries_in_file(filepath: Path) -> list[Sorry] | None:
+    """Find all sorries in a single Lean file.
+
+    Returns None when the file could not be read — callers must count
+    that as a coverage failure, not an empty result. (Returning [] here
+    previously let a directory of unreadable files report clean.)
+    """
     try:
         with open(filepath, encoding="utf-8") as f:
             lines = f.readlines()
     except Exception as e:
         print(f"Warning: Could not read {filepath}: {e}", file=sys.stderr)
-        return []
+        return None
 
     sorries = []
     block_comment_depth = 0
@@ -200,22 +253,34 @@ def find_sorries_in_file(filepath: Path) -> list[Sorry]:
     return sorries
 
 
-def find_sorries(target: Path, include_deps: bool = False) -> list[Sorry]:
-    """Find all sorries in target file or directory
+def find_sorries(target: Path, include_deps: bool = False) -> ScanResult:
+    """Find all sorries in target file or directory, with coverage counts.
 
     Args:
         target: File or directory to search
         include_deps: If False (default), exclude .lake/ directories (dependencies)
     """
     if target.is_file():
+        # Guard: a direct file target must be a .lean file. Directory mode
+        # only scans *.lean; direct mode used to scan ANY file, so
+        # `sorry_analyzer.py README.md` counted files_scanned=1 and exited
+        # 0 — a "gate scanned nothing meaningful but passed" case. Treat a
+        # non-.lean target as zero coverage (exit 2 downstream). Matches
+        # the directory walk's `filename.endswith(".lean")` filter.
+        if target.suffix != ".lean":
+            print(f"Skipping non-Lean file: {target}", file=sys.stderr)
+            return ScanResult(sorries=[], files_scanned=0, files_failed=0)
         # Guard: Also exclude .lake/ files unless --include-deps
         if not include_deps and ".lake" in target.parts:
             print(
                 f"Skipping dependency file: {target} (use --include-deps to include)",
                 file=sys.stderr,
             )
-            return []
-        return find_sorries_in_file(target)
+            return ScanResult(sorries=[], files_scanned=0, files_failed=0)
+        file_sorries = find_sorries_in_file(target)
+        if file_sorries is None:
+            return ScanResult(sorries=[], files_scanned=0, files_failed=1)
+        return ScanResult(sorries=file_sorries, files_scanned=1, files_failed=0)
     elif target.is_dir():
         # Guard: Exclude .lake directory or any subpath unless --include-deps
         if not include_deps and ".lake" in target.parts:
@@ -223,20 +288,37 @@ def find_sorries(target: Path, include_deps: bool = False) -> list[Sorry]:
                 f"Skipping dependency directory: {target} (use --include-deps to include)",
                 file=sys.stderr,
             )
-            return []
-        sorries = []
-        # Use os.walk for early termination of .lake/ directories (performance)
-        import os
+            return ScanResult(sorries=[], files_scanned=0, files_failed=0)
+        sorries: list[Sorry] = []
+        files_scanned = 0
+        files_failed = 0
 
-        for root, dirs, files in os.walk(target):
+        # os.walk silently swallows errors (e.g. an unreadable subdirectory
+        # just doesn't get descended into) unless onerror is passed — the
+        # directory-level analog of an unreadable file. Both count as
+        # coverage failures.
+        def _walk_error(err: OSError) -> None:
+            nonlocal files_failed
+            print(f"Warning: Could not read {err.filename}: {err}", file=sys.stderr)
+            files_failed += 1
+
+        # Use os.walk for early termination of .lake/ directories (performance)
+        for root, dirs, files in os.walk(target, onerror=_walk_error):
             # Prune .lake directories from traversal (don't descend into them)
             if not include_deps:
                 dirs[:] = [d for d in dirs if d != ".lake"]
             for filename in files:
                 if filename.endswith(".lean"):
                     lean_file = Path(root) / filename
-                    sorries.extend(find_sorries_in_file(lean_file))
-        return sorries
+                    file_sorries = find_sorries_in_file(lean_file)
+                    if file_sorries is None:
+                        files_failed += 1
+                    else:
+                        files_scanned += 1
+                        sorries.extend(file_sorries)
+        return ScanResult(
+            sorries=sorries, files_scanned=files_scanned, files_failed=files_failed
+        )
     else:
         raise ValueError(f"{target} is not a file or directory")
 
@@ -306,22 +388,32 @@ def format_markdown(sorries: list[Sorry]) -> str:
     return "\n".join(output)
 
 
-def format_json(sorries: list[Sorry]) -> str:
-    """Format sorries as JSON"""
+def format_json(result: ScanResult) -> str:
+    """Format scan result as JSON (additive coverage fields)"""
     return json.dumps(
-        {"total_count": len(sorries), "sorries": [asdict(s) for s in sorries]}, indent=2
+        {
+            "total_count": len(result.sorries),
+            "files_scanned": result.files_scanned,
+            "files_failed": result.files_failed,
+            "sorries": [asdict(s) for s in result.sorries],
+        },
+        indent=2,
     )
 
 
-def format_summary(sorries: list[Sorry]) -> str:
-    """Format sorries as a brief summary (file counts + total)"""
+def format_summary(result: ScanResult) -> str:
+    """Format scan result as a brief summary (file counts + total + coverage)"""
+    sorries = result.sorries
     output = []
     # Group by file
     by_file: dict[str, list[Sorry]] = {}
     for sorry in sorries:
         by_file.setdefault(sorry.file, []).append(sorry)
 
-    output.append(f"Sorry Summary: {len(sorries)} total across {len(by_file)} file(s)")
+    output.append(
+        f"Sorry Summary: {len(sorries)} total across {len(by_file)} file(s) "
+        f"with sorries; {result.files_scanned} file(s) scanned"
+    )
     output.append("-" * 50)
 
     for filepath, file_sorries in sorted(by_file.items(), key=lambda x: -len(x[1])):
@@ -515,24 +607,51 @@ def main() -> None:
         sys.exit(1)
 
     # Find all sorries (excludes .lake/ by default)
-    sorries = find_sorries(target, include_deps=include_deps)
+    result = find_sorries(target, include_deps=include_deps)
+    sorries = result.sorries
 
-    # Interactive mode takes precedence
+    # Coverage failures exit 2 regardless of --exit-zero-on-findings: that
+    # flag makes FINDINGS non-fatal for reporting; a run that scanned
+    # nothing (or couldn't read part of the tree) is a different category —
+    # a gate that can't answer must not pass. Same policy as
+    # check_axioms_inline.sh (#145) and unused_declarations.sh (#146).
+    coverage_failed = result.files_scanned == 0 or result.files_failed > 0
+    if coverage_failed:
+        if result.files_scanned == 0:
+            print(
+                f"Warning: no .lean files were scanned under {target} — "
+                "nothing was analyzed",
+                file=sys.stderr,
+            )
+        if result.files_failed > 0:
+            print(
+                f"Warning: {result.files_failed} path(s) could not be read — "
+                "coverage is incomplete",
+                file=sys.stderr,
+            )
+
+    # Interactive mode takes precedence — but not on coverage failure:
+    # interactive_mode's "No sorries found!" greeting would be exactly the
+    # false reassurance the coverage check exists to remove.
     if interactive:
+        if coverage_failed:
+            sys.exit(2)
         interactive_mode(sorries)
         sys.exit(0 if len(sorries) == 0 or exit_zero_on_findings else 1)
 
     # Format output
     if format_type == "json":
-        print(format_json(sorries))
+        print(format_json(result))
     elif format_type == "markdown":
         print(format_markdown(sorries))
     elif format_type == "summary":
-        print(format_summary(sorries))
+        print(format_summary(result))
     else:
         print(format_text(sorries))
 
-    # Exit code: 0 if no sorries, 1 if sorries found
+    # Exit codes: 2 coverage failure > 1 findings > 0 clean.
+    if coverage_failed:
+        sys.exit(2)
     sys.exit(0 if len(sorries) == 0 or exit_zero_on_findings else 1)
 
 

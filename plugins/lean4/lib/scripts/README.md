@@ -194,11 +194,11 @@ Analyze let binding usage to avoid bad optimizations.
 Most scripts exit non-zero only on real errors (missing arguments, invalid paths, compilation failures).
 
 Three grep-style scripts also exit non-zero on findings by default — useful for CI gating:
-- `sorry_analyzer.py` — exit 1 when sorries found
+- `sorry_analyzer.py` — exit 1 when sorries found; exit 2 on coverage failure (zero .lean files scanned, or unreadable paths)
 - `check_axioms_inline.sh` — exit 1 when custom axioms found
-- `unused_declarations.sh` — exit 1 when unused declarations found
+- `unused_declarations.sh` — exit 1 when unused declarations found; exit 2 when neither ripgrep nor PCRE grep is available
 
-**`--exit-zero-on-findings`** (alias: `--report-only`): Makes findings exit 0 while real errors still exit 1. Use in report-only contexts (reviews, troubleshooting); do not use in gate commands like `/lean4:checkpoint`. **Note (`check_axioms_inline.sh`):** the flag applies to custom-axiom *findings* only. Coverage failures — unverified files or aggregate zero-declaration coverage — always exit 1 regardless of this flag, because a gate that couldn't make a determination for one or more files must not silently pass:
+**`--exit-zero-on-findings`** (alias: `--report-only`): Makes findings exit 0 while real errors still exit 1. Use in report-only contexts (reviews, troubleshooting); do not use in gate commands like `/lean4:checkpoint`. **Note (all three scripts):** the flag applies to *findings* only. Coverage failures — zero files scanned, unreadable paths, unverified files, or unanalyzable trees — always exit non-zero regardless of this flag, because a gate that couldn't make a determination must not silently pass:
 
 ```bash
 ${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary --report-only
