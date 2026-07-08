@@ -41,6 +41,29 @@ Diagnostics, troubleshooting, and migration assistance for the Lean4 plugin.
 
 Environment variables: `LEAN4_PLUGIN_ROOT`, `LEAN4_SCRIPTS`, `LEAN4_REFS`, `LEAN4_PYTHON_BIN`
 
+Run the shared env preflight for a live diagnosis. Resolve it **without
+depending on PATH** — `doctor env` is exactly where a broken PATH must
+still be diagnosable, so a bare `lean4-skills-preflight` alone could fail
+command-not-found:
+
+```bash
+if command -v lean4-skills-preflight >/dev/null 2>&1; then
+    lean4-skills-preflight
+elif [[ -n "${LEAN4_PLUGIN_ROOT:-}" && -x "$LEAN4_PLUGIN_ROOT/bin/lean4-skills-preflight" ]]; then
+    "$LEAN4_PLUGIN_ROOT/bin/lean4-skills-preflight"
+else
+    echo "Lean4 bootstrap environment is not fully set up in this Claude Code session." >&2
+    echo "  Recovery:" >&2
+    echo "    1. Run /lean4:doctor env for a full diagnosis." >&2
+    echo "    2. Restart the Claude Code session (re-runs the SessionStart bootstrap hook)." >&2
+    echo "    3. If it persists, check the plugin hook/bootstrap state (hooks.json, bootstrap.sh)." >&2
+fi
+```
+
+The preflight validates that `LEAN4_*` point at real dirs, that
+`$LEAN4_PLUGIN_ROOT/bin` is on `PATH`, and that the `lean4-skills-*`
+wrappers resolve; on failure it prints the canonical recovery block.
+
 ### 1b. MCP Tools
 
 | Check | Detection | Status |
@@ -195,8 +218,8 @@ No changes made. Run `/lean4:doctor cleanup --apply` to remove.
 
 | Issue | Fix |
 |-------|-----|
-| LEAN4_SCRIPTS not set | Restart session, check hooks.json |
-| `lean4-skills-*` wrapper not found on PATH | Verify bootstrap appended `$LEAN4_PLUGIN_ROOT/bin` to `PATH`; restart session if missing |
+| LEAN4_SCRIPTS not set | 1. Run `/lean4:doctor env` for a full diagnosis. 2. Restart the Claude Code session (re-runs the SessionStart bootstrap hook). 3. If it persists, check the plugin hook/bootstrap state (hooks.json, bootstrap.sh). |
+| `lean4-skills-*` wrapper not found on PATH | 1. Run `/lean4:doctor env` for a full diagnosis. 2. Restart the Claude Code session (re-runs the SessionStart bootstrap hook). 3. If it persists, check the plugin hook/bootstrap state (hooks.json, bootstrap.sh). |
 | lake not found | Install via elan |
 | Scripts not executable | Wrappers should be shipped executable — check `command -v lean4-skills-sorry-analyzer`. For unwrapped internals: `chmod +x $LEAN4_SCRIPTS/*.sh $LEAN4_SCRIPTS/*.py` |
 | Build fails | `lake update && lake clean && lake build` |
