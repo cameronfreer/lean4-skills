@@ -148,10 +148,12 @@ def extract_declaration_name(lines: list[str], sorry_idx: int) -> str | None:
     """
     # Search backwards for declaration.
     # Support Unicode and qualified names (e.g., Foo.bar, foo', foo'').
-    # Handles optional same-line attributes (@[...]), visibility
-    # (private/protected/local), and decl modifiers
-    # (noncomputable/unsafe/partial/nonrec). An attribute on its OWN
-    # line above the declaration also works — the backward search hits
+    # Handles optional same-line attributes (@[...]) followed by any number
+    # of scope/visibility/decl modifiers in any order — private, protected,
+    # local, scoped, noncomputable, unsafe, partial, nonrec. (A single
+    # fixed "visibility then modifier" slot missed real forms like
+    # `scoped instance`, which mathlib uses heavily.) An attribute on its
+    # OWN line above the declaration also works — the backward search hits
     # the declaration line before the attribute line.
     # axiom/constant deliberately absent: they have no proof body, so a
     # sorry can never be inside one; matching them would only create
@@ -165,8 +167,7 @@ def extract_declaration_name(lines: list[str], sorry_idx: int) -> str | None:
     for i in range(sorry_idx, max(-1, sorry_idx - 50), -1):
         match = re.match(
             r"^\s*(?:@\[.*?\]\s*)?"
-            r"(?:(?:private|protected|local)\s+)?"
-            r"(?:(?:noncomputable|unsafe|partial|nonrec)\s+)?"
+            r"(?:(?:private|protected|local|scoped|noncomputable|unsafe|partial|nonrec)\s+)*"
             r"(theorem|lemma|def|abbrev|example|instance|structure|class|inductive)\s+([\w.']+)",
             lines[i],
         )
@@ -260,6 +261,15 @@ def find_sorries(target: Path, include_deps: bool = False) -> ScanResult:
         include_deps: If False (default), exclude .lake/ directories (dependencies)
     """
     if target.is_file():
+        # Guard: a direct file target must be a .lean file. Directory mode
+        # only scans *.lean; direct mode used to scan ANY file, so
+        # `sorry_analyzer.py README.md` counted files_scanned=1 and exited
+        # 0 — a "gate scanned nothing meaningful but passed" case. Treat a
+        # non-.lean target as zero coverage (exit 2 downstream). Matches
+        # the directory walk's `filename.endswith(".lean")` filter.
+        if target.suffix != ".lean":
+            print(f"Skipping non-Lean file: {target}", file=sys.stderr)
+            return ScanResult(sorries=[], files_scanned=0, files_failed=0)
         # Guard: Also exclude .lake/ files unless --include-deps
         if not include_deps and ".lake" in target.parts:
             print(

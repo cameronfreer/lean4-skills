@@ -149,6 +149,16 @@ class TestExtractDeclarationName(unittest.TestCase):
             "instance inst",
         )
 
+    def test_scoped_instance(self) -> None:
+        # `scoped instance` (common in mathlib) was unattributed before the
+        # modifier set was generalized — `scoped` was in neither the old
+        # visibility nor decl-modifier slot, so the keyword match fell
+        # through to None.
+        self.assertEqual(
+            self.attribute("scoped instance sInst : Inhabited Nat := by\n  sorry\n"),
+            "instance sInst",
+        )
+
     def test_abbrev(self) -> None:
         self.assertEqual(
             self.attribute("abbrev shortcut : Nat := by\n  sorry\n"),
@@ -271,6 +281,18 @@ class TestExitCodes(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             Path(td, "notes.txt").write_text("no lean here\n")
             self.assertEqual(run_analyzer(td).returncode, 2)
+
+    def test_direct_non_lean_file_exits_two(self) -> None:
+        # A non-.lean file passed DIRECTLY used to be scanned as if it
+        # were Lean (files_scanned=1, exit 0) — directory mode filters by
+        # suffix but direct mode did not. Now zero coverage → exit 2.
+        with tempfile.TemporaryDirectory() as td:
+            notes = Path(td, "notes.txt")
+            notes.write_text("no lean here\n")
+            proc = run_analyzer(str(notes))
+            self.assertEqual(proc.returncode, 2)
+            self.assertIn("nothing was analyzed", proc.stderr)
+            self.assertIn("Skipping non-Lean file", proc.stderr)
 
     def test_direct_lake_file_target_exits_two(self) -> None:
         # A .lake file passed directly is skipped (stderr message), so
