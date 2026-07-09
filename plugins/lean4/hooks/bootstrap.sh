@@ -50,25 +50,24 @@ persist_path() {
 # Emit the canonical recovery block and exit 0. We warn (not hard-fail)
 # because a nonzero SessionStart exit risks disrupting session start and the
 # self-locating lean4-skills-* wrappers may still function; a loud,
-# actionable stderr warning is the right severity. Reuses preflight_env.sh's
-# wording when reachable so bootstrap and doctor never drift; falls back to
-# an inline copy only if the helper itself can't be located.
+# actionable stderr warning is the right severity.
+#
+# ALWAYS emits the caller's concrete $problem inline — it does NOT re-run
+# the preflight. A re-run could pass (e.g. a post-write validation failure
+# where the INPUTS still look fine, such as CLAUDE_ENV_FILE being a symlink
+# to /dev/null) and emit nothing, silently swallowing the warning. The
+# canonical wording here is kept byte-identical to preflight_env.sh's
+# emit_recovery (test_preflight_env.sh asserts the shared lines).
 warn_degraded_and_exit() {
   local problem="$1"
-  if [[ -f "$PREFLIGHT" ]]; then
-    # Re-run the helper so the exact canonical block is emitted. Its own
-    # checks will restate the concrete problem; suppress its exit status.
-    CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$PREFLIGHT" --bootstrap "$PLUGIN_ROOT" || true
-  else
-    {
-      echo "Lean4 bootstrap environment is not fully set up in this Claude Code session."
-      echo "  Problem: ${problem}"
-      echo "  Recovery:"
-      echo "    1. Run /lean4:doctor env for a full diagnosis."
-      echo "    2. Restart the Claude Code session (re-runs the SessionStart bootstrap hook)."
-      echo "    3. If it persists, check the plugin hook/bootstrap state (hooks.json, bootstrap.sh)."
-    } >&2
-  fi
+  {
+    echo "Lean4 bootstrap environment is not fully set up in this Claude Code session."
+    echo "  Problem: ${problem}"
+    echo "  Recovery:"
+    echo "    1. Run /lean4:doctor env for a full diagnosis."
+    echo "    2. Restart the Claude Code session (re-runs the SessionStart bootstrap hook)."
+    echo "    3. If it persists, check the plugin hook/bootstrap state (hooks.json, bootstrap.sh)."
+  } >&2
   exit 0
 }
 

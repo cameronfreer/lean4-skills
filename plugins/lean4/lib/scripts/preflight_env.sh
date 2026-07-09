@@ -55,9 +55,12 @@ check_bootstrap() {
     [[ -d "$root/bin" ]] || problems+=("$root/bin does not exist")
 
     # CLAUDE_ENV_FILE usability: the var must be nonempty, its PARENT dir
-    # must exist and be writable, and IF the file already exists it must be
-    # writable. We do not require the file itself to pre-exist — first-run
-    # bootstrap creates it.
+    # must exist and be writable, and IF the file already exists it must be a
+    # REGULAR writable file. We do not require the file to pre-exist —
+    # first-run bootstrap creates it. The regular-file check rejects a
+    # writable-but-non-persistent target (a directory, /dev/null, or a
+    # symlink to a device): persistence there silently no-ops, which would
+    # otherwise slip past input validation into a silent degraded bootstrap.
     local env_file="${CLAUDE_ENV_FILE:-}"
     if [[ -z "$env_file" ]]; then
         problems+=("CLAUDE_ENV_FILE is not set — env cannot be persisted for later tool calls")
@@ -68,7 +71,9 @@ check_bootstrap() {
             problems+=("CLAUDE_ENV_FILE parent directory $env_dir does not exist")
         elif [[ ! -w "$env_dir" ]]; then
             problems+=("CLAUDE_ENV_FILE parent directory $env_dir is not writable")
-        elif [[ -e "$env_file" && ! -w "$env_file" ]]; then
+        elif [[ -e "$env_file" && ! -f "$env_file" ]]; then
+            problems+=("CLAUDE_ENV_FILE $env_file exists but is not a regular file (persistence would not stick)")
+        elif [[ -f "$env_file" && ! -w "$env_file" ]]; then
             problems+=("CLAUDE_ENV_FILE $env_file exists but is not writable")
         fi
     fi

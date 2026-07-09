@@ -159,6 +159,32 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Degraded: CLAUDE_ENV_FILE writable but NON-PERSISTENT (symlink to
+# /dev/null, or an existing directory). Persistence there silently no-ops;
+# the regular-file check in preflight --bootstrap must catch it at input
+# validation so the bootstrap is loud, not silently degraded. exit 0.
+# ---------------------------------------------------------------------------
+ln -s /dev/null "$SCRATCH/devnull_link"
+run_bootstrap "$PLUGIN_ROOT" "$SCRATCH/devnull_link"
+if [[ "$BS_EXIT" -eq 0 ]] \
+   && ! grep -qF "Lean4 v4 ready" <<<"$BS_OUT" \
+   && grep -qF "Run /lean4:doctor env for a full diagnosis." <<<"$BS_OUT"; then
+    pass "degraded: CLAUDE_ENV_FILE → /dev/null symlink → canonical warning, exit 0"
+else
+    fail "degraded CLAUDE_ENV_FILE → /dev/null symlink (exit=$BS_EXIT): $BS_OUT"
+fi
+
+mkdir -p "$SCRATCH/envdir"
+run_bootstrap "$PLUGIN_ROOT" "$SCRATCH/envdir"
+if [[ "$BS_EXIT" -eq 0 ]] \
+   && ! grep -qF "Lean4 v4 ready" <<<"$BS_OUT" \
+   && grep -qF "not a regular file" <<<"$BS_OUT"; then
+    pass "degraded: CLAUDE_ENV_FILE → directory → canonical warning, exit 0"
+else
+    fail "degraded CLAUDE_ENV_FILE → directory (exit=$BS_EXIT): $BS_OUT"
+fi
+
+# ---------------------------------------------------------------------------
 echo ""
 echo "=== test_bootstrap_env.sh: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]
