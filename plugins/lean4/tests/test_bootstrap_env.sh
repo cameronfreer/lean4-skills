@@ -124,6 +124,41 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# PATH coexistence: a foreign `export PATH=` line (another plugin's) and an
+# unrelated var in the same env file must SURVIVE a bootstrap — persist_path
+# dedups only our exact own-line, not every PATH line.
+# ---------------------------------------------------------------------------
+coex="$SCRATCH/coex_env"
+printf 'export PATH="/opt/otherplugin/bin:$PATH"\nexport OTHER_VAR="keep me"\n' > "$coex"
+run_bootstrap "$PLUGIN_ROOT" "$coex"
+coex_ok=1
+grep -qF 'export PATH="/opt/otherplugin/bin:$PATH"' "$coex" || coex_ok=0   # foreign PATH survived
+grep -qF 'export OTHER_VAR="keep me"' "$coex" || coex_ok=0                 # unrelated var survived
+grep -qF "$PLUGIN_ROOT/bin" "$coex" || coex_ok=0                           # our PATH added
+run_bootstrap "$PLUGIN_ROOT" "$coex"                                       # second run
+[[ "$(grep -c '^export PATH=' "$coex")" -eq 2 ]] || coex_ok=0             # still exactly 2 PATH lines
+if [[ $coex_ok -eq 1 ]]; then
+    pass "PATH coexistence: foreign PATH + unrelated var survive; ours deduped"
+else
+    fail "PATH coexistence"; sed 's/^/      /' "$coex"
+fi
+
+# ---------------------------------------------------------------------------
+# Missing preflight helper → canonical block (not a raw "No such file"), exit 0.
+# Point CLAUDE_PLUGIN_ROOT at a tree with an empty lib/scripts/ (no helper).
+# ---------------------------------------------------------------------------
+nohelper="$SCRATCH/nohelper"
+mkdir -p "$nohelper/lib/scripts" "$nohelper/skills/lean4/references" "$nohelper/bin"
+run_bootstrap "$nohelper" "$SCRATCH/nohelper_env"
+if [[ "$BS_EXIT" -eq 0 ]] \
+   && ! grep -qF "Lean4 v4 ready" <<<"$BS_OUT" \
+   && grep -qF "Run /lean4:doctor env for a full diagnosis." <<<"$BS_OUT"; then
+    pass "missing preflight helper → canonical block, exit 0"
+else
+    fail "missing preflight helper (exit=$BS_EXIT): $BS_OUT"
+fi
+
+# ---------------------------------------------------------------------------
 echo ""
 echo "=== test_bootstrap_env.sh: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]

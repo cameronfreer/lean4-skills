@@ -14,7 +14,9 @@ PREFLIGHT="${PLUGIN_ROOT:-$FALLBACK_ROOT}/lib/scripts/preflight_env.sh"
 
 ENV_OUT="${CLAUDE_ENV_FILE:-}"
 
-# Persist env var: update if exists with different value, add if missing
+# Persist env var: update if exists with different value, add if missing.
+# Safe for singleton VAR=VALUE exports (LEAN4_*), where removing every
+# `^export VAR=` line before re-adding is exactly the intended dedup.
 persist_env() {
   local kv="$1"
   local var_name="${kv%%=*}"  # extract VAR_NAME from "export VAR_NAME=..."
@@ -26,6 +28,22 @@ persist_env() {
       mv "${ENV_OUT}.tmp" "${ENV_OUT}"
     fi
     printf '%s\n' "$kv" >> "${ENV_OUT}"
+  fi
+}
+
+# Persist PATH specifically. Unlike persist_env, PATH is NOT a singleton —
+# other hooks/plugins may write their own `export PATH=...` lines into the
+# same CLAUDE_ENV_FILE. Dedup on the EXACT own-line only (grep -vF), so a
+# re-bootstrap replaces just our entry and leaves every other plugin's PATH
+# export intact.
+persist_path() {
+  local own_line="$1"
+  if [[ -n "${ENV_OUT}" ]]; then
+    if [[ -f "${ENV_OUT}" ]]; then
+      grep -vxF "$own_line" "${ENV_OUT}" > "${ENV_OUT}.tmp" 2>/dev/null || true
+      mv "${ENV_OUT}.tmp" "${ENV_OUT}"
+    fi
+    printf '%s\n' "$own_line" >> "${ENV_OUT}"
   fi
 }
 
@@ -60,6 +78,13 @@ if [[ -z "$PLUGIN_ROOT" ]]; then
   warn_degraded_and_exit "CLAUDE_PLUGIN_ROOT is not set (bootstrap hook invoked without it)"
 fi
 
+# Guard: if the preflight helper itself is missing, don't let a raw
+# "No such file" error stand in for the diagnosis — emit the canonical
+# block (warn_degraded_and_exit falls back to an inline copy).
+if [[ ! -f "$PREFLIGHT" ]]; then
+  warn_degraded_and_exit "preflight helper not found at $PREFLIGHT"
+fi
+
 # Step 1: validate INPUTS (tree layout + CLAUDE_ENV_FILE usability) before
 # persisting anything. If they don't hold, nothing gets written — warn.
 if ! bash "$PREFLIGHT" --bootstrap "$PLUGIN_ROOT"; then
@@ -67,16 +92,17 @@ if ! bash "$PREFLIGHT" --bootstrap "$PLUGIN_ROOT"; then
 fi
 
 # Step 2: persist LEAN4_* and PATH. The PATH line keeps `:$PATH` literal
-# (escaped) so each fresh shell prepends bin/ to its own PATH; persist_env's
-# dedup keeps re-bootstraps from stacking duplicate lines. This is what makes
-# the lean4-skills-* wrappers resolvable in later tool calls (and makes
-# INSTALLATION.md's "bootstrap adds bin/ to PATH" claim true).
+# (escaped) so each fresh shell prepends bin/ to its own PATH. PATH goes
+# through persist_path (exact-own-line dedup) so re-bootstraps don't stack
+# duplicates AND other plugins' PATH exports in the same env file survive.
+# This is what makes the lean4-skills-* wrappers resolvable in later tool
+# calls (and makes INSTALLATION.md's "bootstrap adds bin/ to PATH" true).
 PYTHON_BIN="$(command -v python3 || command -v python || true)"
 
 persist_env "export LEAN4_PLUGIN_ROOT=\"${PLUGIN_ROOT}\""
 persist_env "export LEAN4_SCRIPTS=\"${PLUGIN_ROOT}/lib/scripts\""
 persist_env "export LEAN4_REFS=\"${PLUGIN_ROOT}/skills/lean4/references\""
-persist_env "export PATH=\"${PLUGIN_ROOT}/bin:\$PATH\""
+persist_path "export PATH=\"${PLUGIN_ROOT}/bin:\$PATH\""
 [[ -n "${PYTHON_BIN}" ]] && persist_env "export LEAN4_PYTHON_BIN=\"${PYTHON_BIN}\""
 
 # Step 3: re-validate that persistence actually happened — "ready" must mean
