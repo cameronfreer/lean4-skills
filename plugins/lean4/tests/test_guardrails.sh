@@ -42,7 +42,7 @@ run_test_policy() {
     policy_env=(LEAN4_GUARDRAILS_COLLAB_POLICY="$policy")
   fi
   echo "{\"tool_input\":{\"command\":$(printf '%s' "$cmd" | jq -Rs .)}}" \
-    | env LEAN4_GUARDRAILS_FORCE=1 "${policy_env[@]}" bash "$HOOK" >/dev/null 2>&1 || actual=$?
+    | env LEAN4_GUARDRAILS_FORCE=1 "${policy_env[@]+"${policy_env[@]}"}" bash "$HOOK" >/dev/null 2>&1 || actual=$?
   if [[ "$actual" -eq "$expected" ]]; then
     echo "  PASS: $desc"
     (( ++PASS ))
@@ -68,7 +68,7 @@ run_test_op_policy() {
     policy_env=("LEAN4_GUARDRAILS_${var_name}=${value}")
   fi
   echo "{\"tool_input\":{\"command\":$(printf '%s' "$cmd" | jq -Rs .)}}" \
-    | env LEAN4_GUARDRAILS_FORCE=1 "${policy_env[@]}" bash "$HOOK" >/dev/null 2>&1 || actual=$?
+    | env LEAN4_GUARDRAILS_FORCE=1 "${policy_env[@]+"${policy_env[@]}"}" bash "$HOOK" >/dev/null 2>&1 || actual=$?
   if [[ "$actual" -eq "$expected" ]]; then
     echo "  PASS: $desc"
     (( ++PASS ))
@@ -88,7 +88,7 @@ run_test_destructive_policy() {
     policy_env=(LEAN4_GUARDRAILS_DESTRUCTIVE_POLICY="$policy")
   fi
   echo "{\"tool_input\":{\"command\":$(printf '%s' "$cmd" | jq -Rs .)}}" \
-    | env LEAN4_GUARDRAILS_FORCE=1 "${policy_env[@]}" bash "$HOOK" >/dev/null 2>&1 || actual=$?
+    | env LEAN4_GUARDRAILS_FORCE=1 "${policy_env[@]+"${policy_env[@]}"}" bash "$HOOK" >/dev/null 2>&1 || actual=$?
   if [[ "$actual" -eq "$expected" ]]; then
     echo "  PASS: $desc"
     (( ++PASS ))
