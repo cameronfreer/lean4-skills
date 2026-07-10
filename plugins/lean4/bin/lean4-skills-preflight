@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# lean4-skills-preflight — model-facing wrapper around lib/scripts/preflight_env.sh.
+# Runs the runtime env diagnosis (LEAN4_* vars, bin/ on PATH, wrappers
+# resolvable) and prints the canonical recovery block on failure.
+# See lean4-skills-cycle-tracker for the bin/-wrapper rationale.
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+exec bash "$PLUGIN_ROOT/lib/scripts/preflight_env.sh" --runtime "$@"

@@ -201,9 +201,13 @@ Three grep-style scripts also exit non-zero on findings by default — useful fo
 **`--exit-zero-on-findings`** (alias: `--report-only`): Makes findings exit 0 while real errors still exit 1. Use in report-only contexts (reviews, troubleshooting); do not use in gate commands like `/lean4:checkpoint`. **Note (all three scripts):** the flag applies to *findings* only. Coverage failures — zero files scanned, unreadable paths, unverified files, or unanalyzable trees — always exit non-zero regardless of this flag, because a gate that couldn't make a determination must not silently pass:
 
 ```bash
-${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/sorry_analyzer.py" . --format=summary --report-only
-bash "$LEAN4_SCRIPTS/check_axioms_inline.sh" src/*.lean --report-only
+lean4-skills-sorry-analyzer . --format=summary --report-only
+lean4-skills-check-axioms-inline src/*.lean --report-only
 ```
+
+(These `lean4-skills-*` wrappers self-locate their scripts and don't
+depend on `$LEAN4_SCRIPTS`; a raw `"$LEAN4_SCRIPTS/sorry_analyzer.py"`
+form expands to `/sorry_analyzer.py` when the bootstrap env is missing.)
 
 Keep stderr visible when invoking scripts; suppressing stderr to `/dev/null` hides actionable errors.
 

@@ -1,5 +1,29 @@
 # Changelog
 
+## v4.5.3 (July 2026)
+
+Bootstrap now fails honestly and persists the wrapper `PATH`, plus a shared env-preflight so bootstrap and doctor agree on one recovery message. Also folds in six docs/lint/bugfix PRs that landed on `main` after v4.5.2 without their own version bumps.
+
+### Bootstrap env honesty + shared preflight (primary, closes #108)
+
+- **`hooks/bootstrap.sh` stops reporting false success.** It previously printed `Lean4 v4 ready` and exited 0 *unconditionally* — even when `CLAUDE_ENV_FILE` was empty so `persist_env` silently wrote nothing, so a failed bootstrap masqueraded as a good one. Now it validates its inputs, persists, re-checks that persistence took effect, and prints `ready` only on the genuine happy path; every degraded path prints a canonical recovery block to stderr instead (warn + exit 0, so a broken bootstrap doesn't disrupt session start while still being loud and actionable).
+- **Bootstrap now persists `PATH`** (`export PATH="$CLAUDE_PLUGIN_ROOT/bin:$PATH"`, `:$PATH` kept literal, deduped idempotently). This makes reality match `INSTALLATION.md`'s long-standing claim that bootstrap adds `plugins/lean4/bin/` to PATH — the missing PATH export was why the self-locating `lean4-skills-*` wrappers could be off PATH after a partial bootstrap.
+- **New `lib/scripts/preflight_env.sh`** — the single source of the env checks and the canonical recovery wording, with `--bootstrap` (validate a SessionStart's inputs) and `--runtime` (diagnose the live session) modes. New `bin/lean4-skills-preflight` wrapper runs it as a manual diagnostic.
+- **`/lean4:doctor env`** now runs the preflight for a live diagnosis (resolved without depending on PATH — doctor is exactly where a broken PATH must stay diagnosable) and its troubleshooting rows reproduce the same three canonical recovery steps, so doctor and bootstrap can't drift.
+- **Scope note:** the original issue also flagged seven commands doing raw `"$LEAN4_SCRIPTS/foo.py"` invocations; those were already migrated to self-locating wrappers in #117/#130, so this PR narrows to the still-live bootstrap/PATH truthfulness bug. Migrating `disprove.md`'s remaining raw invocations (needs new `disprove_*` wrappers) is a deferred follow-up.
+- **Regression coverage:** new `tests/test_bootstrap_env.sh` and `tests/test_preflight_env.sh`, plus the previously-unwired `test_guardrails.sh` and `test_validate_user_prompt.sh` hook suites, are all now run by the `bash3-compat` CI workflow.
+
+### Folded-in PRs (previously merged without version bumps)
+
+Six PRs landed on `main` after the v4.5.2 release without their own CHANGELOG entries (each was scoped "no version bump" at the time). Folded in here so `git log` archeology reads cleanly:
+
+- **#141: `docs(skill): reframe "Never" rules in SKILL.md to lead with imperative + WHY`** — reframed two free-standing `Never X` rules in SKILL.md's Core Principles / File Handling to lead with the imperative and the reasoning, per the `superpowers:writing-skills` guidance, without dropping their operational cues.
+- **#142 (closes #61): `docs(insight): module docstrings must come after imports`** — documents that a module docstring (`/-! … -/`) placed before the `import` block yields the misleading `invalid 'import' command` error; adds a `mathlib-style.md § 2 Placement` subheading and a `compilation-errors.md` section + Quick Reference row.
+- **#143: `chore(lint-hygiene): renumber duplicate headings, add uniqueness check, clear persistent warnings`** — fixed the pre-existing duplicate `### 9`/`### 10` headings in `compilation-errors.md`, added a `lint_docs.sh` check (8e) for duplicate `### N.` numbering, and cleared the four chronic line-length / host-agnostic lint warnings.
+- **#145 (closes #132): `fix(axiom-check): resolve namespaced declarations correctly + refuse zero-coverage green verdict`** — `check_axioms_inline.sh` now walks a namespace/section stack for correct qualified names, recognizes modern Lean 4 `#print axioms` output (incl. primed names and `does not depend on any axioms`), refuses a green verdict on zero/partial coverage, and ships a 30-probe CI'd self-test.
+- **#146 (closes #108-adjacent dead-code gaps): `fix(unused-decls): rg mode flagged everything unused; expand decl classes; harden zero-decls paths`** — fixed `unused_declarations.sh`'s rg extraction (a `path:` prefix flagged *every* declaration as unused), expanded the recognized decl keywords, added a zero-coverage heuristic + hard-fail without PCRE grep, and added a 10-probe CI'd self-test.
+- **#147: `fix(sorry-analyzer): coverage-aware exit semantics + modifier-aware decl attribution + CI'd Python tests`** — `sorry_analyzer.py` now exits 2 on zero/partial scan coverage (not a silent clean), attributes modifier-prefixed and same-line-`sorry` declarations, and ships a 38-test unit+subprocess suite that (with `test_ordering.py`) is finally run by CI.
+
 ## v4.5.2 (June 2026)
 
 Collab-policy redesign so the hook stops fighting Claude Code's native permission UX, plus three folded-in docs/lint hardening PRs that landed on `main` after v4.5.1 without their own version bump.

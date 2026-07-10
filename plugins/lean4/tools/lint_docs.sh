@@ -67,7 +67,7 @@ check_commands() {
             autoprove)  max_lines=290 ;;
             checkpoint) max_lines=90 ;;
             disprove)   max_lines=300 ;;
-            doctor)     max_lines=225 ;;
+            doctor)     max_lines=265 ;;
             draft)      max_lines=160 ;;
             formalize)  max_lines=195 ;;
             golf)       max_lines=170 ;;
