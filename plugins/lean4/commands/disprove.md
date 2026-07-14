@@ -126,7 +126,7 @@ See [disprove-engine.md § Phase 2 — Work](../skills/lean4/references/disprove
 
 ### Phase 3: Checkpoint
 
-See [disprove-engine.md § Phase 3 — Checkpoint](../skills/lean4/references/disprove-engine.md#phase-3--checkpoint). On a **pre-screen-passing candidate**, open a transaction (`txn=$(${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/disprove_artifact_txn.py" begin)`) and append `T_counterexample` via its `append --txn=$txn --role=artifact` subcommand (witness shapes also append the gate-only `*_negates_target` with `--role=gate`), run `lake env lean <target-file>` from the project root, then **inspect the axioms of the declaration carrying `¬ TARGET`** (`T_counterexample` for direct shapes, `T_counterexample_negates_target` for witness shapes) via `lean_verify` / `#print axioms`. Report `REFUTED` only if it typechecks **and** that declaration's axioms ⊆ `{propext, Classical.choice, Quot.sound}` (plus `Lean.ofReduceBool` only under an explicit `native_decide` opt-in this cycle): on `REFUTED`, `drop-role --txn=$txn --role=gate` (witness shapes) and commit only `T_counterexample`. Otherwise `rollback --txn=$txn` (reverts every declaration appended this cycle), distinguishing the non-REFUTED outcomes: a **typecheck failure** is a `near-miss` cycle outcome (capture the error signature for the next cycle), while a **non-whitelisted axiom or inconclusive axiom inspection** is `WITNESS_UNCERTIFIED`. `<target-file>` is the resolved source file — for a qualified-name target, the declaration's **writable** source file from Phase 1 (disprove refuses if it resolves only to a read-only dependency).
+See [disprove-engine.md § Phase 3 — Checkpoint](../skills/lean4/references/disprove-engine.md#phase-3--checkpoint). On a **pre-screen-passing candidate**, open a transaction (`txn=$(lean4-skills-disprove-artifact-txn begin)`) and append `T_counterexample` via its `append --txn=$txn --role=artifact` subcommand (witness shapes also append the gate-only `*_negates_target` with `--role=gate`), run `lake env lean <target-file>` from the project root, then **inspect the axioms of the declaration carrying `¬ TARGET`** (`T_counterexample` for direct shapes, `T_counterexample_negates_target` for witness shapes) via `lean_verify` / `#print axioms`. Report `REFUTED` only if it typechecks **and** that declaration's axioms ⊆ `{propext, Classical.choice, Quot.sound}` (plus `Lean.ofReduceBool` only under an explicit `native_decide` opt-in this cycle): on `REFUTED`, `drop-role --txn=$txn --role=gate` (witness shapes) and commit only `T_counterexample`. Otherwise `rollback --txn=$txn` (reverts every declaration appended this cycle), distinguishing the non-REFUTED outcomes: a **typecheck failure** is a `near-miss` cycle outcome (capture the error signature for the next cycle), while a **non-whitelisted axiom or inconclusive axiom inspection** is `WITNESS_UNCERTIFIED`. `<target-file>` is the resolved source file — for a qualified-name target, the declaration's **writable** source file from Phase 1 (disprove refuses if it resolves only to a read-only dependency).
 
 **Commit prompt** (when `--commit=ask`):
 
@@ -246,8 +246,8 @@ of the originating Step 0 finding); all other cycles show `—`. See
 
 - **Append-only, transactional.** Never rewrite an existing
   `theorem T : P := by sorry` declaration to `: ¬ P`. Cycle artifacts are written
-  through `$LEAN4_SCRIPTS/disprove_artifact_txn.py` (over the collision-safe
-  `$LEAN4_SCRIPTS/disprove_emit_artifact.py`): each append is wrapped in txn-id markers and
+  through `lean4-skills-disprove-artifact-txn` (over the collision-safe
+  `lean4-skills-disprove-emit-artifact`): each append is wrapped in txn-id markers and
   refuses to modify or clobber an existing declaration; the cycle's writes are
   reverted as a unit via `rollback` / `drop-role` on failure or wrapper drop.
 - **No `native_decide` without opt-in (any method).** `native_decide`

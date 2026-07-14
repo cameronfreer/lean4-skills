@@ -129,7 +129,7 @@ cross-cycle digest is cached so only new evidence is re-integrated.
 ```text
 target = (validated-invocation block) | positional argument
         ↓
-disprove_target_resolve.py → {kind, file?, line?, name?}
+lean4-skills-disprove-target-resolve → {kind, file?, line?, name?}
         ↓
    file-line ──→ lean_diagnostic_messages(file)
               → lean_goal(file, line)         ← extracts the Prop
@@ -169,7 +169,7 @@ The **deterministic** half of this — target classification, best-effort grep
 resolution of a qualified name to a *single unambiguous* project source location
 (0 or ≥2 hits → `needs_lsp_resolution`; grep is non-authoritative), `path_class`
 (project vs read-only `dependency`) + `writable`, and the dependency-path refusal
-— is produced by `$LEAN4_SCRIPTS/disprove_target_profile.py` as one JSON envelope.
+— is produced by `lean4-skills-disprove-target-profile` as one JSON envelope.
 The cycling LLM then fills the LSP/kernel fields it lists under `_lsp_filled`
 (`shape`, `decidable`, `type`, `free_vars`, `candidate_grid`) and confirms an
 ambiguous/unresolved name via `lean_declaration_file`. (A merely read-only
@@ -420,7 +420,7 @@ future estimates.
   approval-gated (generic Python/bash scripts) and stays selectable; solver-backed
   configs additionally need z3/cvc5 on `$PATH` (reported, not gated).
 
-`${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/disprove_method_probe.py" --profile=<profile.json>` computes this
+`lean4-skills-disprove-method-probe --profile=<profile.json>` computes this
 deterministically — `{method: {selectable, reason}}` from the registry's
 `applies_to_shapes` (vs `profile.shape`), the profile's `decidable`/`sampleable`
 hints, and a `shutil.which` solver check that is **advisory** for `external`
@@ -658,14 +658,14 @@ the qualified-name target resolved to in Phase 1):
    wrapper>` (see the Per-Shape Recipes intro) — this is the declaration that
    actually carries the `¬ TARGET` type.
 2. Append within a **transaction** so the cycle's writes are revertible by id.
-   Open one with `txn=$(${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/disprove_artifact_txn.py" begin)`,
+   Open one with `txn=$(lean4-skills-disprove-artifact-txn begin)`,
    then append the artifact (snippet on stdin):
-   `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/disprove_artifact_txn.py" append --scope-file=<target-file> --txn=$txn --role=artifact --decl=T_counterexample --cycle=<N>`.
+   `lean4-skills-disprove-artifact-txn append --scope-file=<target-file> --txn=$txn --role=artifact --decl=T_counterexample --cycle=<N>`.
    For witness shapes, append the gate-only declaration under the same txn with
    `--role=gate --decl=T_counterexample_negates_target`. Each append is wrapped in
    `-- lean4:disprove-begin/-end txn=… role=…` markers and refuses to clobber a decl
    already declared outside the txn. (The standalone collision-safe writer
-   `disprove_emit_artifact.py` remains for non-transactional appends.)
+   `lean4-skills-disprove-emit-artifact` remains for non-transactional appends.)
 3. Run `lake env lean <target-file>` from the project root (typecheck gate).
 4. **Axiom gate.** Inspect the axioms via `lean_verify` (or `#print axioms`) of the
    declaration that carries the `¬ TARGET` type — `T_counterexample` for direct
@@ -676,13 +676,13 @@ the qualified-name target resolved to in Phase 1):
 5. License the outcome:
    - **`certified` (→ `REFUTED`)** only if the `¬ TARGET`-typed declaration
      typechecked (no `sorry`/`admit`) **and** its axiom set ⊆ the allowed whitelist.
-     For witness shapes, `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/disprove_artifact_txn.py" drop-role --scope-file=<target-file> --txn=$txn --role=gate`
+     For witness shapes, `lean4-skills-disprove-artifact-txn drop-role --scope-file=<target-file> --txn=$txn --role=gate`
      **before** the commit, then from the project root re-run
      `lake env lean <target-file>` on the wrapper-free file, so the committed state
      (`T_counterexample` alone, which still typechecks) is itself gate-verified — the
      committed file equals the gate-checked file. Commit only `T_counterexample`;
      proceed to Review.
-   - **Typecheck fails** → `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/disprove_artifact_txn.py" rollback --scope-file=<target-file> --txn=$txn`
+   - **Typecheck fails** → `lean4-skills-disprove-artifact-txn rollback --scope-file=<target-file> --txn=$txn`
      (removes the artifact and, for witness shapes, the gate-only wrapper — only this
      txn's marker blocks); downgrade to `near-miss`, capture the error signature.
    - **A non-whitelisted axiom appears, or axiom inspection is unavailable /
@@ -983,8 +983,8 @@ finding). For all other cycles the column is `—`.
 
 - **Append-only, transactional.** Never rewrite an existing
   `theorem T : P := by sorry` declaration to `: ¬ P`. Cycle artifacts are
-  written through `disprove_artifact_txn.py` (over the collision-safe
-  `disprove_emit_artifact.py`): each append is wrapped in txn-id markers and
+  written through `lean4-skills-disprove-artifact-txn` (over the collision-safe
+  `lean4-skills-disprove-emit-artifact`): each append is wrapped in txn-id markers and
   refuses to modify or duplicate an existing declaration; the cycle's writes
   are reverted as a unit via `rollback` (failure) or `drop-role` (gate-only
   wrapper before commit), never touching pre-existing or other-txn declarations.

@@ -219,7 +219,10 @@ See [sorry-filling.md](references/sorry-filling.md) for the full scratch-work pr
   `lean4-skills-find-golfable`, `lean4-skills-find-exact-candidates`,
   `lean4-skills-analyze-let-usage`, `lean4-skills-find-usages`,
   `lean4-skills-search-mathlib`, `lean4-skills-smart-search`,
-  `lean4-skills-cycle-tracker`). These are bare commands on PATH —
+  `lean4-skills-cycle-tracker`, `lean4-skills-disprove-artifact-txn`,
+  `lean4-skills-disprove-emit-artifact`, `lean4-skills-disprove-method-probe`,
+  `lean4-skills-disprove-target-profile`,
+  `lean4-skills-disprove-target-resolve`). These are bare commands on PATH —
   no `$LEAN4_SCRIPTS`, no `${LEAN4_PYTHON_BIN:-python3}`, no `~`, no
   command substitution. Stable invocation surface that sandboxed hosts
   can statically allowlist.
