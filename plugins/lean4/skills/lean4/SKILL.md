@@ -224,8 +224,10 @@ See [sorry-filling.md](references/sorry-filling.md) for the full scratch-work pr
   `lean4-skills-disprove-target-profile`,
   `lean4-skills-disprove-target-resolve`). These are bare commands on PATH —
   no `$LEAN4_SCRIPTS`, no `${LEAN4_PYTHON_BIN:-python3}`, no `~`, no
-  command substitution. Stable invocation surface that sandboxed hosts
-  can statically allowlist.
+  env-var expansion or command substitution **to locate the executable**.
+  Ordinary output capture around a wrapper is fine (e.g.
+  `txn=$(lean4-skills-disprove-artifact-txn begin)`). Stable invocation
+  surface that sandboxed hosts can statically allowlist.
 - **Report-only calls**: add `--report-only` to
   `lean4-skills-sorry-analyzer`, `lean4-skills-check-axioms-inline`
   (and `unused_declarations.sh` if invoked via env-var fallback) —
