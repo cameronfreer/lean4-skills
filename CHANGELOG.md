@@ -1,5 +1,26 @@
 # Changelog
 
+## v4.5.4 (July 2026)
+
+Completes the wrapper migration that v4.5.3 deferred: `/lean4:disprove` was the last command whose docs invoked scripts via raw `"$LEAN4_SCRIPTS/disprove_*.py"` — the form that expands to `/disprove_*.py` with a confusing root-path error when the bootstrap env is missing (#108's original symptom). Closes #149.
+
+### `bin/` wrappers (disprove runtime)
+
+- 5 new self-locating executables under `plugins/lean4/bin/`, mirroring the existing wrapper template (`PLUGIN_ROOT` via `BASH_SOURCE`, delegate through `${LEAN4_PYTHON_BIN:-python3}`):
+  - `lean4-skills-disprove-artifact-txn` (transactional append / drop-role / rollback — the Phase 3 hot path)
+  - `lean4-skills-disprove-emit-artifact` (collision-safe non-transactional writer)
+  - `lean4-skills-disprove-method-probe`, `lean4-skills-disprove-target-profile`, `lean4-skills-disprove-target-resolve` (Phase 1 profiling/resolution + method applicability)
+- The Python 3.11+ requirement is unchanged — wrappers honor `LEAN4_PYTHON_BIN`, and only the registry-loading path (`disprove_method_probe.py` via `lib/disprove_methods.py`) enforces 3.11.
+
+### Docs
+
+- `commands/disprove.md` and `references/disprove-engine.md`: all 9 raw `$LEAN4_SCRIPTS/disprove_*.py` invocations rewritten to bare wrapper names; bare-basename mentions in the Safety sections and the Target Resolution Flow diagram aligned to the wrapper names.
+- SKILL.md's curated wrapper list extended with the five disprove wrappers.
+
+### Lint & contracts
+
+- `test_contracts.sh` Check 26 (wrapper→doc coverage) and Check 27 (no stale `$LEAN4_SCRIPTS/<wrapped>` forms) now cover the disprove wrappers automatically — Check 27 derives its wrapper→script mapping from each wrapper's delegation line, so future raw-invocation drift in `disprove` docs fails the suite.
+
 ## v4.5.3 (July 2026)
 
 Bootstrap now fails honestly and persists the wrapper `PATH`, plus a shared env-preflight so bootstrap and doctor agree on one recovery message. Also folds in six docs/lint/bugfix PRs that landed on `main` after v4.5.2 without their own version bumps.
