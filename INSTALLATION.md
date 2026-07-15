@@ -173,46 +173,54 @@ Then remove the environment block from your shell profile.
 
 ## OpenAI Codex CLI
 
-Set env vars in your shell profile (replace `/path/to` with your actual clone location):
+**Quick install (Tier 1 — core skill only).** Run this in Codex chat,
+not in your shell:
 
-```bash
-export LEAN4_PLUGIN_ROOT=/path/to/lean4-skills/plugins/lean4
-export LEAN4_SCRIPTS=$LEAN4_PLUGIN_ROOT/lib/scripts
-export LEAN4_REFS=$LEAN4_PLUGIN_ROOT/skills/lean4/references
-export PATH="$LEAN4_PLUGIN_ROOT/bin:$PATH"   # so `lean4-skills-*` wrappers resolve
+```text
+$skill-installer Install the `lean4` skill from
+https://github.com/cameronfreer/lean4-skills/tree/main/plugins/lean4/skills/lean4
 ```
 
-Add to your project's `AGENTS.md` (model context — not shell env):
+On your next turn, invoke it explicitly with `$lean4`, or let Codex
+activate it automatically for Lean 4 tasks. This installs the core
+skill instructions, references, and metadata only — not the
+`lean4-skills-*` helper executables, plugin hooks, subagent
+definitions, or the Claude Code `/lean4:*` command surface.
+
+> `$skill-installer` manages its own install location under
+> `$CODEX_HOME/skills` (`~/.codex/skills` by default), while manual
+> checkout/link installs belong in `~/.agents/skills`. Don't assume or
+> prescribe the installer's destination — after installing, verify that
+> `$lean4` is discovered (type `$` or run `/skills`).
+
+**Full setup (Tier 2, recommended).** Use the
+[Portable Checkout + Helper Runtime](#portable-checkout--helper-runtime-all-hosts)
+— Codex discovers `.agents/skills` in your project and home directory
+and follows symlinked skill directories.
+
+**Optional `AGENTS.md` pointer.** `AGENTS.md` is for durable project
+guidance, not installation. If your project uses one, a single line is
+enough:
 
 ```markdown
-## Lean 4 Workflows
-
-See /path/to/lean4-skills/plugins/lean4/skills/lean4/SKILL.md for proving workflows.
-
-Environment:
-- LEAN4_PLUGIN_ROOT=/path/to/lean4-skills/plugins/lean4
-- LEAN4_SCRIPTS=$LEAN4_PLUGIN_ROOT/lib/scripts
-- LEAN4_REFS=$LEAN4_PLUGIN_ROOT/skills/lean4/references
+For Lean 4 proving workflows, use the `lean4` skill ($lean4).
 ```
 
-Codex also supports installing skills as directories and adding MCP servers.
-Check [current Codex docs](https://developers.openai.com/codex/skills/) for
-the exact commands — examples:
+**MCP:** check [current Codex docs](https://learn.chatgpt.com/docs/build-skills)
+for the exact command — e.g.:
 
 ```bash
-# Skill install (check current syntax)
-# codex skill add /path/to/lean4-skills/plugins/lean4/skills/lean4
-
-# MCP setup (check current syntax)
-# codex mcp add lean-lsp -- npx lean-lsp-mcp --project /path/to/lean/project
+codex mcp add lean-lsp -- uvx lean-lsp-mcp
 ```
 
 ### Verify
 
+In Codex chat, type `$` — `lean4` should appear in the skill list. With
+the full setup, also:
+
 ```bash
-echo "$LEAN4_SCRIPTS"
+command -v lean4-skills-sorry-analyzer
 lean4-skills-sorry-analyzer . --format=summary --report-only
-# If MCP configured: test lean_goal on a .lean file
 ```
 
 ## Gemini CLI
