@@ -553,14 +553,17 @@ DOC_SURFACES=(
 )
 if [[ -d "$BIN_DIR" ]]; then
     while IFS= read -r wrapper; do
-        # Derive underlying script basename by parsing the wrapper body.
-        # Anchored to the .py / .sh extension so we don't accidentally
-        # pick up trailing punctuation from a docstring (e.g.,
-        # `wrapper around lib/scripts/foo.py.` would otherwise yield
-        # `foo.py.`). Prefer the exec/invocation line over any docstring.
-        script=$(grep -oE 'lib/scripts/[a-zA-Z0-9_-]+\.(py|sh)' "$wrapper" 2>/dev/null \
+        # Derive underlying script basename from the wrapper's exec line
+        # only — header comments also name lib/scripts/<basename>, and
+        # parsing them could mask a malformed exec line. The extension
+        # anchor avoids trailing docstring punctuation. `|| true` keeps
+        # a no-match pipeline from tripping set -euo pipefail; the
+        # unparseable-wrapper case is Check 28's explicit failure, so
+        # Check 27 just skips it.
+        script=$(grep -E '^exec ' "$wrapper" 2>/dev/null \
+            | grep -oE 'lib/scripts/[a-zA-Z0-9_-]+\.(py|sh)' \
             | tail -1 \
-            | sed 's|lib/scripts/||')
+            | sed 's|lib/scripts/||' || true)
         [[ -z "$script" ]] && continue
         # Escape for grep regex.
         sc_re=$(printf '%s' "$script" | sed 's/[][\/.^$*+?{}|()]/\\&/g')
@@ -595,11 +598,15 @@ check28_ok=1
 if [[ -d "$BIN_DIR" ]]; then
     while IFS= read -r wrapper; do
         name=$(basename "$wrapper")
-        script=$(grep -oE 'lib/scripts/[a-zA-Z0-9_-]+\.(py|sh)' "$wrapper" 2>/dev/null \
+        # Same exec-line-only parse as Check 27 (comments could mask a
+        # malformed exec line); `|| true` so a no-match reaches the
+        # explicit failure below instead of tripping set -euo pipefail.
+        script=$(grep -E '^exec ' "$wrapper" 2>/dev/null \
+            | grep -oE 'lib/scripts/[a-zA-Z0-9_-]+\.(py|sh)' \
             | tail -1 \
-            | sed 's|lib/scripts/||')
+            | sed 's|lib/scripts/||' || true)
         if [[ -z "$script" ]]; then
-            fail "Check 28: wrapper $name has no parseable lib/scripts/<basename> delegation"
+            fail "Check 28: wrapper $name has no parseable exec-line lib/scripts/<basename> delegation"
             check28_ok=0
             continue
         fi
