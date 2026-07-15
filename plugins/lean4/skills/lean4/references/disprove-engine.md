@@ -536,7 +536,8 @@ session.
 
 **Always-present extra:** `custom-config` — free-text. Schema-validated
 against the picked family's `params` table in
-[disprove_methods.toml](../../../lib/data/disprove_methods.toml).
+[disprove_methods.toml](https://github.com/cameronfreer/lean4-skills/blob/main/plugins/lean4/lib/data/disprove_methods.toml)
+(see § Method Registry below for where the file lives per install tier).
 
 On confirm → Phase 2.
 
@@ -619,7 +620,11 @@ The saved script path is recorded in Phase 5 evidence as
 ### Method Registry
 
 The Method Registry is a structured data file:
-[`plugins/lean4/lib/data/disprove_methods.toml`](../../../lib/data/disprove_methods.toml).
+[`plugins/lean4/lib/data/disprove_methods.toml`](https://github.com/cameronfreer/lean4-skills/blob/main/plugins/lean4/lib/data/disprove_methods.toml)
+(live repository copy — may be newer than your installed skill). In a
+full checkout it is at `$LEAN4_PLUGIN_ROOT/lib/data/disprove_methods.toml`;
+skill-only installs do not include it (see INSTALLATION.md — the
+registry is read by the helper runtime, not by this reference).
 It is the canonical source of stable method ids, applies-to-shape
 filters, parameter schemas, cost classes, and per-method false-negative
 notes that the cycling LLM draws from when proposing the Step 1 / Step 2
@@ -971,8 +976,9 @@ checked here too (best-effort).
 The Disprove Summary is a single tri-state report: `REFUTED`,
 `WITNESS_UNCERTIFIED`, or `INCONCLUSIVE`. For the full template and the
 per-outcome handoff bullets, see
-[commands/disprove.md § Disprove Summary](../../../commands/disprove.md#disprove-summary)
-— it is the canonical source.
+[commands/disprove.md § Disprove Summary](https://github.com/cameronfreer/lean4-skills/blob/main/plugins/lean4/commands/disprove.md#disprove-summary)
+— it is the canonical source (live repository copy; the command doc
+ships with the plugin, not inside this skill directory).
 
 The per-cycle attempts table includes a `URL` column populated for any
 cycle whose certifying witness was elevated via `[verify-known-cex]`
@@ -1028,4 +1034,4 @@ finding). For all other cycles the column is `—`.
 The `/lean4:disprove` skill is described in: Jan Ondras and Cameron Freer,
 "Lean Disprove: Certified Counterexample Search for AI-Assisted Formal
 Mathematics," 3rd AI for Math Workshop: Toward Self-Evolving Scientific Agents (ICML 2026). <https://openreview.net/forum?id=5ck1jRE65S>
-(BibTeX in [`commands/disprove.md`](../../../commands/disprove.md#citation).)
+(BibTeX in [`commands/disprove.md`](https://github.com/cameronfreer/lean4-skills/blob/main/plugins/lean4/commands/disprove.md#citation).)

@@ -771,4 +771,4 @@ lake build 2>&1 | tee "$LOG"
 - Enables grep without rebuilding
 - Links log to specific commit state
 
-**See also:** [Repair Mode](../../../commands/prove.md#repair-mode) for escalation-only repair policy.
+**See also:** [Repair Mode](https://github.com/cameronfreer/lean4-skills/blob/main/plugins/lean4/commands/prove.md#repair-mode) (live repository copy) for escalation-only repair policy.

@@ -93,7 +93,7 @@ best-effort.
 
 - At most once per session. Do not repeat if the user declined, ignored it, or moved on.
 - Never mid-proof or during an active debugging loop.
-- One short line, not a pitch: "If you want, install the `lean4-contribute` plugin and I can draft that report for you here." See the [lean4-contribute README](../../../../plugins/lean4-contribute/README.md#installation) for setup.
+- One short line, not a pitch: "If you want, install the `lean4-contribute` plugin and I can draft that report for you here." See the [lean4-contribute README](https://github.com/cameronfreer/lean4-skills/blob/main/plugins/lean4-contribute/README.md#installation) for setup.
 
 ## Typical Workflow
 
