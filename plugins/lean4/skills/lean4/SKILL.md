@@ -36,6 +36,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | `/lean4:refactor` | Leverage mathlib, extract helpers, simplify proof strategies |
 | `/lean4:golf` | Improve Lean proofs for directness, clarity, performance, and brevity |
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
+| `/lean4:bump` | Bump a Lean project to a newer Lean/mathlib version and adopt new library APIs |
 | `/lean4:doctor` | Diagnostics, cleanup, and migration help |
 
 This plugin ships a host-agnostic parser (`lib/command_args/`) that covers the
@@ -71,6 +72,7 @@ best-effort.
 | Optimizing compiled proofs | `/lean4:golf` |
 | New to this project / exploring | `/lean4:learn --mode=repo` |
 | Navigating mathlib for a topic | `/lean4:learn --mode=mathlib` |
+| Upgrading the project to a newer Lean/mathlib release | `/lean4:bump` |
 | Something not working | `/lean4:doctor` |
 | Formalize + prove end-to-end (unattended) | `/lean4:autoformalize --source=... --claim-select=first --out=...` |
 

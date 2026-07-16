@@ -1,5 +1,24 @@
 # Changelog
 
+## v4.6.0 (July 2026)
+
+Adds `/lean4:bump` — a workflow for upgrading an existing project to a newer Lean toolchain and mathlib release, then adopting the APIs the new release added.
+
+### New command: `bump`
+
+- **`commands/bump.md`** — the version-upgrade workflow, in four phases:
+  - **Preflight & Resolve** — reads the current version from `lean-toolchain` / `lake-manifest.json`, resolves the target (an explicit `vX.Y.Z`, or the latest **stable** mathlib tag by default), and prompts before adopting a newer release candidate (`--rc=ask|allow|never`).
+  - **Bump & Build** — points the mathlib require at the target tag, copies that tag's `lean-toolchain`, then runs `lake update` / `lake exe cache get!` / `lake build`.
+  - **Repair** — on a broken build, fixes the recurring bump breakages (renamed/removed lemmas, changed signatures, moved namespaces) LSP-first, cross-checking the release notes; preserves statements, signatures, and docstrings.
+  - **Adopt** (`--adopt=on` by default) — reads the release notes for each version between the old and new toolchain (`https://lean-lang.org/doc/reference/latest/releases/vX.Y.Z/`) and harvests the build's deprecation warnings, then replaces superseded code with the new theorems and definitions, verifying each batch and reverting regressions.
+  - **Verify & Checkpoint** — final `lake build`, no-new-sorries and axiom checks, stages only touched files, commits per `--commit`, never pushes.
+
+### Docs & wiring
+
+- `bump` added to the command tables in `SKILL.md` (Commands + Which Command?), `plugins/lean4/README.md` (Commands, Quick Start, How It Works), and the root `README.md` Workflows table.
+- New `## bump` section in `references/command-examples.md` (session transcript + already-current/rc-offer example).
+- `tools/lint_docs.sh`: `bump` added to `KNOWN_COMMANDS` with a per-command line budget so Check 1 (required sections), Check 24 (description alignment across surfaces), and the `command-examples.md#bump` anchor check all cover it.
+
 ## v4.5.4 (July 2026)
 
 Completes the wrapper migration that v4.5.3 deferred: `/lean4:disprove` was the last command whose docs invoked scripts via raw `"$LEAN4_SCRIPTS/disprove_*.py"` — the form that expands to `/disprove_*.py` with a confusing root-path error when the bootstrap env is missing (#108's original symptom). Closes #149.

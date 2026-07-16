@@ -22,6 +22,7 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 | `/lean4:refactor` | Leverage mathlib, extract helpers, simplify proof strategies |
 | `/lean4:golf` | Improve Lean proofs for directness, clarity, performance, and brevity |
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
+| `/lean4:bump` | Bump a Lean project to a newer Lean/mathlib version and adopt new library APIs |
 | `/lean4:doctor` | Diagnostics, cleanup, and migration help |
 
 ## Quick Start
@@ -38,6 +39,7 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 /lean4:refactor            # Simplify proof strategies
 /lean4:golf                # Optimize proofs
 /lean4:learn               # Explore repo or mathlib
+/lean4:bump                # Upgrade toolchain + mathlib, then adopt new APIs
 /lean4:doctor              # Diagnostics and migration help
 git push                   # Manual, after review
 ```
@@ -179,6 +181,10 @@ Usually run after proving, either prompted at the end of a `prove` session or ex
 ### `/lean4:learn` — Interactive Teaching
 
 Two modes: `--mode=repo` explores your project structure, `--mode=mathlib` navigates mathlib for a topic. Adapts to `--level=beginner|intermediate|expert` and supports `--style=tour|socratic|exercise|game`. Conversational by default; use `--output=scratch` or `--output=file` to write artifacts. For formalization, learn suggests `/lean4:formalize`.
+
+### `/lean4:bump` — Version Upgrade
+
+Upgrades an existing project to a newer Lean toolchain and mathlib release. Resolves the target (latest stable by default; prompts before a release candidate), sets `lean-toolchain` and the mathlib require, then runs `lake update` / `lake exe cache get!` / `lake build`. On a broken build it repairs the usual bump breakages — renamed or deprecated lemmas, changed signatures, moved namespaces — searching mathlib LSP-first for replacements. Once green, it reads the release notes between the old and new versions (and harvests the build's deprecation warnings) to replace superseded code with the theorems and definitions the release added. Preserves statements and docstrings, adds no axioms or sorries, commits per `--commit`, and never pushes.
 
 ### `/lean4:doctor` — Diagnostics
 

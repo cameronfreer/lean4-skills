@@ -1656,6 +1656,75 @@ Want to see this formalized in Lean to make it concrete?
 
 ---
 
+## bump
+
+### Basic Usage
+
+```
+/lean4:bump                # Latest stable Lean/mathlib
+/lean4:bump v4.32.0        # Specific target version
+/lean4:bump --rc=allow     # Take the newest release candidate
+/lean4:bump --dry-run      # Show the plan, no edits
+```
+
+### Full Session Example
+
+```
+User: /lean4:bump
+
+Claude: Resolving bump target...
+
+Current: leanprover/lean4:v4.28.0 (mathlib pinned at v4.28.0)
+Latest stable mathlib tag: v4.32.0
+→ Bumping v4.28.0 → v4.32.0 (stable). Adopt phase: on.
+
+Updating lean-toolchain and lakefile require → v4.32.0...
+Running lake update mathlib... ✓ manifest updated
+lake exe cache get!... ✓ cache hydrated
+lake build...
+✗ MyProject/Order.lean:57: unknown identifier 'Finset.sup_lt_iff'
+
+Phase 1b — repairing build breakage...
+Release notes v4.30.0: Finset.sup_lt_iff renamed → Finset.sup_lt_iff'
+lean_leansearch confirms the replacement. Applying edit...
+lake build... ✓ passing
+
+Phase 2 — adopting new library APIs...
+Deprecation warnings from build:
+  'Nat.lt_of_add_one_le' deprecated → use 'Nat.lt_of_succ_le'  (1 site)
+Release notes v4.31.0: new lemma List.getElem_append_left simplifies a hand-rolled index argument in MyProject/Data.lean:44
+Applying 2 batches, verifying each... ✓ no new diagnostics
+
+## Bump Report
+
+Version: v4.28.0 → v4.32.0 (stable)
+Build: ✓ passing
+Repairs: 1 renamed lemma fixed (Phase 1b)
+Adopted: 1 deprecation resolved, 1 proof shortened via new mathlib lemma
+Sorries: 2 → 2 (unchanged)   Axioms: standard only
+Files: lean-toolchain, lakefile.toml, lake-manifest.json, +2 .lean
+
+Next steps:
+- Review the diff, then push manually: git push
+- Deeper mathlib leverage: /lean4:refactor --scope=changed
+```
+
+### Already-Current Example (release candidate offered)
+
+```
+User: /lean4:bump
+
+Claude: Current: v4.32.0 — already the latest stable.
+A newer release candidate exists: v4.33.0-rc1.
+Take it? (--rc=ask) [yes / no]
+
+User: no
+
+Claude: Staying on v4.32.0. Nothing to bump.
+```
+
+---
+
 ## doctor
 
 ### Basic Usage
