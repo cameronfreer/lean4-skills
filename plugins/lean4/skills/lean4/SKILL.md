@@ -240,15 +240,18 @@ See [sorry-filling.md](references/sorry-filling.md) for the full scratch-work pr
 Compatibility fallback (when a wrapper is unavailable):
 
 - If `lean4-skills-*` isn't resolvable on PATH, use the host's
-  documented setup (see INSTALLATION.md) to add `$LEAN4_PLUGIN_ROOT/bin`
-  to PATH. Some plugin hosts add this automatically; otherwise see
-  INSTALLATION.md.
+  documented setup to add `$LEAN4_PLUGIN_ROOT/bin` to PATH. Some plugin
+  hosts add this automatically; otherwise see the repository's
+  [INSTALLATION.md](https://github.com/cameronfreer/lean4-skills/blob/main/INSTALLATION.md).
 - Only as a last resort for an unwrapped script, use the explicit
   env-var form: `bash "$LEAN4_SCRIPTS/script.sh" …` or
   `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/script.py" …`.
 
-If `$LEAN4_SCRIPTS` is unset or missing, run `/lean4:doctor` and stay
-LSP-only until resolved.
+If `$LEAN4_SCRIPTS` is unset or missing, run `/lean4:doctor` where the
+plugin's commands are installed; on a skill-only install follow the
+repository's
+[INSTALLATION.md](https://github.com/cameronfreer/lean4-skills/blob/main/INSTALLATION.md).
+Stay LSP-only until resolved.
 
 ## Automation
 

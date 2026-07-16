@@ -640,8 +640,9 @@ if [[ ! -f "$OPENAI_YAML" ]]; then
     fail "Check 29: missing skills/lean4/agents/openai.yaml"
     check29_ok=0
 else
-    if ! grep -qE '^interface:[[:space:]]*$' "$OPENAI_YAML"; then
-        fail "Check 29: openai.yaml has no top-level 'interface:' block"
+    n_iface=$(grep -cE '^interface:[[:space:]]*$' "$OPENAI_YAML" || true)
+    if [[ "$n_iface" -ne 1 ]]; then
+        fail "Check 29: openai.yaml has $n_iface top-level 'interface:' blocks (want exactly 1)"
         check29_ok=0
     fi
     extra=$(grep -E '^[A-Za-z_]+:' "$OPENAI_YAML" | grep -vE '^interface:[[:space:]]*$' || true)
@@ -650,8 +651,9 @@ else
         check29_ok=0
     fi
     for key in display_name short_description default_prompt; do
-        if ! grep -qE "^  ${key}: \".+\"[[:space:]]*$" "$OPENAI_YAML"; then
-            fail "Check 29: openai.yaml missing quoted interface key '$key'"
+        n_key=$(grep -cE "^  ${key}: \".+\"[[:space:]]*$" "$OPENAI_YAML" || true)
+        if [[ "$n_key" -ne 1 ]]; then
+            fail "Check 29: openai.yaml has $n_key quoted '$key' entries (want exactly 1)"
             check29_ok=0
         fi
     done

@@ -623,8 +623,9 @@ The Method Registry is a structured data file:
 [`plugins/lean4/lib/data/disprove_methods.toml`](https://github.com/cameronfreer/lean4-skills/blob/main/plugins/lean4/lib/data/disprove_methods.toml)
 (live repository copy — may be newer than your installed skill). In a
 full checkout it is at `$LEAN4_PLUGIN_ROOT/lib/data/disprove_methods.toml`;
-skill-only installs do not include it (see INSTALLATION.md — the
-registry is read by the helper runtime, not by this reference).
+skill-only installs do not include it (see the repository's
+[INSTALLATION.md](https://github.com/cameronfreer/lean4-skills/blob/main/INSTALLATION.md)
+— the registry is read by the helper runtime, not by this reference).
 It is the canonical source of stable method ids, applies-to-shape
 filters, parameter schemas, cost classes, and per-method false-negative
 notes that the cycling LLM draws from when proposing the Step 1 / Step 2

@@ -9,9 +9,11 @@ Three install shapes, referenced throughout this guide:
   `plugins/lean4/skills/lean4/` — SKILL.md, bundled references, and
   OpenAI UI metadata. It does **not** install the helper runtime
   (`lean4-skills-*` wrappers and their scripts) or register plugin
-  commands, lifecycle hooks, or subagent definitions. The skill degrades
-  gracefully: LSP-first workflows still work; script-backed steps are
-  skipped.
+  commands, lifecycle hooks, or subagent definitions. What you get is
+  the instructions and references: the skill's LSP-first workflows
+  operate when your host separately provides Lean LSP tools (see
+  [Lean LSP MCP Server](#lean-lsp-mcp-server-all-hosts)); script-backed
+  steps need Tier 2.
 - **Tier 2 — Portable checkout + helper runtime.** One cloned checkout,
   an `.agents/skills` symlink for native discovery, and one environment
   block. Adds the helper runtime (wrappers on PATH, `$LEAN4_SCRIPTS`) to
@@ -97,8 +99,8 @@ chmod +x $LEAN4_SCRIPTS/*.sh $LEAN4_SCRIPTS/*.py
 The recommended full setup (Tier 2) for every host except Claude Code.
 Codex, Cursor, Windsurf, OpenCode, GitHub Copilot, and Gemini CLI all
 discover Agent Skills from `~/.agents/skills` (and its project-level
-`.agents/skills` counterpart); Codex and Cursor document symlink
-support — for a host that doesn't follow symlinks, copy instead.
+`.agents/skills` counterpart); Codex documents symlink support — for a
+host that doesn't state it or doesn't follow symlinks, copy instead.
 
 One maintained checkout, one link:
 
@@ -139,8 +141,13 @@ lean4-skills-sorry-analyzer . --format=summary --report-only
 
 ### Windows copy variant (no symlink)
 
+The `Remove-Item` / `rm -rf` first matters: copying onto an existing
+destination directory nests the source inside it (`lean4/lean4`),
+leaving the discovered top-level skill stale.
+
 ```powershell
 New-Item -ItemType Directory -Force -Path $HOME\.agents\skills
+Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $HOME\.agents\skills\lean4
 Copy-Item -Recurse "$HOME\.local\share\lean4-skills\plugins\lean4\skills\lean4" $HOME\.agents\skills\lean4
 ```
 
@@ -148,10 +155,12 @@ Git Bash equivalent:
 
 ```bash
 mkdir -p ~/.agents/skills
+rm -rf ~/.agents/skills/lean4
 cp -r "$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4" ~/.agents/skills/lean4
 ```
 
-A copy does not track the checkout — re-copy after each update.
+A copy does not track the checkout — re-run the replace-copy above
+after each update.
 
 ### Update
 
@@ -160,7 +169,7 @@ git -C "$HOME/.local/share/lean4-skills" pull
 ```
 
 The symlink keeps pointing at the updated checkout; copies must be
-re-copied.
+replaced (delete, then re-copy — see the copy variant above).
 
 ### Uninstall
 
@@ -198,6 +207,12 @@ definitions, or the Claude Code `/lean4:*` command surface.
 — Codex discovers `.agents/skills` in your project and home directory
 and follows symlinked skill directories.
 
+> **Moving from Tier 1 to Tier 2:** Codex does not merge duplicate
+> same-name skills, so a `$skill-installer` copy under
+> `$CODEX_HOME/skills/lean4` and the Tier-2 `~/.agents/skills/lean4`
+> link can both appear. Remove the installer copy
+> (`rm -rf "${CODEX_HOME:-$HOME/.codex}/skills/lean4"`) when you switch.
+
 **Optional `AGENTS.md` pointer.** `AGENTS.md` is for durable project
 guidance, not installation. If your project uses one, a single line is
 enough:
@@ -206,7 +221,7 @@ enough:
 For Lean 4 proving workflows, use the `lean4` skill ($lean4).
 ```
 
-**MCP:** check [current Codex docs](https://learn.chatgpt.com/docs/build-skills)
+**MCP:** check the [Codex MCP docs](https://learn.chatgpt.com/docs/extend/mcp)
 for the exact command — e.g.:
 
 ```bash
@@ -230,10 +245,12 @@ the portable `.agents/skills/` locations (project and user scope), so
 the [Portable Checkout](#portable-checkout--helper-runtime-all-hosts)
 symlink covers it (Tier 2 — recommended; the canonical environment
 block lives there too). Alternatively, link the skill from your
-checkout explicitly inside Gemini:
+checkout explicitly — from your shell, so `$HOME` expands (Gemini's
+interactive `/skills link` passes the path through literally, without
+shell expansion):
 
-```text
-/skills link "$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4" --scope user
+```bash
+gemini skills link "$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4" --scope user
 ```
 
 **Quick install (Tier 1 — core skill only):**
@@ -301,10 +318,12 @@ in the project, plus `~/.config/opencode/skills/`, `~/.claude/skills/`,
 and `~/.agents/skills/` globally — the
 [Portable Checkout](#portable-checkout--helper-runtime-all-hosts)
 covers it (Tier 2 — recommended; canonical environment block there).
-Skill-only copy (Tier 1):
+Skill-only copy (Tier 1; the `rm -rf` keeps a re-copy from nesting
+`lean4/lean4`):
 
 ```bash
 mkdir -p ~/.config/opencode/skills
+rm -rf ~/.config/opencode/skills/lean4
 cp -r "$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4" ~/.config/opencode/skills/
 ```
 
@@ -330,9 +349,10 @@ and `.agents/skills/` (repository), plus `~/.copilot/skills/` and
 covers personal use (Tier 2). Skills work with the Copilot cloud coding
 agent, Copilot CLI, and VS Code agent mode.
 
-**Quick install (Tier 1 — core skill only)** with GitHub CLI ≥ 2.90.0
-(`gh skill` is in public preview). Pin `@main` — an unpinned install
-resolves the repository's latest GitHub release, which lags `main`:
+**Quick install (Tier 1 — core skill only)** with GitHub CLI ≥ 2.91.0
+(`gh skill` is in public preview; 2.90.0 has it but rejects this
+selector form). Pin `@main` — an unpinned install resolves the
+repository's latest GitHub release, which lags `main`:
 
 ```bash
 gh skill preview cameronfreer/lean4-skills lean4/lean4@main

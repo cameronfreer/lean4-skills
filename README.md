@@ -94,7 +94,7 @@ ln -sfn "$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4" "$HOME/.age
 Skill-only quick installs and host specifics ([what "skill-only" excludes](INSTALLATION.md#installation-tiers)):
 
 - **Gemini CLI** — `gemini skills install https://github.com/cameronfreer/lean4-skills.git --path plugins/lean4/skills/lean4 --scope user`. See [INSTALLATION.md → Gemini](INSTALLATION.md#gemini-cli)
-- **GitHub Copilot** — `gh skill install cameronfreer/lean4-skills lean4/lean4@main --agent github-copilot --scope user` (gh ≥ 2.90.0). See [INSTALLATION.md → Copilot](INSTALLATION.md#github-copilot)
+- **GitHub Copilot** — `gh skill install cameronfreer/lean4-skills lean4/lean4@main --agent github-copilot --scope user` (gh ≥ 2.91.0). See [INSTALLATION.md → Copilot](INSTALLATION.md#github-copilot)
 - **Cursor** — native skills (`.agents/skills` / `.cursor/skills`); invoke with `/lean4`. See [INSTALLATION.md → Cursor](INSTALLATION.md#cursor)
 - **Windsurf** — native skills; invoke with `@lean4`. See [INSTALLATION.md → Windsurf](INSTALLATION.md#windsurf)
 - **OpenCode** — native `skill` tool; discovers `.agents/skills`. See [INSTALLATION.md → OpenCode](INSTALLATION.md#opencode)
