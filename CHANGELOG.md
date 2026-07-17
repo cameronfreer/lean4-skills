@@ -2,7 +2,7 @@
 
 ## v4.5.5 (July 2026)
 
-Native Agent Skills metadata and multi-host installation docs (Refs #153). Every major host (Codex, Cursor, Windsurf, OpenCode, Gemini CLI, GitHub Copilot) now discovers Agent Skills natively from `.agents/skills`, so the old per-host adapter instructions (`AGENTS.md`, `GEMINI.md`, `.cursor/rules`, oh-my-opencode) were stale. No runtime changes.
+Native Agent Skills metadata and multi-host installation docs (Refs #153). Every major host (Codex, Cursor, Windsurf, OpenCode, Gemini CLI / Antigravity CLI, GitHub Copilot) now discovers Agent Skills natively from `.agents/skills`, so the old per-host adapter instructions (`AGENTS.md`, `GEMINI.md`, `.cursor/rules`, oh-my-opencode) were stale. No runtime changes.
 
 ### Installation tiers (INSTALLATION.md restructure)
 
@@ -12,9 +12,9 @@ Native Agent Skills metadata and multi-host installation docs (Refs #153). Every
 ### Host sections
 
 - **Codex**: `$skill-installer` quick install (run in chat; `$CODEX_HOME/skills` destination caveat), `$lean4` invocation, `AGENTS.md` demoted to an optional one-line pointer, commented `codex skill add` block removed, links updated to live learn.chatgpt.com docs.
-- **Gemini CLI**: `gemini skills install --path … --scope user` / `/skills link` replace the `GEMINI.md` instructions.
+- **Gemini CLI**: `gemini skills install --path … --scope user` / `gemini skills link` replace the `GEMINI.md` instructions, with an availability note (consumer access moved to Antigravity CLI on June 18, 2026) and an Antigravity subsection (`gh skill install cameronfreer/lean4-skills lean4@main --agent antigravity --scope user`; lands namespaced under `~/.gemini/antigravity/skills/`).
 - **Cursor / Windsurf / OpenCode**: native skills discovery paths and manual invocation (`/lean4`, `@lean4`, `skill` tool) replace project-rules and oh-my-opencode patterns.
-- **New GitHub Copilot section**: `gh skill preview/install cameronfreer/lean4-skills lean4/lean4@main --agent github-copilot --scope user` (gh ≥ 2.90.0, public preview; `@main` pinned because unpinned installs resolve the stale latest GitHub release).
+- **New GitHub Copilot section**: `gh skill preview/install cameronfreer/lean4-skills lean4@main --agent github-copilot --scope user` (gh ≥ 2.90.0; plain `lean4` selector — the namespaced `lean4/lean4` form is preview-only and rejected by `install`; `@main` pinned because unpinned installs resolve the stale latest GitHub release).
 - Root README: Codex quick-install block, portable-checkout lead, per-host one-liners, Copilot compatibility row.
 
 ### Skill metadata & standalone integrity

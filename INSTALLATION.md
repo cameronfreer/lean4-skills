@@ -107,8 +107,14 @@ One maintained checkout, one link:
 ```bash
 git clone https://github.com/cameronfreer/lean4-skills.git "$HOME/.local/share/lean4-skills"
 mkdir -p "$HOME/.agents/skills"
+rm -rf "$HOME/.agents/skills/lean4"   # clear any prior copy first — see note below
 ln -sfn "$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4" "$HOME/.agents/skills/lean4"
 ```
+
+The `rm -rf` guard matters when upgrading from a Tier-1 copy:
+`ln -sfn` replaces an existing sym*link* but not an existing real
+directory — without the guard it would nest the link inside the old
+copy (`lean4/lean4`) while the stale top-level copy stays active.
 
 Then add the environment block to your shell profile (`~/.bashrc`,
 `~/.zshrc`, …). This is the canonical copy — the host sections below
@@ -240,6 +246,12 @@ lean4-skills-sorry-analyzer . --format=summary --report-only
 
 ## Gemini CLI
 
+> **Availability:** consumer Gemini CLI access (free / Google AI Pro /
+> Ultra) transitioned to [Antigravity CLI](#antigravity-cli) on
+> June 18, 2026; Gemini CLI continues for Standard/Enterprise licenses
+> and supported API-key users. The instructions below apply to
+> supported Gemini CLI installations.
+
 Gemini CLI has native Agent Skills: it discovers `.gemini/skills/` and
 the portable `.agents/skills/` locations (project and user scope), so
 the [Portable Checkout](#portable-checkout--helper-runtime-all-hosts)
@@ -271,6 +283,20 @@ setup, also:
 ```bash
 command -v lean4-skills-sorry-analyzer
 lean4-skills-sorry-analyzer . --format=summary --report-only
+```
+
+### Antigravity CLI
+
+Antigravity CLI (Gemini CLI's consumer successor) retains Agent Skills
+and shares the workspace `.agents/skills/` location, so the
+[Portable Checkout](#portable-checkout--helper-runtime-all-hosts)
+symlink covers it (Tier 2). Skill-only install (Tier 1) via GitHub CLI
+≥ 2.90.0 — note the agent id is `antigravity`, and gh places the skill
+(namespaced `lean4/lean4`) under `~/.gemini/antigravity/skills/`:
+
+```bash
+gh skill install cameronfreer/lean4-skills lean4@main \
+  --agent antigravity --scope user
 ```
 
 ## Cursor
@@ -349,16 +375,20 @@ and `.agents/skills/` (repository), plus `~/.copilot/skills/` and
 covers personal use (Tier 2). Skills work with the Copilot cloud coding
 agent, Copilot CLI, and VS Code agent mode.
 
-**Quick install (Tier 1 — core skill only)** with GitHub CLI ≥ 2.91.0
-(`gh skill` is in public preview; 2.90.0 has it but rejects this
-selector form). Pin `@main` — an unpinned install resolves the
+**Quick install (Tier 1 — core skill only)** with GitHub CLI ≥ 2.90.0
+(`gh skill` is in public preview). Use the plain `lean4` name — the
+namespaced `lean4/lean4` selector previews on ≥ 2.91.0 but is not
+accepted by `install`. Pin `@main` — an unpinned install resolves the
 repository's latest GitHub release, which lags `main`:
 
 ```bash
-gh skill preview cameronfreer/lean4-skills lean4/lean4@main
-gh skill install cameronfreer/lean4-skills lean4/lean4@main \
+gh skill preview cameronfreer/lean4-skills lean4@main
+gh skill install cameronfreer/lean4-skills lean4@main \
   --agent github-copilot --scope user
 ```
+
+gh stores the installed skill namespaced as `lean4/lean4` under the
+agent's skills directory.
 
 This installs the skill directory only — see
 [Installation Tiers](#installation-tiers) for what that excludes.
@@ -391,7 +421,7 @@ Any LLM coding agent that can read markdown and run shell commands can use this 
 ### Verify
 
 ```bash
-echo "$LEAN4_SCRIPTS"                        # bootstrap set the env var
+echo "$LEAN4_SCRIPTS"                        # shell-profile env block set the variable
 command -v lean4-skills-sorry-analyzer        # wrapper resolves on PATH
 lean4-skills-sorry-analyzer . --format=summary --report-only
 ```
