@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Regression tests for lib/scripts/preflight_env.sh (#108).
-# Exercises --runtime and --bootstrap modes, and guards that doctor.md
+# Exercises --runtime and --bootstrap modes, and guards that diagnose.md
 # still carries the three canonical recovery lines byte-for-byte (the
 # helper is the single source of that wording).
 #
@@ -18,14 +18,14 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PREFLIGHT="$PLUGIN_ROOT/lib/scripts/preflight_env.sh"
-DOCTOR="$PLUGIN_ROOT/commands/doctor.md"
+DIAGNOSE="$PLUGIN_ROOT/commands/diagnose.md"
 
 PASS=0
 FAIL=0
 
 # Canonical recovery lines — MUST match preflight_env.sh's emit_recovery
-# and doctor.md's inline fallback exactly.
-CANON1="1. Run /lean4:doctor env for a full diagnosis."
+# and diagnose.md's inline fallback exactly.
+CANON1="1. Run /lean4:diagnose env for a full diagnosis."
 CANON2="2. Restart the Claude Code session (re-runs the SessionStart bootstrap hook)."
 CANON3="3. If it persists, check the plugin hook/bootstrap state (hooks.json, bootstrap.sh)."
 
@@ -98,15 +98,15 @@ fi
 rm -rf "$tmp" "$baddir"
 
 # ---------------------------------------------------------------------------
-# Wording agreement: doctor.md must contain the three canonical lines.
-# Substring (grep -F) not whole-block diff — doctor wraps them in a code
+# Wording agreement: diagnose.md must contain the three canonical lines.
+# Substring (grep -F) not whole-block diff — diagnose wraps them in a code
 # block; only the exact recovery lines need to match.
 # ---------------------------------------------------------------------------
 for canon in "$CANON1" "$CANON2" "$CANON3"; do
-    if grep -qF "$canon" "$DOCTOR"; then
-        pass "doctor.md contains canonical line: ${canon%% *}…"
+    if grep -qF "$canon" "$DIAGNOSE"; then
+        pass "diagnose.md contains canonical line: ${canon%% *}…"
     else
-        fail "doctor.md MISSING canonical line: $canon"
+        fail "diagnose.md MISSING canonical line: $canon"
     fi
 done
 

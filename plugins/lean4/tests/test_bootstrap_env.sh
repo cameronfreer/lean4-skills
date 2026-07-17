@@ -84,7 +84,7 @@ fi
 run_bootstrap "$PLUGIN_ROOT" ""
 if [[ "$BS_EXIT" -eq 0 ]] \
    && ! grep -qF "Lean4 v4 ready" <<<"$BS_OUT" \
-   && grep -qF "Run /lean4:doctor env for a full diagnosis." <<<"$BS_OUT"; then
+   && grep -qF "Run /lean4:diagnose env for a full diagnosis." <<<"$BS_OUT"; then
     pass "degraded: CLAUDE_ENV_FILE unset → no 'ready', canonical block, exit 0"
 else
     fail "degraded CLAUDE_ENV_FILE unset (exit=$BS_EXIT)"
@@ -152,7 +152,7 @@ mkdir -p "$nohelper/lib/scripts" "$nohelper/skills/lean4/references" "$nohelper/
 run_bootstrap "$nohelper" "$SCRATCH/nohelper_env"
 if [[ "$BS_EXIT" -eq 0 ]] \
    && ! grep -qF "Lean4 v4 ready" <<<"$BS_OUT" \
-   && grep -qF "Run /lean4:doctor env for a full diagnosis." <<<"$BS_OUT"; then
+   && grep -qF "Run /lean4:diagnose env for a full diagnosis." <<<"$BS_OUT"; then
     pass "missing preflight helper → canonical block, exit 0"
 else
     fail "missing preflight helper (exit=$BS_EXIT): $BS_OUT"
@@ -168,7 +168,7 @@ ln -s /dev/null "$SCRATCH/devnull_link"
 run_bootstrap "$PLUGIN_ROOT" "$SCRATCH/devnull_link"
 if [[ "$BS_EXIT" -eq 0 ]] \
    && ! grep -qF "Lean4 v4 ready" <<<"$BS_OUT" \
-   && grep -qF "Run /lean4:doctor env for a full diagnosis." <<<"$BS_OUT"; then
+   && grep -qF "Run /lean4:diagnose env for a full diagnosis." <<<"$BS_OUT"; then
     pass "degraded: CLAUDE_ENV_FILE → /dev/null symlink → canonical warning, exit 0"
 else
     fail "degraded CLAUDE_ENV_FILE → /dev/null symlink (exit=$BS_EXIT): $BS_OUT"

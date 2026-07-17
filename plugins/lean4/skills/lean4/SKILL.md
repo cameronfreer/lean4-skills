@@ -36,7 +36,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | `/lean4:refactor` | Leverage mathlib, extract helpers, simplify proof strategies |
 | `/lean4:golf` | Improve Lean proofs for directness, clarity, performance, and brevity |
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
-| `/lean4:doctor` | Diagnostics, cleanup, and migration help |
+| `/lean4:diagnose` | Diagnostics, cleanup, and migration help |
 
 This plugin ships a host-agnostic parser (`lib/command_args/`) that covers the
 parser-decidable startup rules of the seven parameter-heavy commands (`draft`,
@@ -44,7 +44,7 @@ parser-decidable startup rules of the seven parameter-heavy commands (`draft`,
 documented startup rules in these commands depend on runtime context (repo-
 level search, interactive prompting) and are applied by the command after
 reading the parser's output. The other commands (`checkpoint`, `review`,
-`refactor`, `golf`, `doctor`) remain model-parsed.
+`refactor`, `golf`, `diagnose`) remain model-parsed.
 When a host adapter installs the `UserPromptSubmit` hook, the parser runs
 before the model sees a `/lean4:*` prompt matching one of the seven covered
 commands, injects a `validated-invocation` block into context, and rejects
@@ -71,7 +71,7 @@ best-effort.
 | Optimizing compiled proofs | `/lean4:golf` |
 | New to this project / exploring | `/lean4:learn --mode=repo` |
 | Navigating mathlib for a topic | `/lean4:learn --mode=mathlib` |
-| Something not working | `/lean4:doctor` |
+| Something not working | `/lean4:diagnose` |
 | Formalize + prove end-to-end (unattended) | `/lean4:autoformalize --source=... --claim-select=first --out=...` |
 
 ## Contributing (lean4-contribute plugin)
@@ -125,7 +125,7 @@ Use `/lean4:learn` at any point to explore repo structure or navigate mathlib. T
 - `/lean4:autoformalize` wraps draft+autoprove in a single command (source → claims → skeletons → proofs); replaces `autoprove --formalize=auto`
 - Proof engines (`prove`/`autoprove`) never modify declaration headers (header fence)
 - `/lean4:disprove` reports `REFUTED` only when Lean typechecks the negation; otherwise `WITNESS_UNCERTIFIED` or `INCONCLUSIVE`
-- If you hit environment issues, run `/lean4:doctor` to diagnose
+- If you hit environment issues, run `/lean4:diagnose` to diagnose
 
 ## LSP Tools (Preferred)
 
@@ -151,9 +151,9 @@ lean_code_actions(file, line)                   # Resolve "Try this" suggestions
 
 | Capability | Required | Check | Fallback |
 |-----------|----------|-------|----------|
-| Lean / Lake | yes | `lean --version`, `lake --version` | none — run `/lean4:doctor` |
+| Lean / Lake | yes | `lean --version`, `lake --version` | none — run `/lean4:diagnose` |
 | Python 3 | yes (scripts) | `$LEAN4_PYTHON_BIN` set by bootstrap | none for script-dependent operations |
-| `$LEAN4_SCRIPTS` | yes (set by bootstrap) | `echo "$LEAN4_SCRIPTS"` | run `/lean4:doctor` |
+| `$LEAN4_SCRIPTS` | yes (set by bootstrap) | `echo "$LEAN4_SCRIPTS"` | run `/lean4:diagnose` |
 | Lean LSP MCP | no | try `lean_goal` on any `.lean` file | scripts + `lake env lean` (file-level only) |
 | `lean_run_code` | no | try calling it | `lake env lean` on temp file |
 | `lean_code_actions` | no | try calling it | manual "Try this" application |
@@ -247,7 +247,7 @@ Compatibility fallback (when a wrapper is unavailable):
   env-var form: `bash "$LEAN4_SCRIPTS/script.sh" …` or
   `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/script.py" …`.
 
-If `$LEAN4_SCRIPTS` is unset or missing, run `/lean4:doctor` and stay
+If `$LEAN4_SCRIPTS` is unset or missing, run `/lean4:diagnose` and stay
 LSP-only until resolved.
 
 ## Automation
@@ -320,7 +320,7 @@ Note: `exact?`/`apply?` query mathlib (slow). `grind` and `aesop` are powerful b
 
 ## Troubleshooting
 
-If LSP tools aren't responding, check your operating profile above. In `scripts_only` mode, `$LEAN4_SCRIPTS` provides search and `lake env lean` provides file-level compilation feedback, but live goal inspection, tactic testing, and line-level diagnostics are unavailable. If environment variables (`LEAN4_SCRIPTS`, `LEAN4_REFS`) are missing, run `/lean4:doctor` to diagnose.
+If LSP tools aren't responding, check your operating profile above. In `scripts_only` mode, `$LEAN4_SCRIPTS` provides search and `lake env lean` provides file-level compilation feedback, but live goal inspection, tactic testing, and line-level diagnostics are unavailable. If environment variables (`LEAN4_SCRIPTS`, `LEAN4_REFS`) are missing, run `/lean4:diagnose` to diagnose.
 
 **Script environment check:**
 ```bash

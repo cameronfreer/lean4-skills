@@ -171,8 +171,8 @@ run_test_empty \
   '{"prompt":"/lean4: foo"}'
 
 run_test_empty \
-  "9. Uncovered command (doctor)" \
-  '{"prompt":"/lean4:doctor"}'
+  "9. Uncovered command (diagnose)" \
+  '{"prompt":"/lean4:diagnose"}'
 
 run_test_empty \
   "10. Uncovered command (checkpoint)" \

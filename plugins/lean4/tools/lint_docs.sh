@@ -19,7 +19,7 @@ PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ISSUES=0
 
 # Single source of truth for known commands (used by check_commands and check_cross_refs)
-KNOWN_COMMANDS="autoformalize autoprove checkpoint disprove doctor draft formalize golf learn prove refactor review"
+KNOWN_COMMANDS="autoformalize autoprove checkpoint diagnose disprove draft formalize golf learn prove refactor review"
 
 log() {
     echo "$1"
@@ -34,7 +34,7 @@ ok() {
     echo "✓ $1"
 }
 
-# Check 1: Commands in doctor.md match actual command files
+# Check 1: Commands in diagnose.md match actual command files
 check_commands() {
     log ""
     log "Checking commands..."
@@ -66,8 +66,8 @@ check_commands() {
             autoformalize) max_lines=180 ;;
             autoprove)  max_lines=290 ;;
             checkpoint) max_lines=90 ;;
+            diagnose)   max_lines=265 ;;
             disprove)   max_lines=300 ;;
-            doctor)     max_lines=265 ;;
             draft)      max_lines=160 ;;
             formalize)  max_lines=195 ;;
             golf)       max_lines=170 ;;
@@ -484,7 +484,7 @@ check_bare_scripts() {
 # only — locks in the always-loaded surface so future edits can't
 # strip the rule out and re-introduce the parse-error footgun.
 # NOT a Lean parse test; not CI-enforced (lint_docs.sh runs
-# locally / via /lean4:doctor).
+# locally / via /lean4:diagnose).
 check_skill_omit_rule() {
     log ""
     log "Checking SKILL.md teaches omit [Inst] in ordering rule..."
@@ -602,7 +602,7 @@ check_python_script_interpreters() {
 # usages exist in references). For new `fun ... =>` introductions
 # in unrelated files, rely on review.
 #
-# Guard strength is local/doctor only, same as Check 8a from #136.
+# Guard strength is local/diagnose only, same as Check 8a from #136.
 # Unlike Checks 8c/8e, this invariant has no dedicated CI self-test;
 # test_lint_docs.sh (added in #138) invokes lint_docs.sh incidentally
 # in CI, but it only asserts the Check 8c/8e fixture behavior.
@@ -1236,8 +1236,8 @@ check_stale_plugin_paths() {
     while IFS= read -r file; do
         _sp_base=$(basename "$file")
 
-        # Skip MIGRATION.md (historical mentions OK) and doctor.md (detects old plugins)
-        if [[ "$_sp_base" == "MIGRATION.md" ]] || [[ "$_sp_base" == "doctor.md" ]]; then
+        # Skip MIGRATION.md (historical mentions OK) and diagnose.md (detects old plugins)
+        if [[ "$_sp_base" == "MIGRATION.md" ]] || [[ "$_sp_base" == "diagnose.md" ]]; then
             continue
         fi
 
@@ -1497,7 +1497,7 @@ check_description_alignment() {
 # Check 25: Host-agnostic language in core surfaces
 # SKILL.md and commands are loaded into any host's context, so they must not
 # reference "Claude" by name.  Allowed exceptions:
-#   - doctor.md (contains .claude/ paths and `claude mcp` product commands)
+#   - diagnose.md (contains .claude/ paths and `claude mcp` product commands)
 #   - .claude-plugin/ path fragments (directory name, not prose)
 check_host_agnostic() {
     log ""
@@ -1515,11 +1515,11 @@ check_host_agnostic() {
         fi
     fi
 
-    # Command files (skip doctor.md — it has legitimate .claude/ paths)
+    # Command files (skip diagnose.md — it has legitimate .claude/ paths)
     while IFS= read -r file; do
         local _ha_base
         _ha_base=$(basename "$file")
-        [[ "$_ha_base" == "doctor.md" ]] && continue
+        [[ "$_ha_base" == "diagnose.md" ]] && continue
         if grep -inE 'claude' "$file" | grep -ivE '\.claude[-/]' | grep -q .; then
             warn "$_ha_base mentions 'Claude' — commands must be host-agnostic"
             _ha_fail=1

@@ -26,7 +26,7 @@ This guide helps you upgrade from the legacy 3-plugin system (v3.x) to the unifi
 | `/lean4-theorem-proving:search-mathlib` | Use LSP `lean_leansearch` or scripts |
 | (no equivalent) | `/lean4:review` (NEW) |
 | (no equivalent) | `/lean4:refactor` (NEW) |
-| (no equivalent) | `/lean4:doctor` (NEW) |
+| (no equivalent) | `/lean4:diagnose` (NEW) |
 | (no equivalent) | `/lean4:disprove` (NEW) |
 
 ### Environment Variables
@@ -57,7 +57,7 @@ This guide helps you upgrade from the legacy 3-plugin system (v3.x) to the unifi
 ### Step 3: Verify Installation
 
 ```bash
-/lean4:doctor
+/lean4:diagnose
 ```
 
 This runs diagnostics to ensure everything is working.
@@ -77,7 +77,7 @@ These are now inert (unused) but can be removed:
 rm -rf .claude/tools/lean4 .claude/docs/lean4
 ```
 
-Or run `/lean4:doctor cleanup` for guided removal.
+Or run `/lean4:diagnose cleanup` for guided removal.
 
 ## Workflow Changes
 
@@ -156,7 +156,7 @@ If you need the old 3-plugin version:
 
 The bootstrap hook didn't run. Try:
 1. Restart Claude Code session
-2. Run `/lean4:doctor` to check environment
+2. Run `/lean4:diagnose` to check environment
 
 ### Commands not found
 
@@ -176,7 +176,7 @@ Both `lib/scripts/` and `scripts/` (compat alias) resolve to the same directory.
 
 ### Need help?
 
-Run `/lean4:doctor` for full diagnostics.
+Run `/lean4:diagnose` for full diagnostics.
 
 ## V4.5.1 → V4.5.2
 

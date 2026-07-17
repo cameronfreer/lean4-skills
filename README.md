@@ -20,7 +20,7 @@ others all use the same core skill; only the invocation surface differs.
 | refactor | Leverage mathlib, extract helpers, simplify proof strategies |
 | golf | Improve proofs for directness, clarity, performance, and brevity |
 | learn | Interactive teaching and mathlib exploration |
-| doctor | Diagnostics and migration help |
+| diagnose | Diagnostics and migration help |
 
 **Claude Code:** invoke as `/lean4:<name>`. **Other hosts:** follow the corresponding workflow in [SKILL.md](plugins/lean4/skills/lean4/SKILL.md).
 

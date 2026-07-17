@@ -1656,25 +1656,25 @@ Want to see this formalized in Lean to make it concrete?
 
 ---
 
-## doctor
+## diagnose
 
 ### Basic Usage
 
 ```
-/lean4:doctor              # Full diagnostic
-/lean4:doctor env          # Environment only
-/lean4:doctor migrate      # Migration assistance
-/lean4:doctor cleanup      # Remove obsolete files
+/lean4:diagnose              # Full diagnostic
+/lean4:diagnose env          # Environment only
+/lean4:diagnose migrate      # Migration assistance
+/lean4:diagnose cleanup      # Remove obsolete files
 ```
 
 ### Full Diagnostic Example
 
 ```
-User: /lean4:doctor
+User: /lean4:diagnose
 
 Claude: Running diagnostics...
 
-## Lean4 Doctor Report
+## Lean4 Diagnostics Report
 
 ### Environment
 ✓ lean 4.15.0
@@ -1710,7 +1710,7 @@ Run /lean4:prove to fill the 3 remaining sorries.
 ### Migration Example
 
 ```
-User: /lean4:doctor migrate
+User: /lean4:diagnose migrate
 
 Claude: Checking for v3 artifacts...
 
@@ -1738,7 +1738,7 @@ Proceed with migration? (yes/no)
 ### Cleanup Example
 
 ```
-User: /lean4:doctor cleanup
+User: /lean4:diagnose cleanup
 
 Claude: Scanning for obsolete files...
 

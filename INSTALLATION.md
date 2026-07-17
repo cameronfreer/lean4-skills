@@ -35,7 +35,7 @@ That's it! The skill activates automatically when working with `.lean` files.
 ### Verify
 
 ```
-/lean4:doctor
+/lean4:diagnose
 ```
 
 ### Platform Notes
@@ -60,7 +60,7 @@ No special setup required.
 
 1. Check installation: `/plugin list`
 2. Restart Claude Code
-3. Run `/lean4:doctor`
+3. Run `/lean4:diagnose`
 
 #### LSP Server Not Working
 
@@ -73,7 +73,7 @@ No special setup required.
 
 The `LEAN4_SCRIPTS` etc. variables are set by the bootstrap hook. If missing:
 1. Restart Claude Code session
-2. Check `/lean4:doctor env`
+2. Check `/lean4:diagnose env`
 
 #### Scripts Not Executable
 
@@ -347,7 +347,7 @@ If you have the old 3-plugin system:
 /plugin install lean4
 
 # Verify
-/lean4:doctor
+/lean4:diagnose
 ```
 
 ### What Changed
@@ -371,7 +371,7 @@ If you have the old 3-plugin system:
 
 ## Getting Help
 
-- **Plugin diagnostics (Claude Code):** `/lean4:doctor` — checks environment, plugin, and project
+- **Plugin diagnostics (Claude Code):** `/lean4:diagnose` — checks environment, plugin, and project
 - **Issues:** https://github.com/cameronfreer/lean4-skills/issues
 - **LSP server:** https://github.com/oOo0oOo/lean-lsp-mcp/issues
 - **Claude Code:** `/help`

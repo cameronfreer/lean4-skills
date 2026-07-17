@@ -11,16 +11,16 @@
 #   --runtime     (default) Validate the SESSION state a later Bash tool call
 #                 depends on: LEAN4_* vars point at real dirs, bin/ is on
 #                 PATH, and the lean4-skills-* wrappers resolve. Used for
-#                 on-demand diagnosis (e.g. /lean4:doctor env, or manual run
+#                 on-demand diagnosis (e.g. /lean4:diagnose env, or manual run
 #                 via the lean4-skills-preflight wrapper).
 #
 # Exit 0 when the checked mode passes; exit 2 with the canonical recovery
 # block on stderr when it fails. Self-locating (BASH_SOURCE) so it never
 # depends on $LEAN4_SCRIPTS being set.
 #
-# The three numbered recovery steps below are CANONICAL: doctor.md
-# reproduces them byte-for-byte. If you change them here, update doctor.md
-# (test_preflight_env.sh asserts doctor.md still contains each line).
+# The three numbered recovery steps below are CANONICAL: diagnose.md
+# reproduces them byte-for-byte. If you change them here, update diagnose.md
+# (test_preflight_env.sh asserts diagnose.md still contains each line).
 
 set -euo pipefail
 
@@ -33,7 +33,7 @@ emit_recovery() {
         echo "Lean4 bootstrap environment is not fully set up in this Claude Code session."
         echo "  Problem: ${problem}"
         echo "  Recovery:"
-        echo "    1. Run /lean4:doctor env for a full diagnosis."
+        echo "    1. Run /lean4:diagnose env for a full diagnosis."
         echo "    2. Restart the Claude Code session (re-runs the SessionStart bootstrap hook)."
         echo "    3. If it persists, check the plugin hook/bootstrap state (hooks.json, bootstrap.sh)."
     } >&2

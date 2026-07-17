@@ -1,5 +1,22 @@
 # Changelog
 
+## v4.6.0 (July 2026)
+
+Renames the `/lean4:doctor` command to `/lean4:diagnose`. The `doctor` name collided with Claude Code's built-in `/doctor` command, so the plugin diagnostic is now `/lean4:diagnose` (same modes: bare, `env`, `migrate`, `cleanup`).
+
+### Breaking
+
+- **`/lean4:doctor` → `/lean4:diagnose`.** `commands/doctor.md` is renamed to `commands/diagnose.md` (frontmatter `name: diagnose`); all subcommands are unchanged (`/lean4:diagnose env|migrate|cleanup`). Any muscle-memory, scripts, or docs invoking `/lean4:doctor` must switch to `/lean4:diagnose`.
+
+### Canonical recovery wording
+
+- The single-source recovery block in `lib/scripts/preflight_env.sh` (`emit_recovery`) and its byte-identical copy in `hooks/bootstrap.sh` now say `Run /lean4:diagnose env for a full diagnosis.` `commands/diagnose.md` reproduces the three canonical lines; `test_preflight_env.sh` and `test_bootstrap_env.sh` assert the new wording.
+
+### Lint & docs
+
+- `tools/lint_docs.sh`: `KNOWN_COMMANDS`, the per-command `max_lines` table, and the two `diagnose.md` special-cases (stale-plugin-path skip, host-agnostic skip) updated for the new name.
+- All surfaces realigned: root `README.md`, `INSTALLATION.md`, `MIGRATION.md`, `plugins/lean4/README.md`, `SKILL.md`, and the `command-examples.md` / `command-invocation.md` / `subagent-workflows.md` references. Both plugin descriptions (`plugin.json`, `marketplace.json`) list `diagnose`. Historical CHANGELOG entries keep the old `doctor` name (accurate for the releases they describe).
+
 ## v4.5.4 (July 2026)
 
 Completes the wrapper migration that v4.5.3 deferred: `/lean4:disprove` was the last command whose docs invoked scripts via raw `"$LEAN4_SCRIPTS/disprove_*.py"` — the form that expands to `/disprove_*.py` with a confusing root-path error when the bootstrap env is missing (#108's original symptom). Closes #149.
