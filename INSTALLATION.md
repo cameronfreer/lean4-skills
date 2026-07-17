@@ -101,20 +101,26 @@ Codex, Cursor, Windsurf, OpenCode, GitHub Copilot, and Gemini CLI all
 discover Agent Skills from `~/.agents/skills` (and its project-level
 `.agents/skills` counterpart); Codex documents symlink support — for a
 host that doesn't state it or doesn't follow symlinks, copy instead.
+Antigravity CLI reads `.agents/skills` at project scope only — its
+global path needs a separate link (see
+[Antigravity CLI](#antigravity-cli)).
 
 One maintained checkout, one link:
 
 ```bash
 git clone https://github.com/cameronfreer/lean4-skills.git "$HOME/.local/share/lean4-skills"
 mkdir -p "$HOME/.agents/skills"
-rm -rf "$HOME/.agents/skills/lean4"   # clear any prior copy first — see note below
+[ -e "$HOME/.agents/skills/lean4" ] && [ ! -L "$HOME/.agents/skills/lean4" ] && \
+  mv "$HOME/.agents/skills/lean4" "$HOME/.agents/skills/lean4.bak-$(date +%Y%m%d%H%M%S)"
 ln -sfn "$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4" "$HOME/.agents/skills/lean4"
 ```
 
-The `rm -rf` guard matters when upgrading from a Tier-1 copy:
-`ln -sfn` replaces an existing sym*link* but not an existing real
-directory — without the guard it would nest the link inside the old
-copy (`lean4/lean4`) while the stale top-level copy stays active.
+The `mv` guard matters when upgrading from a Tier-1 copy: `ln -sfn`
+replaces an existing sym*link* but not an existing real directory —
+without the guard it would nest the link inside the old copy
+(`lean4/lean4`) while the stale top-level copy stays active. The copy
+is moved aside, not deleted, in case it carries local changes; remove
+the `.bak-*` directory once the link is confirmed working.
 
 Then add the environment block to your shell profile (`~/.bashrc`,
 `~/.zshrc`, …). This is the canonical copy — the host sections below
@@ -248,9 +254,11 @@ lean4-skills-sorry-analyzer . --format=summary --report-only
 
 > **Availability:** consumer Gemini CLI access (free / Google AI Pro /
 > Ultra) transitioned to [Antigravity CLI](#antigravity-cli) on
-> June 18, 2026; Gemini CLI continues for Standard/Enterprise licenses
-> and supported API-key users. The instructions below apply to
-> supported Gemini CLI installations.
+> June 18, 2026
+> ([announcement](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/));
+> Gemini CLI continues for Standard/Enterprise licenses and supported
+> API-key users. The instructions below apply to supported Gemini CLI
+> installations.
 
 Gemini CLI has native Agent Skills: it discovers `.gemini/skills/` and
 the portable `.agents/skills/` locations (project and user scope), so
@@ -287,17 +295,32 @@ lean4-skills-sorry-analyzer . --format=summary --report-only
 
 ### Antigravity CLI
 
-Antigravity CLI (Gemini CLI's consumer successor) retains Agent Skills
-and shares the workspace `.agents/skills/` location, so the
-[Portable Checkout](#portable-checkout--helper-runtime-all-hosts)
-symlink covers it (Tier 2). Skill-only install (Tier 1) via GitHub CLI
-≥ 2.90.0 — note the agent id is `antigravity`, and gh places the skill
-(namespaced `lean4/lean4`) under `~/.gemini/antigravity/skills/`:
+Antigravity CLI (Gemini CLI's consumer successor) retains Agent
+Skills. It discovers workspace skills at `.agents/skills/` (project
+scope), but its **global** skills live at
+`~/.gemini/antigravity-cli/skills/` — the portable `~/.agents/skills`
+link does *not* cover it. Global Tier-2 link from the portable
+checkout (same move-aside guard as the portable section, in case a
+Tier-1 copy is already there):
+
+```bash
+mkdir -p "$HOME/.gemini/antigravity-cli/skills"
+[ -e "$HOME/.gemini/antigravity-cli/skills/lean4" ] && [ ! -L "$HOME/.gemini/antigravity-cli/skills/lean4" ] && \
+  mv "$HOME/.gemini/antigravity-cli/skills/lean4" "$HOME/.gemini/antigravity-cli/skills/lean4.bak-$(date +%Y%m%d%H%M%S)"
+ln -sfn "$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4" "$HOME/.gemini/antigravity-cli/skills/lean4"
+```
+
+Skill-only install (Tier 1) via GitHub CLI ≥ 2.96.0 — earlier gh
+versions lack the `antigravity-cli` target, and the similarly named
+`--agent antigravity` is a *different* surface that writes to
+`~/.gemini/antigravity/skills/`:
 
 ```bash
 gh skill install cameronfreer/lean4-skills lean4@main \
-  --agent antigravity --scope user
+  --agent antigravity-cli --scope user
 ```
+
+This lands at `~/.gemini/antigravity-cli/skills/lean4/`.
 
 ## Cursor
 
@@ -387,8 +410,9 @@ gh skill install cameronfreer/lean4-skills lean4@main \
   --agent github-copilot --scope user
 ```
 
-gh stores the installed skill namespaced as `lean4/lean4` under the
-agent's skills directory.
+gh reports the skill's logical name as `lean4/lean4`; current gh
+installs the files at `<skills-root>/lean4/` (some earlier versions
+nested a `lean4/lean4/` directory instead).
 
 This installs the skill directory only — see
 [Installation Tiers](#installation-tiers) for what that excludes.

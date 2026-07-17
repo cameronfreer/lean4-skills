@@ -88,14 +88,15 @@ full setup is one checkout + one symlink + one env block
 ```bash
 git clone https://github.com/cameronfreer/lean4-skills.git "$HOME/.local/share/lean4-skills"
 mkdir -p "$HOME/.agents/skills"
-rm -rf "$HOME/.agents/skills/lean4"   # clear any prior copy — ln can't replace a real directory
+[ -e "$HOME/.agents/skills/lean4" ] && [ ! -L "$HOME/.agents/skills/lean4" ] && \
+  mv "$HOME/.agents/skills/lean4" "$HOME/.agents/skills/lean4.bak-$(date +%Y%m%d%H%M%S)"   # ln can't replace a real directory
 ln -sfn "$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4" "$HOME/.agents/skills/lean4"
 ```
 
 Skill-only quick installs and host specifics ([what "skill-only" excludes](INSTALLATION.md#installation-tiers)):
 
 - **Gemini CLI** (Enterprise/API-key; consumer access moved to Antigravity, June 2026) — `gemini skills install https://github.com/cameronfreer/lean4-skills.git --path plugins/lean4/skills/lean4 --scope user`. See [INSTALLATION.md → Gemini](INSTALLATION.md#gemini-cli)
-- **Antigravity CLI** — `gh skill install cameronfreer/lean4-skills lean4@main --agent antigravity --scope user` (gh ≥ 2.90.0). See [INSTALLATION.md → Antigravity](INSTALLATION.md#antigravity-cli)
+- **Antigravity CLI** — `gh skill install cameronfreer/lean4-skills lean4@main --agent antigravity-cli --scope user` (gh ≥ 2.96.0). See [INSTALLATION.md → Antigravity](INSTALLATION.md#antigravity-cli)
 - **GitHub Copilot** — `gh skill install cameronfreer/lean4-skills lean4@main --agent github-copilot --scope user` (gh ≥ 2.90.0). See [INSTALLATION.md → Copilot](INSTALLATION.md#github-copilot)
 - **Cursor** — native skills (`.agents/skills` / `.cursor/skills`); invoke with `/lean4`. See [INSTALLATION.md → Cursor](INSTALLATION.md#cursor)
 - **Windsurf** — native skills; invoke with `@lean4`. See [INSTALLATION.md → Windsurf](INSTALLATION.md#windsurf)
