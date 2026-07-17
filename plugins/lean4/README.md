@@ -22,7 +22,7 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 | `/lean4:refactor` | Leverage mathlib, extract helpers, simplify proof strategies |
 | `/lean4:golf` | Improve Lean proofs for directness, clarity, performance, and brevity |
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
-| `/lean4:doctor` | Diagnostics, cleanup, and migration help |
+| `/lean4:diagnose` | Diagnostics, cleanup, and migration help |
 
 ## Quick Start
 
@@ -38,7 +38,7 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 /lean4:refactor            # Simplify proof strategies
 /lean4:golf                # Optimize proofs
 /lean4:learn               # Explore repo or mathlib
-/lean4:doctor              # Diagnostics and migration help
+/lean4:diagnose              # Diagnostics and migration help
 git push                   # Manual, after review
 ```
 
@@ -180,7 +180,7 @@ Usually run after proving, either prompted at the end of a `prove` session or ex
 
 Two modes: `--mode=repo` explores your project structure, `--mode=mathlib` navigates mathlib for a topic. Adapts to `--level=beginner|intermediate|expert` and supports `--style=tour|socratic|exercise|game`. Conversational by default; use `--output=scratch` or `--output=file` to write artifacts. For formalization, learn suggests `/lean4:formalize`.
 
-### `/lean4:doctor` — Diagnostics
+### `/lean4:diagnose` — Diagnostics
 
 Checks your environment (lean, lake, python, git), plugin structure, project health, and detects legacy v3 artifacts. Run this first if something isn't working.
 
@@ -344,7 +344,7 @@ command -v lean4-skills-sorry-analyzer       # wrapper resolves on PATH
 lean4-skills-sorry-analyzer . --format=summary --report-only
 ```
 
-If `$LEAN4_SCRIPTS` is unset, run `/lean4:doctor` to reinitialize.
+If `$LEAN4_SCRIPTS` is unset, run `/lean4:diagnose` to reinitialize.
 
 ## File Structure
 

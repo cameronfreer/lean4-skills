@@ -10,7 +10,7 @@ in these commands depend on runtime context the parser cannot evaluate (e.g.
 local-declaration resolution in learn); those are listed in the forward-
 exclusions and are applied by the command at runtime after reading the parser's
 output. Other commands in this plugin (`checkpoint`, `review`, `refactor`,
-`golf`, `doctor`) are not parameter-heavy and are not covered by
+`golf`, `diagnose`) are not parameter-heavy and are not covered by
 `lib/command_args/`; they remain model-parsed on every host.
 
 For the seven covered commands, whether the parser actually runs before the

@@ -64,7 +64,7 @@ warn_degraded_and_exit() {
     echo "Lean4 bootstrap environment is not fully set up in this Claude Code session."
     echo "  Problem: ${problem}"
     echo "  Recovery:"
-    echo "    1. Run /lean4:doctor env for a full diagnosis."
+    echo "    1. Run /lean4:diagnose env for a full diagnosis."
     echo "    2. Restart the Claude Code session (re-runs the SessionStart bootstrap hook)."
     echo "    3. If it persists, check the plugin hook/bootstrap state (hooks.json, bootstrap.sh)."
   } >&2

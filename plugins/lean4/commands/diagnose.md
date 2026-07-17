@@ -1,22 +1,22 @@
 ---
-name: doctor
+name: diagnose
 description: Diagnostics, cleanup, and migration help
 user_invocable: true
 ---
 
-# Lean4 Doctor
+# Lean4 Diagnostics
 
 Diagnostics, troubleshooting, and migration assistance for the Lean4 plugin.
 
 ## Usage
 
 ```
-/lean4:doctor                    # Full diagnostic (plugin + workspace)
-/lean4:doctor env                # Environment only
-/lean4:doctor migrate            # Detect legacy installs (read-only)
-/lean4:doctor migrate --global   # Include user-level ~/.claude scan
-/lean4:doctor cleanup            # Show stale files + removal commands
-/lean4:doctor cleanup --apply    # Actually remove stale files
+/lean4:diagnose                    # Full diagnostic (plugin + workspace)
+/lean4:diagnose env                # Environment only
+/lean4:diagnose migrate            # Detect legacy installs (read-only)
+/lean4:diagnose migrate --global   # Include user-level ~/.claude scan
+/lean4:diagnose cleanup            # Show stale files + removal commands
+/lean4:diagnose cleanup --apply    # Actually remove stale files
 ```
 
 ## Inputs
@@ -42,7 +42,7 @@ Diagnostics, troubleshooting, and migration assistance for the Lean4 plugin.
 Environment variables: `LEAN4_PLUGIN_ROOT`, `LEAN4_SCRIPTS`, `LEAN4_REFS`, `LEAN4_PYTHON_BIN`
 
 Run the shared env preflight for a live diagnosis. Resolve it **without
-depending on PATH** — `doctor env` is exactly where a broken PATH must
+depending on PATH** — `diagnose env` is exactly where a broken PATH must
 still be diagnosable, so a bare `lean4-skills-preflight` alone could fail
 command-not-found:
 
@@ -54,7 +54,7 @@ elif [[ -n "${LEAN4_PLUGIN_ROOT:-}" && -x "$LEAN4_PLUGIN_ROOT/bin/lean4-skills-p
 else
     echo "Lean4 bootstrap environment is not fully set up in this Claude Code session." >&2
     echo "  Recovery:" >&2
-    echo "    1. Run /lean4:doctor env for a full diagnosis." >&2
+    echo "    1. Run /lean4:diagnose env for a full diagnosis." >&2
     echo "    2. Restart the Claude Code session (re-runs the SessionStart bootstrap hook)." >&2
     echo "    3. If it persists, check the plugin hook/bootstrap state (hooks.json, bootstrap.sh)." >&2
 fi
@@ -162,7 +162,7 @@ Keys: y=remove this, n=keep this, a=remove all remaining, q=quit now
 
 **Full diagnostic:**
 ```markdown
-## Lean4 Doctor Report
+## Lean4 Diagnostics Report
 
 ### Environment
 ✓ lean 4.x.x
@@ -196,7 +196,7 @@ Keys: y=remove this, n=keep this, a=remove all remaining, q=quit now
 ✓ LEAN4_PLUGIN_ROOT points to current plugin
 
 ### Summary
-Found 1 stale item. Run `/lean4:doctor cleanup` to see removal commands.
+Found 1 stale item. Run `/lean4:diagnose cleanup` to see removal commands.
 ```
 
 **Cleanup report:**
@@ -211,15 +211,15 @@ Found 1 stale item. Run `/lean4:doctor cleanup` to see removal commands.
 rm -rf .claude/tools/lean4/
 rm -rf .claude/docs/lean4/
 
-No changes made. Run `/lean4:doctor cleanup --apply` to remove.
+No changes made. Run `/lean4:diagnose cleanup --apply` to remove.
 ```
 
 ## Troubleshooting
 
 | Issue | Fix |
 |-------|-----|
-| LEAN4_SCRIPTS not set | 1. Run `/lean4:doctor env` for a full diagnosis. 2. Restart the Claude Code session (re-runs the SessionStart bootstrap hook). 3. If it persists, check the plugin hook/bootstrap state (hooks.json, bootstrap.sh). |
-| `lean4-skills-*` wrapper not found on PATH | 1. Run `/lean4:doctor env` for a full diagnosis. 2. Restart the Claude Code session (re-runs the SessionStart bootstrap hook). 3. If it persists, check the plugin hook/bootstrap state (hooks.json, bootstrap.sh). |
+| LEAN4_SCRIPTS not set | 1. Run `/lean4:diagnose env` for a full diagnosis. 2. Restart the Claude Code session (re-runs the SessionStart bootstrap hook). 3. If it persists, check the plugin hook/bootstrap state (hooks.json, bootstrap.sh). |
+| `lean4-skills-*` wrapper not found on PATH | 1. Run `/lean4:diagnose env` for a full diagnosis. 2. Restart the Claude Code session (re-runs the SessionStart bootstrap hook). 3. If it persists, check the plugin hook/bootstrap state (hooks.json, bootstrap.sh). |
 | lake not found | Install via elan |
 | Scripts not executable | Wrappers should be shipped executable — check `command -v lean4-skills-sorry-analyzer`. For unwrapped internals: `chmod +x $LEAN4_SCRIPTS/*.sh $LEAN4_SCRIPTS/*.py` |
 | Build fails | `lake update && lake clean && lake build` |
@@ -244,4 +244,4 @@ No changes made. Run `/lean4:doctor cleanup --apply` to remove.
 
 - `/lean4:prove` - Guided cycle-by-cycle proving
 - `/lean4:checkpoint` - Save progress
-- [Examples](../skills/lean4/references/command-examples.md#doctor)
+- [Examples](../skills/lean4/references/command-examples.md#diagnose)
