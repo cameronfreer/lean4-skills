@@ -110,17 +110,27 @@ One maintained checkout, one link:
 ```bash
 git clone https://github.com/cameronfreer/lean4-skills.git "$HOME/.local/share/lean4-skills"
 mkdir -p "$HOME/.agents/skills"
-[ -e "$HOME/.agents/skills/lean4" ] && [ ! -L "$HOME/.agents/skills/lean4" ] && \
-  mv "$HOME/.agents/skills/lean4" "$HOME/.agents/skills/lean4.bak-$(date +%Y%m%d%H%M%S)"
-ln -sfn "$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4" "$HOME/.agents/skills/lean4"
+src="$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4"
+dest="$HOME/.agents/skills/lean4"
+if [ -e "$dest" ] && [ ! -L "$dest" ]; then
+  if mv "$dest" "$dest.bak-$(date +%Y%m%d%H%M%S)-$$"; then
+    ln -sfn "$src" "$dest"
+  else
+    printf 'Could not back up %s; leaving it unchanged.\n' "$dest" >&2
+  fi
+else
+  ln -sfn "$src" "$dest"
+fi
 ```
 
-The `mv` guard matters when upgrading from a Tier-1 copy: `ln -sfn`
+The backup guard matters when upgrading from a Tier-1 copy: `ln -sfn`
 replaces an existing sym*link* but not an existing real directory —
-without the guard it would nest the link inside the old copy
+linking without the guard would nest the link inside the old copy
 (`lean4/lean4`) while the stale top-level copy stays active. The copy
-is moved aside, not deleted, in case it carries local changes; remove
-the `.bak-*` directory once the link is confirmed working.
+is moved aside, not deleted, in case it carries local changes — and if
+the backup itself fails, nothing is linked and the message above is
+printed instead. Remove the `.bak-*` directory once the link is
+confirmed working.
 
 Then add the environment block to your shell profile (`~/.bashrc`,
 `~/.zshrc`, …). This is the canonical copy — the host sections below
@@ -305,9 +315,17 @@ Tier-1 copy is already there):
 
 ```bash
 mkdir -p "$HOME/.gemini/antigravity-cli/skills"
-[ -e "$HOME/.gemini/antigravity-cli/skills/lean4" ] && [ ! -L "$HOME/.gemini/antigravity-cli/skills/lean4" ] && \
-  mv "$HOME/.gemini/antigravity-cli/skills/lean4" "$HOME/.gemini/antigravity-cli/skills/lean4.bak-$(date +%Y%m%d%H%M%S)"
-ln -sfn "$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4" "$HOME/.gemini/antigravity-cli/skills/lean4"
+src="$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4"
+dest="$HOME/.gemini/antigravity-cli/skills/lean4"
+if [ -e "$dest" ] && [ ! -L "$dest" ]; then
+  if mv "$dest" "$dest.bak-$(date +%Y%m%d%H%M%S)-$$"; then
+    ln -sfn "$src" "$dest"
+  else
+    printf 'Could not back up %s; leaving it unchanged.\n' "$dest" >&2
+  fi
+else
+  ln -sfn "$src" "$dest"
+fi
 ```
 
 Skill-only install (Tier 1) via GitHub CLI ≥ 2.96.0 — earlier gh

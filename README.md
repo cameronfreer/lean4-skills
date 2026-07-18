@@ -88,10 +88,17 @@ full setup is one checkout + one symlink + one env block
 ```bash
 git clone https://github.com/cameronfreer/lean4-skills.git "$HOME/.local/share/lean4-skills"
 mkdir -p "$HOME/.agents/skills"
-[ -e "$HOME/.agents/skills/lean4" ] && [ ! -L "$HOME/.agents/skills/lean4" ] && \
-  mv "$HOME/.agents/skills/lean4" "$HOME/.agents/skills/lean4.bak-$(date +%Y%m%d%H%M%S)"   # ln can't replace a real directory
-ln -sfn "$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4" "$HOME/.agents/skills/lean4"
+src="$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4"
+dest="$HOME/.agents/skills/lean4"
+if [ -e "$dest" ] && [ ! -L "$dest" ]; then   # back up a prior copy — ln can't replace a real directory
+  mv "$dest" "$dest.bak-$(date +%Y%m%d%H%M%S)-$$" && ln -sfn "$src" "$dest"
+else
+  ln -sfn "$src" "$dest"
+fi
 ```
+
+(Antigravity CLI's global skills live outside `~/.agents/skills` — see
+[INSTALLATION.md → Antigravity](INSTALLATION.md#antigravity-cli) for its separate link.)
 
 Skill-only quick installs and host specifics ([what "skill-only" excludes](INSTALLATION.md#installation-tiers)):
 
