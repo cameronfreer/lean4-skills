@@ -75,7 +75,7 @@ https://github.com/cameronfreer/lean4-skills/tree/main/plugins/lean4/skills/lean
 ```
 
 Then invoke it with `$lean4`, or let Codex activate it automatically
-for Lean 4 tasks. This installs the core skill only (instructions +
+for Lean 4 tasks (if it does not appear, restart Codex). This installs the core skill only (instructions +
 references, no helper scripts) — see
 [INSTALLATION.md → Codex](INSTALLATION.md#openai-codex-cli) for the full setup.
 
@@ -108,7 +108,7 @@ Skill-only quick installs and host specifics ([what "skill-only" excludes](INSTA
 
 - **Gemini CLI** (Enterprise/API-key; consumer access moved to Antigravity, June 2026) — `gemini skills install https://github.com/cameronfreer/lean4-skills.git --path plugins/lean4/skills/lean4 --scope user`. See [INSTALLATION.md → Gemini](INSTALLATION.md#gemini-cli)
 - **Antigravity CLI** — `gh skill install cameronfreer/lean4-skills lean4@main --agent antigravity-cli --scope user` (gh ≥ 2.96.0). See [INSTALLATION.md → Antigravity](INSTALLATION.md#antigravity-cli)
-- **GitHub Copilot** — `gh skill install cameronfreer/lean4-skills lean4@main --agent github-copilot --scope user` (gh ≥ 2.90.0). See [INSTALLATION.md → Copilot](INSTALLATION.md#github-copilot)
+- **GitHub Copilot** — `gh skill install cameronfreer/lean4-skills lean4@main --agent github-copilot --scope user` (gh ≥ 2.92.0). See [INSTALLATION.md → Copilot](INSTALLATION.md#github-copilot)
 - **Cursor** — native skills (`.agents/skills` / `.cursor/skills`); invoke with `/lean4`. See [INSTALLATION.md → Cursor](INSTALLATION.md#cursor)
 - **Windsurf** — native skills; invoke with `@lean4`. See [INSTALLATION.md → Windsurf](INSTALLATION.md#windsurf)
 - **OpenCode** — native `skill` tool; discovers `.agents/skills`. See [INSTALLATION.md → OpenCode](INSTALLATION.md#opencode)

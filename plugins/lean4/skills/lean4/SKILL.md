@@ -38,6 +38,12 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
 | `/lean4:doctor` | Diagnostics, cleanup, and migration help |
 
+`/lean4:*` names are the native plugin's command aliases and also serve
+as stable workflow names throughout this documentation. On hosts
+without command registration (skill-only or portable installs), invoke
+the `lean4` skill with your host's normal syntax and ask for the named
+workflow — e.g., "Use the guided `prove` workflow on `Foo.lean:42`."
+
 This plugin ships a host-agnostic parser (`lib/command_args/`) that covers the
 parser-decidable startup rules of the seven parameter-heavy commands (`draft`,
 `learn`, `formalize`, `autoformalize`, `prove`, `autoprove`, `disprove`). A small set of
@@ -270,8 +276,11 @@ When editing `.lean` files without invoking a command, the skill runs **one boun
 - Validate with `lean_diagnostic_messages` (no project-gate `lake build` in this mode)
 - No looping, no deep escalation, no multi-cycle behavior, no commits
 - End with suggestions:
-  > Use `/lean4:prove` for guided cycle-by-cycle help.
-  > Use `/lean4:autoprove` for autonomous cycles with stop safeguards.
+  > Ask me to run the guided `prove` workflow for cycle-by-cycle help.
+  > Ask me to run the autonomous `autoprove` workflow for unattended cycles with stop safeguards.
+
+  (On a host with the plugin's commands installed, those are
+  `/lean4:prove` and `/lean4:autoprove`.)
 
 ## Quality Gate
 

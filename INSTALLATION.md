@@ -213,7 +213,8 @@ https://github.com/cameronfreer/lean4-skills/tree/main/plugins/lean4/skills/lean
 ```
 
 On your next turn, invoke it explicitly with `$lean4`, or let Codex
-activate it automatically for Lean 4 tasks. This installs the core
+activate it automatically for Lean 4 tasks. (If the skill does not
+appear, restart Codex.) This installs the core
 skill instructions, references, and metadata only — not the
 `lean4-skills-*` helper executables, plugin hooks, subagent
 definitions, or the Claude Code `/lean4:*` command surface.
@@ -416,11 +417,13 @@ and `.agents/skills/` (repository), plus `~/.copilot/skills/` and
 covers personal use (Tier 2). Skills work with the Copilot cloud coding
 agent, Copilot CLI, and VS Code agent mode.
 
-**Quick install (Tier 1 — core skill only)** with GitHub CLI ≥ 2.90.0
-(`gh skill` is in public preview). Use the plain `lean4` name — the
-namespaced `lean4/lean4` selector previews on ≥ 2.91.0 but is not
-accepted by `install`. Pin `@main` — an unpinned install resolves the
-repository's latest GitHub release, which lags `main`:
+**Quick install (Tier 1 — core skill only)** with GitHub CLI ≥ 2.92.0
+(`gh skill` is in public preview; 2.92 is the first version that
+installs this repository's plugin-directory layout flat, the way this
+guide describes). Use the plain `lean4` name — the namespaced
+`lean4/lean4` selector works only for `preview`, not `install`. Use
+`@main` — an install without it resolves the repository's latest
+GitHub release, which lags `main`:
 
 ```bash
 gh skill preview cameronfreer/lean4-skills lean4@main
@@ -428,9 +431,8 @@ gh skill install cameronfreer/lean4-skills lean4@main \
   --agent github-copilot --scope user
 ```
 
-gh reports the skill's logical name as `lean4/lean4`; current gh
-installs the files at `<skills-root>/lean4/` (some earlier versions
-nested a `lean4/lean4/` directory instead).
+gh reports the skill's logical name as `lean4/lean4` and installs the
+files at `<skills-root>/lean4/`.
 
 This installs the skill directory only — see
 [Installation Tiers](#installation-tiers) for what that excludes.
