@@ -65,20 +65,54 @@ Optionally, install the contribution helper to draft bug reports, feature reques
 /plugin install lean4-contribute
 ```
 
-### Other Hosts
+### Codex
 
-Clone (shallow) and follow the setup for your host:
+Quick install — run this in Codex chat, not in your shell:
 
-```bash
-git clone --depth 1 https://github.com/cameronfreer/lean4-skills.git
+```text
+$skill-installer Install the `lean4` skill from
+https://github.com/cameronfreer/lean4-skills/tree/main/plugins/lean4/skills/lean4
 ```
 
-- **Codex CLI** — add to `AGENTS.md` + env vars. See [INSTALLATION.md → Codex](INSTALLATION.md#openai-codex-cli)
-- **Gemini CLI** — add to `GEMINI.md` + env vars. See [INSTALLATION.md → Gemini](INSTALLATION.md#gemini-cli)
-- **Cursor** — project rules → SKILL.md + env vars. See [INSTALLATION.md → Cursor](INSTALLATION.md#cursor)
-- **Windsurf** — project rules → SKILL.md + env vars. See [INSTALLATION.md → Windsurf](INSTALLATION.md#windsurf)
-- **OpenCode** — copy to `.opencode/skills/` + env vars. See [INSTALLATION.md → OpenCode](INSTALLATION.md#opencode)
-- **Other agents** — point agent at SKILL.md + env vars. See [INSTALLATION.md → Generic](INSTALLATION.md#any-agent-generic)
+Then invoke it with `$lean4`, or let Codex activate it automatically
+for Lean 4 tasks (if it does not appear, restart Codex). This installs the core skill only (instructions +
+references, no helper scripts) — see
+[INSTALLATION.md → Codex](INSTALLATION.md#openai-codex-cli) for the full setup.
+
+### Other Hosts
+
+Every major host now discovers Agent Skills natively. The recommended
+full setup is one checkout + one symlink + one env block
+([details](INSTALLATION.md#portable-checkout--helper-runtime-all-hosts)):
+
+```bash
+git clone https://github.com/cameronfreer/lean4-skills.git "$HOME/.local/share/lean4-skills"
+mkdir -p "$HOME/.agents/skills"
+src="$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4"
+dest="$HOME/.agents/skills/lean4"
+if [ -e "$dest" ] && [ ! -L "$dest" ]; then   # back up a prior copy — ln can't replace a real directory
+  if mv "$dest" "$dest.bak-$(date +%Y%m%d%H%M%S)-$$"; then
+    ln -sfn "$src" "$dest"
+  else
+    printf 'Could not back up %s; leaving it unchanged.\n' "$dest" >&2
+  fi
+else
+  ln -sfn "$src" "$dest"
+fi
+```
+
+(Antigravity CLI's global skills live outside `~/.agents/skills` — see
+[INSTALLATION.md → Antigravity](INSTALLATION.md#antigravity-cli) for its separate link.)
+
+Skill-only quick installs and host specifics ([what "skill-only" excludes](INSTALLATION.md#installation-tiers)):
+
+- **Gemini CLI** (Enterprise/API-key; consumer access moved to Antigravity, June 2026) — `gemini skills install https://github.com/cameronfreer/lean4-skills.git --path plugins/lean4/skills/lean4 --scope user`. See [INSTALLATION.md → Gemini](INSTALLATION.md#gemini-cli)
+- **Antigravity CLI** — `gh skill install cameronfreer/lean4-skills lean4@main --agent antigravity-cli --scope user` (gh ≥ 2.96.0). See [INSTALLATION.md → Antigravity](INSTALLATION.md#antigravity-cli)
+- **GitHub Copilot** — `gh skill install cameronfreer/lean4-skills lean4@main --agent github-copilot --scope user` (gh ≥ 2.92.0). See [INSTALLATION.md → Copilot](INSTALLATION.md#github-copilot)
+- **Cursor** — native skills (`.agents/skills` / `.cursor/skills`); invoke with `/lean4`. See [INSTALLATION.md → Cursor](INSTALLATION.md#cursor)
+- **Windsurf** — native skills; invoke with `@lean4`. See [INSTALLATION.md → Windsurf](INSTALLATION.md#windsurf)
+- **OpenCode** — native `skill` tool; discovers `.agents/skills`. See [INSTALLATION.md → OpenCode](INSTALLATION.md#opencode)
+- **Other agents** — point agent at SKILL.md + env block. See [INSTALLATION.md → Generic](INSTALLATION.md#any-agent-generic)
 
 ## Lean LSP MCP Server (Optional, Highly Recommended)
 
@@ -112,8 +146,8 @@ claude mcp add --transport stdio --scope project lean-lsp -- uvx lean-lsp-mcp
 | Host | Status | Workflow |
 |---|---|---|
 | Claude Code | Full native | SKILL.md + scripts + `/lean4:*` commands, hooks, guardrails, subagents |
-| Codex / Gemini / OpenCode | Documented\* | SKILL.md + scripts |
-| Cursor / Windsurf | Documented\* | Project rules → SKILL.md + scripts |
+| Codex / Gemini / Antigravity / OpenCode / Copilot | Documented\* | Native Agent Skills discovery (+ scripts via portable checkout) |
+| Cursor / Windsurf | Documented\* | Native Agent Skills discovery (+ scripts via portable checkout) |
 
 \*Documented setup patterns, not CI-verified.
 

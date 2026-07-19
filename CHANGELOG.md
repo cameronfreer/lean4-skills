@@ -1,5 +1,27 @@
 # Changelog
 
+## v4.5.5 (July 2026)
+
+Native Agent Skills metadata and multi-host installation docs (Refs #153). Every major host (Codex, Cursor, Windsurf, OpenCode, Gemini CLI / Antigravity CLI, GitHub Copilot) now discovers Agent Skills natively from `.agents/skills`, so the old per-host adapter instructions (`AGENTS.md`, `GEMINI.md`, `.cursor/rules`, oh-my-opencode) were stale. No runtime changes.
+
+### Installation tiers (INSTALLATION.md restructure)
+
+- **Three named tiers** replace the "Environment Bootstrap (All Hosts)" opening (which wrongly claimed every host needs the env vars): Tier 1 core-skill-only (host-native installers/copies — no helper runtime, commands, hooks, or subagent definitions), Tier 2 portable checkout + helper runtime, Tier 3 native plugin (Claude Code today; native Codex plugin tracked in #153).
+- **New "Portable Checkout + Helper Runtime" section** — one clone + one `~/.agents/skills` symlink + the single canonical env block (host sections link to it; no duplicated exports), with POSIX-shell/Windows/GUI-host portability notes and update/uninstall steps.
+
+### Host sections
+
+- **Codex**: `$skill-installer` quick install (run in chat; `$CODEX_HOME/skills` destination caveat), `$lean4` invocation, `AGENTS.md` demoted to an optional one-line pointer, commented `codex skill add` block removed, links updated to live learn.chatgpt.com docs.
+- **Gemini CLI**: `gemini skills install --path … --scope user` / `gemini skills link` replace the `GEMINI.md` instructions, with an availability note (consumer access moved to Antigravity CLI on June 18, 2026) and an Antigravity CLI subsection (global skills at `~/.gemini/antigravity-cli/skills/` — outside the portable `~/.agents/skills` link, so it gets its own Tier-2 symlink; Tier-1 via `gh skill install … --agent antigravity-cli --scope user`, gh ≥ 2.96.0).
+- **Cursor / Windsurf / OpenCode**: native skills discovery paths and manual invocation (`/lean4`, `@lean4`, `skill` tool) replace project-rules and oh-my-opencode patterns.
+- **New GitHub Copilot section**: `gh skill preview/install cameronfreer/lean4-skills lean4@main --agent github-copilot --scope user` (gh ≥ 2.92.0 — first version installing this plugin-directory layout flat; plain `lean4` selector — the namespaced `lean4/lean4` form is preview-only and rejected by `install`; `@main` because installs without it resolve the stale latest GitHub release).
+- Root README: Codex quick-install block, portable-checkout lead, per-host one-liners, Copilot compatibility row.
+
+### Skill metadata & standalone integrity
+
+- **New `skills/lean4/agents/openai.yaml`** (generated via skill-creator's `generate_openai_yaml.py`): Codex UI metadata — display name, short description, `$lean4` default prompt. Guarded by new contract Check 29 (key set, quoting, 25–64-char description, `$lean4` in prompt, no redundant `policy:` block).
+- **Skill directory is now link-standalone**: all 8 relative Markdown links escaping `skills/lean4/` (command docs, `lib/data/disprove_methods.toml`, lean4-contribute README) converted to canonical repository URLs labeled as live copies; the registry data file is explicitly marked absent from Tier-1 installs. A resolver pass confirms zero remaining relative escapes, so Tier-1 copies ship without broken links.
+
 ## v4.5.4 (July 2026)
 
 Completes the wrapper migration that v4.5.3 deferred: `/lean4:disprove` was the last command whose docs invoked scripts via raw `"$LEAN4_SCRIPTS/disprove_*.py"` — the form that expands to `/disprove_*.py` with a confusing root-path error when the bootstrap env is missing (#108's original symptom). Closes #149.

@@ -1,27 +1,29 @@
 # Installation Guide
 
-## Environment Bootstrap (All Hosts)
+## Installation Tiers
 
-All hosts need these variables. Claude Code sets them automatically via its
-bootstrap hook and also adds `plugins/lean4/bin/` to the Bash tool's PATH so
-model-facing `lean4-skills-*` wrappers resolve as bare commands. Other hosts
-(Codex, Gemini, Cursor, OpenCode, generic) need to set everything manually,
-including the PATH export — without it, the model may invoke
-`lean4-skills-sorry-analyzer …` and the shell won't find the wrapper.
+Three install shapes, referenced throughout this guide:
 
-```bash
-export LEAN4_PLUGIN_ROOT=/path/to/lean4-skills/plugins/lean4
-export LEAN4_SCRIPTS=$LEAN4_PLUGIN_ROOT/lib/scripts
-export LEAN4_REFS=$LEAN4_PLUGIN_ROOT/skills/lean4/references
-export PATH="$LEAN4_PLUGIN_ROOT/bin:$PATH"   # so `lean4-skills-*` wrappers resolve
-```
-
-Verify the wrappers are on PATH:
-
-```bash
-command -v lean4-skills-sorry-analyzer
-# expected: /…/plugins/lean4/bin/lean4-skills-sorry-analyzer
-```
+- **Tier 1 — Core skill only.** Host-native installers or direct
+  skill-directory copies/links. Installs or copies
+  `plugins/lean4/skills/lean4/` — SKILL.md, bundled references, and
+  OpenAI UI metadata. It does **not** install the helper runtime
+  (`lean4-skills-*` wrappers and their scripts) or register plugin
+  commands, lifecycle hooks, or subagent definitions. What you get is
+  the instructions and references: the skill's LSP-first workflows
+  operate when your host separately provides Lean LSP tools (see
+  [Lean LSP MCP Server](#lean-lsp-mcp-server-all-hosts)); script-backed
+  steps need Tier 2.
+- **Tier 2 — Portable checkout + helper runtime.** One cloned checkout,
+  an `.agents/skills` symlink for native discovery, and one environment
+  block. Adds the helper runtime (wrappers on PATH, `$LEAN4_SCRIPTS`) to
+  the core skill. Does not recreate host-specific commands, hooks, or
+  subagent definitions. See
+  [Portable Checkout + Helper Runtime](#portable-checkout--helper-runtime-all-hosts).
+- **Tier 3 — Native plugin.** The complete experience — commands, hooks,
+  guardrails, subagents. Claude Code today (next section); a native
+  Codex plugin is tracked in
+  [#153](https://github.com/cameronfreer/lean4-skills/issues/153).
 
 ## Claude Code (Native Plugin)
 
@@ -92,106 +94,272 @@ non-executable:
 chmod +x $LEAN4_SCRIPTS/*.sh $LEAN4_SCRIPTS/*.py
 ```
 
-## OpenAI Codex CLI
+## Portable Checkout + Helper Runtime (All Hosts)
 
-Set env vars in your shell profile (replace `/path/to` with your actual clone location):
+The recommended full setup (Tier 2) for every host except Claude Code.
+Codex, Cursor, Windsurf, OpenCode, GitHub Copilot, and Gemini CLI all
+discover Agent Skills from `~/.agents/skills` (and its project-level
+`.agents/skills` counterpart); Codex documents symlink support — for a
+host that doesn't state it or doesn't follow symlinks, copy instead.
+Antigravity CLI reads `.agents/skills` at project scope only — its
+global path needs a separate link (see
+[Antigravity CLI](#antigravity-cli)).
+
+One maintained checkout, one link:
 
 ```bash
-export LEAN4_PLUGIN_ROOT=/path/to/lean4-skills/plugins/lean4
+git clone https://github.com/cameronfreer/lean4-skills.git "$HOME/.local/share/lean4-skills"
+mkdir -p "$HOME/.agents/skills"
+src="$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4"
+dest="$HOME/.agents/skills/lean4"
+if [ -e "$dest" ] && [ ! -L "$dest" ]; then
+  if mv "$dest" "$dest.bak-$(date +%Y%m%d%H%M%S)-$$"; then
+    ln -sfn "$src" "$dest"
+  else
+    printf 'Could not back up %s; leaving it unchanged.\n' "$dest" >&2
+  fi
+else
+  ln -sfn "$src" "$dest"
+fi
+```
+
+The backup guard matters when upgrading from a Tier-1 copy: `ln -sfn`
+replaces an existing sym*link* but not an existing real directory —
+linking without the guard would nest the link inside the old copy
+(`lean4/lean4`) while the stale top-level copy stays active. The copy
+is moved aside, not deleted, in case it carries local changes — and if
+the backup itself fails, nothing is linked and the message above is
+printed instead. Remove the `.bak-*` directory once the link is
+confirmed working.
+
+Then add the environment block to your shell profile (`~/.bashrc`,
+`~/.zshrc`, …). This is the canonical copy — the host sections below
+link here instead of repeating it:
+
+```bash
+export LEAN4_PLUGIN_ROOT="$HOME/.local/share/lean4-skills/plugins/lean4"
 export LEAN4_SCRIPTS=$LEAN4_PLUGIN_ROOT/lib/scripts
 export LEAN4_REFS=$LEAN4_PLUGIN_ROOT/skills/lean4/references
 export PATH="$LEAN4_PLUGIN_ROOT/bin:$PATH"   # so `lean4-skills-*` wrappers resolve
 ```
 
-Add to your project's `AGENTS.md` (model context — not shell env):
-
-```markdown
-## Lean 4 Workflows
-
-See /path/to/lean4-skills/plugins/lean4/skills/lean4/SKILL.md for proving workflows.
-
-Environment:
-- LEAN4_PLUGIN_ROOT=/path/to/lean4-skills/plugins/lean4
-- LEAN4_SCRIPTS=$LEAN4_PLUGIN_ROOT/lib/scripts
-- LEAN4_REFS=$LEAN4_PLUGIN_ROOT/skills/lean4/references
-```
-
-Codex also supports installing skills as directories and adding MCP servers.
-Check [current Codex docs](https://developers.openai.com/codex/skills/) for
-the exact commands — examples:
+### Verify
 
 ```bash
-# Skill install (check current syntax)
-# codex skill add /path/to/lean4-skills/plugins/lean4/skills/lean4
+command -v lean4-skills-sorry-analyzer
+# expected: …/lean4-skills/plugins/lean4/bin/lean4-skills-sorry-analyzer
+lean4-skills-sorry-analyzer . --format=summary --report-only
+```
 
-# MCP setup (check current syntax)
-# codex mcp add lean-lsp -- npx lean-lsp-mcp --project /path/to/lean/project
+### Portability notes
+
+- The helper runtime requires a POSIX-compatible shell. On Windows use
+  WSL or Git Bash; without one, use a Tier-1 copy (below) — the skill's
+  LSP-first workflows don't need the scripts.
+- GUI hosts must actually inherit the shell-profile exports to see the
+  wrappers. If `command -v lean4-skills-sorry-analyzer` succeeds in your
+  terminal but the agent can't find it, launch the app from that
+  terminal or set the variables in the host's own environment settings.
+
+### Windows copy variant (no symlink)
+
+The `Remove-Item` / `rm -rf` first matters: copying onto an existing
+destination directory nests the source inside it (`lean4/lean4`),
+leaving the discovered top-level skill stale.
+
+```powershell
+New-Item -ItemType Directory -Force -Path $HOME\.agents\skills
+Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $HOME\.agents\skills\lean4
+Copy-Item -Recurse "$HOME\.local\share\lean4-skills\plugins\lean4\skills\lean4" $HOME\.agents\skills\lean4
+```
+
+Git Bash equivalent:
+
+```bash
+mkdir -p ~/.agents/skills
+rm -rf ~/.agents/skills/lean4
+cp -r "$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4" ~/.agents/skills/lean4
+```
+
+A copy does not track the checkout — re-run the replace-copy above
+after each update.
+
+### Update
+
+```bash
+git -C "$HOME/.local/share/lean4-skills" pull
+```
+
+The symlink keeps pointing at the updated checkout; copies must be
+replaced (delete, then re-copy — see the copy variant above).
+
+### Uninstall
+
+```bash
+rm -f "$HOME/.agents/skills/lean4"        # rm -rf if you copied
+rm -rf "$HOME/.local/share/lean4-skills"
+```
+
+Then remove the environment block from your shell profile.
+
+## OpenAI Codex CLI
+
+**Quick install (Tier 1 — core skill only).** Run this in Codex chat,
+not in your shell:
+
+```text
+$skill-installer Install the `lean4` skill from
+https://github.com/cameronfreer/lean4-skills/tree/main/plugins/lean4/skills/lean4
+```
+
+On your next turn, invoke it explicitly with `$lean4`, or let Codex
+activate it automatically for Lean 4 tasks. (If the skill does not
+appear, restart Codex.) This installs the core
+skill instructions, references, and metadata only — not the
+`lean4-skills-*` helper executables, plugin hooks, subagent
+definitions, or the Claude Code `/lean4:*` command surface.
+
+> `$skill-installer` manages its own install location under
+> `$CODEX_HOME/skills` (`~/.codex/skills` by default), while manual
+> checkout/link installs belong in `~/.agents/skills`. Don't assume or
+> prescribe the installer's destination — after installing, verify that
+> `$lean4` is discovered (type `$` or run `/skills`).
+
+**Full setup (Tier 2, recommended).** Use the
+[Portable Checkout + Helper Runtime](#portable-checkout--helper-runtime-all-hosts)
+— Codex discovers `.agents/skills` in your project and home directory
+and follows symlinked skill directories.
+
+> **Moving from Tier 1 to Tier 2:** Codex does not merge duplicate
+> same-name skills, so a `$skill-installer` copy under
+> `$CODEX_HOME/skills/lean4` and the Tier-2 `~/.agents/skills/lean4`
+> link can both appear. Remove the installer copy
+> (`rm -rf "${CODEX_HOME:-$HOME/.codex}/skills/lean4"`) when you switch.
+
+**Optional `AGENTS.md` pointer.** `AGENTS.md` is for durable project
+guidance, not installation. If your project uses one, a single line is
+enough:
+
+```markdown
+For Lean 4 proving workflows, use the `lean4` skill ($lean4).
+```
+
+**MCP:** check the [Codex MCP docs](https://learn.chatgpt.com/docs/extend/mcp)
+for the exact command — e.g.:
+
+```bash
+codex mcp add lean-lsp -- uvx lean-lsp-mcp
 ```
 
 ### Verify
 
+In Codex chat, type `$` — `lean4` should appear in the skill list. With
+the full setup, also:
+
 ```bash
-echo "$LEAN4_SCRIPTS"
+command -v lean4-skills-sorry-analyzer
 lean4-skills-sorry-analyzer . --format=summary --report-only
-# If MCP configured: test lean_goal on a .lean file
 ```
 
 ## Gemini CLI
 
-Add to your project's `GEMINI.md` (or global `~/.gemini/GEMINI.md`).
+> **Availability:** consumer Gemini CLI access (free / Google AI Pro /
+> Ultra) transitioned to [Antigravity CLI](#antigravity-cli) on
+> June 18, 2026
+> ([announcement](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/));
+> Gemini CLI continues for Standard/Enterprise licenses and supported
+> API-key users. The instructions below apply to supported Gemini CLI
+> installations.
 
-**If your Gemini CLI version supports file includes:**
-
-```markdown
-## Lean 4 Workflows
-@./lean4-skills/plugins/lean4/skills/lean4/SKILL.md
-```
-
-**Manual fallback:** Copy relevant sections of SKILL.md into your GEMINI.md,
-or instruct Gemini to read the file:
-
-```markdown
-## Lean 4 Workflows
-Read ./lean4-skills/plugins/lean4/skills/lean4/SKILL.md for proving workflows.
-```
-
-Set env vars in your shell profile:
+Gemini CLI has native Agent Skills: it discovers `.gemini/skills/` and
+the portable `.agents/skills/` locations (project and user scope), so
+the [Portable Checkout](#portable-checkout--helper-runtime-all-hosts)
+symlink covers it (Tier 2 — recommended; the canonical environment
+block lives there too). Alternatively, link the skill from your
+checkout explicitly — from your shell, so `$HOME` expands (Gemini's
+interactive `/skills link` passes the path through literally, without
+shell expansion):
 
 ```bash
-export LEAN4_PLUGIN_ROOT=/path/to/lean4-skills/plugins/lean4
-export LEAN4_SCRIPTS=$LEAN4_PLUGIN_ROOT/lib/scripts
-export LEAN4_REFS=$LEAN4_PLUGIN_ROOT/skills/lean4/references
-export PATH="$LEAN4_PLUGIN_ROOT/bin:$PATH"   # so `lean4-skills-*` wrappers resolve
+gemini skills link "$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4" --scope user
 ```
+
+**Quick install (Tier 1 — core skill only):**
+
+```bash
+gemini skills install https://github.com/cameronfreer/lean4-skills.git \
+  --path plugins/lean4/skills/lean4 --scope user
+```
+
+This copies the skill directory only — see
+[Installation Tiers](#installation-tiers) for what that excludes.
 
 ### Verify
 
+Run `/skills list` in Gemini — `lean4` should appear. With the full
+setup, also:
+
 ```bash
-echo "$LEAN4_SCRIPTS"
+command -v lean4-skills-sorry-analyzer
 lean4-skills-sorry-analyzer . --format=summary --report-only
 ```
 
-## Cursor
+### Antigravity CLI
 
-> These are documented setup patterns, not CI-verified adapters.
+Antigravity CLI (Gemini CLI's consumer successor) retains Agent
+Skills. It discovers workspace skills at `.agents/skills/` (project
+scope), but its **global** skills live at
+`~/.gemini/antigravity-cli/skills/` — the portable `~/.agents/skills`
+link does *not* cover it. Global Tier-2 link from the portable
+checkout (same move-aside guard as the portable section, in case a
+Tier-1 copy is already there):
 
-Create `.cursor/rules/lean4.mdc` in your project:
-
-```yaml
----
-description: Lean 4 theorem proving workflows
-globs: ["**/*.lean"]
----
+```bash
+mkdir -p "$HOME/.gemini/antigravity-cli/skills"
+src="$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4"
+dest="$HOME/.gemini/antigravity-cli/skills/lean4"
+if [ -e "$dest" ] && [ ! -L "$dest" ]; then
+  if mv "$dest" "$dest.bak-$(date +%Y%m%d%H%M%S)-$$"; then
+    ln -sfn "$src" "$dest"
+  else
+    printf 'Could not back up %s; leaving it unchanged.\n' "$dest" >&2
+  fi
+else
+  ln -sfn "$src" "$dest"
+fi
 ```
 
-Then paste the content of `plugins/lean4/skills/lean4/SKILL.md` into the rule body,
-or keep it concise and reference the file path for the agent to read.
+Skill-only install (Tier 1) via GitHub CLI ≥ 2.96.0 — earlier gh
+versions lack the `antigravity-cli` target, and the similarly named
+`--agent antigravity` is a *different* surface that writes to
+`~/.gemini/antigravity/skills/`:
 
-Set env vars in your terminal profile (Cursor runs commands in your shell).
+```bash
+gh skill install cameronfreer/lean4-skills lean4@main \
+  --agent antigravity-cli --scope user
+```
+
+This lands at `~/.gemini/antigravity-cli/skills/lean4/`.
+
+## Cursor
+
+Cursor discovers Agent Skills natively from `.agents/skills/`,
+`.cursor/skills/`, `~/.agents/skills/`, and `~/.cursor/skills/` —
+the [Portable Checkout](#portable-checkout--helper-runtime-all-hosts)
+symlink covers it (Tier 2 — recommended; the canonical environment
+block lives there, and Cursor runs commands in your shell). For a
+skill-only install (Tier 1), copy `plugins/lean4/skills/lean4/` into
+`.cursor/skills/lean4/` instead.
+
+Invoke manually by typing `/lean4` in Agent chat, or let Cursor
+activate the skill automatically for Lean 4 tasks. (The previous
+`.cursor/rules/lean4.mdc` pattern is obsolete — native skills replace
+project rules for this use.)
 
 ### Verify
 
-Open a `.lean` file, ask the agent to run:
+Type `/lean4` in Agent chat — the skill should be listed. With the full
+setup, open a `.lean` file and ask the agent to run:
 
 ```bash
 lean4-skills-sorry-analyzer . --format=summary --report-only
@@ -199,41 +367,32 @@ lean4-skills-sorry-analyzer . --format=summary --report-only
 
 ## Windsurf
 
-> These are documented setup patterns, not CI-verified adapters.
+Windsurf (Cascade) discovers skills from `.windsurf/skills/` and
+`~/.codeium/windsurf/skills/`, plus the portable `.agents/skills/` and
+`~/.agents/skills/` locations — the
+[Portable Checkout](#portable-checkout--helper-runtime-all-hosts)
+covers it (Tier 2). For a skill-only install (Tier 1), copy
+`plugins/lean4/skills/lean4/` into `.windsurf/skills/lean4/`.
 
-Windsurf uses its own rules format. Adapt the Cursor pattern above to
-Windsurf's rule system — see [Windsurf docs](https://docs.windsurf.com/windsurf/getting-started)
-for the current config format. The core setup is the same: point the agent at
-SKILL.md and set the three env vars.
+Invoke manually with `@lean4` in Cascade. See the
+[Windsurf skills docs](https://docs.devin.ai/desktop/cascade/skills)
+for current behavior.
 
 ## OpenCode
 
-> These are documented setup patterns, not CI-verified adapters.
-
-If using [oh-my-opencode](https://github.com/nicobailon/oh-my-opencode) or
-your OpenCode setup supports skill discovery, place the skill where it can be found.
-Replace `/path/to` with the actual location of your clone:
+OpenCode loads skills on demand through its native `skill` tool. It
+discovers `.opencode/skills/`, `.claude/skills/`, and `.agents/skills/`
+in the project, plus `~/.config/opencode/skills/`, `~/.claude/skills/`,
+and `~/.agents/skills/` globally — the
+[Portable Checkout](#portable-checkout--helper-runtime-all-hosts)
+covers it (Tier 2 — recommended; canonical environment block there).
+Skill-only copy (Tier 1; the `rm -rf` keeps a re-copy from nesting
+`lean4/lean4`):
 
 ```bash
-# Option A: project-level (copies SKILL.md + references/)
-mkdir -p .opencode/skills
-cp -r "/path/to/lean4-skills/plugins/lean4/skills/lean4" .opencode/skills/
-
-# Option B: global
 mkdir -p ~/.config/opencode/skills
-cp -r "/path/to/lean4-skills/plugins/lean4/skills/lean4" ~/.config/opencode/skills/
-```
-
-**Without oh-my-opencode:** Point OpenCode at SKILL.md via its instructions
-file or paste relevant sections into your project's configuration.
-
-Set env vars in your shell profile:
-
-```bash
-export LEAN4_PLUGIN_ROOT=/path/to/lean4-skills/plugins/lean4
-export LEAN4_SCRIPTS=$LEAN4_PLUGIN_ROOT/lib/scripts
-export LEAN4_REFS=$LEAN4_PLUGIN_ROOT/skills/lean4/references
-export PATH="$LEAN4_PLUGIN_ROOT/bin:$PATH"   # so `lean4-skills-*` wrappers resolve
+rm -rf ~/.config/opencode/skills/lean4
+cp -r "$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4" ~/.config/opencode/skills/
 ```
 
 OpenCode supports MCP servers — see [OpenCode docs](https://opencode.ai/docs/)
@@ -241,52 +400,72 @@ for current MCP setup commands.
 
 ### Verify
 
+Ask OpenCode to use the `lean4` skill — its `skill` tool should load
+it. With the full setup, also:
+
 ```bash
-echo "$LEAN4_SCRIPTS"
+command -v lean4-skills-sorry-analyzer
 lean4-skills-sorry-analyzer . --format=summary --report-only
 ```
+
+## GitHub Copilot
+
+Copilot discovers Agent Skills in `.github/skills/`, `.claude/skills/`,
+and `.agents/skills/` (repository), plus `~/.copilot/skills/` and
+`~/.agents/skills/` (personal) — the
+[Portable Checkout](#portable-checkout--helper-runtime-all-hosts)
+covers personal use (Tier 2). Skills work with the Copilot cloud coding
+agent, Copilot CLI, and VS Code agent mode.
+
+**Quick install (Tier 1 — core skill only)** with GitHub CLI ≥ 2.92.0
+(`gh skill` is in public preview; 2.92 is the first version that
+installs this repository's plugin-directory layout flat, the way this
+guide describes). Use the plain `lean4` name — the namespaced
+`lean4/lean4` selector works only for `preview`, not `install`. Use
+`@main` — an install without it resolves the repository's latest
+GitHub release, which lags `main`:
+
+```bash
+gh skill preview cameronfreer/lean4-skills lean4@main
+gh skill install cameronfreer/lean4-skills lean4@main \
+  --agent github-copilot --scope user
+```
+
+gh reports the skill's logical name as `lean4/lean4` and installs the
+files at `<skills-root>/lean4/`.
+
+This installs the skill directory only — see
+[Installation Tiers](#installation-tiers) for what that excludes.
+
+### Verify
+
+```bash
+gh skill list
+```
+
+`lean4` should appear. With the full setup, also
+`command -v lean4-skills-sorry-analyzer`.
 
 ## Any Agent (Generic)
 
 Any LLM coding agent that can read markdown and run shell commands can use this pack:
 
-1. Clone the repo
-2. Set the four env vars (see [Environment Bootstrap](#environment-bootstrap-all-hosts) above) — including `PATH` so the `lean4-skills-*` wrappers resolve as bare commands
-3. Point your agent at `plugins/lean4/skills/lean4/SKILL.md` as system context
-4. Scripts work standalone — no adapter needed:
+1. Do the [Portable Checkout + Helper Runtime](#portable-checkout--helper-runtime-all-hosts)
+   setup — one clone, an optional `.agents/skills` link (if your agent
+   supports skill discovery there), and the canonical environment block
+2. Point your agent at `plugins/lean4/skills/lean4/SKILL.md` as system context
+3. Scripts work standalone — no adapter needed:
    ```bash
    lean4-skills-sorry-analyzer . --format=summary --report-only
    lean4-skills-check-axioms-inline path/to/YourFile.lean --report-only
    lean4-skills-search-mathlib "continuous" name
    ```
-5. If your agent supports MCP, add lean-lsp-mcp for faster mathlib search and sub-second feedback
-
-**Optional — skill auto-discovery:** Some setups may support discovering
-skills at `.agents/skills/<name>/SKILL.md`. This is host-dependent — check
-your agent's docs for supported discovery paths. If supported:
-
-```bash
-# Unix/macOS — symlink
-mkdir -p .agents/skills
-ln -s "/path/to/lean4-skills/plugins/lean4/skills/lean4" .agents/skills/lean4
-
-# Unix/macOS — copy
-mkdir -p .agents/skills
-cp -r "/path/to/lean4-skills/plugins/lean4/skills/lean4" .agents/skills/lean4
-
-# Windows (Git Bash)
-mkdir -p .agents/skills
-cp -r "/path/to/lean4-skills/plugins/lean4/skills/lean4" .agents/skills/lean4
-
-# Windows (PowerShell)
-New-Item -ItemType Directory -Force -Path .agents\skills
-Copy-Item -Recurse "path\to\lean4-skills\plugins\lean4\skills\lean4" .agents\skills\lean4
-```
+4. If your agent supports MCP, add lean-lsp-mcp for faster mathlib search and sub-second feedback
 
 ### Verify
 
 ```bash
-echo "$LEAN4_SCRIPTS"                        # bootstrap set the env var
+echo "$LEAN4_SCRIPTS"                        # shell-profile env block set the variable
 command -v lean4-skills-sorry-analyzer        # wrapper resolves on PATH
 lean4-skills-sorry-analyzer . --format=summary --report-only
 ```

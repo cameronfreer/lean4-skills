@@ -134,7 +134,7 @@ Output returned by hooks (via stdout):
 3. User runs `codex` → `/review` interactively, or uses `codex exec` with a prompt
 4. User pastes suggestions back; review command parses and merges them
 
-For CI automation, use `codex exec` with structured output. See [review.md](../../../commands/review.md#codex-integration) for details.
+For CI automation, use `codex exec` with structured output. See [review.md](https://github.com/cameronfreer/lean4-skills/blob/main/plugins/lean4/commands/review.md#codex-integration) (live repository copy) for details.
 
 ### Example Custom Hook Script
 
@@ -248,5 +248,5 @@ Use `preferences.verbosity` to signal desired response detail level.
 
 ## See Also
 
-- [`/lean4:review`](../../../commands/review.md) - Review command documentation
+- [`/lean4:review`](https://github.com/cameronfreer/lean4-skills/blob/main/plugins/lean4/commands/review.md) - Review command documentation (live repository copy)
 - [mathlib-style.md](mathlib-style.md) - Style guidelines for suggestions

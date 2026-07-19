@@ -624,6 +624,53 @@ if [[ "$check28_ok" -eq 1 ]]; then
     ok "Check 28: every bin/ wrapper's delegation target exists and is executable"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 29: skills/lean4/agents/openai.yaml metadata contract. The file
+# is generated once (skill-creator's generate_openai_yaml.py) and
+# checked in; this check keeps later hand-edits from silently
+# invalidating it. Contract: exactly one top-level `interface:` block
+# with quoted display_name / short_description / default_prompt;
+# short_description 25-64 chars (Codex UI budget); default_prompt names
+# the `$lean4` invocation; no `policy:` block (allow_implicit_invocation
+# defaults to true — restating defaults invites drift).
+# ---------------------------------------------------------------------------
+check29_ok=1
+OPENAI_YAML="$PLUGIN_ROOT/skills/lean4/agents/openai.yaml"
+if [[ ! -f "$OPENAI_YAML" ]]; then
+    fail "Check 29: missing skills/lean4/agents/openai.yaml"
+    check29_ok=0
+else
+    n_iface=$(grep -cE '^interface:[[:space:]]*$' "$OPENAI_YAML" || true)
+    if [[ "$n_iface" -ne 1 ]]; then
+        fail "Check 29: openai.yaml has $n_iface top-level 'interface:' blocks (want exactly 1)"
+        check29_ok=0
+    fi
+    extra=$(grep -E '^[A-Za-z_]+:' "$OPENAI_YAML" | grep -vE '^interface:[[:space:]]*$' || true)
+    if [[ -n "$extra" ]]; then
+        fail "Check 29: openai.yaml has unexpected top-level key(s): $extra"
+        check29_ok=0
+    fi
+    for key in display_name short_description default_prompt; do
+        n_key=$(grep -cE "^  ${key}: \".+\"[[:space:]]*$" "$OPENAI_YAML" || true)
+        if [[ "$n_key" -ne 1 ]]; then
+            fail "Check 29: openai.yaml has $n_key quoted '$key' entries (want exactly 1)"
+            check29_ok=0
+        fi
+    done
+    sd=$(sed -n 's/^  short_description: "\(.*\)"[[:space:]]*$/\1/p' "$OPENAI_YAML")
+    if [[ "${#sd}" -lt 25 || "${#sd}" -gt 64 ]]; then
+        fail "Check 29: openai.yaml short_description length ${#sd} outside 25-64"
+        check29_ok=0
+    fi
+    if ! grep -qE '^  default_prompt: ".*\$lean4.*"[[:space:]]*$' "$OPENAI_YAML"; then
+        fail "Check 29: openai.yaml default_prompt does not name \$lean4"
+        check29_ok=0
+    fi
+fi
+if [[ "$check29_ok" -eq 1 ]]; then
+    ok "Check 29: agents/openai.yaml metadata matches the generated contract"
+fi
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]

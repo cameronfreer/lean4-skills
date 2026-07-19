@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lean 4"
+  short_description: "Prove and debug Lean 4 with mathlib"
+  default_prompt: "Use $lean4 to diagnose and solve this Lean 4 task."
