@@ -91,7 +91,11 @@ mkdir -p "$HOME/.agents/skills"
 src="$HOME/.local/share/lean4-skills/plugins/lean4/skills/lean4"
 dest="$HOME/.agents/skills/lean4"
 if [ -e "$dest" ] && [ ! -L "$dest" ]; then   # back up a prior copy — ln can't replace a real directory
-  mv "$dest" "$dest.bak-$(date +%Y%m%d%H%M%S)-$$" && ln -sfn "$src" "$dest"
+  if mv "$dest" "$dest.bak-$(date +%Y%m%d%H%M%S)-$$"; then
+    ln -sfn "$src" "$dest"
+  else
+    printf 'Could not back up %s; leaving it unchanged.\n' "$dest" >&2
+  fi
 else
   ln -sfn "$src" "$dest"
 fi
