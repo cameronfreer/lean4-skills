@@ -57,5 +57,8 @@ jobs:
       - name: Self-test — validate_user_prompt hook
         run: /bin/bash plugins/lean4/tests/test_validate_user_prompt.sh
 
+      - name: Self-test — native Codex plugin adapter
+        run: /bin/bash plugins/lean4/tests/test_codex_adapter.sh
+
       - name: Runtime smoke — cycle_tracker.sh under /bin/bash
         run: /bin/bash plugins/lean4/tests/test_bash3_smoke.sh

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Self-test for lint_docs.sh Check 8c (Python helper interpreter prefix,
-# closes #135) and Check 8e (compilation-errors.md heading uniqueness).
+# Self-test for lint_docs.sh Check 8c (Python helper interpreter prefix),
+# Check 8e (compilation-errors.md heading uniqueness), and Check 23
+# (Claude/Codex release-metadata consistency).
 # For each check, verify it fires on a planted violation and emits its
 # clean-run OK line once the violation is removed.
 #
@@ -174,6 +175,67 @@ if echo "$output4" | grep -qF "$warn_preamble_8e"; then
 fi
 if [[ $probe4_ok -eq 1 ]]; then
   echo "  PASS: Probe 4 — Check 8e clean on restored tree (OK line present, no WARN)"
+  ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 5 — Check 23: a Codex manifest version drift must be reported. The
+# real manifest is backed up and restored exactly like compilation-errors.md;
+# never use git checkout, which could clobber an in-progress edit.
+# ---------------------------------------------------------------------------
+CODEX_MANIFEST="$PLUGIN_ROOT/.codex-plugin/plugin.json"
+CODEX_BACKUP=$(mktemp)
+cp "$CODEX_MANIFEST" "$CODEX_BACKUP"
+trap 'cp "$CE_BACKUP" "$CE_FILE"; cp "$CODEX_BACKUP" "$CODEX_MANIFEST"; rm -f "$CE_BACKUP" "$CODEX_BACKUP" "$SCRATCH"' EXIT
+
+python3 - "$CODEX_MANIFEST" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as f:
+    data = json.load(f)
+data["version"] = "0.0.0"
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2, ensure_ascii=False)
+    f.write("\n")
+PY
+
+output5=$("$BASH_FOR_COMPAT" "$LINT" 2>&1 || true)
+
+if echo "$output5" | grep -qF "Codex plugin version (0.0.0) != plugin.json"; then
+  echo "  PASS: Probe 5 — Check 23 fires on Codex manifest version drift"
+  ((PASS++)) || true
+else
+  echo "  FAIL: Probe 5 — Check 23 did not flag Codex manifest version drift"
+  echo "         relevant output:"
+  echo "$output5" | grep -E "Codex plugin version|release metadata" | sed 's/^/           /' || true
+  ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 6 — restored Codex version: Check 23 emits its clean line and no drift
+# warning. Restore explicitly before the second linter invocation; the trap
+# remains as the interruption safety net.
+# ---------------------------------------------------------------------------
+cp "$CODEX_BACKUP" "$CODEX_MANIFEST"
+output6=$("$BASH_FOR_COMPAT" "$LINT" 2>&1 || true)
+
+ok_line_23='✓ Codex plugin version matches plugin.json'
+warn_preamble_23='Codex plugin version ('
+probe6_ok=1
+if ! echo "$output6" | grep -qF "$ok_line_23"; then
+  echo "  FAIL: Probe 6 — expected Check 23 OK line not found"
+  probe6_ok=0
+fi
+if echo "$output6" | grep -F "$warn_preamble_23" | grep -qF "!= plugin.json"; then
+  echo "  FAIL: Probe 6 — Codex version-drift warning remained after restore"
+  probe6_ok=0
+fi
+if [[ $probe6_ok -eq 1 ]]; then
+  echo "  PASS: Probe 6 — Check 23 clean after Codex manifest restore"
   ((PASS++)) || true
 else
   ((FAIL++)) || true

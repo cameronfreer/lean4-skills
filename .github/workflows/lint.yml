@@ -52,6 +52,9 @@ jobs:
           python3 plugins/lean4/lib/scripts/tests/test_ordering.py
           python3 plugins/lean4/lib/scripts/tests/test_sorry_analyzer.py
 
+      - name: Native Codex adapter contract (Python 3.10)
+        run: /bin/bash plugins/lean4/tests/test_codex_adapter.sh
+
   mypy:
     runs-on: ubuntu-latest
     steps:
@@ -122,4 +125,5 @@ jobs:
             plugins/lean4/hooks/*.sh \
             plugins/lean4/lib/scripts/*.sh \
             plugins/lean4/tools/*.sh \
+            plugins/lean4/tests/test_codex_adapter.sh \
             plugins/lean4/bin/lean4-skills-*
