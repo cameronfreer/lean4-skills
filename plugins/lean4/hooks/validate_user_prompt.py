@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Claude UserPromptSubmit hook for /lean4:* slash commands.
+UserPromptSubmit hook for /lean4:* workflow-shaped prompts.
 
 Validates slash-command inputs before the model sees the prompt.
 Hard parse errors block the prompt; successful parses inject a
@@ -17,11 +17,14 @@ import os
 import sys
 import tempfile
 
-# Resolve plugin root from CLAUDE_PLUGIN_ROOT (set by Claude Code at hook time)
-# or fall back to the script's own location when invoked directly.
+# Resolve the plugin root from Codex's native PLUGIN_ROOT first, then the
+# Claude-compatible variable, then the script's own location when invoked
+# directly. Codex may set both variables; the native value must win.
 # hooks/validate_user_prompt.py -> dirname = hooks -> parent = plugin root.
-_PLUGIN_ROOT = os.environ.get("CLAUDE_PLUGIN_ROOT") or os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__))
+_PLUGIN_ROOT = (
+    os.environ.get("PLUGIN_ROOT")
+    or os.environ.get("CLAUDE_PLUGIN_ROOT")
+    or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 )
 _LIB_ROOT = os.path.join(_PLUGIN_ROOT, "lib")
 if _LIB_ROOT not in sys.path:
