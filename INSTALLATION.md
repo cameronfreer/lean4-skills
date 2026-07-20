@@ -13,17 +13,18 @@ Three install shapes, referenced throughout this guide:
   the instructions and references: the skill's LSP-first workflows
   operate when your host separately provides Lean LSP tools (see
   [Lean LSP MCP Server](#lean-lsp-mcp-server-all-hosts)); script-backed
-  steps need Tier 2.
+  steps need Tier 2 or Tier 3.
 - **Tier 2 — Portable checkout + helper runtime.** One cloned checkout,
   an `.agents/skills` symlink for native discovery, and one environment
   block. Adds the helper runtime (wrappers on PATH, `$LEAN4_SCRIPTS`) to
   the core skill. Does not recreate host-specific commands, hooks, or
   subagent definitions. See
   [Portable Checkout + Helper Runtime](#portable-checkout--helper-runtime-all-hosts).
-- **Tier 3 — Native plugin.** The complete experience — commands, hooks,
-  guardrails, subagents. Claude Code today (next section); a native
-  Codex plugin is tracked in
-  [#153](https://github.com/cameronfreer/lean4-skills/issues/153).
+- **Tier 3 — Native plugin.** Host-native discovery plus the bundled helper
+  runtime and hooks. Claude Code registers `/lean4:*` commands and subagents;
+  Codex discovers `$lean4`, injects absolute helper paths through trusted
+  SessionStart context, and registers advisory hooks. Host command surfaces
+  are not assumed to be identical.
 
 ## Claude Code (Native Plugin)
 
@@ -96,7 +97,9 @@ chmod +x $LEAN4_SCRIPTS/*.sh $LEAN4_SCRIPTS/*.py
 
 ## Portable Checkout + Helper Runtime (All Hosts)
 
-The recommended full setup (Tier 2) for every host except Claude Code.
+The portable full-runtime fallback for hosts without a native plugin, or for
+users who prefer an explicit checkout. Claude Code and Codex have Tier-3
+native plugins; the remaining hosts use this Tier-2 path.
 Codex, Cursor, Windsurf, OpenCode, GitHub Copilot, and Gemini CLI all
 discover Agent Skills from `~/.agents/skills` (and its project-level
 `.agents/skills` counterpart); Codex documents symlink support — for a
@@ -204,20 +207,86 @@ Then remove the environment block from your shell profile.
 
 ## OpenAI Codex CLI
 
-**Quick install (Tier 1 — core skill only).** Run this in Codex chat,
-not in your shell:
+### Native plugin (Tier 3 — recommended)
+
+Add the Git marketplace and install the in-place `lean4` plugin:
+
+```bash
+codex plugin marketplace add cameronfreer/lean4-skills --ref main
+codex plugin add lean4@lean4-skills
+```
+
+The marketplace contains a Codex adapter pointing directly at
+`plugins/lean4`; it does not install a mirrored package tree and does not
+include `lean4-contribute`.
+
+#### First-run hook trust
+
+Codex does not automatically trust installed plugin hooks. Before trust:
+
+- `$lean4` remains discoverable as a core skill.
+- SessionStart does not inject helper paths.
+- UserPromptSubmit validation and Bash PreToolUse guardrails are skipped.
+
+Open `/hooks`, review the exact installed `lean4` hook commands, and trust the
+hook hash. Then start a new Codex task so SessionStart runs again. Trusted
+SessionStart supplies the installed `plugin_root`, `bin_dir`, `scripts_dir`,
+`refs_dir`, and absolute preflight path as context. These are not persistent
+shell variables: invoke helpers with literal paths such as
+`/installed/plugin/bin/lean4-skills-sorry-analyzer`, not as bare commands.
+
+The PreToolUse Bash hook is advisory. Codex interception does not cover every
+specialized or hosted execution path, so this hook is not a security or
+enforcement boundary. The plugin also does not register Claude Code's
+`/lean4:*` slash commands; invoke `$lean4` and ask for the named workflow.
+
+#### Verify
+
+```bash
+codex plugin list
+```
+
+In Codex:
+
+1. Type `$` and confirm `lean4` appears.
+2. Open `/hooks` and confirm the installed hook is trusted.
+3. Start a new task and inspect the SessionStart context.
+4. Run the literal absolute preflight path from that context:
+
+```bash
+/installed/plugin/bin/lean4-skills-preflight --codex
+```
+
+The preflight must succeed even when `LEAN4_*` are unset and the plugin's
+`bin/` directory is absent from PATH.
+
+#### Update or uninstall
+
+```bash
+codex plugin marketplace upgrade lean4-skills
+codex plugin add lean4@lean4-skills
+```
+
+Review the new hook hash after an update, then start a new task. To remove the
+plugin:
+
+```bash
+codex plugin remove lean4@lean4-skills
+```
+
+### Core skill only (Tier 1 fallback)
+
+Run this in Codex chat, not in your shell:
 
 ```text
 $skill-installer Install the `lean4` skill from
 https://github.com/cameronfreer/lean4-skills/tree/main/plugins/lean4/skills/lean4
 ```
 
-On your next turn, invoke it explicitly with `$lean4`, or let Codex
-activate it automatically for Lean 4 tasks. (If the skill does not
-appear, restart Codex.) This installs the core
-skill instructions, references, and metadata only — not the
-`lean4-skills-*` helper executables, plugin hooks, subagent
-definitions, or the Claude Code `/lean4:*` command surface.
+On your next turn, invoke it explicitly with `$lean4`, or let Codex activate
+it automatically for Lean 4 tasks. If it does not appear, restart Codex. This
+installs instructions, references, and metadata only — not helper executables,
+plugin hooks, subagent definitions, or a `/lean4:*` command surface.
 
 > `$skill-installer` manages its own install location under
 > `$CODEX_HOME/skills` (`~/.codex/skills` by default), while manual
@@ -225,7 +294,9 @@ definitions, or the Claude Code `/lean4:*` command surface.
 > prescribe the installer's destination — after installing, verify that
 > `$lean4` is discovered (type `$` or run `/skills`).
 
-**Full setup (Tier 2, recommended).** Use the
+### Portable checkout (Tier 2 fallback)
+
+Use the
 [Portable Checkout + Helper Runtime](#portable-checkout--helper-runtime-all-hosts)
 — Codex discovers `.agents/skills` in your project and home directory
 and follows symlinked skill directories.
@@ -236,7 +307,9 @@ and follows symlinked skill directories.
 > link can both appear. Remove the installer copy
 > (`rm -rf "${CODEX_HOME:-$HOME/.codex}/skills/lean4"`) when you switch.
 
-**Optional `AGENTS.md` pointer.** `AGENTS.md` is for durable project
+### Optional integrations
+
+**`AGENTS.md` pointer.** `AGENTS.md` is for durable project
 guidance, not installation. If your project uses one, a single line is
 enough:
 
@@ -249,16 +322,6 @@ for the exact command — e.g.:
 
 ```bash
 codex mcp add lean-lsp -- uvx lean-lsp-mcp
-```
-
-### Verify
-
-In Codex chat, type `$` — `lean4` should appear in the skill list. With
-the full setup, also:
-
-```bash
-command -v lean4-skills-sorry-analyzer
-lean4-skills-sorry-analyzer . --format=summary --report-only
 ```
 
 ## Gemini CLI
@@ -551,6 +614,7 @@ If you have the old 3-plugin system:
 ## Getting Help
 
 - **Plugin diagnostics (Claude Code):** `/lean4:doctor` — checks environment, plugin, and project
+- **Plugin diagnostics (Codex):** run the absolute `preflight` path from trusted SessionStart context with `--codex`; use `/hooks` if context is missing
 - **Issues:** https://github.com/cameronfreer/lean4-skills/issues
 - **LSP server:** https://github.com/oOo0oOo/lean-lsp-mcp/issues
 - **Claude Code:** `/help`

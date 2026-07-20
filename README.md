@@ -67,17 +67,28 @@ Optionally, install the contribution helper to draft bug reports, feature reques
 
 ### Codex
 
-Quick install — run this in Codex chat, not in your shell:
+Native plugin install (Tier 3) — run in your shell:
+
+```bash
+codex plugin marketplace add cameronfreer/lean4-skills --ref main
+codex plugin add lean4@lean4-skills
+```
+
+Review the installed hook in `/hooks`, then start a new Codex task. Invoke the
+skill with `$lean4`; trusted SessionStart context supplies absolute helper
+paths without modifying your shell profile or PATH. The Bash PreToolUse hook
+is advisory, and Codex does not register the Claude `/lean4:*` commands.
+
+Core-skill-only fallback — run this in Codex chat, not in your shell:
 
 ```text
 $skill-installer Install the `lean4` skill from
 https://github.com/cameronfreer/lean4-skills/tree/main/plugins/lean4/skills/lean4
 ```
 
-Then invoke it with `$lean4`, or let Codex activate it automatically
-for Lean 4 tasks (if it does not appear, restart Codex). This installs the core skill only (instructions +
-references, no helper scripts) — see
-[INSTALLATION.md → Codex](INSTALLATION.md#openai-codex-cli) for the full setup.
+This fallback installs instructions and references without helper scripts or
+hooks. See [INSTALLATION.md → Codex](INSTALLATION.md#openai-codex-cli) for
+trust, verification, update, and portable-checkout details.
 
 ### Other Hosts
 
@@ -146,7 +157,8 @@ claude mcp add --transport stdio --scope project lean-lsp -- uvx lean-lsp-mcp
 | Host | Status | Workflow |
 |---|---|---|
 | Claude Code | Full native | SKILL.md + scripts + `/lean4:*` commands, hooks, guardrails, subagents |
-| Codex / Gemini / Antigravity / OpenCode / Copilot | Documented\* | Native Agent Skills discovery (+ scripts via portable checkout) |
+| Codex | Native plugin | SKILL.md + absolute-path helper runtime + trusted hooks; no `/lean4:*` command parity |
+| Gemini / Antigravity / OpenCode / Copilot | Documented\* | Native Agent Skills discovery (+ scripts via portable checkout) |
 | Cursor / Windsurf | Documented\* | Native Agent Skills discovery (+ scripts via portable checkout) |
 
 \*Documented setup patterns, not CI-verified.
