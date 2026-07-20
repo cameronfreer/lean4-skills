@@ -11,6 +11,11 @@ on:
   push:
     branches: [main]
 
+# Explicit read-only: omitting permissions would inherit the repository
+# default, which is not guaranteed to be read-only. Nothing here writes.
+permissions:
+  contents: read
+
 jobs:
   ruff:
     runs-on: ubuntu-latest
@@ -141,6 +146,13 @@ jobs:
 
       - name: test_contracts.sh (wrapper/doc/agent contract suite)
         run: bash plugins/lean4/tools/test_contracts.sh
+
+      # Regression suite for the extraction contract itself (prefix
+      # collision, duplicate headings, empty section, malformed/missing
+      # version) — fixture-based, so it covers the failure cases the
+      # live-CHANGELOG step below can't reach.
+      - name: Self-test — release_notes.sh
+        run: bash plugins/lean4/tests/test_release_notes.sh
 
       # Belt-and-suspenders on top of Check 23: run the exact extraction
       # release.yml will run at publish time, against the version this
