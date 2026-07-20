@@ -1,5 +1,19 @@
 # Changelog
 
+## v4.5.6 (July 2026)
+
+Release automation + skill license metadata. Ends the stale-release footgun: GitHub releases were cut by hand and had stalled at v4.4.10 while main shipped v4.5.5, which is why every `gh skill` command in the docs pins `@main`. No runtime changes.
+
+### CI
+
+- **New `release.yml` workflow** — when a version bump lands on main (push trigger scoped to `plugin.json`), creates the `vX.Y.Z` tag + GitHub release with that version's CHANGELOG section as the notes. No versioning logic of its own: the PR-time release-contract gate (below) guarantees plugin.json ↔ marketplace.json ↔ CHANGELOG consistency, so the workflow just reads the version and publishes. Idempotent (already-released versions are successful no-ops), and race-hardened: `concurrency: queue: max` serializes runs without replacing pending ones; existing-tag validation is event-sensitive (`gh release create --target` never retargets an existing tag) — a push run requires the tag to point at its own commit, while dispatch recovery accepts a tag on an earlier main commit iff it's an ancestor of head and that commit's plugin.json carries the exact version, so a correct tag from a failed publish is reusable without retargeting. Release notes are extracted from the CHANGELOG *at the commit the release attaches to* (`target_sha`), not from the checkout — so recovery can't pair an old tag with newer notes — and the release is explicitly marked `--latest`; `workflow_dispatch` covers backfill/recovery (guarded to main); `actions/checkout` is pinned to a full commit SHA with `persist-credentials: false` since the workflow holds `contents: write`.
+- **New `release-contract` job in `lint.yml`** — runs the full `lint_docs.sh` and `test_contracts.sh` suites on every PR, plus the `release_notes.sh` regression suite and the release-notes extraction itself. Previously lint_docs was maintainer-run only (CI's bash3 self-tests deliberately ignore its overall exit status), so Check 23's release-metadata sync was convention rather than enforcement — and release.yml depends on it holding for every commit on main. lint.yml also declares explicit `permissions: contents: read`.
+- **New `tools/release_notes.sh` + `tests/test_release_notes.sh`** — single source of truth for CHANGELOG section extraction (exactly one exact `## vX.Y.Z` heading, non-empty body), shared by `release.yml`, the release-contract job, and lint_docs Check 23 — whose previous substring grep would have accepted `## v4.5.60` as satisfying 4.5.6, and accepted an empty section. Duplicate headings for the same version are rejected rather than silently concatenated. The fixture-based self-test covers extraction shape, prefix collision, missing/malformed versions, empty sections, and duplicates.
+
+### Skill metadata
+
+- **`license: MIT` in SKILL.md frontmatter** — the one remaining `gh skill publish --dry-run` recommendation (the repo-root LICENSE file already existed; the Agent Skills frontmatter field didn't).
+
 ## v4.5.5 (July 2026)
 
 Native Agent Skills metadata and multi-host installation docs (Refs #153). Every major host (Codex, Cursor, Windsurf, OpenCode, Gemini CLI / Antigravity CLI, GitHub Copilot) now discovers Agent Skills natively from `.agents/skills`, so the old per-host adapter instructions (`AGENTS.md`, `GEMINI.md`, `.cursor/rules`, oh-my-opencode) were stale. No runtime changes.
