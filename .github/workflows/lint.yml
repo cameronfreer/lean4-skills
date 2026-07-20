@@ -123,3 +123,29 @@ jobs:
             plugins/lean4/lib/scripts/*.sh \
             plugins/lean4/tools/*.sh \
             plugins/lean4/bin/lean4-skills-*
+
+  release-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Until this job, lint_docs.sh was maintainer-run only: CI ran
+      # ruff/mypy/shellcheck plus the bash3 self-tests, and those
+      # self-tests deliberately ignore lint_docs' overall exit status
+      # (they assert specific Check 8c/8e messages). So Check 23's
+      # release-metadata gate (plugin.json ↔ marketplace.json ↔
+      # CHANGELOG sync) was convention, not enforcement — while
+      # release.yml relies on it holding for every commit on main.
+      - name: lint_docs.sh (all checks, incl. Check 23 release metadata)
+        run: bash plugins/lean4/tools/lint_docs.sh
+
+      - name: test_contracts.sh (wrapper/doc/agent contract suite)
+        run: bash plugins/lean4/tools/test_contracts.sh
+
+      # Belt-and-suspenders on top of Check 23: run the exact extraction
+      # release.yml will run at publish time, against the version this
+      # PR ships, and echo the would-be notes into the job log.
+      - name: Validate release-notes extraction (same script release.yml runs)
+        run: |
+          version=$(python3 -c "import json; print(json.load(open('plugins/lean4/.claude-plugin/plugin.json'))['version'])")
+          bash plugins/lean4/tools/release_notes.sh "$version"
