@@ -12,17 +12,42 @@ name: release
 # on main the plugin.json version is authoritative and its CHANGELOG
 # section exists. This job just reads that version and publishes it.
 #
-# Idempotent by construction: every push to main runs it, but it exits
-# early (successfully) when a release for the current version already
-# exists — so merges that don't bump the version are no-ops, and re-runs
-# never duplicate a release.
+# Idempotent by construction: it exits early (successfully) when a
+# release for the current version already exists, so re-runs and manual
+# dispatches never duplicate a release.
+#
+# Two guards against racing runs (workflow runs are concurrent by
+# default, and each run tags its own commit): the push trigger is scoped
+# to plugin.json — the only file whose change can mean a new version —
+# and the concurrency queue below serializes any runs that do trigger.
 
 on:
   push:
     branches: [main]
+    # Only version bumps can need a release, and Check 23 ties the
+    # version to this file. Scoping the trigger keeps unrelated merges
+    # from entering the race at all — without it, a non-bump push
+    # landing just after a bump could win the tag-creation race and
+    # attach vX.Y.Z to its own (later) commit.
+    paths:
+      - plugins/lean4/.claude-plugin/plugin.json
   # Manual trigger for backfill/recovery: cuts the release for whatever
-  # version is currently on main (e.g. after a transient failure).
+  # version is currently on main (e.g. after a transient failure, or a
+  # bump that landed without touching plugin.json — impossible today,
+  # but the paths filter above would miss it).
   workflow_dispatch:
+
+# Serialize release runs in trigger order. `queue: max` keeps every
+# pending run queued (the default `single` replaces the pending run,
+# which could silently skip a version if three bumps land rapid-fire).
+# Without serialization, two closely spaced runs could both observe
+# "no release for this version yet" — one would then fail at create.
+# cancel-in-progress stays unset: it's a validation error combined with
+# queue: max, and cancelling a half-finished release run is exactly
+# what we don't want.
+concurrency:
+  group: lean4-release
+  queue: max
 
 # The default GITHUB_TOKEN is read-only; tag + release creation needs
 # contents: write. Scoped to the whole workflow since it has one job.
