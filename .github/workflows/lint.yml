@@ -129,6 +129,43 @@ jobs:
             plugins/lean4/tools/*.sh \
             plugins/lean4/bin/lean4-skills-*
 
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Static validation of the workflow files themselves — YAML
+      # shape, Actions expression syntax, action inputs. Added after an
+      # empty dollar-double-brace expression inside a *shell comment*
+      # in release.yml shipped an invalid workflow file to main (the
+      # v4.5.6 release run failed with "An expression was expected"):
+      # GitHub evaluates expressions anywhere in a value, comments
+      # included, plain YAML parsing can't see that class, and an
+      # invalid workflow file only surfaces post-merge as 0-second
+      # phantom run failures that never appear in PR checks. actionlint
+      # catches it pre-merge (its [expression] check flags exactly that
+      # error). Pinned exact like shellcheck below.
+      - name: Install actionlint 1.7.12
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fsSL \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+            -o actionlint.tar.gz
+          tar -xzf actionlint.tar.gz actionlint
+          ./actionlint --version | head -1 | grep -Fxq '1.7.12'
+
+      # -ignore: actionlint 1.7.12's concurrency schema predates
+      # GitHub's opt-in queueing and misreports `queue: max` as an
+      # unknown key — GitHub itself accepts it (documented feature, and
+      # the live validator parsed past it when release.yml broke for
+      # the unrelated reason above). Drop the -ignore once actionlint
+      # learns the key.
+      - name: actionlint (.github/workflows)
+        run: |
+          "$RUNNER_TEMP/actionlint" \
+            -ignore 'unexpected key "queue" for "concurrency" section' \
+            .github/workflows/*.yml
+
   release-contract:
     runs-on: ubuntu-latest
     steps:
