@@ -1,5 +1,17 @@
 # Changelog
 
+## v4.5.6 (July 2026)
+
+Release automation + skill license metadata. Ends the stale-release footgun: GitHub releases were cut by hand and had stalled at v4.4.10 while main shipped v4.5.5, which is why every `gh skill` command in the docs pins `@main`. No runtime changes.
+
+### CI
+
+- **New `release.yml` workflow** — on every push to main, reads the version from `plugin.json` and, if no release for it exists yet, creates the `vX.Y.Z` tag + GitHub release with that version's CHANGELOG section as the notes. Contains no versioning logic of its own: lint_docs Check 23 already gates every PR on plugin.json ↔ marketplace.json ↔ CHANGELOG consistency, so the workflow just reads and publishes. Idempotent (version-unchanged merges are no-ops; re-runs never duplicate a release), fails loudly if the CHANGELOG section is missing, and offers `workflow_dispatch` for backfill/recovery (guarded to main).
+
+### Skill metadata
+
+- **`license: MIT` in SKILL.md frontmatter** — the one remaining `gh skill publish --dry-run` recommendation (the repo-root LICENSE file already existed; the Agent Skills frontmatter field didn't).
+
 ## v4.5.5 (July 2026)
 
 Native Agent Skills metadata and multi-host installation docs (Refs #153). Every major host (Codex, Cursor, Windsurf, OpenCode, Gemini CLI / Antigravity CLI, GitHub Copilot) now discovers Agent Skills natively from `.agents/skills`, so the old per-host adapter instructions (`AGENTS.md`, `GEMINI.md`, `.cursor/rules`, oh-my-opencode) were stale. No runtime changes.
