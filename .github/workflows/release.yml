@@ -101,6 +101,11 @@ jobs:
             exit 0
           fi
           echo "exists=false" >> "$GITHUB_OUTPUT"
+          # target_sha is the commit the release will actually attach
+          # to: the existing validated tag's commit when there is one,
+          # this run's commit otherwise. Later steps must use it both
+          # for --target and for extracting the release notes.
+          target_sha="$GITHUB_SHA"
           # No release yet — but if the tag already exists (a previous
           # run tagged and then failed before publishing, or the tag was
           # pre-created by hand), `gh release create` would silently
@@ -136,16 +141,26 @@ jobs:
               fi
             fi
             echo "Tag $tag already exists and passed validation — will reuse it."
+            target_sha="$tag_sha"
           fi
+          echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
 
       - name: Extract this version's CHANGELOG section as release notes
         if: steps.released.outputs.exists == 'false'
         run: |
-          # Same script Check 23 gates PRs with: requires the exact
-          # "## vX.Y.Z" heading and a non-empty section, failing loudly
-          # (rather than shipping blank notes) if main is inconsistent.
+          # Notes must come from the commit the release attaches to
+          # (target_sha), not from this checkout: in dispatch recovery
+          # the tagged commit may be older than main's head, and the
+          # section could have been edited in between — publishing the
+          # head's notes against the tag's commit would break the
+          # provenance the tag validation preserves. Same extraction
+          # script Check 23 gates PRs with: exact "## vX.Y.Z" heading,
+          # exactly once, non-empty — failing loudly rather than
+          # shipping blank notes.
+          git show "${{ steps.released.outputs.target_sha }}:CHANGELOG.md" > "$RUNNER_TEMP/CHANGELOG.md"
           bash plugins/lean4/tools/release_notes.sh \
-            "${{ steps.version.outputs.version }}" > "$RUNNER_TEMP/notes.md"
+            "${{ steps.version.outputs.version }}" \
+            "$RUNNER_TEMP/CHANGELOG.md" > "$RUNNER_TEMP/notes.md"
 
       - name: Create tag + GitHub release
         if: steps.released.outputs.exists == 'false'
@@ -156,9 +171,13 @@ jobs:
           # passed the event-sensitive validation above, in which case
           # gh ignores --target and the release attaches to the tag's
           # existing commit (safe reuse after a run that tagged but
-          # failed before publishing).
+          # failed before publishing) — target_sha names that commit in
+          # both cases. --latest is explicit because the post-merge
+          # contract is "this release is marked latest", not GitHub's
+          # automatic selection.
           gh release create "v${{ steps.version.outputs.version }}" \
             --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
+            --target "${{ steps.released.outputs.target_sha }}" \
             --title "v${{ steps.version.outputs.version }}" \
+            --latest \
             --notes-file "$RUNNER_TEMP/notes.md"
