@@ -7,10 +7,12 @@ name: release
 # all pin `@main`.)
 #
 # The workflow deliberately contains no versioning logic of its own:
-# lint_docs.sh Check 23 already gates every PR on plugin.json ↔
-# marketplace.json ↔ CHANGELOG consistency, so by the time a commit is
-# on main the plugin.json version is authoritative and its CHANGELOG
-# section exists. This job just reads that version and publishes it.
+# lint_docs.sh Check 23 — enforced on every PR by lint.yml's
+# release-contract job — gates plugin.json ↔ marketplace.json ↔
+# CHANGELOG consistency, so by the time a commit is on main the
+# plugin.json version is authoritative and its CHANGELOG section exists.
+# This job just reads that version and publishes it, extracting notes
+# with the same tools/release_notes.sh the PR gate validated.
 #
 # Idempotent by construction: it exits early (successfully) when a
 # release for the current version already exists, so re-runs and manual
@@ -37,14 +39,15 @@ on:
   # but the paths filter above would miss it).
   workflow_dispatch:
 
-# Serialize release runs in trigger order. `queue: max` keeps every
-# pending run queued (the default `single` replaces the pending run,
-# which could silently skip a version if three bumps land rapid-fire).
-# Without serialization, two closely spaced runs could both observe
-# "no release for this version yet" — one would then fail at create.
-# cancel-in-progress stays unset: it's a validation error combined with
-# queue: max, and cancelling a half-finished release run is exactly
-# what we don't want.
+# Serialize release runs. `queue: max` keeps every pending run queued
+# (the default `single` replaces the pending run, which could silently
+# skip a version if bumps land rapid-fire); GitHub does not guarantee
+# queue ordering, but the tag-target check below makes an out-of-order
+# run fail loudly rather than mis-tag. Without serialization, two
+# closely spaced runs could both observe "no release for this version
+# yet" — one would then fail at create. cancel-in-progress stays unset:
+# it's a validation error combined with queue: max, and cancelling a
+# half-finished release run is exactly what we don't want.
 concurrency:
   group: lean4-release
   queue: max
@@ -61,7 +64,10 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      # Pinned to a full commit SHA (not the floating v5 tag) because
+      # this workflow holds contents: write — an immutable reference
+      # removes the tag-retarget supply-chain vector.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Read version from plugin.json
         id: version
@@ -83,35 +89,43 @@ jobs:
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json tagName > /dev/null 2>&1; then
             echo "Release $tag already exists — nothing to do."
             echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+          # No release yet — but if the tag already exists (a previous
+          # run tagged and then failed before publishing, or the tag was
+          # pre-created by hand), `gh release create` would silently
+          # attach the release to wherever that tag points: --target
+          # only applies when the tag is being created, it never
+          # retargets an existing tag. Reusing the tag is only safe when
+          # it points at this run's commit; anything else fails loudly
+          # (delete or retarget the tag, then re-run via
+          # workflow_dispatch).
+          if tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq '.sha' 2>/dev/null); then
+            if [ "$tag_sha" != "$GITHUB_SHA" ]; then
+              echo "Tag $tag already exists and points to $tag_sha, not $GITHUB_SHA — refusing to attach a release to it." >&2
+              exit 1
+            fi
+            echo "Tag $tag already points at $GITHUB_SHA — will reuse it."
           fi
 
       - name: Extract this version's CHANGELOG section as release notes
         if: steps.released.outputs.exists == 'false'
         run: |
-          # CHANGELOG headings are "## vX.Y.Z (Month Year)", so $2 is the
-          # exact tag. "###" subheadings have $1 == "###" and don't
-          # terminate the section; only the next version's "##" does.
-          awk -v ver="v${{ steps.version.outputs.version }}" '
-            $1 == "##" && $2 == ver { found = 1; next }
-            $1 == "##"              { found = 0 }
-            found                   { print }
-          ' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
-          # Check 23 guarantees the section exists before merge; an empty
-          # extraction here means main is inconsistent (or the heading
-          # format changed) — fail loudly rather than ship blank notes.
-          grep -q '[^[:space:]]' "$RUNNER_TEMP/notes.md" \
-            || { echo "No CHANGELOG section found for v${{ steps.version.outputs.version }}" >&2; exit 1; }
+          # Same script Check 23 gates PRs with: requires the exact
+          # "## vX.Y.Z" heading and a non-empty section, failing loudly
+          # (rather than shipping blank notes) if main is inconsistent.
+          bash plugins/lean4/tools/release_notes.sh \
+            "${{ steps.version.outputs.version }}" > "$RUNNER_TEMP/notes.md"
 
       - name: Create tag + GitHub release
         if: steps.released.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # `gh release create` creates the tag at --target if it doesn't
-          # exist, and reuses an existing tag if a previous run tagged but
-          # failed before publishing the release (safe recovery path).
+          # The tag either doesn't exist (created here at --target) or
+          # was verified above to point at $GITHUB_SHA (safe reuse after
+          # a run that tagged but failed before publishing).
           gh release create "v${{ steps.version.outputs.version }}" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
