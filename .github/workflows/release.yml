@@ -41,13 +41,15 @@ on:
 
 # Serialize release runs. `queue: max` keeps every pending run queued
 # (the default `single` replaces the pending run, which could silently
-# skip a version if bumps land rapid-fire); GitHub does not guarantee
-# queue ordering, but the tag-target check below makes an out-of-order
-# run fail loudly rather than mis-tag. Without serialization, two
-# closely spaced runs could both observe "no release for this version
-# yet" — one would then fail at create. cancel-in-progress stays unset:
-# it's a validation error combined with queue: max, and cancelling a
-# half-finished release run is exactly what we don't want.
+# skip a version if bumps land rapid-fire). GitHub does not guarantee
+# queue ordering, but each run is self-contained — it reads the version
+# from its own commit's manifest and tags its own commit — so execution
+# order doesn't affect correctness, only which run no-ops. Without
+# serialization, two closely spaced runs could both observe "no release
+# for this version yet" — one would then fail at create.
+# cancel-in-progress stays unset: it's a validation error combined with
+# queue: max, and cancelling a half-finished release run is exactly
+# what we don't want.
 concurrency:
   group: lean4-release
   queue: max
@@ -66,8 +68,15 @@ jobs:
     steps:
       # Pinned to a full commit SHA (not the floating v5 tag) because
       # this workflow holds contents: write — an immutable reference
-      # removes the tag-retarget supply-chain vector.
+      # removes the tag-retarget supply-chain vector. Credentials are
+      # not persisted: every later step authenticates explicitly via
+      # GH_TOKEN, and local git commands only read history. Full history
+      # (fetch-depth: 0) is needed by the dispatch-recovery path below,
+      # which validates an existing tag by ancestry + manifest content.
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Read version from plugin.json
         id: version
@@ -97,16 +106,36 @@ jobs:
           # pre-created by hand), `gh release create` would silently
           # attach the release to wherever that tag points: --target
           # only applies when the tag is being created, it never
-          # retargets an existing tag. Reusing the tag is only safe when
-          # it points at this run's commit; anything else fails loudly
-          # (delete or retarget the tag, then re-run via
-          # workflow_dispatch).
+          # retargets an existing tag. What makes an existing tag safe
+          # to reuse depends on how this run was triggered.
           if tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq '.sha' 2>/dev/null); then
-            if [ "$tag_sha" != "$GITHUB_SHA" ]; then
-              echo "Tag $tag already exists and points to $tag_sha, not $GITHUB_SHA — refusing to attach a release to it." >&2
-              exit 1
+            if [ "${{ github.event_name }}" = "push" ]; then
+              # A push run releases its own commit, so the tag must
+              # already point exactly there.
+              if [ "$tag_sha" != "$GITHUB_SHA" ]; then
+                echo "Tag $tag exists and points to $tag_sha, not $GITHUB_SHA — refusing to attach a release to it." >&2
+                echo "If a previous release run tagged this version and then failed before publishing, recover via workflow_dispatch (it validates the tag by ancestry + manifest instead of strict equality). Do NOT retarget the tag — that destroys release provenance." >&2
+                exit 1
+              fi
+            else
+              # Dispatch recovery: main may legitimately have advanced
+              # past the version-bump commit the tag correctly points
+              # to, so equality with GITHUB_SHA is the wrong test.
+              # Accept the tag iff it is an ancestor of the dispatched
+              # head AND the manifest at that commit carries exactly
+              # this version; the release then attaches to the tag's
+              # commit, preserving provenance.
+              if ! git merge-base --is-ancestor "$tag_sha" "$GITHUB_SHA"; then
+                echo "Tag $tag points to $tag_sha, which is not an ancestor of $GITHUB_SHA — refusing to attach a release to it." >&2
+                exit 1
+              fi
+              tag_version=$(git show "$tag_sha:plugins/lean4/.claude-plugin/plugin.json" | python3 -c "import json, sys; print(json.load(sys.stdin)['version'])")
+              if [ "$tag_version" != "${{ steps.version.outputs.version }}" ]; then
+                echo "Tag $tag points to $tag_sha, whose plugin.json version is $tag_version, not ${{ steps.version.outputs.version }} — refusing to attach a release to it." >&2
+                exit 1
+              fi
             fi
-            echo "Tag $tag already points at $GITHUB_SHA — will reuse it."
+            echo "Tag $tag already exists and passed validation — will reuse it."
           fi
 
       - name: Extract this version's CHANGELOG section as release notes
@@ -124,8 +153,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # The tag either doesn't exist (created here at --target) or
-          # was verified above to point at $GITHUB_SHA (safe reuse after
-          # a run that tagged but failed before publishing).
+          # passed the event-sensitive validation above, in which case
+          # gh ignores --target and the release attaches to the tag's
+          # existing commit (safe reuse after a run that tagged but
+          # failed before publishing).
           gh release create "v${{ steps.version.outputs.version }}" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
