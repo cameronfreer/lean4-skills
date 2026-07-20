@@ -1,0 +1,94 @@
+name: release
+
+# Creates the git tag + GitHub release for a version bump as soon as it
+# lands on main, so the latest release can no longer drift behind
+# plugin.json. (Releases used to be cut by hand and stalled at v4.4.10
+# while main shipped v4.5.5 — which is why the docs' `gh skill` commands
+# all pin `@main`.)
+#
+# The workflow deliberately contains no versioning logic of its own:
+# lint_docs.sh Check 23 already gates every PR on plugin.json ↔
+# marketplace.json ↔ CHANGELOG consistency, so by the time a commit is
+# on main the plugin.json version is authoritative and its CHANGELOG
+# section exists. This job just reads that version and publishes it.
+#
+# Idempotent by construction: every push to main runs it, but it exits
+# early (successfully) when a release for the current version already
+# exists — so merges that don't bump the version are no-ops, and re-runs
+# never duplicate a release.
+
+on:
+  push:
+    branches: [main]
+  # Manual trigger for backfill/recovery: cuts the release for whatever
+  # version is currently on main (e.g. after a transient failure).
+  workflow_dispatch:
+
+# The default GITHUB_TOKEN is read-only; tag + release creation needs
+# contents: write. Scoped to the whole workflow since it has one job.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # Guards the workflow_dispatch path: the dispatch UI allows picking
+    # any branch, but releases must only ever be cut from main.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Read version from plugin.json
+        id: version
+        run: |
+          version=$(python3 -c "import json; print(json.load(open('plugins/lean4/.claude-plugin/plugin.json'))['version'])")
+          # Guard against a malformed manifest producing a garbage tag
+          # like "v" or "vNone". Anchored X.Y.Z only — also keeps the
+          # value safe to interpolate into later ${{ }} expressions.
+          echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' \
+            || { echo "plugin.json version '$version' is not X.Y.Z" >&2; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether this version is already released
+        id: released
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v${{ steps.version.outputs.version }}"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json tagName > /dev/null 2>&1; then
+            echo "Release $tag already exists — nothing to do."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract this version's CHANGELOG section as release notes
+        if: steps.released.outputs.exists == 'false'
+        run: |
+          # CHANGELOG headings are "## vX.Y.Z (Month Year)", so $2 is the
+          # exact tag. "###" subheadings have $1 == "###" and don't
+          # terminate the section; only the next version's "##" does.
+          awk -v ver="v${{ steps.version.outputs.version }}" '
+            $1 == "##" && $2 == ver { found = 1; next }
+            $1 == "##"              { found = 0 }
+            found                   { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          # Check 23 guarantees the section exists before merge; an empty
+          # extraction here means main is inconsistent (or the heading
+          # format changed) — fail loudly rather than ship blank notes.
+          grep -q '[^[:space:]]' "$RUNNER_TEMP/notes.md" \
+            || { echo "No CHANGELOG section found for v${{ steps.version.outputs.version }}" >&2; exit 1; }
+
+      - name: Create tag + GitHub release
+        if: steps.released.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # `gh release create` creates the tag at --target if it doesn't
+          # exist, and reuses an existing tag if a previous run tagged but
+          # failed before publishing the release (safe recovery path).
+          gh release create "v${{ steps.version.outputs.version }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "v${{ steps.version.outputs.version }}" \
+            --notes-file "$RUNNER_TEMP/notes.md"
