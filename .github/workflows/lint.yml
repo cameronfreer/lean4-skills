@@ -160,11 +160,14 @@ jobs:
       # the live validator parsed past it when release.yml broke for
       # the unrelated reason above). Drop the -ignore once actionlint
       # learns the key.
+      # No positional file args: in a git repository actionlint
+      # auto-discovers .github/workflows/*.{yml,yaml}, so a future
+      # .yaml workflow can't silently escape the gate the way a *.yml
+      # glob would allow.
       - name: actionlint (.github/workflows)
         run: |
           "$RUNNER_TEMP/actionlint" \
-            -ignore 'unexpected key "queue" for "concurrency" section' \
-            .github/workflows/*.yml
+            -ignore 'unexpected key "queue" for "concurrency" section'
 
   release-contract:
     runs-on: ubuntu-latest
