@@ -84,7 +84,12 @@ jobs:
           version=$(python3 -c "import json; print(json.load(open('plugins/lean4/.claude-plugin/plugin.json'))['version'])")
           # Guard against a malformed manifest producing a garbage tag
           # like "v" or "vNone". Anchored X.Y.Z only — also keeps the
-          # value safe to interpolate into later ${{ }} expressions.
+          # value safe to interpolate into later workflow expressions.
+          # (Never write a literal dollar-double-brace in this file,
+          # even in a comment: the Actions expression parser evaluates
+          # it anywhere in a value, and an empty or malformed one makes
+          # the whole workflow file invalid — that exact mistake here
+          # broke the v4.5.6 release run.)
           echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' \
             || { echo "plugin.json version '$version' is not X.Y.Z" >&2; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
