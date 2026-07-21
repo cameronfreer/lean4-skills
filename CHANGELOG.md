@@ -1,5 +1,14 @@
 # Changelog
 
+## v4.5.7 (July 2026)
+
+Wrapper runtime smoke test in CI — the #152 review's explicitly deferred suggestion, converting that PR's one-off manual smoke into a permanent regression gate. No runtime changes.
+
+### CI
+
+- **New `tests/test_wrapper_runtime.sh`** — executes all 15 `bin/lean4-skills-*` wrappers argless from a non-repository cwd under a scrubbed environment (no `LEAN4_*` vars, minimal PATH), asserting each wrapper's exact expected exit code. Check 28 (test_contracts.sh) only proves each wrapper's delegation *target exists*; this suite actually runs them, so a broken shebang, missing delegate, or unresolvable `python3` (exit 126/127) fails CI with a distinct message. The expected-code table is cross-checked against `bin/` in both directions — adding a wrapper without a table entry (or vice versa) fails the suite.
+- Runs on both runners: ubuntu (`wrapper-smoke` job in lint.yml) and macOS Bash 3.2 (bash3-compat.yml step).
+
 ## v4.5.6 (July 2026)
 
 Release automation + skill license metadata. Ends the stale-release footgun: GitHub releases were cut by hand and had stalled at v4.4.10 while main shipped v4.5.5, which is why every `gh skill` command in the docs pins `@main`. No runtime changes.
