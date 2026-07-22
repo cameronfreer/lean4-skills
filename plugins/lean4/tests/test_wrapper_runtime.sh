@@ -22,10 +22,17 @@ set -euo pipefail
 # not found), which is exactly the regression class this suite exists
 # to catch; those get a distinct message.
 #
-# Probes run each wrapper under $BASH_FOR_COMPAT (default /bin/bash) so
-# the suite exercises macOS Bash 3.2 in the bash3-compat job (ubuntu's
-# wrapper-smoke job runs the same suite under Bash 5). On hosts without
-# /bin/bash the test SKIPs gracefully.
+# Each wrapper gets two probes:
+#   direct       — executes the wrapper itself, so the kernel resolves
+#                  the shebang and the executable bit is on the hook;
+#                  this is the probe that actually catches a broken
+#                  shebang or a lost +x (as 126/127).
+#   bash-compat  — forces $BASH_FOR_COMPAT (default /bin/bash) as the
+#                  interpreter, pinning Bash 3.2 coverage in the macOS
+#                  bash3-compat job regardless of how the scrubbed PATH
+#                  resolves `env bash` (ubuntu's wrapper-smoke job runs
+#                  the same probes under Bash 5).
+# On hosts without /bin/bash the test SKIPs gracefully.
 
 BASH_FOR_COMPAT="${BASH_FOR_COMPAT:-/bin/bash}"
 if [[ ! -x "$BASH_FOR_COMPAT" ]]; then
@@ -79,11 +86,15 @@ expected_for() {
     echo "$EXPECTED" | grep "^$1:" | cut -d: -f2
 }
 
-# Completeness, direction 1: every wrapper on disk has a table entry.
+# Completeness, direction 1: every wrapper on disk has a table entry
+# and is executable (the direct probe below would only report a lost
+# +x as 126 — this names the actual defect).
 for wrapper in "$BIN_DIR"/lean4-skills-*; do
     name=$(basename "$wrapper")
     if [[ -z "$(expected_for "$name")" ]]; then
         fail "$name exists in bin/ but has no expected-exit-code entry — add it to this suite"
+    elif [[ ! -x "$wrapper" ]]; then
+        fail "$name is not executable — wrappers must ship chmod +x"
     fi
 done
 
@@ -95,26 +106,34 @@ for entry in $EXPECTED; do
     fi
 done
 
-# Runtime probes.
+# Runtime probes: direct (shebang + exec bit on the hook), then
+# bash-compat (interpreter forced to $BASH_FOR_COMPAT).
 for entry in $EXPECTED; do
     name=${entry%%:*}
     want=${entry##*:}
     wrapper="$BIN_DIR/$name"
     [[ -f "$wrapper" ]] || continue  # already FAILed above
 
-    got=0
-    out=$(env -i PATH="$CLEAN_PATH" HOME="$HOME" \
-        "$BASH_FOR_COMPAT" "$wrapper" 2>&1) || got=$?
+    for mode in direct bash-compat; do
+        got=0
+        if [[ "$mode" == "direct" ]]; then
+            out=$(env -i PATH="$CLEAN_PATH" HOME="$HOME" \
+                "$wrapper" 2>&1) || got=$?
+        else
+            out=$(env -i PATH="$CLEAN_PATH" HOME="$HOME" \
+                "$BASH_FOR_COMPAT" "$wrapper" 2>&1) || got=$?
+        fi
 
-    if [[ "$got" -eq 127 || "$got" -eq 126 ]]; then
-        fail "$name: exit $got — wrapper failed to exec its delegate (first line: $(echo "$out" | head -1))"
-    elif [[ "$got" -ne "$want" ]]; then
-        fail "$name: exit $got, expected $want (first line: $(echo "$out" | head -1))"
-    elif [[ -z "$out" && "$want" -ne 0 ]]; then
-        fail "$name: expected a usage/error message on failure, got no output"
-    else
-        pass "$name: argless from non-repo cwd → exit $want"
-    fi
+        if [[ "$got" -eq 127 || "$got" -eq 126 ]]; then
+            fail "$name ($mode): exit $got — failed to exec (broken shebang, lost +x, or unresolvable interpreter/delegate) (first line: $(echo "$out" | head -1))"
+        elif [[ "$got" -ne "$want" ]]; then
+            fail "$name ($mode): exit $got, expected $want (first line: $(echo "$out" | head -1))"
+        elif [[ -z "$out" && "$want" -ne 0 ]]; then
+            fail "$name ($mode): expected a usage/error message on failure, got no output"
+        else
+            pass "$name ($mode): argless from non-repo cwd → exit $want"
+        fi
+    done
 done
 
 echo ""
