@@ -169,6 +169,20 @@ jobs:
           "$RUNNER_TEMP/actionlint" \
             -ignore 'unexpected key "queue" for "concurrency" section'
 
+  wrapper-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Executes every bin/lean4-skills-* wrapper argless from a
+      # non-repository cwd under a scrubbed environment, asserting each
+      # wrapper's exact expected exit code — the runtime gate Check 28
+      # deliberately stops short of (it only proves each wrapper's
+      # delegation target exists). The macOS Bash 3.2 leg of the same
+      # suite runs in bash3-compat.yml.
+      - name: Wrapper runtime smoke test (argless, non-repo cwd)
+        run: bash plugins/lean4/tests/test_wrapper_runtime.sh
+
   release-contract:
     runs-on: ubuntu-latest
     steps:

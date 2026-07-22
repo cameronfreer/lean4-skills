@@ -1,5 +1,19 @@
 # Changelog
 
+## v4.5.7 (July 2026)
+
+Wrapper runtime smoke test in CI — the #152 review's explicitly deferred suggestion, converting that PR's one-off manual smoke into a permanent regression gate. The gate caught three real macOS bugs on its very first CI run; their fixes ship here too.
+
+### Fixed (found by the new gate, on macOS runners)
+
+- **`check_axioms_inline.sh` false success on macOS Bash 3.2** — argless runs crashed on the bare `"${POSITIONAL[@]}"` empty-array expansion (a Bash 3.2 + `set -u` quirk fixed in Bash 4.4), and the EXIT trap then overwrote the failure into **exit 0**. Now uses the `"${arr[@]+...}"` guard idiom (already used elsewhere in the same file); the same guard added to the `LEAN_FILES` loop (empty when resolved args contain no `.lean` files). Argless behavior on all platforms is now the intended "No files specified" → exit 1.
+- **Disprove scripts: clean Python-version gate (all 5 entry scripts)** — on interpreters older than 3.11 (e.g. macOS's system python3, 3.9), `disprove_method_probe` died with a RuntimeError traceback (the registry gate raised instead of exiting) and `disprove_target_profile`/`_resolve` died with an import-time `TypeError` traceback (PEP 604 runtime union in `command_args/types.py`, which `from __future__ import annotations` cannot defer). Each entry script now gates before any project import: clean actionable stderr message ("set `LEAN4_PYTHON_BIN` to a Python 3.11+ interpreter") and exit 2, `TYPE_CHECKING`-guarded so mypy (`--python-version 3.10`) coverage is unaffected, mirroring `lib/disprove_methods.py`.
+
+### CI
+
+- **New `tests/test_wrapper_runtime.sh`** — executes all 15 `bin/lean4-skills-*` wrappers argless from a non-repository cwd under a scrubbed environment (no `LEAN4_*` vars, minimal PATH), asserting each wrapper's exact expected exit code. Two probes per wrapper: *direct* execution (kernel resolves the shebang; the exec bit is asserted and on the hook) and *bash-compat* (interpreter forced to `$BASH_FOR_COMPAT`, pinning Bash 3.2 coverage). Exit codes alone can false-green (a missing python delegate exits 2, a traceback exits 1 — both "expected" for some wrappers), so outputs matching infrastructure-failure signatures (`Traceback`, `can't open file`, `command not found`, `SyntaxError` — which parse-time errors print *without* a Traceback header — etc.) fail regardless of code. Check 28 (test_contracts.sh) only proves each wrapper's delegation *target exists*; this suite actually runs them. The expected-code table is cross-checked against `bin/` in both directions — adding a wrapper without a table entry (or vice versa) fails the suite.
+- Runs on both runners: ubuntu (`wrapper-smoke` job in lint.yml) and macOS Bash 3.2 (bash3-compat.yml step).
+
 ## v4.5.6 (July 2026)
 
 Release automation + skill license metadata. Ends the stale-release footgun: GitHub releases were cut by hand and had stalled at v4.4.10 while main shipped v4.5.5, which is why every `gh skill` command in the docs pins `@main`. No runtime changes.
