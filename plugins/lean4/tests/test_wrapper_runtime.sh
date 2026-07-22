@@ -126,6 +126,15 @@ for entry in $EXPECTED; do
 
         if [[ "$got" -eq 127 || "$got" -eq 126 ]]; then
             fail "$name ($mode): exit $got — failed to exec (broken shebang, lost +x, or unresolvable interpreter/delegate) (first line: $(echo "$out" | head -1))"
+        elif echo "$out" | grep -qE 'Traceback \(most recent call last\)|can.t open file|command not found|bad interpreter|ModuleNotFoundError|ImportError|SyntaxError'; then
+            # Exit code alone can false-green: a MISSING python delegate
+            # exits 2 ("can't open file") and an uncaught traceback exits
+            # 1 — both are "expected" codes for some wrappers. Reject
+            # infrastructure-failure signatures regardless of exit code.
+            # SyntaxError is listed separately because parse-time errors
+            # print WITHOUT the "Traceback (most recent call last)"
+            # header (verified empirically).
+            fail "$name ($mode): output looks like an infrastructure failure, not the wrapper's usage contract (exit $got; first line: $(echo "$out" | head -1))"
         elif [[ "$got" -ne "$want" ]]; then
             fail "$name ($mode): exit $got, expected $want (first line: $(echo "$out" | head -1))"
         elif [[ -z "$out" && "$want" -ne 0 ]]; then
