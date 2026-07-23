@@ -159,8 +159,8 @@ lean_code_actions(file, line)                   # Resolve "Try this" suggestions
 | Capability | Required | Check | Fallback |
 |-----------|----------|-------|----------|
 | Lean / Lake | yes | `lean --version`, `lake --version` | none — run `/lean4:doctor` |
-| Python 3 | yes (scripts) | `$LEAN4_PYTHON_BIN` set by bootstrap | none for script-dependent operations |
-| `$LEAN4_SCRIPTS` | yes (set by bootstrap) | `echo "$LEAN4_SCRIPTS"` | run `/lean4:doctor` |
+| Python 3 | yes (scripts) | `python3 --version` or persistent `$LEAN4_PYTHON_BIN` | none for script-dependent operations |
+| Helper runtime path | yes (scripts) | trusted Codex `bin_dir`/`scripts_dir`, or persistent `$LEAN4_SCRIPTS` | use the doctor workflow; stay LSP-only if unresolved |
 | Lean LSP MCP | no | try `lean_goal` on any `.lean` file | scripts + `lake env lean` (file-level only) |
 | `lean_run_code` | no | try calling it | `lake env lean` on temp file |
 | `lean_code_actions` | no | try calling it | manual "Try this" application |
@@ -170,6 +170,25 @@ lean_code_actions(file, line)                   # Resolve "Try this" suggestions
 ## Operating Profiles
 
 The skill adapts to what's available. Determine your profile by checking capabilities above, then follow the corresponding guidance.
+
+### Runtime path resolution
+
+Resolve the helper runtime in this order:
+
+1. **Trusted native Codex plugin:** SessionStart context contains
+   `lean4_plugin_runtime=codex`, absolute `bin_dir` / `scripts_dir` paths,
+   and `shell_env_persistent=false`. Substitute those literal absolute paths
+   into helper commands. They are context values, not shell variables: invoke
+   `/absolute/bin/lean4-skills-…`, never `$bin_dir/…`, and do not expect bare
+   wrappers on PATH.
+2. **Persistent environment:** use `$LEAN4_PLUGIN_ROOT`, `$LEAN4_SCRIPTS`,
+   `$LEAN4_REFS`, and bare wrappers verified on PATH.
+3. **No helper runtime:** remain in the LSP-backed core skill and skip
+   script-dependent steps until the installation is repaired or upgraded.
+
+Do not emit `$LEAN4_BIN/...` or `$LEAN4_SCRIPTS/...` commands when those shell
+variables are unset. A trusted Codex absolute path is a complete alternative,
+not evidence that persistent variables exist.
 
 ### full (all capabilities)
 
@@ -181,7 +200,9 @@ MCP works in the main thread. Run all proof work directly — do not delegate to
 
 ### scripts_only (no MCP, no subagents)
 
-Use `$LEAN4_SCRIPTS` for search and `lake env lean` / `lake build` for validation. **Key limitations in this mode:**
+Use the resolved helper runtime (`scripts_dir` under native Codex,
+`$LEAN4_SCRIPTS` under a persistent environment) for search and use
+`lake env lean` / `lake build` for validation. **Key limitations in this mode:**
 - **No live goal inspection** — `lean_goal` is unavailable; you can read the file and check compilation output, but cannot see proof state at a specific line
 - **No tactic testing** — `lean_multi_attempt` is unavailable; edits must be validated by compiling the file (`lake env lean`)
 - **No real-time diagnostics** — `lean_diagnostic_messages` is unavailable; use `lake env lean <file>` (from project root) for compilation errors, but feedback is file-level, not line-level
@@ -229,9 +250,12 @@ See [sorry-filling.md](references/sorry-filling.md) for the full scratch-work pr
   `lean4-skills-cycle-tracker`, `lean4-skills-disprove-artifact-txn`,
   `lean4-skills-disprove-emit-artifact`, `lean4-skills-disprove-method-probe`,
   `lean4-skills-disprove-target-profile`,
-  `lean4-skills-disprove-target-resolve`). These are bare commands on PATH —
-  no `$LEAN4_SCRIPTS`, no `${LEAN4_PYTHON_BIN:-python3}`, no `~`, no
-  env-var expansion or command substitution **to locate the executable**.
+  `lean4-skills-disprove-target-resolve`). In a persistent environment these
+  are bare commands on PATH. In a trusted native Codex plugin, prefix the
+  wrapper name with the literal absolute `bin_dir` from SessionStart (for
+  example `/installed/plugin/bin/lean4-skills-sorry-analyzer`). Do not use
+  `$LEAN4_SCRIPTS`, `${LEAN4_PYTHON_BIN:-python3}`, `~`, or command
+  substitution **to locate a wrapped executable**.
   Ordinary output capture around a wrapper is fine (e.g.
   `txn=$(lean4-skills-disprove-artifact-txn begin)`). Stable invocation
   surface that sandboxed hosts can statically allowlist.
@@ -246,17 +270,18 @@ See [sorry-filling.md](references/sorry-filling.md) for the full scratch-work pr
 
 Compatibility fallback (when a wrapper is unavailable):
 
-- If `lean4-skills-*` isn't resolvable on PATH, use the host's
-  documented setup to add `$LEAN4_PLUGIN_ROOT/bin` to PATH. Some plugin
-  hosts add this automatically; otherwise see the repository's
-  [INSTALLATION.md](https://github.com/cameronfreer/lean4-skills/blob/main/INSTALLATION.md).
+- Under trusted native Codex, use the literal absolute `bin_dir` path supplied
+  by SessionStart; lack of a bare PATH entry is expected, not a failure.
+- For persistent-environment hosts, if `lean4-skills-*` is not resolvable on
+  PATH, repair the documented `$LEAN4_PLUGIN_ROOT/bin` setup; see the
+  repository's [INSTALLATION.md](https://github.com/cameronfreer/lean4-skills/blob/main/INSTALLATION.md).
 - Only as a last resort for an unwrapped script, use the explicit
   env-var form: `bash "$LEAN4_SCRIPTS/script.sh" …` or
   `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/script.py" …`.
 
-If `$LEAN4_SCRIPTS` is unset or missing, run `/lean4:doctor` where the
-plugin's commands are installed; on a skill-only install follow the
-repository's
+If neither trusted Codex absolute paths nor `$LEAN4_SCRIPTS` are available,
+run the doctor workflow (`/lean4:doctor` where that command is installed); on
+a skill-only install follow the repository's
 [INSTALLATION.md](https://github.com/cameronfreer/lean4-skills/blob/main/INSTALLATION.md).
 Stay LSP-only until resolved.
 
@@ -333,10 +358,17 @@ Note: `exact?`/`apply?` query mathlib (slow). `grind` and `aesop` are powerful b
 
 ## Troubleshooting
 
-If LSP tools aren't responding, check your operating profile above. In `scripts_only` mode, `$LEAN4_SCRIPTS` provides search and `lake env lean` provides file-level compilation feedback, but live goal inspection, tactic testing, and line-level diagnostics are unavailable. If environment variables (`LEAN4_SCRIPTS`, `LEAN4_REFS`) are missing, run `/lean4:doctor` to diagnose.
+If LSP tools aren't responding, check your operating profile above. In
+`scripts_only` mode, the resolved helper runtime provides search and
+`lake env lean` provides file-level compilation feedback, but live goal
+inspection, tactic testing, and line-level diagnostics are unavailable. If no
+helper runtime path is available, run the doctor workflow to diagnose it.
 
 **Script environment check:**
 ```bash
+# Trusted native Codex: use the absolute path from SessionStart.
+/absolute/plugin/root/bin/lean4-skills-preflight --codex
+# Persistent environment:
 echo "$LEAN4_SCRIPTS"
 command -v lean4-skills-sorry-analyzer
 # One-pass discovery for troubleshooting (human-readable default text):

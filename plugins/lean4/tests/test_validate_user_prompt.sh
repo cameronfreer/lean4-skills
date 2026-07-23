@@ -8,7 +8,8 @@ set -euo pipefail
 # the shebang line and executable bit are exercised end-to-end.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOOK="$(cd "$SCRIPT_DIR/.." && pwd)/hooks/validate_user_prompt.py"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+HOOK="$PLUGIN_ROOT/hooks/validate_user_prompt.py"
 
 PASS=0
 FAIL=0
@@ -365,6 +366,36 @@ run_test_json \
   "{\"prompt\":\"/lean4:draft\n\\\"x\\\"\",\"cwd\":\"/tmp\"}" \
   ".hookSpecificOutput.hookEventName" \
   "UserPromptSubmit"
+
+# ---------------------------------------------------------------------------
+# Native Codex payload + root precedence
+# ---------------------------------------------------------------------------
+
+echo ""
+echo "-- Native Codex compatibility --"
+
+run_test_json \
+  "25. Codex extra input fields are ignored safely" \
+  '{"prompt":"/lean4:prove Foo.lean","cwd":"/tmp","turn_id":"turn-1","permission_mode":"default","hook_event_name":"UserPromptSubmit"}' \
+  ".hookSpecificOutput.hookEventName" \
+  "UserPromptSubmit"
+
+# A broken CLAUDE_PLUGIN_ROOT would make command_args unavailable. Successful
+# parsing therefore proves that native PLUGIN_ROOT wins when Codex supplies
+# both variables.
+FAKE_ROOT=$(mktemp -d)
+actual_exit=0
+output=$(echo '{"prompt":"/lean4:prove Foo.lean","cwd":"/tmp"}' \
+  | env PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_PLUGIN_ROOT="$FAKE_ROOT" "$HOOK" 2>/dev/null) || actual_exit=$?
+rm -rf "$FAKE_ROOT"
+if [[ "$actual_exit" -eq 0 ]] \
+   && echo "$output" | python3 -c 'import json, sys; assert json.load(sys.stdin)["hookSpecificOutput"]["hookEventName"] == "UserPromptSubmit"' 2>/dev/null; then
+  echo "  PASS: 26. PLUGIN_ROOT takes precedence over CLAUDE_PLUGIN_ROOT"
+  (( ++PASS ))
+else
+  echo "  FAIL: 26. PLUGIN_ROOT precedence (exit=$actual_exit, output='$output')"
+  (( ++FAIL ))
+fi
 
 # ---------------------------------------------------------------------------
 # Summary

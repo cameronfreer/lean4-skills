@@ -1,9 +1,10 @@
 # Lean 4 Plugin
 
-> **Claude Code adapter.** This directory implements the native Claude Code plugin
-> (hooks, guardrails, slash commands). The underlying skill content — SKILL.md,
-> references, and scripts — is host-agnostic.
-> See the [root README](../../README.md) for setup on other hosts.
+> **Native host adapters.** This directory implements the Claude Code plugin
+> (hooks, guardrails, slash commands) and the Codex plugin (skill discovery,
+> absolute-path SessionStart context, prompt validation, advisory guardrails).
+> The underlying SKILL.md, references, wrappers, and scripts remain canonical
+> and host-agnostic. See the [root README](../../README.md) for installation.
 
 Unified Lean 4 plugin for theorem proving, interactive learning, and formalization.
 
@@ -315,9 +316,9 @@ lean_multi_attempt(file, line, snippets=[...])  # Test multiple tactics
 
 Scripts provide sorry analysis, axiom checking, and search fallback when LSP is unavailable or LSP budget is exhausted. Compiler-guided repair is escalation-only — it triggers when compiler errors resist LSP-first tactics, not on first failure.
 
-## Environment Variables
+## Helper Runtime Discovery
 
-Set by `bootstrap.sh` at session start:
+Claude Code persists these variables through `CLAUDE_ENV_FILE` at SessionStart:
 
 | Variable | Purpose |
 |----------|---------|
@@ -325,6 +326,12 @@ Set by `bootstrap.sh` at session start:
 | `LEAN4_SCRIPTS` | Scripts directory |
 | `LEAN4_REFS` | References directory |
 | `LEAN4_PYTHON_BIN` | Python interpreter |
+
+Native Codex does not document a persistent plugin environment or PATH
+channel. After the hook is reviewed in `/hooks`, SessionStart instead injects
+absolute `plugin_root`, `bin_dir`, `scripts_dir`, `refs_dir`, and `preflight`
+context. Invoke wrappers with literal absolute paths under `bin_dir`; do not
+assume the values are shell exports or that bare wrappers resolve on PATH.
 
 Optional user overrides (not set by bootstrap):
 
@@ -339,24 +346,30 @@ Optional user overrides (not set by bootstrap):
 
 **Script troubleshooting:**
 ```bash
+# Native Codex: substitute the literal path from SessionStart.
+/absolute/plugin/root/bin/lean4-skills-preflight --codex
+# Persistent environment (including Claude Code):
 echo "$LEAN4_SCRIPTS"                       # bootstrap set the env var
 command -v lean4-skills-sorry-analyzer       # wrapper resolves on PATH
 lean4-skills-sorry-analyzer . --format=summary --report-only
 ```
 
-If `$LEAN4_SCRIPTS` is unset, run `/lean4:doctor` to reinitialize.
+If neither trusted Codex context nor `$LEAN4_SCRIPTS` is available, follow the
+doctor workflow. Under Codex, review `/hooks` and start a new task; under
+Claude Code, run `/lean4:doctor` and restart the session.
 
 ## File Structure
 
 ```
 plugins/lean4/
 ├── .claude-plugin/plugin.json
+├── .codex-plugin/plugin.json
 ├── commands/           # User-invocable commands
 ├── skills/lean4/
 │   ├── SKILL.md        # Core skill reference
 │   └── references/     # Reference docs
 ├── agents/             # 4 specialized agents
-├── hooks/              # Bootstrap and guardrails
+├── hooks/              # Claude/Codex configs, bootstrap, prompt validation, guardrails
 ├── scripts/            # Compat alias → lib/scripts
 └── lib/scripts/        # 12 hard-primitive scripts
 ```

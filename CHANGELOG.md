@@ -1,5 +1,22 @@
 # Changelog
 
+## v4.5.8 (July 2026)
+
+Native in-place Codex plugin packaging and host adapter (Closes #157; supersedes #89). The canonical `plugins/lean4` tree is installed directly — no mirrored package or generated Codex-specific skills.
+
+### Native Codex plugin
+
+- Adds `.codex-plugin/plugin.json`, a thin `.agents/plugins/marketplace.json` exposing only `lean4`, and a manifest-selected `hooks/codex-hooks.json` for SessionStart, UserPromptSubmit, and advisory Bash PreToolUse handling.
+- SessionStart covers `startup`, `resume`, `clear`, and `compact`. It injects the installed root and absolute wrapper paths as context; it does not claim persistent `LEAN4_*` variables or PATH mutation, which Codex does not document.
+- Shared bootstrap, preflight, doctor, and prompt validation are host-aware. Claude Code keeps its existing `CLAUDE_ENV_FILE` persistence contract; native Codex uses `lean4-skills-preflight --codex` and literal absolute wrapper paths.
+- Codex hooks require explicit first-run review in `/hooks`. Until trusted, the core skill remains discoverable but plugin bootstrap and guardrail behavior are unavailable. PreToolUse interception is advisory, not a security boundary.
+
+### Validation and release hygiene
+
+- New Bash 3.2-compatible adapter tests cover metadata, lifecycle matching, truthful bootstrap context, absolute-path preflight, Codex-shaped UserPromptSubmit payloads, and PreToolUse exit-2 blocking.
+- Release-metadata Check 23 now parses and validates both Claude and Codex manifests/marketplaces and fails on Codex version drift.
+- Codex Tier-3 installation, trust, verification, update, and fallback behavior are documented without claiming `/lean4:*` slash-command parity.
+
 ## v4.5.7 (July 2026)
 
 Wrapper runtime smoke test in CI — the #152 review's explicitly deferred suggestion, converting that PR's one-off manual smoke into a permanent regression gate. The gate caught three real macOS bugs on its very first CI run; their fixes ship here too.
