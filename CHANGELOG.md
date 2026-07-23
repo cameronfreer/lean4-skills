@@ -1,6 +1,6 @@
 # Changelog
 
-## v4.5.6 (July 2026)
+## v4.5.8 (July 2026)
 
 Native in-place Codex plugin packaging and host adapter (Closes #157; supersedes #89). The canonical `plugins/lean4` tree is installed directly — no mirrored package or generated Codex-specific skills.
 
@@ -16,6 +16,34 @@ Native in-place Codex plugin packaging and host adapter (Closes #157; supersedes
 - New Bash 3.2-compatible adapter tests cover metadata, lifecycle matching, truthful bootstrap context, absolute-path preflight, Codex-shaped UserPromptSubmit payloads, and PreToolUse exit-2 blocking.
 - Release-metadata Check 23 now parses and validates both Claude and Codex manifests/marketplaces and fails on Codex version drift.
 - Codex Tier-3 installation, trust, verification, update, and fallback behavior are documented without claiming `/lean4:*` slash-command parity.
+
+## v4.5.7 (July 2026)
+
+Wrapper runtime smoke test in CI — the #152 review's explicitly deferred suggestion, converting that PR's one-off manual smoke into a permanent regression gate. The gate caught three real macOS bugs on its very first CI run; their fixes ship here too.
+
+### Fixed (found by the new gate, on macOS runners)
+
+- **`check_axioms_inline.sh` false success on macOS Bash 3.2** — argless runs crashed on the bare `"${POSITIONAL[@]}"` empty-array expansion (a Bash 3.2 + `set -u` quirk fixed in Bash 4.4), and the EXIT trap then overwrote the failure into **exit 0**. Now uses the `"${arr[@]+...}"` guard idiom (already used elsewhere in the same file); the same guard added to the `LEAN_FILES` loop (empty when resolved args contain no `.lean` files). Argless behavior on all platforms is now the intended "No files specified" → exit 1.
+- **Disprove scripts: clean Python-version gate (all 5 entry scripts)** — on interpreters older than 3.11 (e.g. macOS's system python3, 3.9), `disprove_method_probe` died with a RuntimeError traceback (the registry gate raised instead of exiting) and `disprove_target_profile`/`_resolve` died with an import-time `TypeError` traceback (PEP 604 runtime union in `command_args/types.py`, which `from __future__ import annotations` cannot defer). Each entry script now gates before any project import: clean actionable stderr message ("set `LEAN4_PYTHON_BIN` to a Python 3.11+ interpreter") and exit 2, `TYPE_CHECKING`-guarded so mypy (`--python-version 3.10`) coverage is unaffected, mirroring `lib/disprove_methods.py`.
+
+### CI
+
+- **New `tests/test_wrapper_runtime.sh`** — executes all 15 `bin/lean4-skills-*` wrappers argless from a non-repository cwd under a scrubbed environment (no `LEAN4_*` vars, minimal PATH), asserting each wrapper's exact expected exit code. Two probes per wrapper: *direct* execution (kernel resolves the shebang; the exec bit is asserted and on the hook) and *bash-compat* (interpreter forced to `$BASH_FOR_COMPAT`, pinning Bash 3.2 coverage). Exit codes alone can false-green (a missing python delegate exits 2, a traceback exits 1 — both "expected" for some wrappers), so outputs matching infrastructure-failure signatures (`Traceback`, `can't open file`, `command not found`, `SyntaxError` — which parse-time errors print *without* a Traceback header — etc.) fail regardless of code. Check 28 (test_contracts.sh) only proves each wrapper's delegation *target exists*; this suite actually runs them. The expected-code table is cross-checked against `bin/` in both directions — adding a wrapper without a table entry (or vice versa) fails the suite.
+- Runs on both runners: ubuntu (`wrapper-smoke` job in lint.yml) and macOS Bash 3.2 (bash3-compat.yml step).
+
+## v4.5.6 (July 2026)
+
+Release automation + skill license metadata. Ends the stale-release footgun: GitHub releases were cut by hand and had stalled at v4.4.10 while main shipped v4.5.5, which is why every `gh skill` command in the docs pins `@main`. No runtime changes.
+
+### CI
+
+- **New `release.yml` workflow** — when a version bump lands on main (push trigger scoped to `plugin.json`), creates the `vX.Y.Z` tag + GitHub release with that version's CHANGELOG section as the notes. No versioning logic of its own: the PR-time release-contract gate (below) guarantees plugin.json ↔ marketplace.json ↔ CHANGELOG consistency, so the workflow just reads the version and publishes. Idempotent (already-released versions are successful no-ops), and race-hardened: `concurrency: queue: max` serializes runs without replacing pending ones; existing-tag validation is event-sensitive (`gh release create --target` never retargets an existing tag) — a push run requires the tag to point at its own commit, while dispatch recovery accepts a tag on an earlier main commit iff it's an ancestor of head and that commit's plugin.json carries the exact version, so a correct tag from a failed publish is reusable without retargeting. Release notes are extracted from the CHANGELOG *at the commit the release attaches to* (`target_sha`), not from the checkout — so recovery can't pair an old tag with newer notes — and the release is explicitly marked `--latest`; `workflow_dispatch` covers backfill/recovery (guarded to main); `actions/checkout` is pinned to a full commit SHA with `persist-credentials: false` since the workflow holds `contents: write`.
+- **New `release-contract` job in `lint.yml`** — runs the full `lint_docs.sh` and `test_contracts.sh` suites on every PR, plus the `release_notes.sh` regression suite and the release-notes extraction itself. Previously lint_docs was maintainer-run only (CI's bash3 self-tests deliberately ignore its overall exit status), so Check 23's release-metadata sync was convention rather than enforcement — and release.yml depends on it holding for every commit on main. lint.yml also declares explicit `permissions: contents: read`.
+- **New `tools/release_notes.sh` + `tests/test_release_notes.sh`** — single source of truth for CHANGELOG section extraction (exactly one exact `## vX.Y.Z` heading, non-empty body), shared by `release.yml`, the release-contract job, and lint_docs Check 23 — whose previous substring grep would have accepted `## v4.5.60` as satisfying 4.5.6, and accepted an empty section. Duplicate headings for the same version are rejected rather than silently concatenated. The fixture-based self-test covers extraction shape, prefix collision, missing/malformed versions, empty sections, and duplicates.
+
+### Skill metadata
+
+- **`license: MIT` in SKILL.md frontmatter** — the one remaining `gh skill publish --dry-run` recommendation (the repo-root LICENSE file already existed; the Agent Skills frontmatter field didn't).
 
 ## v4.5.5 (July 2026)
 

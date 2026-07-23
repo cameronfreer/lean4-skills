@@ -1590,11 +1590,14 @@ PY
         warn "unexpected Codex marketplace category: $codex_category"
     fi
 
-    # 7. CHANGELOG entry.
-    if grep -q "## v${plugin_version}" "$changelog"; then
-        ok "CHANGELOG v${plugin_version} entry present"
+    # 7. CHANGELOG entry — exact heading + non-empty section, via the same
+    #    extraction script release.yml uses to build the release notes. A
+    #    substring grep is not enough: "## v4.5.6" must not be satisfied by
+    #    "## v4.5.60", and the release workflow refuses to publish blank notes.
+    if bash "$PLUGIN_ROOT/tools/release_notes.sh" "$plugin_version" >/dev/null 2>&1; then
+        ok "CHANGELOG v${plugin_version} section present and non-empty"
     else
-        warn "CHANGELOG missing entry for v${plugin_version}"
+        warn "CHANGELOG missing exact '## v${plugin_version}' heading (or section empty) — run: bash plugins/lean4/tools/release_notes.sh ${plugin_version}"
     fi
 }
 

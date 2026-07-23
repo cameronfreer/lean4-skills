@@ -11,6 +11,11 @@ on:
   push:
     branches: [main]
 
+# Explicit read-only: omitting permissions would inherit the repository
+# default, which is not guaranteed to be read-only. Nothing here writes.
+permissions:
+  contents: read
+
 jobs:
   ruff:
     runs-on: ubuntu-latest
@@ -127,3 +132,90 @@ jobs:
             plugins/lean4/tools/*.sh \
             plugins/lean4/tests/test_codex_adapter.sh \
             plugins/lean4/bin/lean4-skills-*
+
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Static validation of the workflow files themselves — YAML
+      # shape, Actions expression syntax, action inputs. Added after an
+      # empty dollar-double-brace expression inside a *shell comment*
+      # in release.yml shipped an invalid workflow file to main (the
+      # v4.5.6 release run failed with "An expression was expected"):
+      # GitHub evaluates expressions anywhere in a value, comments
+      # included, plain YAML parsing can't see that class, and an
+      # invalid workflow file only surfaces post-merge as 0-second
+      # phantom run failures that never appear in PR checks. actionlint
+      # catches it pre-merge (its [expression] check flags exactly that
+      # error). Pinned exact like shellcheck below.
+      - name: Install actionlint 1.7.12
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fsSL \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+            -o actionlint.tar.gz
+          tar -xzf actionlint.tar.gz actionlint
+          ./actionlint --version | head -1 | grep -Fxq '1.7.12'
+
+      # -ignore: actionlint 1.7.12's concurrency schema predates
+      # GitHub's opt-in queueing and misreports `queue: max` as an
+      # unknown key — GitHub itself accepts it (documented feature, and
+      # the live validator parsed past it when release.yml broke for
+      # the unrelated reason above). Drop the -ignore once actionlint
+      # learns the key.
+      # No positional file args: in a git repository actionlint
+      # auto-discovers .github/workflows/*.{yml,yaml}, so a future
+      # .yaml workflow can't silently escape the gate the way a *.yml
+      # glob would allow.
+      - name: actionlint (.github/workflows)
+        run: |
+          "$RUNNER_TEMP/actionlint" \
+            -ignore 'unexpected key "queue" for "concurrency" section'
+
+  wrapper-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Executes every bin/lean4-skills-* wrapper argless from a
+      # non-repository cwd under a scrubbed environment, asserting each
+      # wrapper's exact expected exit code — the runtime gate Check 28
+      # deliberately stops short of (it only proves each wrapper's
+      # delegation target exists). The macOS Bash 3.2 leg of the same
+      # suite runs in bash3-compat.yml.
+      - name: Wrapper runtime smoke test (argless, non-repo cwd)
+        run: bash plugins/lean4/tests/test_wrapper_runtime.sh
+
+  release-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Until this job, lint_docs.sh was maintainer-run only: CI ran
+      # ruff/mypy/shellcheck plus the bash3 self-tests, and those
+      # self-tests deliberately ignore lint_docs' overall exit status
+      # (they assert specific Check 8c/8e messages). So Check 23's
+      # release-metadata gate (plugin.json ↔ marketplace.json ↔
+      # CHANGELOG sync) was convention, not enforcement — while
+      # release.yml relies on it holding for every commit on main.
+      - name: lint_docs.sh (all checks, incl. Check 23 release metadata)
+        run: bash plugins/lean4/tools/lint_docs.sh
+
+      - name: test_contracts.sh (wrapper/doc/agent contract suite)
+        run: bash plugins/lean4/tools/test_contracts.sh
+
+      # Regression suite for the extraction contract itself (prefix
+      # collision, duplicate headings, empty section, malformed/missing
+      # version) — fixture-based, so it covers the failure cases the
+      # live-CHANGELOG step below can't reach.
+      - name: Self-test — release_notes.sh
+        run: bash plugins/lean4/tests/test_release_notes.sh
+
+      # Belt-and-suspenders on top of Check 23: run the exact extraction
+      # release.yml will run at publish time, against the version this
+      # PR ships, and echo the would-be notes into the job log.
+      - name: Validate release-notes extraction (same script release.yml runs)
+        run: |
+          version=$(python3 -c "import json; print(json.load(open('plugins/lean4/.claude-plugin/plugin.json'))['version'])")
+          bash plugins/lean4/tools/release_notes.sh "$version"

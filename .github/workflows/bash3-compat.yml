@@ -29,6 +29,20 @@ jobs:
       - name: Self-test — check_axioms_inline (#132)
         run: /bin/bash plugins/lean4/tests/test_check_axioms_inline.sh
 
+      # BASH_FOR_COMPAT defaults to /bin/bash, which on this runner is
+      # macOS Bash 3.2 — this is the step that makes the suite's
+      # "exercises macOS Bash 3.2 in CI" claim true (the ubuntu
+      # release-contract job runs the same suite under Bash 5).
+      - name: Self-test — release_notes.sh
+        run: /bin/bash plugins/lean4/tests/test_release_notes.sh
+
+      # Executes every bin/ wrapper argless from a non-repo cwd under a
+      # scrubbed env (Check 28 only proves the delegation target
+      # exists). This is the macOS Bash 3.2 leg; ubuntu runs the same
+      # suite in lint.yml's wrapper-smoke job.
+      - name: Self-test — wrapper runtime smoke
+        run: /bin/bash plugins/lean4/tests/test_wrapper_runtime.sh
+
       - name: Install ripgrep (unused_declarations self-test needs rg or PCRE grep)
         run: brew install ripgrep
 
