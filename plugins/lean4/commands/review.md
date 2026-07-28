@@ -67,31 +67,38 @@ Proceed? (yes / no)
 ## Review Modes
 
 **Batch mode (default):**
-- Purpose: "What changed in this batch" + basic hygiene
-- Output: Full review report with all sections
+- Purpose: "What changed in this batch" + basic hygiene — full review report with all sections
 - Use: Regular cadence reviews, manual quality checks
 
 **Stuck mode:**
-- Trigger: prove/autoprove invokes stuck mode per its detection triggers. Can also be invoked manually.
-- Purpose: "What's blocking progress on current focus"
-- Output: Top 3 blockers with actionable next steps
-- Use: Triggered by prove/autoprove when no progress detected
+- Trigger: prove/autoprove invokes stuck mode per its detection triggers when no progress is detected. Can also be invoked manually.
+- Purpose: "What's blocking progress on current focus" — top 3 blockers with actionable next steps
 - Lightweight: Skips full golf analysis and complexity metrics; focuses on blockers only
 
 **Stuck mode output format:**
 ```markdown
 ## Stuck Review — Core.lean:89
 
+**Primary blocker class:** missing library lemma
+
 **Top 3 blockers:**
 1. Missing lemma about tendsto_atTop → search Mathlib.Topology.Order
 2. Typeclass instance missing for MeasurableSpace β → add `haveI`
 3. Proof too long (38 lines) → extract helper lemma first
 
+**Evidence:**
+- searches — `lean_leansearch "tendsto atTop of monotone"`, `lean_loogle "Tendsto _ atTop"`
+- returned lemmas — `tendsto_atTop_mono`, `Tendsto.comp`
+- attempts — `exact tendsto_atTop_mono h` (type mismatch), `apply Tendsto.comp` (unification goal)
+
 **Flag:** Statement may be false (optional — see below)
 
 **Recommended next action:** Search for tendsto variants in Topology/Order
+**Why first:** the top blocker is a missing lemma, so search dominates more tactic attempts
 **next_action:** continue
 ```
+
+The **Primary blocker class** value uses the Blocked-Goal Triage vocabulary from [sorry-filling.md](../skills/lean4/references/sorry-filling.md) (definitional equality / missing intro-constructor-cases / missing rewrite / arithmetic / missing library lemma / typeclass-coercion-elaboration / needs helper lemma) and classifies the top blocker — the listed blockers may span classes. The **Evidence** block records the searches attempted, top candidate lemmas returned, and `lean_multi_attempt` outcomes required by the cycle-engine stuck-handoff contract, so a stuck review is a valid handoff record on its own. These fields are part of the human-readable report only — the JSON summary schema is unchanged; machine-readable extension is deferred pending the schema work in #115.
 
 **next_action classification (stuck mode):** `continue` (retryable), `deep` (needs escalation), `repair` (compiler blocker), `redraft` (statement-shape blocker), `golf` (sorry-free), `stop` (no path). Informational unless autoprove outer loop is active.
 

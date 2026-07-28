@@ -592,6 +592,23 @@ have : s = 0 := le_antisymm hs_not_pos hs_ge  -- hs_ge : 0 ≤ s
 -- Derive contradiction from s = 0 (e.g., H ≠ A)
 ```
 
+## Suggestion Tactics
+
+Discovery tools that propose proof steps rather than closing goals for keeps:
+
+- `exact?` — search for a single lemma or hypothesis that closes the goal exactly.
+- `apply?` — search for a theorem whose application reduces the goal to manageable subgoals.
+- `rw?` — search for a rewrite when "some rewrite exists, but I do not know its name."
+- `simp?` — report which lemmas `simp` used, to commit to `simp only [...]`.
+- `try?` — propose a concrete candidate tactic script for the current goal.
+- `hint` — run the registered hint tactics and report which ones make progress.
+
+**Availability:** `exact?`, `apply?`, `rw?`, `simp?`, and `try?` are Lean tools — check the project's Lean version supports them (`try?` is recent). `hint` is mathlib-specific: it requires the relevant mathlib import and does not exist in core-Lean projects. Check imports before suggesting mathlib-only tactics.
+
+**`hint` is never proof completion.** When no registered tactic closes the goal, a `hint` run can leave the goal admitted — treat its output strictly as a report, apply the explicit tactic it suggests, and reverify with diagnostics.
+
+**Never leave suggestion tactics in a final proof.** Replace `exact?`/`apply?`/`rw?`/`simp?`/`try?`/`hint` with the explicit proof code they discovered, then re-run diagnostics before considering the goal solved.
+
 ## Interactive Exploration Commands
 
 Not tactics but essential for development:
