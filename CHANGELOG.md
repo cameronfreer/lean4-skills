@@ -8,7 +8,7 @@ Blocked-goal triage folded into the core proof workflow — integrates the usefu
 
 - **`sorry-filling.md` § Blocked-Goal Triage** — the short decision loop for one blocked goal: inspect → classify (seven blocker classes, now the canonical vocabulary) → at most 3 low-cost candidates via `lean_multi_attempt` → search before adding structure → repeated blocker hands off. The "2–3 attempts, then switch strategy" rule is advisory; enforced stuck detection remains owned by `cycle-engine.md`. SKILL.md's bounded no-command pass gains a two-line pointer.
 - **`tactics-reference.md` § Suggestion Tactics** — `try?`, `rw?`, and `hint` join the existing `exact?`/`apply?`/`simp?` coverage, with precise availability (`try?`/`rw?` gated on Lean version; `hint` mathlib-only and import-dependent), the warning that `hint` can admit the goal (never proof completion), and the replace-before-final rule.
-- **`review.md` stuck-mode template** — adds **Blocker class** (triage vocabulary), **Evidence** (mirrors cycle-engine's required stuck-handoff record), and **Why first** to the human-readable report. JSON summary schema unchanged (deferred to #115).
+- **`review.md` stuck-mode template** — adds **Primary blocker class** (triage vocabulary; the listed blockers may span classes), **Evidence** recording all three cycle-engine handoff elements (searches attempted, returned lemmas, `lean_multi_attempt` outcomes), and **Why first** to the human-readable report. The JSON summary schema is unchanged; machine-readable extension is deferred pending the schema work in #115.
 
 ### Not carried forward from #48
 
