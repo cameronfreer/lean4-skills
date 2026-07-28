@@ -228,7 +228,7 @@ When one goal or tactic dead end resists the candidate workflow above, run this 
    - missing library lemma
    - typeclass / coercion / elaboration issue (see [compilation-errors](compilation-errors.md))
    - proof too large — needs a helper lemma (see [proof-simplification](proof-simplification.md))
-3. **Test at most 3 low-cost candidates** with `lean_multi_attempt`, chosen for the blocker class — including [suggestion tactics](tactics-reference.md#suggestion-tactics) (`exact?`, `apply?`, `rw?`, `simp?`, `try?`; `hint` when mathlib is imported).
+3. **Test at most 3 low-cost candidates** with `lean_multi_attempt`, chosen for the blocker class — including [suggestion tactics](tactics-reference.md#suggestion-tactics) (`exact?`, `apply?`, `rw?`, `simp?`, `try?`; `hint` when mathlib is imported). A suggestion-tactic result is only a probe until its explicit suggested code is installed and reverified.
 4. **Search before adding structure.** When direct attempts stall, use the search ladder above rather than piling on tactics or new `have` scaffolding.
 5. **If the same blocker repeats, stop guessing.** Hand off to a stuck review (`review` in stuck mode) or a prove workflow rather than continuing.
 
