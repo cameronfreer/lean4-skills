@@ -82,16 +82,23 @@ Proceed? (yes / no)
 ```markdown
 ## Stuck Review — Core.lean:89
 
+**Blocker class:** missing library lemma
+
 **Top 3 blockers:**
 1. Missing lemma about tendsto_atTop → search Mathlib.Topology.Order
 2. Typeclass instance missing for MeasurableSpace β → add `haveI`
 3. Proof too long (38 lines) → extract helper lemma first
 
+**Evidence:** searches — lean_leansearch "tendsto atTop of monotone", lean_loogle "Tendsto _ atTop"; candidates — `exact tendsto_atTop_mono h` (type mismatch), `apply Tendsto.comp` (unification goal)
+
 **Flag:** Statement may be false (optional — see below)
 
 **Recommended next action:** Search for tendsto variants in Topology/Order
+**Why first:** the top blocker is a missing lemma, so search dominates more tactic attempts
 **next_action:** continue
 ```
+
+The **Blocker class** value uses the Blocked-Goal Triage vocabulary from [sorry-filling.md](../skills/lean4/references/sorry-filling.md) (definitional equality / missing intro-constructor-cases / missing rewrite / arithmetic / missing library lemma / typeclass-coercion-elaboration / needs helper lemma). The **Evidence** block mirrors the stuck-handoff evidence the cycle engine requires (searches attempted, candidates tested) so a stuck review is a valid handoff record on its own. These fields are part of the human-readable report only — the JSON summary schema is unchanged (schema evolution is tracked in #115).
 
 **next_action classification (stuck mode):** `continue` (retryable), `deep` (needs escalation), `repair` (compiler blocker), `redraft` (statement-shape blocker), `golf` (sorry-free), `stop` (no path). Informational unless autoprove outer loop is active.
 
