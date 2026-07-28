@@ -215,6 +215,29 @@ Do this in the current worktree. Do not symlink another worktree's `.lake/build`
 - Forget imports
 - Leave sorries undocumented if you can't fill them
 
+## Blocked-Goal Triage
+
+When one goal or tactic dead end resists the candidate workflow above, run this short loop before escalating. It is a decision process, not a tactic catalog — the cascades live in the skill's Automation Tactics and [tactics-reference](tactics-reference.md).
+
+1. **Make the blocker concrete.** Inspect the exact goal and diagnostics (`lean_goal`, `lean_term_goal`, `lean_hover_info`, `lean_diagnostic_messages`). If you cannot justify the next tactic from the goal state, inspect more instead of guessing.
+2. **Classify the blocker** before trying anything:
+   - definitional equality / simplification
+   - missing intro / constructor / cases step
+   - missing rewrite
+   - arithmetic / inequalities
+   - missing library lemma
+   - typeclass / coercion / elaboration issue (see [compilation-errors](compilation-errors.md))
+   - proof too large — needs a helper lemma (see [proof-simplification](proof-simplification.md))
+3. **Test at most 3 low-cost candidates** with `lean_multi_attempt`, chosen for the blocker class — including [suggestion tactics](tactics-reference.md#suggestion-tactics) (`exact?`, `apply?`, `rw?`, `simp?`, `try?`; `hint` when mathlib is imported).
+4. **Search before adding structure.** When direct attempts stall, use the search ladder above rather than piling on tactics or new `have` scaffolding.
+5. **If the same blocker repeats, stop guessing.** Hand off to a stuck review (`review` in stuck mode) or a prove workflow rather than continuing.
+
+As a working heuristic, 2–3 failed direct attempts on the same blocker means switch strategy — change class, search, or restructure. (The *enforced* stuck definition — triggers, blocker signature, and required handoff evidence — is owned by [cycle-engine](cycle-engine.md); this loop is advisory and does not redefine it.)
+
+Suggestion tactics are discovery tools: replace their output with explicit proof code and re-run diagnostics before considering the goal solved.
+
+Structural escape hatches when the issue is shape, not the next tactic: shrink the goal with `have`/`suffices`/`refine`, normalize one side before searching for the key rewrite, destructure hypotheses early, or extract a helper lemma — see [proof-simplification](proof-simplification.md).
+
 ## When to Escalate
 
 **Give up and escalate if:**
