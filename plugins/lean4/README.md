@@ -68,7 +68,7 @@ When you edit `.lean` files in a normal conversation, the plugin activates autom
 > Use `/lean4:draft` or `/lean4:formalize` for statement work.
 > Use `/lean4:prove` or `/lean4:autoprove` for proof work.
 
-If the agent only needs next-step triage for a blocked goal or tactic dead end, use the bundled [`stuck?` skill](skills/stuck/SKILL.md).
+If the agent only needs next-step triage for a blocked goal or tactic dead end, follow the [Blocked-Goal Triage loop](skills/lean4/references/sorry-filling.md#blocked-goal-triage) in the sorry-filling reference.
 
 ### `/lean4:draft` — Skeleton Drafting
 
@@ -354,12 +354,9 @@ If `$LEAN4_SCRIPTS` is unset, run `/lean4:doctor` to reinitialize.
 plugins/lean4/
 ├── .claude-plugin/plugin.json
 ├── commands/           # User-invocable commands
-├── skills/
-│   ├── lean4/
-│   │   ├── SKILL.md    # Core theorem-proving skill
-│   │   └── references/ # Reference docs
-│   └── stuck/
-│       └── SKILL.md    # Short unblock / next-step skill
+├── skills/lean4/
+│   ├── SKILL.md        # Core skill reference
+│   └── references/     # Reference docs
 ├── agents/             # 4 specialized agents
 ├── hooks/              # Bootstrap and guardrails
 ├── scripts/            # Compat alias → lib/scripts
@@ -373,7 +370,6 @@ See [MIGRATION.md](MIGRATION.md) for upgrade guide.
 ## See Also
 
 - [SKILL.md](skills/lean4/SKILL.md) - Core skill reference
-- [stuck?](skills/stuck/SKILL.md) - Short unblock loop when the agent needs the next Lean move
 - [Commands](commands/) - Command documentation
 - [Scripts](lib/scripts/README.md) - Script reference
 - [Custom Syntax](skills/lean4/references/lean4-custom-syntax.md) - Notations, macros, elaborators, DSLs
