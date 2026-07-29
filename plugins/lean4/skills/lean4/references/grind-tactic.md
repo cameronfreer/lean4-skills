@@ -349,24 +349,7 @@ Create a simproc only when all are true:
 - `simp` lemmas are noisy, fragile, or expensive
 - the reduction is deterministic and terminating
 
-For each simproc:
-- guard on expression head/arity
-- return `.continue` when not applicable
-- prefer definitional reduction via `whnf` (`dsimproc`)
-- keep the scope local unless reuse is proven
-
-Template:
-
-```lean
-import Lean
-open Lean Meta Simp
-
-dsimproc [simp] reduceFoo (Foo _ _) := fun e => do
-  unless e.isAppOfArity ``Foo 2 do
-    return .continue
-  let e' ← whnf e
-  return .done e'
-```
+Authoring mechanics — `dsimproc` vs `simproc`, pre/post placement, result semantics, verified templates, and performance discipline — are owned by [simp-reference.md § Simproc Authoring](simp-reference.md#simproc-authoring).
 
 ## Anti-Patterns
 
