@@ -6,7 +6,7 @@
 
 > **Version metadata:**
 > - **Verified on:** Lean `v4.32.0`
-> - **Last validated:** 2026-07-29
+> - **Last validated:** 2026-08-03
 > - **Confidence:** high (both simproc examples batch-compiled on `v4.32.0`)
 
 Contents: [Choose the Mechanism](#choose-the-mechanism) · [Simp Normal Forms and Rewrite Policy](#simp-normal-forms-and-rewrite-policy) · [Simp Lemma Hygiene](#simp-lemma-hygiene) · [Simproc Authoring](#simproc-authoring) · [After Normalization](#after-normalization)
@@ -18,9 +18,10 @@ Contents: [Choose the Mechanism](#choose-the-mechanism) · [Simp Normal Forms an
 | One-off directed rewrite, no normalization intent | `rw [lemma]` |
 | Stable local normalization inside one proof | `simp only [...]` |
 | Local rewrite where the default simp set is intentionally part of terminal closure | `simp [lemma]` |
-| Reusable rewrite policy that should not be global | local/custom simp set (`register_simp_attr`) |
+| Default-set membership scoped to a section/file | `attribute [local simp] lemma_name` |
+| Reusable named simp policy outside the default set | custom simp set via `register_simp_attr` |
 | Globally preferred, stable orientation | `@[simp]` lemma |
-| Canonical rewrite requiring definitional computation over explicit data | `dsimproc` |
+| Canonical rewrite whose replacement is definitionally equal (commonly computed from explicit data) | `dsimproc` |
 | Computed rewrite requiring proof construction or side-condition discharge beyond conditional lemmas | `simproc` |
 | Symbolic term with no canonical result | leave it unchanged |
 | Expression normalized but goal still open | `grind`, `omega`, `linarith`, or another domain solver — see [After Normalization](#after-normalization) |
@@ -54,7 +55,7 @@ A rewrite may be canonical on **explicit** inputs and non-canonical on **symboli
 
 ### Relationship to `simpNF`
 
-The `simpNF` lint is the lint-level version of the same discipline: LHS already in normal form, RHS the chosen destination. A lemma that fails it may still be a fine **local** rewrite — it just should not usually be a global simp lemma. `@[simp, nolint simpNF]` is for the rare case where a non-normal-form orientation is deliberate and documented.
+The `simpNF` lint mechanizes the **LHS half** of this discipline: it flags a proposed simp lemma whose LHS other simp lemmas can already simplify (the lemma would rarely fire, or is redundant). It does not certify the RHS — choosing the RHS as the intended destination remains design judgment, per the operational test above. A lemma that fails the lint may still be a fine **local** rewrite — it just should not usually be a global simp lemma. `@[simp, nolint simpNF]` is for the rare case where a non-normal-form orientation is deliberate and documented.
 
 ## Simp Lemma Hygiene
 
@@ -73,13 +74,15 @@ If any fail, prefer `simp only [lemma]` locally, `simp [lemma]` in one proof, or
 **1. LHS not in normal form** — the central `simpNF` rule: do not ask the simplifier to orient terms toward a form some other simp lemma will immediately change again.
 
 ```lean
--- Bad: LHS contains a non-canonical subterm simp may rewrite first
-@[simp] lemma bad_form : a + (b + c) = (a + b) + c := sorry
--- Good: LHS already matches the chosen normal form
-@[simp] lemma good_form : (a + b) + c = a + (b + c) := sorry
+-- Bad: the default set rewrites the subterm first — `add_zero` turns
+-- `f (x + 0)` into `f x` before this LHS ever gets a chance to match,
+-- so the lemma rarely (if ever) fires
+@[simp] lemma bad_form : f (x + 0) = g x := sorry
+-- Good: state the lemma against the already-normalized LHS
+@[simp] lemma good_form : f x = g x := sorry
 ```
 
-**2. Potential loops** — the RHS must be strictly simpler; if the LHS reappears on the RHS (`f x = g (f x)`), simp can loop. Test in isolation: `example : f x = expected := by simp only [may_loop]` must terminate instantly.
+**2. Potential loops** — the RHS should be in, or make progress toward, the chosen simp normal form and must not recreate an applicable cycle. This is not a literal syntax-size requirement: if the LHS reappears on the RHS (`f x = g (f x)`), simp may loop. Test in isolation: `example : f x = expected := by simp only [may_loop]` must terminate instantly.
 
 **3. Conflicting lemmas** — two global lemmas rewriting the same LHS differently. Resolve by removing one, keeping both as ordinary lemmas chosen locally with `simp only`, or rethinking the canonical form.
 
@@ -94,7 +97,7 @@ Good `@[simp]` lemmas erase administrative structure — definition expansion, i
 
 Bad candidates introduce symmetry without a preferred orientation (commutativity; reassociation absent a deliberate normal-form policy).
 
-More specific lemmas fire before general ones — useful, but also how surprising interactions happen. Before promoting to `@[simp]`, ask whether local use is enough.
+When multiple simp lemmas apply, Lean selects by priority and then, at equal priority, registration recency. Overlapping specific and general rules can therefore shadow one another; inspect the active simp set rather than relying on an informal "more specific first" ordering. Before promoting to `@[simp]`, ask whether local use is enough.
 
 ### Debugging workflow
 
@@ -138,7 +141,7 @@ Good use cases from the community examples: evaluating arithmetic on explicit nu
 
 ### `dsimproc` versus `simproc`
 
-Use `dsimproc` when the simplification is definitional and the replacement is computed directly from explicit data — no proof term needed. Use `simproc` when the replacement needs a proof witness, the simplifier's discharger for side conditions, or proposition-level reasoning. If in doubt, start with `simproc`; switch to `dsimproc` only when the definitional story is clear.
+Use `dsimproc` when the replacement is **definitionally equal** to the original — no proof term needed. Explicit-data evaluators are the common pattern, but symbolic `dsimproc`s (e.g. `whnf`-based unfolding) are valid whenever the definitional obligation holds. Use `simproc` when the replacement needs a proof witness, the simplifier's discharger for side conditions, or proposition-level reasoning. If in doubt, start with `simproc`; switch to `dsimproc` only when the definitional story is clear.
 
 ### Pre versus post procedures
 
@@ -200,7 +203,9 @@ simproc [simp] reduceIsSmall (isSmall _) := fun e => do
   let pf ← mkDecideProof e
   return .done { expr := mkConst ``True, proof? := ← mkEqTrue pf }
 
-example : isSmall 42 := by simp
+-- simp only [reduceIsSmall]: the named simproc itself must close the goal
+example : isSmall 42 := by
+  simp only [reduceIsSmall]
 
 -- Symbolic input: declines, so the definition is still needed
 example (n : Nat) (h : n < 100) : isSmall n := by simpa [isSmall] using h
