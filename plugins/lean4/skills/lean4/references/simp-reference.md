@@ -74,9 +74,9 @@ If any fail, prefer `simp only [lemma]` locally, `simp [lemma]` in one proof, or
 
 ```lean
 -- Bad: LHS contains a non-canonical subterm simp may rewrite first
-@[simp] lemma bad_form : a + (b + c) = (a + b) + c := ...
+@[simp] lemma bad_form : a + (b + c) = (a + b) + c := sorry
 -- Good: LHS already matches the chosen normal form
-@[simp] lemma good_form : (a + b) + c = a + (b + c) := ...
+@[simp] lemma good_form : (a + b) + c = a + (b + c) := sorry
 ```
 
 **2. Potential loops** — the RHS must be strictly simpler; if the LHS reappears on the RHS (`f x = g (f x)`), simp can loop. Test in isolation: `example : f x = expected := by simp only [may_loop]` must terminate instantly.
@@ -89,7 +89,7 @@ Good `@[simp]` lemmas erase administrative structure — definition expansion, i
 
 ```lean
 @[simp] lemma my_def_simp : myDef x = underlyingDef x := rfl
-@[simp] lemma add_zero : x + 0 = x := ...
+@[simp] lemma add_zero : x + 0 = x := sorry
 ```
 
 Bad candidates introduce symmetry without a preferred orientation (commutativity; reassociation absent a deliberate normal-form policy).
