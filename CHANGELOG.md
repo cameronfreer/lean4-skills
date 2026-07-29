@@ -1,5 +1,20 @@
 # Changelog
 
+## v4.5.9 (July 2026)
+
+Deepened consolidated simp reference — integrates the useful material from PR #47 (Alok Singh), grounded in the Lean community simp/simproc blog series, into the single `simp-reference.md` instead of reviving the pre-#36 file split or adding a standalone skill. Documentation only; no runtime changes.
+
+### Changed
+
+- **`simp-reference.md` rewritten and deepened** (~2.4× prior depth): new *Choose the Mechanism* table (`rw` / `simp only` / terminal `simp` / local simp set / `@[simp]` / `dsimproc` / `simproc` / leave-unchanged / hand-off); new *Simp Normal Forms and Rewrite Policy* section (two meanings of normal form — library default set vs invocation-relative — defined against the full simplifier context; canonical vs locally-useful rewrites; evaluator-simproc rule for explicit vs symbolic data; `simpNF` relationship); hygiene reorganized around the "should this be a simp lemma?" gate with a local-first bias; *Simproc Authoring* now covers `dsimproc` vs `simproc`, pre/post placement via `↓`, exact per-phase result semantics (`.done` is a control-flow promise, not a normal-form claim; prefer `.visit` when unsure), and performance discipline ("no unbounded or general-purpose proof search; keep simprocs deterministic, boring, and cheap").
+- **Two verified simproc examples** replace the previous `return .none` skeleton: an explicit-data `dsimproc` (with `↓` pre-activation and symbolic decline) and a proof-producing `simproc` (`mkDecideProof`/`mkEqTrue`), both batch-compiled on Lean `v4.32.0`.
+- **`grind-tactic.md`** keeps only its grind-specific simproc escalation conditions and links to the authoring section — single ownership of simproc mechanics.
+- Fixed: `@[simp?]` was listed as a simp attribute (`simp?` is a tactic).
+
+### Not carried forward from #47
+
+- The standalone `lean4-simp-simprocs` skill, the separate `simp-normal-forms.md` file, the resurrection of `simp-hygiene.md`/`simproc-patterns.md` (consolidated by #36 five days before #47 was opened), the non-compiling placeholder sketch, and the README entries for eight unrelated stacked skills. Alok's original commits are preserved in this PR's history with authorship intact.
+
 ## v4.5.8 (July 2026)
 
 Blocked-goal triage folded into the core proof workflow — integrates the useful material from PR #48 (Alok Singh) into the existing owners instead of shipping a second skill. Documentation only; no runtime changes.
