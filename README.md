@@ -157,7 +157,6 @@ claude mcp add --transport stdio --scope project lean-lsp -- uvx lean-lsp-mcp
 
 **lean4 plugin**
 - [SKILL.md](plugins/lean4/skills/lean4/SKILL.md) - Core skill reference
-- [Lean4 Simp + Simprocs](plugins/lean4/skills/lean4-simp-simprocs/SKILL.md) - `simp` hygiene, `simproc`/`dsimproc` authoring, and normalization-vs-closure triage
 - [Commands](plugins/lean4/commands/) - Command documentation
 - [References](plugins/lean4/skills/lean4/references/) - cycle engine, mathlib style, proof golfing, tactic patterns, grind, metaprogramming, and more
 
