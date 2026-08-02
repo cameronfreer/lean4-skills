@@ -69,6 +69,8 @@ When you edit `.lean` files in a normal conversation, the plugin activates autom
 > Use `/lean4:draft` or `/lean4:formalize` for statement work.
 > Use `/lean4:prove` or `/lean4:autoprove` for proof work.
 
+If the agent only needs next-step triage for a blocked goal or tactic dead end, follow the [Blocked-Goal Triage loop](skills/lean4/references/sorry-filling.md#blocked-goal-triage) in the sorry-filling reference.
+
 ### `/lean4:draft` — Skeleton Drafting
 
 Drafts Lean 4 declaration skeletons from informal claims. Default `--mode=skeleton` produces sorry-stubbed statements; `--mode=attempt` adds a proof-attempt loop. No full proof engine (no cycles, no falsification) — use `/lean4:formalize` for the full pipeline.

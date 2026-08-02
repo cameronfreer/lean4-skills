@@ -301,6 +301,8 @@ When editing `.lean` files without invoking a command, the skill runs **one boun
 - Try the [Automation Tactics](#automation-tactics) cascade
 - Validate with `lean_diagnostic_messages` (no project-gate `lake build` in this mode)
 - No looping, no deep escalation, no multi-cycle behavior, no commits
+- If one goal resists the pass, follow the Blocked-Goal Triage loop in
+  [references/sorry-filling.md](references/sorry-filling.md) before escalating
 - End with suggestions:
   > Ask me to run the guided `prove` workflow for cycle-by-cycle help.
   > Ask me to run the autonomous `autoprove` workflow for unattended cycles with stop safeguards.

@@ -1,6 +1,6 @@
 # Changelog
 
-## v4.5.8 (July 2026)
+## v4.5.9 (August 2026)
 
 Native in-place Codex plugin packaging and host adapter (Closes #157; supersedes #89). The canonical `plugins/lean4` tree is installed directly — no mirrored package or generated Codex-specific skills.
 
@@ -16,6 +16,20 @@ Native in-place Codex plugin packaging and host adapter (Closes #157; supersedes
 - New Bash 3.2-compatible adapter tests cover metadata, lifecycle matching, truthful bootstrap context, absolute-path preflight, Codex-shaped UserPromptSubmit payloads, and PreToolUse exit-2 blocking.
 - Release-metadata Check 23 now parses and validates both Claude and Codex manifests/marketplaces and fails on Codex version drift.
 - Codex Tier-3 installation, trust, verification, update, and fallback behavior are documented without claiming `/lean4:*` slash-command parity.
+
+## v4.5.8 (July 2026)
+
+Blocked-goal triage folded into the core proof workflow — integrates the useful material from PR #48 (Alok Singh) into the existing owners instead of shipping a second skill. Documentation only; no runtime changes.
+
+### Added
+
+- **`sorry-filling.md` § Blocked-Goal Triage** — the short decision loop for one blocked goal: inspect → classify (seven blocker classes, now the canonical vocabulary) → at most 3 low-cost candidates via `lean_multi_attempt` → search before adding structure → repeated blocker hands off. The "2–3 attempts, then switch strategy" rule is advisory; enforced stuck detection remains owned by `cycle-engine.md`. SKILL.md's bounded no-command pass gains a two-line pointer.
+- **`tactics-reference.md` § Suggestion Tactics** — `try?`, `rw?`, and `hint` join the existing `exact?`/`apply?`/`simp?` coverage, with precise availability (`try?`/`rw?` gated on Lean version; `hint` mathlib-only and import-dependent), the warning that `hint` can admit the goal (never proof completion), and the replace-before-final rule.
+- **`review.md` stuck-mode template** — adds **Primary blocker class** (triage vocabulary; the listed blockers may span classes), **Evidence** recording all three cycle-engine handoff elements (searches attempted, returned lemmas, `lean_multi_attempt` outcomes), and **Why first** to the human-readable report. The JSON summary schema is unchanged; machine-readable extension is deferred pending the schema work in #115.
+
+### Not carried forward from #48
+
+- The standalone `stuck?` skill and its README inventory entries — "stuck" is a state inside the existing workflow, not a separate activation domain (and the `stuck?` name is invalid under the Agent Skills name grammar). Alok's original commits are preserved in this PR's history with authorship intact.
 
 ## v4.5.7 (July 2026)
 
