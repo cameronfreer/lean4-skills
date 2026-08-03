@@ -673,13 +673,17 @@ fi
 
 # Check 30: /lean4:doctor → /lean4:diagnose rename holds (v4.6.0 breaking
 # change). The old name must not resurface in active surfaces: diagnose.md
-# must exist with `name: diagnose`, doctor.md must not exist, and no file
-# outside the allowlist may reference `/lean4:doctor` or `doctor.md`.
-# Allowlisted: CHANGELOG.md (the v4.6.0 breaking entry and older historical
-# entries are accurate for the releases they describe) and MIGRATION.md
-# (owns the old→new mapping). Canonical recovery-wording agreement across
-# diagnose.md / preflight / bootstrap is owned by test_preflight_env.sh
-# and test_bootstrap_env.sh — not duplicated here.
+# must exist with `name: diagnose` and "Lean4 Diagnostics" headings (no
+# stale "Lean4 Doctor" output names), doctor.md must not exist, and no
+# scanned file may reference `/lean4:doctor` or `doctor.md`. The scan
+# covers the root README/INSTALLATION/manifests, .agents/ (Codex
+# marketplace), .github/ (workflow step labels), and the whole plugin
+# tree. Allowlisted: CHANGELOG.md (the v4.6.0 breaking entry and older
+# historical entries are accurate for the releases they describe), and in
+# MIGRATION.md only lines that state the rename/removal itself — any
+# other old-name mention there fails. Canonical recovery-wording
+# agreement across diagnose.md / preflight / bootstrap is owned by
+# test_preflight_env.sh and test_bootstrap_env.sh — not duplicated here.
 # ---------------------------------------------------------------------------
 check30_ok=1
 # Repo root derived, not assumed: PLUGIN_ROOT is plugins/lean4, so two up.
@@ -693,8 +697,27 @@ done
 if [[ ! -f "$PLUGIN_ROOT/commands/diagnose.md" ]]; then
     fail "Check 30: commands/diagnose.md missing"
     check30_ok=0
-elif ! grep -q '^name: diagnose$' "$PLUGIN_ROOT/commands/diagnose.md"; then
-    fail "Check 30: commands/diagnose.md frontmatter is not 'name: diagnose'"
+else
+    if ! grep -q '^name: diagnose$' "$PLUGIN_ROOT/commands/diagnose.md"; then
+        fail "Check 30: commands/diagnose.md frontmatter is not 'name: diagnose'"
+        check30_ok=0
+    fi
+    if grep -q 'Lean4 Doctor' "$PLUGIN_ROOT/commands/diagnose.md"; then
+        fail "Check 30: stale 'Lean4 Doctor' heading/output name in diagnose.md"
+        check30_ok=0
+    fi
+    if ! grep -q '^# Lean4 Diagnostics$' "$PLUGIN_ROOT/commands/diagnose.md" \
+        || ! grep -q '^## Lean4 Diagnostics Report$' "$PLUGIN_ROOT/commands/diagnose.md"; then
+        fail "Check 30: diagnose.md missing 'Lean4 Diagnostics' title or 'Lean4 Diagnostics Report' heading"
+        check30_ok=0
+    fi
+fi
+# MIGRATION.md: narrow allowance — old-name mentions must be the
+# rename/removal statements themselves, nothing else.
+_c30_mig_bad=$(grep -n 'lean4:doctor' "$PLUGIN_ROOT/MIGRATION.md" 2>/dev/null \
+    | grep -v 'renamed\|removed in v4\.6\.0' || true)
+if [[ -n "$_c30_mig_bad" ]]; then
+    fail "Check 30: MIGRATION.md old-name mention outside the rename/removal statements: $_c30_mig_bad"
     check30_ok=0
 fi
 if [[ -e "$PLUGIN_ROOT/commands/doctor.md" ]]; then
@@ -707,8 +730,10 @@ _c30_hits=$(grep -rln 'lean4:doctor\|doctor\.md' \
     "$PLUGIN_ROOT/hooks" "$PLUGIN_ROOT/lib" "$PLUGIN_ROOT/tools" \
     "$PLUGIN_ROOT/tests" "$PLUGIN_ROOT/agents" "$PLUGIN_ROOT/bin" \
     "$PLUGIN_ROOT/.claude-plugin" "$PLUGIN_ROOT/.codex-plugin" \
-    "$_c30_repo_root/.claude-plugin" 2>/dev/null \
-    | grep -v 'tools/test_contracts.sh' || true)
+    "$_c30_repo_root/.claude-plugin" "$_c30_repo_root/.agents" \
+    "$_c30_repo_root/.github" 2>/dev/null \
+    | grep -v 'tools/test_contracts.sh' \
+    | grep -v "$PLUGIN_ROOT/MIGRATION.md" || true)
 if [[ -n "$_c30_hits" ]]; then
     fail "Check 30: stale /lean4:doctor or doctor.md reference in active surfaces: $(echo "$_c30_hits" | tr '\n' ' ')"
     check30_ok=0

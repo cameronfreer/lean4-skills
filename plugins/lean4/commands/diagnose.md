@@ -4,7 +4,7 @@ description: Diagnostics, cleanup, and migration help
 user_invocable: true
 ---
 
-# Lean4 Doctor
+# Lean4 Diagnostics
 
 Diagnostics, troubleshooting, and migration assistance for the Lean4 plugin.
 
@@ -177,7 +177,7 @@ Keys: y=remove this, n=keep this, a=remove all remaining, q=quit now
 
 **Full diagnostic:**
 ```markdown
-## Lean4 Doctor Report
+## Lean4 Diagnostics Report
 
 ### Environment
 ✓ lean 4.x.x
