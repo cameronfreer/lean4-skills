@@ -397,7 +397,7 @@ lean4-skills-sorry-analyzer . --report-only
 
 **Errors:** [compilation-errors](references/compilation-errors.md) (read first for any build error), [instance-pollution](references/instance-pollution.md) (typeclass conflicts — grep `## Sub-` for patterns), [compiler-guided-repair](references/compiler-guided-repair.md) (escalation-only repair — not first-pass)
 
-**Tactics:** [tactics-reference](references/tactics-reference.md) (tactic lookup — grep `^### TacticName`), [grind-tactic](references/grind-tactic.md) (SMT-style automation — when simp can't close), [simp-reference](references/simp-reference.md) (simp hygiene + custom simprocs), [tactic-patterns](references/tactic-patterns.md), [calc-patterns](references/calc-patterns.md)
+**Tactics:** [tactics-reference](references/tactics-reference.md) (tactic lookup — grep `^### TacticName`), [grind-tactic](references/grind-tactic.md) (SMT-style automation — when simp can't close), [simp-reference](references/simp-reference.md) (mechanism choice, simp normal forms, `@[simp]` hygiene, simproc authoring), [tactic-patterns](references/tactic-patterns.md), [calc-patterns](references/calc-patterns.md)
 
 **Proof Development:** [proof-templates](references/proof-templates.md), [proof-refactoring](references/proof-refactoring.md) (28K — grep by topic), [proof-simplification](references/proof-simplification.md) (strategy-level: mathlib search, congr lemmas, helper extraction), [sorry-filling](references/sorry-filling.md)
 
