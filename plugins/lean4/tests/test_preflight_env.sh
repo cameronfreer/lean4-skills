@@ -2,9 +2,8 @@
 set -euo pipefail
 
 # Regression tests for lib/scripts/preflight_env.sh (#108).
-# Exercises --runtime and --bootstrap modes, and guards that doctor.md
-# still carries the three canonical recovery lines byte-for-byte (the
-# helper is the single source of that wording).
+# Exercises --runtime, --bootstrap, and --codex modes, and guards that
+# doctor.md still carries both canonical recovery blocks.
 #
 # Runs under $BASH_FOR_COMPAT (default /bin/bash) so it exercises macOS
 # Bash 3.2 in CI. SKIPs gracefully if that shell is unavailable.
@@ -28,6 +27,9 @@ FAIL=0
 CANON1="1. Run /lean4:doctor env for a full diagnosis."
 CANON2="2. Restart the Claude Code session (re-runs the SessionStart bootstrap hook)."
 CANON3="3. If it persists, check the plugin hook/bootstrap state (hooks.json, bootstrap.sh)."
+CODEX_CANON1="1. Review and trust the lean4 plugin hooks in /hooks."
+CODEX_CANON2="2. Start a new Codex task (re-runs the SessionStart hook)."
+CODEX_CANON3="3. Run the absolute <plugin-root>/bin/lean4-skills-preflight --codex command; if it is missing, reinstall the plugin."
 
 pass() { echo "  PASS: $1"; (( ++PASS )) || true; }
 fail() { echo "  FAIL: $1"; (( ++FAIL )) || true; }
@@ -95,7 +97,61 @@ else
     fail "bootstrap: tree missing bin/ → exit 2 (got $out)"
 fi
 
-rm -rf "$tmp" "$baddir"
+# ---------------------------------------------------------------------------
+# --codex mode: absolute installed-tree checks, no env/PATH dependency.
+# ---------------------------------------------------------------------------
+
+out=0
+env -u LEAN4_PLUGIN_ROOT -u LEAN4_SCRIPTS -u LEAN4_REFS \
+    PATH="/usr/bin:/bin" \
+    "$BASH_FOR_COMPAT" "$PREFLIGHT" --codex "$PLUGIN_ROOT" >/dev/null 2>&1 || out=$?
+[[ "$out" -eq 0 ]] && pass "codex: valid absolute runtime with no LEAN4_* or plugin PATH → exit 0" \
+    || fail "codex: valid absolute runtime → exit 0 (got $out)"
+
+out=0
+env -u LEAN4_PLUGIN_ROOT -u LEAN4_SCRIPTS -u LEAN4_REFS \
+    PATH="/usr/bin:/bin" \
+    "$PLUGIN_ROOT/bin/lean4-skills-preflight" --codex >/dev/null 2>&1 || out=$?
+[[ "$out" -eq 0 ]] && pass "codex: self-locating absolute preflight wrapper → exit 0" \
+    || fail "codex: absolute preflight wrapper → exit 0 (got $out)"
+
+out=0
+codex_out=$(env -u PLUGIN_ROOT -u CLAUDE_PLUGIN_ROOT \
+    "$BASH_FOR_COMPAT" "$PREFLIGHT" --codex "" 2>&1) || out=$?
+if [[ "$out" -eq 2 ]] && grep -qF "PLUGIN_ROOT is not set" <<<"$codex_out"; then
+    pass "codex: empty root → canonical recovery + exit 2"
+else
+    fail "codex: empty root → canonical recovery + exit 2 (got $out)"
+fi
+
+badcodex=$(mktemp -d)
+mkdir -p "$badcodex/.codex-plugin" "$badcodex/hooks" \
+    "$badcodex/lib/scripts" "$badcodex/skills/lean4/references" "$badcodex/bin"
+touch "$badcodex/.codex-plugin/plugin.json" "$badcodex/hooks/codex-hooks.json" \
+    "$badcodex/skills/lean4/SKILL.md"
+out=0
+codex_out=$("$BASH_FOR_COMPAT" "$PREFLIGHT" --codex "$badcodex" 2>&1) || out=$?
+if [[ "$out" -eq 2 ]] && grep -qF "lean4-skills-preflight is missing or not executable" <<<"$codex_out"; then
+    pass "codex: missing absolute wrapper → canonical recovery + exit 2"
+else
+    fail "codex: missing wrapper → canonical recovery + exit 2 (got $out)"
+fi
+
+badcodex_scripts=$(mktemp -d)
+mkdir -p "$badcodex_scripts/.codex-plugin" "$badcodex_scripts/hooks" \
+    "$badcodex_scripts/skills/lean4/references" "$badcodex_scripts/bin"
+touch "$badcodex_scripts/.codex-plugin/plugin.json" \
+    "$badcodex_scripts/hooks/codex-hooks.json" \
+    "$badcodex_scripts/skills/lean4/SKILL.md"
+out=0
+codex_out=$("$BASH_FOR_COMPAT" "$PREFLIGHT" --codex "$badcodex_scripts" 2>&1) || out=$?
+if [[ "$out" -eq 2 ]] && grep -qF "lib/scripts does not exist" <<<"$codex_out"; then
+    pass "codex: missing scripts directory → canonical recovery + exit 2"
+else
+    fail "codex: missing scripts directory → canonical recovery + exit 2 (got $out)"
+fi
+
+rm -rf "$tmp" "$baddir" "$badcodex" "$badcodex_scripts"
 
 # ---------------------------------------------------------------------------
 # Wording agreement: doctor.md must contain the three canonical lines.
@@ -117,6 +173,22 @@ for canon in "$CANON1" "$CANON2" "$CANON3"; do
     grep -qF "$canon" <<<"$emitted" || fail "preflight did not emit canonical line: $canon"
 done
 pass "preflight_env.sh emits all three canonical lines"
+
+# Codex recovery wording agreement and emitted behavior.
+for canon in "$CODEX_CANON1" "$CODEX_CANON2" "$CODEX_CANON3"; do
+    if grep -qF "$canon" "$DOCTOR"; then
+        pass "doctor.md contains Codex canonical line: ${canon%% *}…"
+    else
+        fail "doctor.md MISSING Codex canonical line: $canon"
+    fi
+done
+
+emitted=$(env -u PLUGIN_ROOT -u CLAUDE_PLUGIN_ROOT \
+    "$BASH_FOR_COMPAT" "$PREFLIGHT" --codex "" 2>&1 || true)
+for canon in "$CODEX_CANON1" "$CODEX_CANON2" "$CODEX_CANON3"; do
+    grep -qF "$canon" <<<"$emitted" || fail "preflight did not emit Codex canonical line: $canon"
+done
+pass "preflight_env.sh emits all three Codex canonical lines"
 
 # ---------------------------------------------------------------------------
 echo ""

@@ -1364,23 +1364,33 @@ check_advanced_reference_snippets() {
     fi
 }
 
-# Check 23: release metadata consistency (plugin.json ↔ marketplace.json ↔ CHANGELOG)
+# Check 23: release metadata consistency across Claude + Codex surfaces.
 check_release_metadata() {
     log ""
     log "Checking release metadata consistency..."
 
     local plugin_json="$PLUGIN_ROOT/.claude-plugin/plugin.json"
+    local codex_plugin_json="$PLUGIN_ROOT/.codex-plugin/plugin.json"
     local repo_root
     repo_root="$(cd "$PLUGIN_ROOT" && cd ../.. && pwd)"
     local marketplace_json="$repo_root/.claude-plugin/marketplace.json"
+    local codex_marketplace_json="$repo_root/.agents/plugins/marketplace.json"
     local changelog="$repo_root/CHANGELOG.md"
 
     if [[ ! -f "$plugin_json" ]]; then
         warn "plugin.json not found at $plugin_json"
         return
     fi
+    if [[ ! -f "$codex_plugin_json" ]]; then
+        warn "Codex plugin.json not found at $codex_plugin_json"
+        return
+    fi
     if [[ ! -f "$marketplace_json" ]]; then
         warn "marketplace.json not found at $marketplace_json"
+        return
+    fi
+    if [[ ! -f "$codex_marketplace_json" ]]; then
+        warn "Codex marketplace.json not found at $codex_marketplace_json"
         return
     fi
     if [[ ! -f "$changelog" ]]; then
@@ -1388,64 +1398,199 @@ check_release_metadata() {
         return
     fi
 
-    # Extract plugin.json fields
-    local plugin_version plugin_desc
-    plugin_version=$(grep -oE '"version": *"[^"]+"' "$plugin_json" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-    plugin_desc=$(sed -n 's/.*"description": *"\([^"]*\)".*/\1/p' "$plugin_json" | head -1)
+    # Parse every JSON surface in one stdlib-only pass. The tab-delimited
+    # output keeps Bash 3.2 compatibility without depending on jq.
+    local plugin_version="" plugin_desc="" market_version=""
+    local market_plugin_desc="" market_source="" market_plugin_count=""
+    local codex_version="" codex_desc="" codex_name="" codex_skills="" codex_hooks="" codex_semver=""
+    local codex_market_name="" codex_market_total="" codex_market_plugin_count="" codex_contribute_count=""
+    local codex_source_type="" codex_source_path="" codex_source_in_repo=""
+    local codex_installation="" codex_authentication="" codex_category=""
+    local key value
+    while IFS=$'\t' read -r key value; do
+        case "$key" in
+            plugin_version) plugin_version="$value" ;;
+            plugin_desc) plugin_desc="$value" ;;
+            market_version) market_version="$value" ;;
+            market_plugin_desc) market_plugin_desc="$value" ;;
+            market_source) market_source="$value" ;;
+            market_plugin_count) market_plugin_count="$value" ;;
+            codex_version) codex_version="$value" ;;
+            codex_desc) codex_desc="$value" ;;
+            codex_name) codex_name="$value" ;;
+            codex_skills) codex_skills="$value" ;;
+            codex_hooks) codex_hooks="$value" ;;
+            codex_semver) codex_semver="$value" ;;
+            codex_market_name) codex_market_name="$value" ;;
+            codex_market_total) codex_market_total="$value" ;;
+            codex_market_plugin_count) codex_market_plugin_count="$value" ;;
+            codex_contribute_count) codex_contribute_count="$value" ;;
+            codex_source_type) codex_source_type="$value" ;;
+            codex_source_path) codex_source_path="$value" ;;
+            codex_source_in_repo) codex_source_in_repo="$value" ;;
+            codex_installation) codex_installation="$value" ;;
+            codex_authentication) codex_authentication="$value" ;;
+            codex_category) codex_category="$value" ;;
+        esac
+    done < <(python3 - "$plugin_json" "$codex_plugin_json" "$marketplace_json" "$codex_marketplace_json" "$repo_root" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
 
-    if [[ -z "$plugin_version" ]]; then
-        warn "Could not extract version from plugin.json"
+plugin_path, codex_path, market_path, codex_market_path, repo_path = sys.argv[1:]
+with open(plugin_path, encoding="utf-8") as f:
+    plugin = json.load(f)
+with open(codex_path, encoding="utf-8") as f:
+    codex = json.load(f)
+with open(market_path, encoding="utf-8") as f:
+    market = json.load(f)
+with open(codex_market_path, encoding="utf-8") as f:
+    codex_market = json.load(f)
+
+def emit(key, value):
+    print(f"{key}\t{value}")
+
+legacy_plugins = [p for p in market.get("plugins", []) if p.get("name") == "lean4"]
+legacy = legacy_plugins[0] if legacy_plugins else {}
+codex_plugins = codex_market.get("plugins", [])
+lean4_entries = [p for p in codex_plugins if p.get("name") == "lean4"]
+contribute_entries = [p for p in codex_plugins if p.get("name") == "lean4-contribute"]
+entry = lean4_entries[0] if lean4_entries else {}
+source = entry.get("source") if isinstance(entry.get("source"), dict) else {}
+policy = entry.get("policy") if isinstance(entry.get("policy"), dict) else {}
+source_path = source.get("path", "")
+repo_root = Path(repo_path).resolve()
+try:
+    resolved_source = (repo_root / source_path).resolve()
+    source_in_repo = (
+        resolved_source.is_dir()
+        and (resolved_source == repo_root or repo_root in resolved_source.parents)
+    )
+except (OSError, RuntimeError):
+    source_in_repo = False
+
+emit("plugin_version", plugin.get("version", ""))
+emit("plugin_desc", plugin.get("description", ""))
+emit("market_version", market.get("metadata", {}).get("version", ""))
+emit("market_plugin_desc", legacy.get("description", ""))
+emit("market_source", legacy.get("source", ""))
+emit("market_plugin_count", len(legacy_plugins))
+emit("codex_version", codex.get("version", ""))
+emit("codex_desc", codex.get("description", ""))
+emit("codex_name", codex.get("name", ""))
+emit("codex_skills", codex.get("skills", ""))
+emit("codex_hooks", codex.get("hooks", ""))
+emit("codex_semver", "yes" if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", codex.get("version", "")) else "no")
+emit("codex_market_name", codex_market.get("name", ""))
+emit("codex_market_total", len(codex_plugins))
+emit("codex_market_plugin_count", len(lean4_entries))
+emit("codex_contribute_count", len(contribute_entries))
+emit("codex_source_type", source.get("source", ""))
+emit("codex_source_path", source_path)
+emit("codex_source_in_repo", "yes" if source_in_repo else "no")
+emit("codex_installation", policy.get("installation", ""))
+emit("codex_authentication", policy.get("authentication", ""))
+emit("codex_category", entry.get("category", ""))
+PY
+)
+
+    if [[ -z "$plugin_version" || -z "$codex_version" || -z "$market_version" ]]; then
+        warn "Could not parse release versions from Claude/Codex metadata"
         return
     fi
 
-    # Extract marketplace.json fields via python3
-    local market_version market_plugin_desc market_source market_plugin_count
-    market_version=$(grep -oE '"version": *"[^"]+"' "$marketplace_json" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-    market_plugin_desc=$(python3 -c "
-import json, sys
-data = json.load(open(sys.argv[1]))
-for p in data.get('plugins', []):
-    if p.get('name') == 'lean4':
-        print(p.get('description', '')); break
-" "$marketplace_json")
-    market_source=$(python3 -c "
-import json, sys
-data = json.load(open(sys.argv[1]))
-for p in data.get('plugins', []):
-    if p.get('name') == 'lean4':
-        print(p.get('source', '')); break
-" "$marketplace_json")
-    market_plugin_count=$(grep -c '"name": *"lean4"' "$marketplace_json")
-
-    # 1. Version match
+    # 1. Legacy marketplace version match.
     if [[ "$plugin_version" == "$market_version" ]]; then
         ok "marketplace version matches plugin.json ($plugin_version)"
     else
         warn "marketplace version ($market_version) != plugin.json ($plugin_version)"
     fi
 
-    # 2. Plugin description match
+    # 2. Codex plugin version and semver.
+    if [[ "$plugin_version" == "$codex_version" ]]; then
+        ok "Codex plugin version matches plugin.json ($plugin_version)"
+    else
+        warn "Codex plugin version ($codex_version) != plugin.json ($plugin_version)"
+    fi
+    if [[ "$codex_semver" == "yes" ]]; then
+        ok "Codex plugin version is strict semver"
+    else
+        warn "Codex plugin version is not strict semver: $codex_version"
+    fi
+
+    # 3. Plugin descriptions match the canonical Claude manifest.
     if [[ "$plugin_desc" == "$market_plugin_desc" ]]; then
         ok "marketplace plugin description matches plugin.json"
     else
         warn "marketplace plugin description differs from plugin.json"
     fi
+    if [[ "$plugin_desc" == "$codex_desc" ]]; then
+        ok "Codex plugin description matches plugin.json"
+    else
+        warn "Codex plugin description differs from plugin.json"
+    fi
 
-    # 3. Source path
+    # 4. Legacy marketplace source and count.
     if [[ "$market_source" == "./plugins/lean4" ]]; then
         ok "marketplace plugin source is ./plugins/lean4"
     else
         warn "unexpected marketplace plugin source: $market_source"
     fi
 
-    # 4. Single lean4 entry
     if [[ "$market_plugin_count" -eq 1 ]]; then
         ok "marketplace has exactly one lean4 plugin entry"
     else
         warn "expected 1 lean4 plugin entry in marketplace, found $market_plugin_count"
     fi
 
-    # 5. CHANGELOG entry — exact heading + non-empty section, via the same
+    # 5. Codex manifest paths and identity.
+    if [[ "$codex_name" == "lean4" ]]; then
+        ok "Codex plugin name is lean4"
+    else
+        warn "unexpected Codex plugin name: $codex_name"
+    fi
+    if [[ "$codex_skills" == "./skills" ]]; then
+        ok "Codex plugin reuses ./skills"
+    else
+        warn "unexpected Codex skills path: $codex_skills"
+    fi
+    if [[ "$codex_hooks" == "./hooks/codex-hooks.json" ]]; then
+        ok "Codex plugin selects codex-hooks.json"
+    else
+        warn "unexpected Codex hooks path: $codex_hooks"
+    fi
+
+    # 6. Thin Codex marketplace shape.
+    if [[ "$codex_market_name" == "lean4-skills" ]]; then
+        ok "Codex marketplace name is lean4-skills"
+    else
+        warn "unexpected Codex marketplace name: $codex_market_name"
+    fi
+    if [[ "$codex_market_total" -eq 1 && "$codex_market_plugin_count" -eq 1 && "$codex_contribute_count" -eq 0 ]]; then
+        ok "Codex marketplace contains only the lean4 plugin"
+    else
+        warn "Codex marketplace must contain exactly one lean4 entry and no lean4-contribute entry"
+    fi
+    if [[ "$codex_source_type" == "local" \
+       && "$codex_source_path" == "./plugins/lean4" \
+       && "$codex_source_in_repo" == "yes" ]]; then
+        ok "Codex marketplace source is local ./plugins/lean4"
+    else
+        warn "unexpected or out-of-repository Codex marketplace source: $codex_source_type $codex_source_path"
+    fi
+    if [[ "$codex_installation" == "AVAILABLE" && "$codex_authentication" == "ON_INSTALL" ]]; then
+        ok "Codex marketplace policy metadata is complete"
+    else
+        warn "unexpected Codex marketplace policy: installation=$codex_installation authentication=$codex_authentication"
+    fi
+    if [[ "$codex_category" == "Coding" ]]; then
+        ok "Codex marketplace category is Coding"
+    else
+        warn "unexpected Codex marketplace category: $codex_category"
+    fi
+
+    # 7. CHANGELOG entry — exact heading + non-empty section, via the same
     #    extraction script release.yml uses to build the release notes. A
     #    substring grep is not enough: "## v4.5.6" must not be satisfied by
     #    "## v4.5.60", and the release workflow refuses to publish blank notes.

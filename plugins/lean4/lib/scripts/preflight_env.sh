@@ -3,7 +3,7 @@
 # preflight_env.sh — single source of the Lean4 env validation checks AND
 # the canonical "bootstrap environment not set up" recovery message.
 #
-# Two modes:
+# Three modes:
 #   --bootstrap   Validate the INPUTS a SessionStart bootstrap needs, given
 #                 CLAUDE_PLUGIN_ROOT (passed as $2, or read from env): the
 #                 plugin tree layout exists and CLAUDE_ENV_FILE is usable.
@@ -13,6 +13,9 @@
 #                 PATH, and the lean4-skills-* wrappers resolve. Used for
 #                 on-demand diagnosis (e.g. /lean4:doctor env, or manual run
 #                 via the lean4-skills-preflight wrapper).
+#   --codex       Validate the installed native Codex plugin layout and its
+#                 absolute wrapper contract. Does not require LEAN4_* shell
+#                 variables, an environment file, or bin/ on PATH.
 #
 # Exit 0 when the checked mode passes; exit 2 with the canonical recovery
 # block on stderr when it fails. Self-locating (BASH_SOURCE) so it never
@@ -24,10 +27,10 @@
 
 set -euo pipefail
 
-# emit_recovery <problem-description>
+# emit_claude_recovery <problem-description>
 # Prints the canonical recovery block to stderr. $1 is a mode-specific,
 # one-line description of what was wrong (interpolated into "Problem:").
-emit_recovery() {
+emit_claude_recovery() {
     local problem="$1"
     {
         echo "Lean4 bootstrap environment is not fully set up in this Claude Code session."
@@ -39,6 +42,21 @@ emit_recovery() {
     } >&2
 }
 
+# emit_codex_recovery <problem-description>
+# Canonical native-Codex recovery block. doctor.md carries these same three
+# numbered lines and test_preflight_env.sh guards the agreement.
+emit_codex_recovery() {
+    local problem="$1"
+    {
+        echo "Lean4 native Codex helper runtime is not ready."
+        echo "  Problem: ${problem}"
+        echo "  Recovery:"
+        echo "    1. Review and trust the lean4 plugin hooks in /hooks."
+        echo "    2. Start a new Codex task (re-runs the SessionStart hook)."
+        echo "    3. Run the absolute <plugin-root>/bin/lean4-skills-preflight --codex command; if it is missing, reinstall the plugin."
+    } >&2
+}
+
 # check_bootstrap <plugin-root>
 # Validates the tree layout + CLAUDE_ENV_FILE usability. Returns 0 on
 # success; on failure emits the canonical block and returns 2.
@@ -47,7 +65,7 @@ check_bootstrap() {
     local problems=()
 
     if [[ -z "$root" ]]; then
-        emit_recovery "CLAUDE_PLUGIN_ROOT is not set (bootstrap hook invoked without it)"
+        emit_claude_recovery "CLAUDE_PLUGIN_ROOT is not set (bootstrap hook invoked without it)"
         return 2
     fi
     [[ -d "$root/lib/scripts" ]] || problems+=("$root/lib/scripts does not exist")
@@ -81,7 +99,7 @@ check_bootstrap() {
     if [[ ${#problems[@]} -gt 0 ]]; then
         local joined
         joined="$(printf '%s; ' "${problems[@]}")"
-        emit_recovery "${joined%; }"
+        emit_claude_recovery "${joined%; }"
         return 2
     fi
     return 0
@@ -123,7 +141,38 @@ check_runtime() {
     if [[ ${#problems[@]} -gt 0 ]]; then
         local joined
         joined="$(printf '%s; ' "${problems[@]}")"
-        emit_recovery "${joined%; }"
+        emit_claude_recovery "${joined%; }"
+        return 2
+    fi
+    return 0
+}
+
+# check_codex <plugin-root>
+# Validates the installed in-place Codex plugin and representative absolute
+# wrappers. It intentionally makes no assertions about the caller's shell
+# environment or PATH.
+check_codex() {
+    local root="$1"
+    local problems=()
+
+    if [[ -z "$root" ]]; then
+        emit_codex_recovery "PLUGIN_ROOT is not set (Codex hook invoked without a plugin root)"
+        return 2
+    fi
+    [[ -d "$root" ]] || problems+=("$root is not a directory")
+    [[ -f "$root/.codex-plugin/plugin.json" ]] || problems+=("$root/.codex-plugin/plugin.json does not exist")
+    [[ -f "$root/hooks/codex-hooks.json" ]] || problems+=("$root/hooks/codex-hooks.json does not exist")
+    [[ -d "$root/lib/scripts" ]] || problems+=("$root/lib/scripts does not exist")
+    [[ -f "$root/skills/lean4/SKILL.md" ]] || problems+=("$root/skills/lean4/SKILL.md does not exist")
+    [[ -d "$root/skills/lean4/references" ]] || problems+=("$root/skills/lean4/references does not exist")
+    [[ -d "$root/bin" ]] || problems+=("$root/bin does not exist")
+    [[ -x "$root/bin/lean4-skills-preflight" ]] || problems+=("$root/bin/lean4-skills-preflight is missing or not executable")
+    [[ -x "$root/bin/lean4-skills-sorry-analyzer" ]] || problems+=("$root/bin/lean4-skills-sorry-analyzer is missing or not executable")
+
+    if [[ ${#problems[@]} -gt 0 ]]; then
+        local joined
+        joined="$(printf '%s; ' "${problems[@]}")"
+        emit_codex_recovery "${joined%; }"
         return 2
     fi
     return 0
@@ -140,8 +189,13 @@ main() {
         --runtime)
             check_runtime
             ;;
+        --codex)
+            # Prefer an explicitly-passed root. PLUGIN_ROOT is Codex's native
+            # hook variable; CLAUDE_PLUGIN_ROOT is its compatibility fallback.
+            check_codex "${2:-${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-}}}"
+            ;;
         *)
-            echo "Usage: preflight_env.sh [--bootstrap [PLUGIN_ROOT] | --runtime]" >&2
+            echo "Usage: preflight_env.sh [--bootstrap [PLUGIN_ROOT] | --runtime | --codex [PLUGIN_ROOT]]" >&2
             exit 64
             ;;
     esac

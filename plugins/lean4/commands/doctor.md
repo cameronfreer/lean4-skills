@@ -39,12 +39,27 @@ Diagnostics, troubleshooting, and migration assistance for the Lean4 plugin.
 | `git` | `git --version` | For commits |
 | `rg` | `rg --version` | Optional (faster search) |
 
-Environment variables: `LEAN4_PLUGIN_ROOT`, `LEAN4_SCRIPTS`, `LEAN4_REFS`, `LEAN4_PYTHON_BIN`
+Persistent-environment hosts use `LEAN4_PLUGIN_ROOT`, `LEAN4_SCRIPTS`,
+`LEAN4_REFS`, and `LEAN4_PYTHON_BIN`. Trusted native Codex installs instead
+receive absolute SessionStart paths; those values are not shell exports.
 
-Run the shared env preflight for a live diagnosis. Resolve it **without
-depending on PATH** — `doctor env` is exactly where a broken PATH must
-still be diagnosable, so a bare `lean4-skills-preflight` alone could fail
-command-not-found:
+Run the shared preflight **without depending on PATH**, which may be absent.
+
+**Native Codex plugin:** use the literal absolute SessionStart `preflight` value:
+
+```bash
+/absolute/plugin/root/bin/lean4-skills-preflight --codex
+```
+
+If trusted context is missing, report this canonical recovery block:
+
+```text
+1. Review and trust the lean4 plugin hooks in /hooks.
+2. Start a new Codex task (re-runs the SessionStart hook).
+3. Run the absolute <plugin-root>/bin/lean4-skills-preflight --codex command; if it is missing, reinstall the plugin.
+```
+
+**Persistent environment (including Claude Code):**
 
 ```bash
 if command -v lean4-skills-preflight >/dev/null 2>&1; then
@@ -60,9 +75,8 @@ else
 fi
 ```
 
-The preflight validates that `LEAN4_*` point at real dirs, that
-`$LEAN4_PLUGIN_ROOT/bin` is on `PATH`, and that the `lean4-skills-*`
-wrappers resolve; on failure it prints the canonical recovery block.
+The persistent preflight checks `LEAN4_*`, PATH, and wrappers. Codex checks the
+installed tree and absolute wrappers. Each has a canonical recovery block.
 
 ### 1b. MCP Tools
 
@@ -77,11 +91,12 @@ Verify structure and permissions:
 ```
 plugins/lean4/
 ├── .claude-plugin/plugin.json
+├── .codex-plugin/plugin.json
 ├── commands/     (*.md command files)
-├── hooks/        (executable .sh)
+├── hooks/        (Claude + Codex hook configs; executable hooks)
 ├── skills/lean4/ (SKILL.md + references/)
 ├── agents/       (4 files)
-├── bin/          (lean4-skills-* wrappers; verify on PATH: `command -v lean4-skills-cycle-tracker`)
+├── bin/          (lean4-skills-* wrappers; absolute under Codex, on PATH under Claude)
 └── lib/scripts/  (executable .py / .sh internals)
 ```
 
@@ -218,6 +233,7 @@ No changes made. Run `/lean4:doctor cleanup --apply` to remove.
 
 | Issue | Fix |
 |-------|-----|
+| Native Codex bare wrapper not found on PATH | Expected: invoke the literal absolute `bin_dir/lean4-skills-*` path supplied by trusted SessionStart. Codex does not document persistent plugin PATH mutation. |
 | LEAN4_SCRIPTS not set | 1. Run `/lean4:doctor env` for a full diagnosis. 2. Restart the Claude Code session (re-runs the SessionStart bootstrap hook). 3. If it persists, check the plugin hook/bootstrap state (hooks.json, bootstrap.sh). |
 | `lean4-skills-*` wrapper not found on PATH | 1. Run `/lean4:doctor env` for a full diagnosis. 2. Restart the Claude Code session (re-runs the SessionStart bootstrap hook). 3. If it persists, check the plugin hook/bootstrap state (hooks.json, bootstrap.sh). |
 | lake not found | Install via elan |
@@ -230,6 +246,8 @@ No changes made. Run `/lean4:doctor cleanup --apply` to remove.
 | Commands not found after migration | Check `/lean4:*` not `/lean4-theorem-proving:*` |
 | `rg` not found | Install via package manager — see [ripgrep](../../../INSTALLATION.md#optional-ripgrep) |
 | Lean LSP MCP tools unavailable | Check `claude mcp list` (Claude Code); if missing, `claude mcp add --transport stdio --scope user lean-lsp -- uvx lean-lsp-mcp` or see [INSTALLATION.md](../../../INSTALLATION.md#lean-lsp-mcp-server-all-hosts) |
+
+Under Codex, PreToolUse is advisory and is not a security boundary.
 
 ## Safety
 
