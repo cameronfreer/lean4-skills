@@ -483,8 +483,9 @@ check_bare_scripts() {
 # `omit [Inst] in` ordering rule (issue #136). Docs-surface invariant
 # only — locks in the always-loaded surface so future edits can't
 # strip the rule out and re-introduce the parse-error footgun.
-# NOT a Lean parse test; not CI-enforced (lint_docs.sh runs
-# locally / via /lean4:diagnose).
+# NOT a Lean parse test; enforced in CI by release-contract's full
+# lint_docs.sh run (#158), but has no dedicated planted-violation
+# self-test.
 check_skill_omit_rule() {
     log ""
     log "Checking SKILL.md teaches omit [Inst] in ordering rule..."
@@ -602,7 +603,7 @@ check_python_script_interpreters() {
 # usages exist in references). For new `fun ... =>` introductions
 # in unrelated files, rely on review.
 #
-# Guard strength is local/diagnose only, same as Check 8a from #136.
+# Enforced in CI by release-contract's full lint_docs.sh run (#158).
 # Unlike Checks 8c/8e, this invariant has no dedicated CI self-test;
 # test_lint_docs.sh (added in #138) invokes lint_docs.sh incidentally
 # in CI, but it only asserts the Check 8c/8e fixture behavior.

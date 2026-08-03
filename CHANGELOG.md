@@ -2,7 +2,7 @@
 
 ## v4.6.0 (August 2026)
 
-Renames `/lean4:doctor` to `/lean4:diagnose` (PR #156, Adam McKenna). Claude Code namespaces plugin commands, so `/doctor` and `/lean4:doctor` never conflicted at execution — but both appear as closely related "doctor" results in slash-command autocomplete, making it easy to select the wrong diagnostic (built-in `/doctor` diagnoses the Claude Code installation; the plugin command diagnoses the Lean/plugin/project environment). Renaming the Lean-specific command removes the discovery ambiguity.
+Renames `/lean4:doctor` to `/lean4:diagnose`. Based on PR #156 by Adam McKenna; reconciled and shipped in PR #170. Claude Code namespaces plugin commands, so `/doctor` and `/lean4:doctor` never conflicted at execution — but both appear as closely related "doctor" results in slash-command autocomplete, making it easy to select the wrong diagnostic (built-in `/doctor` diagnoses the Claude Code installation; the plugin command diagnoses the Lean/plugin/project environment). Renaming the Lean-specific command removes the discovery ambiguity.
 
 ### Breaking
 

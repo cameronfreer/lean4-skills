@@ -39,7 +39,7 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 /lean4:refactor            # Simplify proof strategies
 /lean4:golf                # Optimize proofs
 /lean4:learn               # Explore repo or mathlib
-/lean4:diagnose              # Diagnostics and migration help
+/lean4:diagnose            # Diagnostics and migration help
 git push                   # Manual, after review
 ```
 

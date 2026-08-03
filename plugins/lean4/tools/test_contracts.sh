@@ -724,7 +724,7 @@ if [[ -e "$PLUGIN_ROOT/commands/doctor.md" ]]; then
     fail "Check 30: commands/doctor.md exists — the doctor command was removed in v4.6.0"
     check30_ok=0
 fi
-_c30_hits=$(grep -rln 'lean4:doctor\|doctor\.md' \
+_c30_hits=$(grep -rln 'lean4:doctor\|doctor\.md\|Lean4 Doctor' \
     "$_c30_repo_root/README.md" "$_c30_repo_root/INSTALLATION.md" \
     "$PLUGIN_ROOT/README.md" "$PLUGIN_ROOT/commands" "$PLUGIN_ROOT/skills" \
     "$PLUGIN_ROOT/hooks" "$PLUGIN_ROOT/lib" "$PLUGIN_ROOT/tools" \
