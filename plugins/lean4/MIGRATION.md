@@ -4,6 +4,10 @@
 
 This guide helps you upgrade from the legacy 3-plugin system (v3.x) to the unified v4 plugin.
 
+## v4.6.0: `/lean4:doctor` renamed
+
+`/lean4:doctor` was removed in v4.6.0. Use `/lean4:diagnose`; all modes and behavior are unchanged (`/lean4:diagnose`, `env`, `migrate`, `cleanup`).
+
 ## What Changed
 
 ### Plugin Structure
