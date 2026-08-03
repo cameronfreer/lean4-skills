@@ -12,7 +12,7 @@ Renames `/lean4:doctor` to `/lean4:diagnose`. Based on PR #156 by Adam McKenna; 
 
 - Canonical recovery wording (single-sourced in `lib/scripts/preflight_env.sh`, byte-identical copy in `hooks/bootstrap.sh`) now says `Run /lean4:diagnose env for a full diagnosis.`; `test_preflight_env.sh`/`test_bootstrap_env.sh` assert it, and the Codex recovery block's wording is unchanged (it never referenced the slash command — only its ownership comments moved to `diagnose.md`).
 - All active surfaces renamed: root/plugin READMEs, INSTALLATION.md, MIGRATION.md (gains the removal note), SKILL.md tables and workflow vocabulary, `command-examples`/`command-invocation`/`subagent-workflows` references, all three manifest descriptions (Claude plugin, marketplace, Codex plugin), `lint_docs.sh` `KNOWN_COMMANDS` + per-command tables + the `diagnose.md` special-cases, and `test_validate_user_prompt.sh`. Historical CHANGELOG entries keep `doctor` (accurate for the releases they describe).
-- **New Check 30 (`test_contracts.sh`)** makes the rename permanent: `diagnose.md` must exist with `name: diagnose`, `doctor.md` must not exist, and no active surface may reference `/lean4:doctor` — with CHANGELOG.md and MIGRATION.md explicitly allowlisted.
+- **New Check 30 (`test_contracts.sh`)** makes the rename permanent: `diagnose.md` must exist with `name: diagnose` and the `Lean4 Diagnostics` headings, `doctor.md` must not exist, and no active surface may reference `/lean4:doctor` or the old branding. CHANGELOG.md is allowlisted for historical release entries; MIGRATION.md permits only the exact v4.6.0 rename/removal statements (which must both exist).
 
 ## v4.5.10 (August 2026)
 

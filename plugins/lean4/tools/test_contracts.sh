@@ -680,8 +680,9 @@ fi
 # marketplace), .github/ (workflow step labels), and the whole plugin
 # tree. Allowlisted: CHANGELOG.md (the v4.6.0 breaking entry and older
 # historical entries are accurate for the releases they describe), and in
-# MIGRATION.md only lines that state the rename/removal itself — any
-# other old-name mention there fails. Canonical recovery-wording
+# MIGRATION.md only the two EXACT v4.6.0 rename/removal statements —
+# which must both exist, and any other old-name/branding mention fails.
+# Canonical recovery-wording
 # agreement across diagnose.md / preflight / bootstrap is owned by
 # test_preflight_env.sh and test_bootstrap_env.sh — not duplicated here.
 # ---------------------------------------------------------------------------
@@ -712,12 +713,22 @@ else
         check30_ok=0
     fi
 fi
-# MIGRATION.md: narrow allowance — old-name mentions must be the
-# rename/removal statements themselves, nothing else.
-_c30_mig_bad=$(grep -n 'lean4:doctor' "$PLUGIN_ROOT/MIGRATION.md" 2>/dev/null \
-    | grep -v 'renamed\|removed in v4\.6\.0' || true)
+# MIGRATION.md: the two exact v4.6.0 statements must exist, and they are
+# the ONLY permitted old-name/branding mentions — exact-line matching, so
+# neither a spoofed line containing 'renamed' nor deleting the statements
+# can pass.
+_c30_mig="$PLUGIN_ROOT/MIGRATION.md"
+_c30_mig_head='## v4.6.0: `/lean4:doctor` renamed'
+_c30_mig_body='`/lean4:doctor` was removed in v4.6.0. Use `/lean4:diagnose`; all modes and behavior are unchanged (`/lean4:diagnose`, `env`, `migrate`, `cleanup`).'
+if ! grep -Fxq "$_c30_mig_head" "$_c30_mig" 2>/dev/null \
+    || ! grep -Fxq "$_c30_mig_body" "$_c30_mig" 2>/dev/null; then
+    fail "Check 30: MIGRATION.md missing the exact v4.6.0 rename heading or removal statement"
+    check30_ok=0
+fi
+_c30_mig_bad=$(grep -n 'lean4:doctor\|doctor\.md\|Lean4 Doctor' "$_c30_mig" 2>/dev/null \
+    | grep -Fv "$_c30_mig_head" | grep -Fv "$_c30_mig_body" || true)
 if [[ -n "$_c30_mig_bad" ]]; then
-    fail "Check 30: MIGRATION.md old-name mention outside the rename/removal statements: $_c30_mig_bad"
+    fail "Check 30: MIGRATION.md old-name mention outside the exact rename/removal statements: $_c30_mig_bad"
     check30_ok=0
 fi
 if [[ -e "$PLUGIN_ROOT/commands/doctor.md" ]]; then
