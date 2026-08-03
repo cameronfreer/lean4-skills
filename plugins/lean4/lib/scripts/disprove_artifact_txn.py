@@ -39,6 +39,22 @@ import os
 import re
 import sys
 import uuid
+from typing import TYPE_CHECKING
+
+# Gate before any project import: /lean4:disprove requires Python 3.11+
+# (stdlib tomllib in the registry path, PEP 604 runtime unions in
+# command_args), and older interpreters — e.g. macOS's system python3,
+# 3.9 — must get a clean actionable error instead of an import-time
+# traceback. The TYPE_CHECKING guard keeps mypy (--python-version 3.10)
+# from marking the rest of the module unreachable, mirroring
+# lib/disprove_methods.py.
+if not TYPE_CHECKING and sys.version_info < (3, 11):
+    sys.stderr.write(
+        "Error: /lean4:disprove scripts require Python 3.11+; detected "
+        f"{sys.version_info.major}.{sys.version_info.minor}. "
+        "Set LEAN4_PYTHON_BIN to a Python 3.11+ interpreter.\n"
+    )
+    sys.exit(2)
 
 _BEGIN_RE = re.compile(
     r"^-- lean4:disprove-begin txn=(?P<txn>\S+) cycle=(?P<cycle>\S+) "

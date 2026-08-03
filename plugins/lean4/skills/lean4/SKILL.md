@@ -1,6 +1,7 @@
 ---
 name: lean4
 description: "Use when editing .lean files, debugging Lean 4 builds (type mismatch, sorry, failed to synthesize instance, axiom warnings, lake build errors), searching mathlib for lemmas, formalizing mathematics in Lean, finding a counterexample to, refuting, or disproving a Lean statement, or learning Lean 4 concepts. Also trigger when the user asks for help with Lean 4, mathlib, or lakefile. Do NOT trigger for Coq/Rocq, Agda, Isabelle, HOL4, Mizar, Idris, Megalodon, or other non-Lean theorem provers."
+license: MIT
 ---
 
 # Lean 4 Theorem Proving
@@ -37,6 +38,12 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | `/lean4:golf` | Improve Lean proofs for directness, clarity, performance, and brevity |
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
 | `/lean4:diagnose` | Diagnostics, cleanup, and migration help |
+
+`/lean4:*` names are the native plugin's command aliases and also serve
+as stable workflow names throughout this documentation. On hosts
+without command registration (skill-only or portable installs), invoke
+the `lean4` skill with your host's normal syntax and ask for the named
+workflow — e.g., "Use the guided `prove` workflow on `Foo.lean:42`."
 
 This plugin ships a host-agnostic parser (`lib/command_args/`) that covers the
 parser-decidable startup rules of the seven parameter-heavy commands (`draft`,
@@ -93,7 +100,7 @@ best-effort.
 
 - At most once per session. Do not repeat if the user declined, ignored it, or moved on.
 - Never mid-proof or during an active debugging loop.
-- One short line, not a pitch: "If you want, install the `lean4-contribute` plugin and I can draft that report for you here." See the [lean4-contribute README](../../../../plugins/lean4-contribute/README.md#installation) for setup.
+- One short line, not a pitch: "If you want, install the `lean4-contribute` plugin and I can draft that report for you here." See the [lean4-contribute README](https://github.com/cameronfreer/lean4-skills/blob/main/plugins/lean4-contribute/README.md#installation) for setup.
 
 ## Typical Workflow
 
@@ -152,8 +159,8 @@ lean_code_actions(file, line)                   # Resolve "Try this" suggestions
 | Capability | Required | Check | Fallback |
 |-----------|----------|-------|----------|
 | Lean / Lake | yes | `lean --version`, `lake --version` | none — run `/lean4:diagnose` |
-| Python 3 | yes (scripts) | `$LEAN4_PYTHON_BIN` set by bootstrap | none for script-dependent operations |
-| `$LEAN4_SCRIPTS` | yes (set by bootstrap) | `echo "$LEAN4_SCRIPTS"` | run `/lean4:diagnose` |
+| Python 3 | yes (scripts) | `python3 --version` or persistent `$LEAN4_PYTHON_BIN` | none for script-dependent operations |
+| Helper runtime path | yes (scripts) | trusted Codex `bin_dir`/`scripts_dir`, or persistent `$LEAN4_SCRIPTS` | use the diagnose workflow; stay LSP-only if unresolved |
 | Lean LSP MCP | no | try `lean_goal` on any `.lean` file | scripts + `lake env lean` (file-level only) |
 | `lean_run_code` | no | try calling it | `lake env lean` on temp file |
 | `lean_code_actions` | no | try calling it | manual "Try this" application |
@@ -163,6 +170,25 @@ lean_code_actions(file, line)                   # Resolve "Try this" suggestions
 ## Operating Profiles
 
 The skill adapts to what's available. Determine your profile by checking capabilities above, then follow the corresponding guidance.
+
+### Runtime path resolution
+
+Resolve the helper runtime in this order:
+
+1. **Trusted native Codex plugin:** SessionStart context contains
+   `lean4_plugin_runtime=codex`, absolute `bin_dir` / `scripts_dir` paths,
+   and `shell_env_persistent=false`. Substitute those literal absolute paths
+   into helper commands. They are context values, not shell variables: invoke
+   `/absolute/bin/lean4-skills-…`, never `$bin_dir/…`, and do not expect bare
+   wrappers on PATH.
+2. **Persistent environment:** use `$LEAN4_PLUGIN_ROOT`, `$LEAN4_SCRIPTS`,
+   `$LEAN4_REFS`, and bare wrappers verified on PATH.
+3. **No helper runtime:** remain in the LSP-backed core skill and skip
+   script-dependent steps until the installation is repaired or upgraded.
+
+Do not emit `$LEAN4_BIN/...` or `$LEAN4_SCRIPTS/...` commands when those shell
+variables are unset. A trusted Codex absolute path is a complete alternative,
+not evidence that persistent variables exist.
 
 ### full (all capabilities)
 
@@ -174,7 +200,9 @@ MCP works in the main thread. Run all proof work directly — do not delegate to
 
 ### scripts_only (no MCP, no subagents)
 
-Use `$LEAN4_SCRIPTS` for search and `lake env lean` / `lake build` for validation. **Key limitations in this mode:**
+Use the resolved helper runtime (`scripts_dir` under native Codex,
+`$LEAN4_SCRIPTS` under a persistent environment) for search and use
+`lake env lean` / `lake build` for validation. **Key limitations in this mode:**
 - **No live goal inspection** — `lean_goal` is unavailable; you can read the file and check compilation output, but cannot see proof state at a specific line
 - **No tactic testing** — `lean_multi_attempt` is unavailable; edits must be validated by compiling the file (`lake env lean`)
 - **No real-time diagnostics** — `lean_diagnostic_messages` is unavailable; use `lake env lean <file>` (from project root) for compilation errors, but feedback is file-level, not line-level
@@ -222,9 +250,12 @@ See [sorry-filling.md](references/sorry-filling.md) for the full scratch-work pr
   `lean4-skills-cycle-tracker`, `lean4-skills-disprove-artifact-txn`,
   `lean4-skills-disprove-emit-artifact`, `lean4-skills-disprove-method-probe`,
   `lean4-skills-disprove-target-profile`,
-  `lean4-skills-disprove-target-resolve`). These are bare commands on PATH —
-  no `$LEAN4_SCRIPTS`, no `${LEAN4_PYTHON_BIN:-python3}`, no `~`, no
-  env-var expansion or command substitution **to locate the executable**.
+  `lean4-skills-disprove-target-resolve`). In a persistent environment these
+  are bare commands on PATH. In a trusted native Codex plugin, prefix the
+  wrapper name with the literal absolute `bin_dir` from SessionStart (for
+  example `/installed/plugin/bin/lean4-skills-sorry-analyzer`). Do not use
+  `$LEAN4_SCRIPTS`, `${LEAN4_PYTHON_BIN:-python3}`, `~`, or command
+  substitution **to locate a wrapped executable**.
   Ordinary output capture around a wrapper is fine (e.g.
   `txn=$(lean4-skills-disprove-artifact-txn begin)`). Stable invocation
   surface that sandboxed hosts can statically allowlist.
@@ -239,16 +270,20 @@ See [sorry-filling.md](references/sorry-filling.md) for the full scratch-work pr
 
 Compatibility fallback (when a wrapper is unavailable):
 
-- If `lean4-skills-*` isn't resolvable on PATH, use the host's
-  documented setup (see INSTALLATION.md) to add `$LEAN4_PLUGIN_ROOT/bin`
-  to PATH. Some plugin hosts add this automatically; otherwise see
-  INSTALLATION.md.
+- Under trusted native Codex, use the literal absolute `bin_dir` path supplied
+  by SessionStart; lack of a bare PATH entry is expected, not a failure.
+- For persistent-environment hosts, if `lean4-skills-*` is not resolvable on
+  PATH, repair the documented `$LEAN4_PLUGIN_ROOT/bin` setup; see the
+  repository's [INSTALLATION.md](https://github.com/cameronfreer/lean4-skills/blob/main/INSTALLATION.md).
 - Only as a last resort for an unwrapped script, use the explicit
   env-var form: `bash "$LEAN4_SCRIPTS/script.sh" …` or
   `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/script.py" …`.
 
-If `$LEAN4_SCRIPTS` is unset or missing, run `/lean4:diagnose` and stay
-LSP-only until resolved.
+If neither trusted Codex absolute paths nor `$LEAN4_SCRIPTS` are available,
+run the diagnose workflow (`/lean4:diagnose` where that command is installed); on
+a skill-only install follow the repository's
+[INSTALLATION.md](https://github.com/cameronfreer/lean4-skills/blob/main/INSTALLATION.md).
+Stay LSP-only until resolved.
 
 ## Automation
 
@@ -266,9 +301,14 @@ When editing `.lean` files without invoking a command, the skill runs **one boun
 - Try the [Automation Tactics](#automation-tactics) cascade
 - Validate with `lean_diagnostic_messages` (no project-gate `lake build` in this mode)
 - No looping, no deep escalation, no multi-cycle behavior, no commits
+- If one goal resists the pass, follow the Blocked-Goal Triage loop in
+  [references/sorry-filling.md](references/sorry-filling.md) before escalating
 - End with suggestions:
-  > Use `/lean4:prove` for guided cycle-by-cycle help.
-  > Use `/lean4:autoprove` for autonomous cycles with stop safeguards.
+  > Ask me to run the guided `prove` workflow for cycle-by-cycle help.
+  > Ask me to run the autonomous `autoprove` workflow for unattended cycles with stop safeguards.
+
+  (On a host with the plugin's commands installed, those are
+  `/lean4:prove` and `/lean4:autoprove`.)
 
 ## Quality Gate
 
@@ -320,10 +360,17 @@ Note: `exact?`/`apply?` query mathlib (slow). `grind` and `aesop` are powerful b
 
 ## Troubleshooting
 
-If LSP tools aren't responding, check your operating profile above. In `scripts_only` mode, `$LEAN4_SCRIPTS` provides search and `lake env lean` provides file-level compilation feedback, but live goal inspection, tactic testing, and line-level diagnostics are unavailable. If environment variables (`LEAN4_SCRIPTS`, `LEAN4_REFS`) are missing, run `/lean4:diagnose` to diagnose.
+If LSP tools aren't responding, check your operating profile above. In
+`scripts_only` mode, the resolved helper runtime provides search and
+`lake env lean` provides file-level compilation feedback, but live goal
+inspection, tactic testing, and line-level diagnostics are unavailable. If no
+helper runtime path is available, run the diagnose workflow to diagnose it.
 
 **Script environment check:**
 ```bash
+# Trusted native Codex: use the absolute path from SessionStart.
+/absolute/plugin/root/bin/lean4-skills-preflight --codex
+# Persistent environment:
 echo "$LEAN4_SCRIPTS"
 command -v lean4-skills-sorry-analyzer
 # One-pass discovery for troubleshooting (human-readable default text):
@@ -350,7 +397,7 @@ lean4-skills-sorry-analyzer . --report-only
 
 **Errors:** [compilation-errors](references/compilation-errors.md) (read first for any build error), [instance-pollution](references/instance-pollution.md) (typeclass conflicts — grep `## Sub-` for patterns), [compiler-guided-repair](references/compiler-guided-repair.md) (escalation-only repair — not first-pass)
 
-**Tactics:** [tactics-reference](references/tactics-reference.md) (tactic lookup — grep `^### TacticName`), [grind-tactic](references/grind-tactic.md) (SMT-style automation — when simp can't close), [simp-reference](references/simp-reference.md) (simp hygiene + custom simprocs), [tactic-patterns](references/tactic-patterns.md), [calc-patterns](references/calc-patterns.md)
+**Tactics:** [tactics-reference](references/tactics-reference.md) (tactic lookup — grep `^### TacticName`), [grind-tactic](references/grind-tactic.md) (SMT-style automation — when simp can't close), [simp-reference](references/simp-reference.md) (mechanism choice, simp normal forms, `@[simp]` hygiene, simproc authoring), [tactic-patterns](references/tactic-patterns.md), [calc-patterns](references/calc-patterns.md)
 
 **Proof Development:** [proof-templates](references/proof-templates.md), [proof-refactoring](references/proof-refactoring.md) (28K — grep by topic), [proof-simplification](references/proof-simplification.md) (strategy-level: mathlib search, congr lemmas, helper extraction), [sorry-filling](references/sorry-filling.md)
 

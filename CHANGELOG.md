@@ -1,21 +1,100 @@
 # Changelog
 
-## v4.6.0 (July 2026)
+## v4.5.10 (August 2026)
 
-Renames the `/lean4:doctor` command to `/lean4:diagnose`. The `doctor` name collided with Claude Code's built-in `/doctor` command, so the plugin diagnostic is now `/lean4:diagnose` (same modes: bare, `env`, `migrate`, `cleanup`).
+Native in-place Codex plugin packaging and host adapter (Closes #157; supersedes #89). The canonical `plugins/lean4` tree is installed directly — no mirrored package or generated Codex-specific skills.
 
-### Breaking
+### Native Codex plugin
 
-- **`/lean4:doctor` → `/lean4:diagnose`.** `commands/doctor.md` is renamed to `commands/diagnose.md` (frontmatter `name: diagnose`); all subcommands are unchanged (`/lean4:diagnose env|migrate|cleanup`). Any muscle-memory, scripts, or docs invoking `/lean4:doctor` must switch to `/lean4:diagnose`.
+- Adds `.codex-plugin/plugin.json`, a thin `.agents/plugins/marketplace.json` exposing only `lean4`, and a manifest-selected `hooks/codex-hooks.json` for SessionStart, UserPromptSubmit, and advisory Bash PreToolUse handling.
+- SessionStart covers `startup`, `resume`, `clear`, and `compact`. It injects the installed root and absolute wrapper paths as context; it does not claim persistent `LEAN4_*` variables or PATH mutation, which Codex does not document.
+- Shared bootstrap, preflight, doctor, and prompt validation are host-aware. Claude Code keeps its existing `CLAUDE_ENV_FILE` persistence contract; native Codex uses `lean4-skills-preflight --codex` and literal absolute wrapper paths.
+- Codex hooks require explicit first-run review in `/hooks`. Until trusted, the core skill remains discoverable but plugin bootstrap and guardrail behavior are unavailable. PreToolUse interception is advisory, not a security boundary.
 
-### Canonical recovery wording
+### Validation and release hygiene
 
-- The single-source recovery block in `lib/scripts/preflight_env.sh` (`emit_recovery`) and its byte-identical copy in `hooks/bootstrap.sh` now say `Run /lean4:diagnose env for a full diagnosis.` `commands/diagnose.md` reproduces the three canonical lines; `test_preflight_env.sh` and `test_bootstrap_env.sh` assert the new wording.
+- New Bash 3.2-compatible adapter tests cover metadata, lifecycle matching, truthful bootstrap context, absolute-path preflight, Codex-shaped UserPromptSubmit payloads, and PreToolUse exit-2 blocking.
+- Release-metadata Check 23 now parses and validates both Claude and Codex manifests/marketplaces and fails on Codex version drift.
+- Codex Tier-3 installation, trust, verification, update, and fallback behavior are documented without claiming `/lean4:*` slash-command parity.
 
-### Lint & docs
+## v4.5.9 (August 2026)
 
-- `tools/lint_docs.sh`: `KNOWN_COMMANDS`, the per-command `max_lines` table, and the two `diagnose.md` special-cases (stale-plugin-path skip, host-agnostic skip) updated for the new name.
-- All surfaces realigned: root `README.md`, `INSTALLATION.md`, `MIGRATION.md`, `plugins/lean4/README.md`, `SKILL.md`, and the `command-examples.md` / `command-invocation.md` / `subagent-workflows.md` references. Both plugin descriptions (`plugin.json`, `marketplace.json`) list `diagnose`. Historical CHANGELOG entries keep the old `doctor` name (accurate for the releases they describe).
+Deepened consolidated simp reference — integrates the useful material from PR #47 (Alok Singh), grounded in the Lean community simp/simproc blog series, into the single `simp-reference.md` instead of reviving the pre-#36 file split or adding a standalone skill. Documentation only; no runtime changes.
+
+### Changed
+
+- **`simp-reference.md` rewritten and deepened**: new *Choose the Mechanism* table (`rw` / `simp only` / terminal `simp` / scoped local simp / named custom simp set / `@[simp]` / `dsimproc` / `simproc` / leave-unchanged / hand-off); new *Simp Normal Forms and Rewrite Policy* section (two meanings of normal form — library default set vs invocation-relative — defined against the full simplifier context; canonical vs locally-useful rewrites; evaluator-simproc rule for explicit vs symbolic data; `simpNF` relationship); hygiene reorganized around the "should this be a simp lemma?" gate with a local-first bias; *Simproc Authoring* now covers `dsimproc` vs `simproc`, pre/post placement via `↓`, exact per-phase result semantics (`.done` is a control-flow promise, not a normal-form claim; prefer `.visit` when unsure), and performance discipline ("no unbounded or general-purpose proof search; keep simprocs deterministic, boring, and cheap").
+- **Two verified simproc examples** replace the previous `return .none` skeleton: an explicit-data `dsimproc` (with `↓` pre-activation and symbolic decline) and a proof-producing `simproc` (`mkDecideProof`/`mkEqTrue`), both batch-compiled on Lean `v4.32.0`.
+- **`grind-tactic.md`** keeps only its grind-specific simproc escalation conditions and links to the authoring section — single ownership of simproc mechanics.
+- Fixed: `@[simp?]` was listed as a simp attribute (`simp?` is a tactic).
+
+### Not carried forward from #47
+
+- The standalone `lean4-simp-simprocs` skill, the separate `simp-normal-forms.md` file, the resurrection of `simp-hygiene.md`/`simproc-patterns.md` (consolidated by #36 five days before #47 was opened), the non-compiling placeholder sketch, and the README entries for eight unrelated stacked skills. Alok's original commits are preserved in this PR's history with authorship intact.
+
+## v4.5.8 (July 2026)
+
+Blocked-goal triage folded into the core proof workflow — integrates the useful material from PR #48 (Alok Singh) into the existing owners instead of shipping a second skill. Documentation only; no runtime changes.
+
+### Added
+
+- **`sorry-filling.md` § Blocked-Goal Triage** — the short decision loop for one blocked goal: inspect → classify (seven blocker classes, now the canonical vocabulary) → at most 3 low-cost candidates via `lean_multi_attempt` → search before adding structure → repeated blocker hands off. The "2–3 attempts, then switch strategy" rule is advisory; enforced stuck detection remains owned by `cycle-engine.md`. SKILL.md's bounded no-command pass gains a two-line pointer.
+- **`tactics-reference.md` § Suggestion Tactics** — `try?`, `rw?`, and `hint` join the existing `exact?`/`apply?`/`simp?` coverage, with precise availability (`try?`/`rw?` gated on Lean version; `hint` mathlib-only and import-dependent), the warning that `hint` can admit the goal (never proof completion), and the replace-before-final rule.
+- **`review.md` stuck-mode template** — adds **Primary blocker class** (triage vocabulary; the listed blockers may span classes), **Evidence** recording all three cycle-engine handoff elements (searches attempted, returned lemmas, `lean_multi_attempt` outcomes), and **Why first** to the human-readable report. The JSON summary schema is unchanged; machine-readable extension is deferred pending the schema work in #115.
+
+### Not carried forward from #48
+
+- The standalone `stuck?` skill and its README inventory entries — "stuck" is a state inside the existing workflow, not a separate activation domain (and the `stuck?` name is invalid under the Agent Skills name grammar). Alok's original commits are preserved in this PR's history with authorship intact.
+
+## v4.5.7 (July 2026)
+
+Wrapper runtime smoke test in CI — the #152 review's explicitly deferred suggestion, converting that PR's one-off manual smoke into a permanent regression gate. The gate caught three real macOS bugs on its very first CI run; their fixes ship here too.
+
+### Fixed (found by the new gate, on macOS runners)
+
+- **`check_axioms_inline.sh` false success on macOS Bash 3.2** — argless runs crashed on the bare `"${POSITIONAL[@]}"` empty-array expansion (a Bash 3.2 + `set -u` quirk fixed in Bash 4.4), and the EXIT trap then overwrote the failure into **exit 0**. Now uses the `"${arr[@]+...}"` guard idiom (already used elsewhere in the same file); the same guard added to the `LEAN_FILES` loop (empty when resolved args contain no `.lean` files). Argless behavior on all platforms is now the intended "No files specified" → exit 1.
+- **Disprove scripts: clean Python-version gate (all 5 entry scripts)** — on interpreters older than 3.11 (e.g. macOS's system python3, 3.9), `disprove_method_probe` died with a RuntimeError traceback (the registry gate raised instead of exiting) and `disprove_target_profile`/`_resolve` died with an import-time `TypeError` traceback (PEP 604 runtime union in `command_args/types.py`, which `from __future__ import annotations` cannot defer). Each entry script now gates before any project import: clean actionable stderr message ("set `LEAN4_PYTHON_BIN` to a Python 3.11+ interpreter") and exit 2, `TYPE_CHECKING`-guarded so mypy (`--python-version 3.10`) coverage is unaffected, mirroring `lib/disprove_methods.py`.
+
+### CI
+
+- **New `tests/test_wrapper_runtime.sh`** — executes all 15 `bin/lean4-skills-*` wrappers argless from a non-repository cwd under a scrubbed environment (no `LEAN4_*` vars, minimal PATH), asserting each wrapper's exact expected exit code. Two probes per wrapper: *direct* execution (kernel resolves the shebang; the exec bit is asserted and on the hook) and *bash-compat* (interpreter forced to `$BASH_FOR_COMPAT`, pinning Bash 3.2 coverage). Exit codes alone can false-green (a missing python delegate exits 2, a traceback exits 1 — both "expected" for some wrappers), so outputs matching infrastructure-failure signatures (`Traceback`, `can't open file`, `command not found`, `SyntaxError` — which parse-time errors print *without* a Traceback header — etc.) fail regardless of code. Check 28 (test_contracts.sh) only proves each wrapper's delegation *target exists*; this suite actually runs them. The expected-code table is cross-checked against `bin/` in both directions — adding a wrapper without a table entry (or vice versa) fails the suite.
+- Runs on both runners: ubuntu (`wrapper-smoke` job in lint.yml) and macOS Bash 3.2 (bash3-compat.yml step).
+
+## v4.5.6 (July 2026)
+
+Release automation + skill license metadata. Ends the stale-release footgun: GitHub releases were cut by hand and had stalled at v4.4.10 while main shipped v4.5.5, which is why every `gh skill` command in the docs pins `@main`. No runtime changes.
+
+### CI
+
+- **New `release.yml` workflow** — when a version bump lands on main (push trigger scoped to `plugin.json`), creates the `vX.Y.Z` tag + GitHub release with that version's CHANGELOG section as the notes. No versioning logic of its own: the PR-time release-contract gate (below) guarantees plugin.json ↔ marketplace.json ↔ CHANGELOG consistency, so the workflow just reads the version and publishes. Idempotent (already-released versions are successful no-ops), and race-hardened: `concurrency: queue: max` serializes runs without replacing pending ones; existing-tag validation is event-sensitive (`gh release create --target` never retargets an existing tag) — a push run requires the tag to point at its own commit, while dispatch recovery accepts a tag on an earlier main commit iff it's an ancestor of head and that commit's plugin.json carries the exact version, so a correct tag from a failed publish is reusable without retargeting. Release notes are extracted from the CHANGELOG *at the commit the release attaches to* (`target_sha`), not from the checkout — so recovery can't pair an old tag with newer notes — and the release is explicitly marked `--latest`; `workflow_dispatch` covers backfill/recovery (guarded to main); `actions/checkout` is pinned to a full commit SHA with `persist-credentials: false` since the workflow holds `contents: write`.
+- **New `release-contract` job in `lint.yml`** — runs the full `lint_docs.sh` and `test_contracts.sh` suites on every PR, plus the `release_notes.sh` regression suite and the release-notes extraction itself. Previously lint_docs was maintainer-run only (CI's bash3 self-tests deliberately ignore its overall exit status), so Check 23's release-metadata sync was convention rather than enforcement — and release.yml depends on it holding for every commit on main. lint.yml also declares explicit `permissions: contents: read`.
+- **New `tools/release_notes.sh` + `tests/test_release_notes.sh`** — single source of truth for CHANGELOG section extraction (exactly one exact `## vX.Y.Z` heading, non-empty body), shared by `release.yml`, the release-contract job, and lint_docs Check 23 — whose previous substring grep would have accepted `## v4.5.60` as satisfying 4.5.6, and accepted an empty section. Duplicate headings for the same version are rejected rather than silently concatenated. The fixture-based self-test covers extraction shape, prefix collision, missing/malformed versions, empty sections, and duplicates.
+
+### Skill metadata
+
+- **`license: MIT` in SKILL.md frontmatter** — the one remaining `gh skill publish --dry-run` recommendation (the repo-root LICENSE file already existed; the Agent Skills frontmatter field didn't).
+
+## v4.5.5 (July 2026)
+
+Native Agent Skills metadata and multi-host installation docs (Refs #153). Every major host (Codex, Cursor, Windsurf, OpenCode, Gemini CLI / Antigravity CLI, GitHub Copilot) now discovers Agent Skills natively from `.agents/skills`, so the old per-host adapter instructions (`AGENTS.md`, `GEMINI.md`, `.cursor/rules`, oh-my-opencode) were stale. No runtime changes.
+
+### Installation tiers (INSTALLATION.md restructure)
+
+- **Three named tiers** replace the "Environment Bootstrap (All Hosts)" opening (which wrongly claimed every host needs the env vars): Tier 1 core-skill-only (host-native installers/copies — no helper runtime, commands, hooks, or subagent definitions), Tier 2 portable checkout + helper runtime, Tier 3 native plugin (Claude Code today; native Codex plugin tracked in #153).
+- **New "Portable Checkout + Helper Runtime" section** — one clone + one `~/.agents/skills` symlink + the single canonical env block (host sections link to it; no duplicated exports), with POSIX-shell/Windows/GUI-host portability notes and update/uninstall steps.
+
+### Host sections
+
+- **Codex**: `$skill-installer` quick install (run in chat; `$CODEX_HOME/skills` destination caveat), `$lean4` invocation, `AGENTS.md` demoted to an optional one-line pointer, commented `codex skill add` block removed, links updated to live learn.chatgpt.com docs.
+- **Gemini CLI**: `gemini skills install --path … --scope user` / `gemini skills link` replace the `GEMINI.md` instructions, with an availability note (consumer access moved to Antigravity CLI on June 18, 2026) and an Antigravity CLI subsection (global skills at `~/.gemini/antigravity-cli/skills/` — outside the portable `~/.agents/skills` link, so it gets its own Tier-2 symlink; Tier-1 via `gh skill install … --agent antigravity-cli --scope user`, gh ≥ 2.96.0).
+- **Cursor / Windsurf / OpenCode**: native skills discovery paths and manual invocation (`/lean4`, `@lean4`, `skill` tool) replace project-rules and oh-my-opencode patterns.
+- **New GitHub Copilot section**: `gh skill preview/install cameronfreer/lean4-skills lean4@main --agent github-copilot --scope user` (gh ≥ 2.92.0 — first version installing this plugin-directory layout flat; plain `lean4` selector — the namespaced `lean4/lean4` form is preview-only and rejected by `install`; `@main` because installs without it resolve the stale latest GitHub release).
+- Root README: Codex quick-install block, portable-checkout lead, per-host one-liners, Copilot compatibility row.
+
+### Skill metadata & standalone integrity
+
+- **New `skills/lean4/agents/openai.yaml`** (generated via skill-creator's `generate_openai_yaml.py`): Codex UI metadata — display name, short description, `$lean4` default prompt. Guarded by new contract Check 29 (key set, quoting, 25–64-char description, `$lean4` in prompt, no redundant `policy:` block).
+- **Skill directory is now link-standalone**: all 8 relative Markdown links escaping `skills/lean4/` (command docs, `lib/data/disprove_methods.toml`, lean4-contribute README) converted to canonical repository URLs labeled as live copies; the registry data file is explicitly marked absent from Tier-1 installs. A resolver pass confirms zero remaining relative escapes, so Tier-1 copies ship without broken links.
 
 ## v4.5.4 (July 2026)
 

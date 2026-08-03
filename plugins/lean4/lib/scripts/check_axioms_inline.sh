@@ -289,8 +289,12 @@ for arg in "$@"; do
     esac
 done
 
-# Resolve positional args to files
-for arg in "${POSITIONAL[@]}"; do
+# Resolve positional args to files.
+# The "${arr[@]+...}" alternative-value form is required: on Bash 3.2
+# (macOS) with set -u, bare "${arr[@]}" on an empty array aborts with
+# "unbound variable" — and worse, the EXIT trap above then overwrites
+# the failure into exit 0, so argless runs on macOS reported success.
+for arg in ${POSITIONAL[@]+"${POSITIONAL[@]}"}; do
     if [[ "$arg" == *"*"* ]]; then
         # Expand globs
         # shellcheck disable=SC2206
@@ -637,7 +641,9 @@ check_file() {
 # Check all files
 FAILED_FILES=()
 UNVERIFIED_FILES=()
-for file in "${LEAN_FILES[@]}"; do
+# Same Bash 3.2 empty-array guard as the POSITIONAL loop above:
+# LEAN_FILES is empty when the resolved args contain no .lean files.
+for file in ${LEAN_FILES[@]+"${LEAN_FILES[@]}"}; do
     if ! check_file "$file"; then
         FAILED_FILES+=("$file")
     fi
