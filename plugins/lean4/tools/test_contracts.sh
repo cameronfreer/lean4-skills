@@ -671,6 +671,52 @@ if [[ "$check29_ok" -eq 1 ]]; then
     ok "Check 29: agents/openai.yaml metadata matches the generated contract"
 fi
 
+# Check 30: /lean4:doctor → /lean4:diagnose rename holds (v4.6.0 breaking
+# change). The old name must not resurface in active surfaces: diagnose.md
+# must exist with `name: diagnose`, doctor.md must not exist, and no file
+# outside the allowlist may reference `/lean4:doctor` or `doctor.md`.
+# Allowlisted: CHANGELOG.md (the v4.6.0 breaking entry and older historical
+# entries are accurate for the releases they describe) and MIGRATION.md
+# (owns the old→new mapping). Canonical recovery-wording agreement across
+# diagnose.md / preflight / bootstrap is owned by test_preflight_env.sh
+# and test_bootstrap_env.sh — not duplicated here.
+# ---------------------------------------------------------------------------
+check30_ok=1
+# Repo root derived, not assumed: PLUGIN_ROOT is plugins/lean4, so two up.
+_c30_repo_root="$(cd "$PLUGIN_ROOT/../.." && pwd)"
+for _c30_must in "$_c30_repo_root/README.md" "$_c30_repo_root/INSTALLATION.md" "$_c30_repo_root/.claude-plugin"; do
+    if [[ ! -e "$_c30_must" ]]; then
+        fail "Check 30: expected repo-root path missing: $_c30_must (root derivation broken?)"
+        check30_ok=0
+    fi
+done
+if [[ ! -f "$PLUGIN_ROOT/commands/diagnose.md" ]]; then
+    fail "Check 30: commands/diagnose.md missing"
+    check30_ok=0
+elif ! grep -q '^name: diagnose$' "$PLUGIN_ROOT/commands/diagnose.md"; then
+    fail "Check 30: commands/diagnose.md frontmatter is not 'name: diagnose'"
+    check30_ok=0
+fi
+if [[ -e "$PLUGIN_ROOT/commands/doctor.md" ]]; then
+    fail "Check 30: commands/doctor.md exists — the doctor command was removed in v4.6.0"
+    check30_ok=0
+fi
+_c30_hits=$(grep -rln 'lean4:doctor\|doctor\.md' \
+    "$_c30_repo_root/README.md" "$_c30_repo_root/INSTALLATION.md" \
+    "$PLUGIN_ROOT/README.md" "$PLUGIN_ROOT/commands" "$PLUGIN_ROOT/skills" \
+    "$PLUGIN_ROOT/hooks" "$PLUGIN_ROOT/lib" "$PLUGIN_ROOT/tools" \
+    "$PLUGIN_ROOT/tests" "$PLUGIN_ROOT/agents" "$PLUGIN_ROOT/bin" \
+    "$PLUGIN_ROOT/.claude-plugin" "$PLUGIN_ROOT/.codex-plugin" \
+    "$_c30_repo_root/.claude-plugin" 2>/dev/null \
+    | grep -v 'tools/test_contracts.sh' || true)
+if [[ -n "$_c30_hits" ]]; then
+    fail "Check 30: stale /lean4:doctor or doctor.md reference in active surfaces: $(echo "$_c30_hits" | tr '\n' ' ')"
+    check30_ok=0
+fi
+if [[ "$check30_ok" -eq 1 ]]; then
+    ok "Check 30: doctor→diagnose rename holds (no stale active references)"
+fi
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]
