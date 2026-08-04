@@ -11,12 +11,12 @@ others all use the same core skill; only the invocation surface differs.
 |---|---|---|---|
 | Claude Code | Native plugin (Tier 3) | Skill + `/lean4:*` commands, hooks, guardrails, subagents, helper runtime | [Claude Code](INSTALLATION.md#claude-code-native-plugin) |
 | Codex | Native plugin (Tier 3) | Skill + trusted hooks + absolute-path helper runtime; no `/lean4:*` parity | [Codex](INSTALLATION.md#openai-codex-cli) |
-| Other Agent Skills hosts (Gemini, Antigravity, Copilot, Cursor, Windsurf, OpenCode, …) | Skill-only quick install | Instructions + references (documented, not CI-verified) | [Host sections](INSTALLATION.md#installation-tiers) |
+| Other Agent Skills hosts (Gemini, Antigravity, Copilot, Cursor, Windsurf, OpenCode, …) | Skill-only quick install | Instructions + references (documented, not CI-verified) | [Installation guide](INSTALLATION.md) |
 | Any host, full runtime | Portable checkout (Tier 2) | Skill + wrappers + helper scripts | [Portable](INSTALLATION.md#portable-checkout--helper-runtime-all-hosts) |
 
-**Claude Code:**
+**Claude Code** (run in chat):
 
-```bash
+```text
 /plugin marketplace add cameronfreer/lean4-skills
 /plugin install lean4
 ```
@@ -58,13 +58,15 @@ CLI-like inputs to the seven parameter-heavy commands are validated by a host-ag
 
 ## The Shared Proof Cycle
 
-The proof engines all run one cycle — **Plan → Work → Checkpoint → Review → Replan → Continue/Stop** — where each sorry gets a mathlib search, tactic attempts, and validation, and being stuck forces a review + replan. Statement and header changes belong to the synthesis workflows (`formalize` / `autoformalize`); `prove` and `autoprove` keep declaration headers immutable. Editing `.lean` files without a command runs one bounded pass — fix the immediate issue, then hand off to the right workflow — with the [Blocked-Goal Triage loop](plugins/lean4/skills/lean4/references/sorry-filling.md#blocked-goal-triage) for a goal that resists it. Details: [cycle-engine.md](plugins/lean4/skills/lean4/references/cycle-engine.md).
+The proving workflows (`prove`, `autoprove`, `formalize`, and `autoformalize`) share one cycle — **Plan → Work → Checkpoint → Review → Replan → Continue/Stop** — where each sorry gets a mathlib search, tactic attempts, and validation, and being stuck forces a review + replan. Statement and header changes belong to the synthesis workflows (`formalize` / `autoformalize`); `prove` and `autoprove` keep declaration headers immutable. Editing `.lean` files without a command runs one bounded pass — fix the immediate issue, then hand off to the right workflow — with the [Blocked-Goal Triage loop](plugins/lean4/skills/lean4/references/sorry-filling.md#blocked-goal-triage) for a goal that resists it. Details: [cycle-engine.md](plugins/lean4/skills/lean4/references/cycle-engine.md).
+
+## Verification
 
 CI gates every PR: full documentation lint, semantic contract suites, hook and wrapper runtime tests on Linux and macOS Bash 3.2, and pinned shellcheck/ruff/mypy/actionlint. Hosts marked "documented" in the Quick Start table follow verified setup patterns but are not CI-tested.
 
 ## Lean LSP MCP (Optional, Recommended)
 
-The skill works standalone, but pairs best with [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp): live goal inspection, mathlib search, and typically much faster feedback than repeated full builds. See [INSTALLATION.md → MCP Server](INSTALLATION.md#lean-lsp-mcp-server-all-hosts) for registration on any host, including the Claude Code scope choice that keeps the tools visible inside proof-editing subagents.
+The skill works standalone, but pairs best with [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp): live goal inspection, mathlib search, and typically much faster feedback than repeated full builds. See [INSTALLATION.md → MCP Server](INSTALLATION.md#lean-lsp-mcp-server-all-hosts) for registration on any host, including the Claude Code scope trade-off for subagent visibility.
 
 ## Documentation
 
