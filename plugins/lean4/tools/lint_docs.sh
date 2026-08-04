@@ -740,45 +740,55 @@ check_deep_safety() {
     ok "Deep-safety invariants checked"
 }
 
-# Check 10: Guardrail documentation completeness
+# Check 10: Guardrail documentation completeness. GUARDRAILS.md is the sole
+# canonical owner of the full policy (scope, override vars, policy modes);
+# README.md and MIGRATION.md need only their own summaries plus a link to
+# it — they are not required to reproduce the complete policy.
 check_guardrail_docs() {
     log ""
     log "Checking guardrail documentation..."
 
-    local _gd_file _gd_base
+    local _gd_file="$PLUGIN_ROOT/GUARDRAILS.md"
 
-    for doc in README.md MIGRATION.md; do
-        _gd_file="$PLUGIN_ROOT/$doc"
-        _gd_base="$doc"
-
-        if [[ ! -f "$_gd_file" ]]; then
-            warn "$_gd_base: File not found"
-            continue
-        fi
-
+    if [[ ! -f "$_gd_file" ]]; then
+        warn "GUARDRAILS.md: File not found (canonical guardrail policy owner)"
+    else
         if ! grep -qiE 'Lean project' "$_gd_file" 2>/dev/null; then
-            warn "$_gd_base: Missing Lean project scope statement in guardrails section"
+            warn "GUARDRAILS.md: Missing Lean project scope statement"
         fi
         if ! grep -q 'LEAN4_GUARDRAILS_DISABLE' "$_gd_file" 2>/dev/null; then
-            warn "$_gd_base: Missing LEAN4_GUARDRAILS_DISABLE documentation"
+            warn "GUARDRAILS.md: Missing LEAN4_GUARDRAILS_DISABLE documentation"
         fi
         if ! grep -q 'LEAN4_GUARDRAILS_FORCE' "$_gd_file" 2>/dev/null; then
-            warn "$_gd_base: Missing LEAN4_GUARDRAILS_FORCE documentation"
+            warn "GUARDRAILS.md: Missing LEAN4_GUARDRAILS_FORCE documentation"
         fi
         if ! grep -q 'LEAN4_GUARDRAILS_BYPASS' "$_gd_file" 2>/dev/null; then
-            warn "$_gd_base: Missing LEAN4_GUARDRAILS_BYPASS documentation"
+            warn "GUARDRAILS.md: Missing LEAN4_GUARDRAILS_BYPASS documentation"
         fi
         if ! grep -q 'LEAN4_GUARDRAILS_COLLAB_POLICY' "$_gd_file" 2>/dev/null; then
-            warn "$_gd_base: Missing LEAN4_GUARDRAILS_COLLAB_POLICY documentation"
+            warn "GUARDRAILS.md: Missing LEAN4_GUARDRAILS_COLLAB_POLICY documentation"
         fi
         # All three mode literals must appear together on one line (anchored to
         # avoid false-pass from unrelated uses of common words like "ask" or "block")
         if ! grep -qE 'ask.*allow.*block' "$_gd_file" 2>/dev/null; then
-            warn "$_gd_base: Missing collaboration policy modes (ask, allow, block)"
+            warn "GUARDRAILS.md: Missing collaboration policy modes (ask, allow, block)"
         fi
-        # Bypass must not be listed as bootstrap-set
+    fi
+
+    # Summary surfaces: must link the canonical policy, and must never
+    # misdocument the bypass token as bootstrap-set.
+    local _gd_summary
+    for _gd_summary in README.md MIGRATION.md; do
+        _gd_file="$PLUGIN_ROOT/$_gd_summary"
+        if [[ ! -f "$_gd_file" ]]; then
+            warn "$_gd_summary: File not found"
+            continue
+        fi
+        if ! grep -q 'GUARDRAILS\.md' "$_gd_file" 2>/dev/null; then
+            warn "$_gd_summary: Missing link to GUARDRAILS.md (canonical guardrail policy)"
+        fi
         if grep -A2 'bootstrap' "$_gd_file" 2>/dev/null | grep -q 'LEAN4_GUARDRAILS_BYPASS'; then
-            warn "$_gd_base: LEAN4_GUARDRAILS_BYPASS incorrectly listed as bootstrap-set"
+            warn "$_gd_summary: LEAN4_GUARDRAILS_BYPASS incorrectly listed as bootstrap-set"
         fi
     done
 

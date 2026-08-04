@@ -132,6 +132,8 @@ Two independent soft-gate policies (each `ask` | `allow` | `block`, default `ask
 
 For a single soft-gated command in `ask` mode, prefix with the bypass token instead (command prefix only, not an env var): `LEAN4_GUARDRAILS_BYPASS=1 git push origin main`. The token applies to either soft-gate category.
 
+Full current policy — all override variables, per-op collaboration policies, hard-blocked variants, and bypass semantics: [GUARDRAILS.md](GUARDRAILS.md).
+
 **Whole-worktree** destructive operations (`git reset --hard`, `git clean -f`/`-fd`/`-fdx`, `git checkout .`/`-- .`/`-- :/`/`HEAD -- .`, `git restore .`/`./`/`:/`, `git restore --staged --worktree`) remain **hard-blocked** regardless of either policy or the bypass token. The blast radius is unbounded and reflog can't recover uncommitted edits; `clean -f` can't recover untracked files at all. Pure unstaging (`git restore --staged <anything>` without `--worktree`) is always allowed since it only touches the index.
 
 ### Memory System (REMOVED)
