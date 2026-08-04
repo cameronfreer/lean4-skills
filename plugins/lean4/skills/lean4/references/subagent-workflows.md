@@ -542,7 +542,7 @@ The lean4 plugin provides these main commands:
 | `/lean4:refactor` | Strategy-level proof simplification |
 | `/lean4:golf` | Optimize proofs |
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
-| `/lean4:doctor` | Diagnostics and migration |
+| `/lean4:diagnose` | Diagnostics and migration |
 
 **Note:** Individual operations like "search mathlib" or "analyze sorries" are now internal workflows within `/lean4:prove` (or `/lean4:autoprove`) rather than separate commands. This simplifies the UX while preserving all functionality.
 

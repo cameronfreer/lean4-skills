@@ -37,7 +37,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | `/lean4:refactor` | Leverage mathlib, extract helpers, simplify proof strategies |
 | `/lean4:golf` | Improve Lean proofs for directness, clarity, performance, and brevity |
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
-| `/lean4:doctor` | Diagnostics, cleanup, and migration help |
+| `/lean4:diagnose` | Diagnostics, cleanup, and migration help |
 
 `/lean4:*` names are the native plugin's command aliases and also serve
 as stable workflow names throughout this documentation. On hosts
@@ -51,7 +51,7 @@ parser-decidable startup rules of the seven parameter-heavy commands (`draft`,
 documented startup rules in these commands depend on runtime context (repo-
 level search, interactive prompting) and are applied by the command after
 reading the parser's output. The other commands (`checkpoint`, `review`,
-`refactor`, `golf`, `doctor`) remain model-parsed.
+`refactor`, `golf`, `diagnose`) remain model-parsed.
 When a host adapter installs the `UserPromptSubmit` hook, the parser runs
 before the model sees a `/lean4:*` prompt matching one of the seven covered
 commands, injects a `validated-invocation` block into context, and rejects
@@ -78,7 +78,7 @@ best-effort.
 | Optimizing compiled proofs | `/lean4:golf` |
 | New to this project / exploring | `/lean4:learn --mode=repo` |
 | Navigating mathlib for a topic | `/lean4:learn --mode=mathlib` |
-| Something not working | `/lean4:doctor` |
+| Something not working | `/lean4:diagnose` |
 | Formalize + prove end-to-end (unattended) | `/lean4:autoformalize --source=... --claim-select=first --out=...` |
 
 ## Contributing (lean4-contribute plugin)
@@ -132,7 +132,7 @@ Use `/lean4:learn` at any point to explore repo structure or navigate mathlib. T
 - `/lean4:autoformalize` wraps draft+autoprove in a single command (source → claims → skeletons → proofs); replaces `autoprove --formalize=auto`
 - Proof engines (`prove`/`autoprove`) never modify declaration headers (header fence)
 - `/lean4:disprove` reports `REFUTED` only when Lean typechecks the negation; otherwise `WITNESS_UNCERTIFIED` or `INCONCLUSIVE`
-- If you hit environment issues, run `/lean4:doctor` to diagnose
+- If you hit environment issues, run `/lean4:diagnose` to diagnose
 
 ## LSP Tools (Preferred)
 
@@ -158,9 +158,9 @@ lean_code_actions(file, line)                   # Resolve "Try this" suggestions
 
 | Capability | Required | Check | Fallback |
 |-----------|----------|-------|----------|
-| Lean / Lake | yes | `lean --version`, `lake --version` | none — run `/lean4:doctor` |
+| Lean / Lake | yes | `lean --version`, `lake --version` | none — run `/lean4:diagnose` |
 | Python 3 | yes (scripts) | `python3 --version` or persistent `$LEAN4_PYTHON_BIN` | none for script-dependent operations |
-| Helper runtime path | yes (scripts) | trusted Codex `bin_dir`/`scripts_dir`, or persistent `$LEAN4_SCRIPTS` | use the doctor workflow; stay LSP-only if unresolved |
+| Helper runtime path | yes (scripts) | trusted Codex `bin_dir`/`scripts_dir`, or persistent `$LEAN4_SCRIPTS` | use the diagnose workflow; stay LSP-only if unresolved |
 | Lean LSP MCP | no | try `lean_goal` on any `.lean` file | scripts + `lake env lean` (file-level only) |
 | `lean_run_code` | no | try calling it | `lake env lean` on temp file |
 | `lean_code_actions` | no | try calling it | manual "Try this" application |
@@ -280,7 +280,7 @@ Compatibility fallback (when a wrapper is unavailable):
   `${LEAN4_PYTHON_BIN:-python3} "$LEAN4_SCRIPTS/script.py" …`.
 
 If neither trusted Codex absolute paths nor `$LEAN4_SCRIPTS` are available,
-run the doctor workflow (`/lean4:doctor` where that command is installed); on
+run the diagnose workflow (`/lean4:diagnose` where that command is installed); on
 a skill-only install follow the repository's
 [INSTALLATION.md](https://github.com/cameronfreer/lean4-skills/blob/main/INSTALLATION.md).
 Stay LSP-only until resolved.
@@ -364,7 +364,7 @@ If LSP tools aren't responding, check your operating profile above. In
 `scripts_only` mode, the resolved helper runtime provides search and
 `lake env lean` provides file-level compilation feedback, but live goal
 inspection, tactic testing, and line-level diagnostics are unavailable. If no
-helper runtime path is available, run the doctor workflow to diagnose it.
+helper runtime path is available, run the diagnose workflow to diagnose it.
 
 **Script environment check:**
 ```bash

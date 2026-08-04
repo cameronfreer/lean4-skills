@@ -671,6 +671,88 @@ if [[ "$check29_ok" -eq 1 ]]; then
     ok "Check 29: agents/openai.yaml metadata matches the generated contract"
 fi
 
+# Check 30: /lean4:doctor → /lean4:diagnose rename holds (v4.6.0 breaking
+# change). The old name must not resurface in active surfaces: diagnose.md
+# must exist with `name: diagnose` and "Lean4 Diagnostics" headings (no
+# stale "Lean4 Doctor" output names), doctor.md must not exist, and no
+# scanned file may reference `/lean4:doctor` or `doctor.md`. The scan
+# covers the root README/INSTALLATION/manifests, .agents/ (Codex
+# marketplace), .github/ (workflow step labels), and the whole plugin
+# tree. Allowlisted: CHANGELOG.md (the v4.6.0 breaking entry and older
+# historical entries are accurate for the releases they describe), and in
+# MIGRATION.md only the two EXACT v4.6.0 rename/removal statements —
+# which must both exist, and any other old-name/branding mention fails.
+# Canonical recovery-wording
+# agreement across diagnose.md / preflight / bootstrap is owned by
+# test_preflight_env.sh and test_bootstrap_env.sh — not duplicated here.
+# ---------------------------------------------------------------------------
+check30_ok=1
+# Repo root derived, not assumed: PLUGIN_ROOT is plugins/lean4, so two up.
+_c30_repo_root="$(cd "$PLUGIN_ROOT/../.." && pwd)"
+for _c30_must in "$_c30_repo_root/README.md" "$_c30_repo_root/INSTALLATION.md" "$_c30_repo_root/.claude-plugin"; do
+    if [[ ! -e "$_c30_must" ]]; then
+        fail "Check 30: expected repo-root path missing: $_c30_must (root derivation broken?)"
+        check30_ok=0
+    fi
+done
+if [[ ! -f "$PLUGIN_ROOT/commands/diagnose.md" ]]; then
+    fail "Check 30: commands/diagnose.md missing"
+    check30_ok=0
+else
+    if ! grep -q '^name: diagnose$' "$PLUGIN_ROOT/commands/diagnose.md"; then
+        fail "Check 30: commands/diagnose.md frontmatter is not 'name: diagnose'"
+        check30_ok=0
+    fi
+    if grep -q 'Lean4 Doctor' "$PLUGIN_ROOT/commands/diagnose.md"; then
+        fail "Check 30: stale 'Lean4 Doctor' heading/output name in diagnose.md"
+        check30_ok=0
+    fi
+    if ! grep -q '^# Lean4 Diagnostics$' "$PLUGIN_ROOT/commands/diagnose.md" \
+        || ! grep -q '^## Lean4 Diagnostics Report$' "$PLUGIN_ROOT/commands/diagnose.md"; then
+        fail "Check 30: diagnose.md missing 'Lean4 Diagnostics' title or 'Lean4 Diagnostics Report' heading"
+        check30_ok=0
+    fi
+fi
+# MIGRATION.md: the two exact v4.6.0 statements must exist, and they are
+# the ONLY permitted old-name/branding mentions — exact-line matching, so
+# neither a spoofed line containing 'renamed' nor deleting the statements
+# can pass.
+_c30_mig="$PLUGIN_ROOT/MIGRATION.md"
+_c30_mig_head='## v4.6.0: `/lean4:doctor` renamed'
+_c30_mig_body='`/lean4:doctor` was removed in v4.6.0. Use `/lean4:diagnose`; all modes and behavior are unchanged (`/lean4:diagnose`, `env`, `migrate`, `cleanup`).'
+if ! grep -Fxq "$_c30_mig_head" "$_c30_mig" 2>/dev/null \
+    || ! grep -Fxq "$_c30_mig_body" "$_c30_mig" 2>/dev/null; then
+    fail "Check 30: MIGRATION.md missing the exact v4.6.0 rename heading or removal statement"
+    check30_ok=0
+fi
+_c30_mig_bad=$(grep -n 'lean4:doctor\|doctor\.md\|Lean4 Doctor' "$_c30_mig" 2>/dev/null \
+    | grep -Fv "$_c30_mig_head" | grep -Fv "$_c30_mig_body" || true)
+if [[ -n "$_c30_mig_bad" ]]; then
+    fail "Check 30: MIGRATION.md old-name mention outside the exact rename/removal statements: $_c30_mig_bad"
+    check30_ok=0
+fi
+if [[ -e "$PLUGIN_ROOT/commands/doctor.md" ]]; then
+    fail "Check 30: commands/doctor.md exists — the doctor command was removed in v4.6.0"
+    check30_ok=0
+fi
+_c30_hits=$(grep -rln 'lean4:doctor\|doctor\.md\|Lean4 Doctor' \
+    "$_c30_repo_root/README.md" "$_c30_repo_root/INSTALLATION.md" \
+    "$PLUGIN_ROOT/README.md" "$PLUGIN_ROOT/commands" "$PLUGIN_ROOT/skills" \
+    "$PLUGIN_ROOT/hooks" "$PLUGIN_ROOT/lib" "$PLUGIN_ROOT/tools" \
+    "$PLUGIN_ROOT/tests" "$PLUGIN_ROOT/agents" "$PLUGIN_ROOT/bin" \
+    "$PLUGIN_ROOT/.claude-plugin" "$PLUGIN_ROOT/.codex-plugin" \
+    "$_c30_repo_root/.claude-plugin" "$_c30_repo_root/.agents" \
+    "$_c30_repo_root/.github" 2>/dev/null \
+    | grep -v 'tools/test_contracts.sh' \
+    | grep -v "$PLUGIN_ROOT/MIGRATION.md" || true)
+if [[ -n "$_c30_hits" ]]; then
+    fail "Check 30: stale /lean4:doctor or doctor.md reference in active surfaces: $(echo "$_c30_hits" | tr '\n' ' ')"
+    check30_ok=0
+fi
+if [[ "$check30_ok" -eq 1 ]]; then
+    ok "Check 30: doctor→diagnose rename holds (no stale active references)"
+fi
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]

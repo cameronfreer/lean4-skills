@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Regression tests for lib/scripts/preflight_env.sh (#108).
 # Exercises --runtime, --bootstrap, and --codex modes, and guards that
-# doctor.md still carries both canonical recovery blocks.
+# diagnose.md still carries both canonical recovery blocks.
 #
 # Runs under $BASH_FOR_COMPAT (default /bin/bash) so it exercises macOS
 # Bash 3.2 in CI. SKIPs gracefully if that shell is unavailable.
@@ -17,14 +17,14 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PREFLIGHT="$PLUGIN_ROOT/lib/scripts/preflight_env.sh"
-DOCTOR="$PLUGIN_ROOT/commands/doctor.md"
+DIAGNOSE="$PLUGIN_ROOT/commands/diagnose.md"
 
 PASS=0
 FAIL=0
 
 # Canonical recovery lines — MUST match preflight_env.sh's emit_recovery
-# and doctor.md's inline fallback exactly.
-CANON1="1. Run /lean4:doctor env for a full diagnosis."
+# and diagnose.md's inline fallback exactly.
+CANON1="1. Run /lean4:diagnose env for a full diagnosis."
 CANON2="2. Restart the Claude Code session (re-runs the SessionStart bootstrap hook)."
 CANON3="3. If it persists, check the plugin hook/bootstrap state (hooks.json, bootstrap.sh)."
 CODEX_CANON1="1. Review and trust the lean4 plugin hooks in /hooks."
@@ -154,15 +154,15 @@ fi
 rm -rf "$tmp" "$baddir" "$badcodex" "$badcodex_scripts"
 
 # ---------------------------------------------------------------------------
-# Wording agreement: doctor.md must contain the three canonical lines.
-# Substring (grep -F) not whole-block diff — doctor wraps them in a code
+# Wording agreement: diagnose.md must contain the three canonical lines.
+# Substring (grep -F) not whole-block diff — diagnose wraps them in a code
 # block; only the exact recovery lines need to match.
 # ---------------------------------------------------------------------------
 for canon in "$CANON1" "$CANON2" "$CANON3"; do
-    if grep -qF "$canon" "$DOCTOR"; then
-        pass "doctor.md contains canonical line: ${canon%% *}…"
+    if grep -qF "$canon" "$DIAGNOSE"; then
+        pass "diagnose.md contains canonical line: ${canon%% *}…"
     else
-        fail "doctor.md MISSING canonical line: $canon"
+        fail "diagnose.md MISSING canonical line: $canon"
     fi
 done
 
@@ -176,10 +176,10 @@ pass "preflight_env.sh emits all three canonical lines"
 
 # Codex recovery wording agreement and emitted behavior.
 for canon in "$CODEX_CANON1" "$CODEX_CANON2" "$CODEX_CANON3"; do
-    if grep -qF "$canon" "$DOCTOR"; then
-        pass "doctor.md contains Codex canonical line: ${canon%% *}…"
+    if grep -qF "$canon" "$DIAGNOSE"; then
+        pass "diagnose.md contains Codex canonical line: ${canon%% *}…"
     else
-        fail "doctor.md MISSING Codex canonical line: $canon"
+        fail "diagnose.md MISSING Codex canonical line: $canon"
     fi
 done
 
