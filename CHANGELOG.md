@@ -1,5 +1,15 @@
 # Changelog
 
+## v4.6.1 (August 2026)
+
+Documentation restructuring: both READMEs become concise front doors, and the guardrail policy gets a single canonical owner. Covers the root-README trim (PR #171, merged unversioned) and the plugin-README trim (PR #172). No runtime changes.
+
+### Changed
+
+- **Root README trimmed 213 → 97 lines** (PR #171): Quick Start first with a four-row install chooser (per-host commands and version floors stay in INSTALLATION.md, where they can't drift on the front page); one workflow table; a five-line shared-cycle summary scoped to the proving workflows; a `Verification` section describing CI without test counts; a qualified MCP pitch. The project-scoped MCP registration variant and subagent-visibility tip moved to INSTALLATION.md's MCP section. The BibTeX block is retained by maintainer decision.
+- **Plugin README trimmed 390 → 111 lines** (PR #172): now a command index — the Check 24-aligned command table, the bounded no-command pass, and condensed cycle/guardrails/LSP-first/runtime-discovery summaries. The Quick Start catalog (a duplicate of the command table), per-command sections (owned by `commands/*.md` and `command-examples.md`), parser detail (`command-invocation.md`), runtime env tables, and the directory tree are removed.
+- **New `plugins/lean4/GUARDRAILS.md`** — the full guardrail policy (activation scope, three-tier model, override variables, per-op collaboration policies, hard-blocked push variants, destructive-op coverage, one-shot bypass) extracted and reconciled from the plugin README as the sole canonical owner. Lint Check 10 now applies its full expectations to GUARDRAILS.md only; README.md and MIGRATION.md need a link (plus the bypass-not-bootstrap guard) rather than reproducing the complete policy.
+
 ## v4.6.0 (August 2026)
 
 Renames `/lean4:doctor` to `/lean4:diagnose`. Based on PR #156 by Adam McKenna; reconciled and shipped in PR #170. Claude Code namespaces plugin commands, so `/doctor` and `/lean4:doctor` never conflicted at execution — but both appear as closely related "doctor" results in slash-command autocomplete, making it easy to select the wrong diagnostic (built-in `/doctor` diagnoses the Claude Code installation; the plugin command diagnoses the Lean/plugin/project environment). Renaming the Lean-specific command removes the discovery ambiguity.
