@@ -40,7 +40,7 @@ Git operations fall into **three tiers**:
 
 Three independent env vars, one per collaboration op — `LEAN4_GUARDRAILS_PUSH_POLICY`, `LEAN4_GUARDRAILS_AMEND_POLICY`, `LEAN4_GUARDRAILS_PR_CREATE_POLICY` — each accepting:
 
-- **`host`** (default) — exit 0; let Claude Code's native `Bash(...)` permission rule ask the user. This stops the hook from fighting Claude Code's own "ask once, remember" UX with exit-2 + bypass-token retries. Recommended pairing in `.claude/settings.local.json`:
+- **`host`** (default) — exit 0 and defer to the host's native permission/sandbox policy. This stops the hook from fighting the host's own permission UX with exit-2 + bypass-token retries. Under Claude Code, the recommended configuration pairs `host` mode with native `Bash(...)` ask rules in `.claude/settings.local.json`:
 
   ```json
   {

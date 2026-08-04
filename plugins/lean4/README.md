@@ -25,6 +25,9 @@ Unified Lean 4 plugin for theorem proving, interactive learning, and formalizati
 | `/lean4:learn` | Interactive teaching and mathlib exploration |
 | `/lean4:diagnose` | Diagnostics, cleanup, and migration help |
 
+`/lean4:*` entries are Claude Code aliases; under Codex, invoke `$lean4` and
+ask for the named workflow.
+
 Each command's full semantics live in [commands/](commands/); worked
 transcripts live in
 [command-examples.md](skills/lean4/references/command-examples.md). CLI-like

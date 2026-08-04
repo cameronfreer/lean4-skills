@@ -756,22 +756,20 @@ check_guardrail_docs() {
         if ! grep -qiE 'Lean project' "$_gd_file" 2>/dev/null; then
             warn "GUARDRAILS.md: Missing Lean project scope statement"
         fi
-        if ! grep -q 'LEAN4_GUARDRAILS_DISABLE' "$_gd_file" 2>/dev/null; then
-            warn "GUARDRAILS.md: Missing LEAN4_GUARDRAILS_DISABLE documentation"
-        fi
-        if ! grep -q 'LEAN4_GUARDRAILS_FORCE' "$_gd_file" 2>/dev/null; then
-            warn "GUARDRAILS.md: Missing LEAN4_GUARDRAILS_FORCE documentation"
-        fi
-        if ! grep -q 'LEAN4_GUARDRAILS_BYPASS' "$_gd_file" 2>/dev/null; then
-            warn "GUARDRAILS.md: Missing LEAN4_GUARDRAILS_BYPASS documentation"
-        fi
-        if ! grep -q 'LEAN4_GUARDRAILS_COLLAB_POLICY' "$_gd_file" 2>/dev/null; then
-            warn "GUARDRAILS.md: Missing LEAN4_GUARDRAILS_COLLAB_POLICY documentation"
-        fi
-        # All three mode literals must appear together on one line (anchored to
-        # avoid false-pass from unrelated uses of common words like "ask" or "block")
-        if ! grep -qE 'ask.*allow.*block' "$_gd_file" 2>/dev/null; then
-            warn "GUARDRAILS.md: Missing collaboration policy modes (ask, allow, block)"
+        # Full current contract: base overrides, bypass, all four per-op
+        # policy vars, and the legacy fallback knob.
+        local _gd_var
+        for _gd_var in DISABLE FORCE BYPASS PUSH_POLICY AMEND_POLICY \
+            PR_CREATE_POLICY DESTRUCTIVE_POLICY COLLAB_POLICY; do
+            if ! grep -q "LEAN4_GUARDRAILS_${_gd_var}" "$_gd_file" 2>/dev/null; then
+                warn "GUARDRAILS.md: Missing LEAN4_GUARDRAILS_${_gd_var} documentation"
+            fi
+        done
+        # All four collaboration mode literals must appear together on one
+        # line (anchored to avoid false-pass from unrelated uses of common
+        # words like "ask" or "block"; includes host so its removal fails).
+        if ! grep -qE 'host.*ask.*allow.*block' "$_gd_file" 2>/dev/null; then
+            warn "GUARDRAILS.md: Missing collaboration policy modes (host, ask, allow, block)"
         fi
     fi
 
@@ -784,8 +782,10 @@ check_guardrail_docs() {
             warn "$_gd_summary: File not found"
             continue
         fi
-        if ! grep -q 'GUARDRAILS\.md' "$_gd_file" 2>/dev/null; then
-            warn "$_gd_summary: Missing link to GUARDRAILS.md (canonical guardrail policy)"
+        # Require an actual Markdown link target, not a prose mention or a
+        # surviving link label — "](GUARDRAILS.md" matches only the target.
+        if ! grep -qF '](GUARDRAILS.md' "$_gd_file" 2>/dev/null; then
+            warn "$_gd_summary: Missing Markdown link to GUARDRAILS.md (canonical guardrail policy)"
         fi
         if grep -A2 'bootstrap' "$_gd_file" 2>/dev/null | grep -q 'LEAN4_GUARDRAILS_BYPASS'; then
             warn "$_gd_summary: LEAN4_GUARDRAILS_BYPASS incorrectly listed as bootstrap-set"
