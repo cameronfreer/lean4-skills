@@ -490,6 +490,8 @@ Include this block (or the relevant subset) in the agent dispatch prompt:
 <lean_code_actions output for relevant lines, if any>
 ### Owned files
 <list of files this agent is authorized to edit>
+### File baseline
+<`lean4-skills-file-baseline record <owned files...>` JSON, computed immediately before dispatch>
 ### Allowed scratch location
 /tmp (never repo root)
 ```
@@ -497,6 +499,19 @@ Include this block (or the relevant subset) in the agent dispatch prompt:
 Omit sections with no data. The per-agent subsections below specify which parts to include.
 
 **Exclusive file ownership:** If two candidate dispatches would edit any of the same files, serialize them or keep one in-thread. Never dispatch concurrent agents with overlapping owned-file sets.
+
+### File baselines and drift (issue #102)
+
+The `### File baseline` field carries a versioned record (`file-baseline/v1`, from `lean4-skills-file-baseline record`) of each owned file's normalized path, existence state, and exact content hash — never mtime. The parent computes it immediately before dispatch. A dirty working file is a valid baseline: the record captures bytes as they are, and only **post-dispatch** drift matters.
+
+**Custody rule:** a baseline is the last *accepted* content revision in a single-writer chain — not merely whatever the file contains when someone next records it. Baseline authority follows the current writer:
+
+- A direct-editing agent runs `lean4-skills-file-baseline check --baseline - <<EOF ... EOF` (the baseline JSON over stdin — works identically on both hosts) immediately before **every mutating tool operation**; for a multi-file operation, every intended target is checked first.
+- After a successful mutation, the writer advances **only the entries it intentionally changed** (`advance --baseline - <changed paths>`); untouched-file entries are carried over byte-identical, so external drift on them is never blessed.
+- A parent applying a returned patch (e.g. a proof-repair diff, which is line-number-anchored) owns the same check-and-advance responsibility on the apply side.
+- On drift (`modified` / `deleted` / `created` / `retargeted` — exit 3): **no mutation occurs after detected pre-application drift**. Emit the structured stale-baseline result (affected paths + classification) and recommend `rerun`, `serialize`, or `isolation: "worktree"`. Neither parent nor agent recomputes the baseline and retries — that would legitimize the external change. Operational failures (unreadable target, exit 4) abort the same way but are reported as errors, not drift.
+
+This is prompt-contract orchestration with a tested runtime primitive: the check→edit window is check-to-write, not compare-and-swap — it narrows the race from "since dispatch" to "since last check" but cannot close it. Exclusive file ownership and `isolation: "worktree"` remain the primary concurrency defenses; the baseline check is the tripwire for when they are violated.
 
 ### sorry-filler-deep
 
@@ -511,6 +526,8 @@ Include alongside file:line and failure reason:
 Extend the existing structured error JSON with:
 - `searchResults`: top results from any LSP searches already performed
 - `multiAttemptResults`: snippets tested and their outcomes
+
+proof-repair returns a line-number-anchored diff and does not edit; the **parent** runs the file-baseline check immediately before applying the diff and advances the applied file's entry after success (§ File baselines and drift).
 
 ### proof-golfer
 

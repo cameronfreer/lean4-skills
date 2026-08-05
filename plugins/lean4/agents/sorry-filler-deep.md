@@ -77,6 +77,7 @@ Final summary (~200-300 tokens):
 - Engine enforces `--deep-scope`, `--deep-max-files`, `--deep-max-lines` — do not bypass
 - Agent must not run git snapshot/rollback commands directly; on rollback, sorry is marked stuck and agent must stop
 - **One concurrent editor per file.** Never dispatch multiple agents targeting the same file in parallel — the last agent to Edit overwrites earlier agents' completed proofs with no error. For N sorrys in one file, either use one agent or dispatch sequentially with commits between each.
+- **File-baseline drift check (issue #102).** If the dispatch context includes a `### File baseline` record: run `lean4-skills-file-baseline check --baseline -` (record over stdin) immediately before every mutating tool operation, checking every intended target first for multi-file operations. On drift or operational error: apply no mutation, report the structured stale-baseline result (affected paths + classification + recommend `rerun`, `serialize`, or `isolation: "worktree"`), and stop — never re-record and retry. After each successful mutation, advance only the entries you intentionally changed (`advance --baseline - <changed paths>`). Full custody rule: cycle-engine.md § File baselines and drift.
 
 ## Example (Happy Path)
 
