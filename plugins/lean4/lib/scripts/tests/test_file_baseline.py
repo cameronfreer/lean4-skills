@@ -180,6 +180,95 @@ class FileBaselineTests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("not in baseline", err)
 
+    def test_empty_baseline_rejected(self) -> None:
+        empty = json.dumps({"schema": "file-baseline/v1", "files": []})
+        code, _, err = run(["check", "--baseline", "-"], stdin=empty)
+        self.assertEqual(code, 2)
+        self.assertIn("empty baseline", err)
+
+    def test_malformed_entry_shapes_rejected(self) -> None:
+        def check_of(entry: dict[str, object]) -> tuple[int, str]:
+            base = json.dumps({"schema": "file-baseline/v1", "files": [entry]})
+            code, _, err = run(["check", "--baseline", "-"], stdin=base)
+            return code, err
+
+        a = self.path("a.txt", "alpha")
+        good: dict[str, object] = json.loads(self.record(a))["files"][0]
+        mutations: list[tuple[dict[str, object], str]] = [
+            ({"path": "relative.txt"}, "must be absolute"),
+            ({"exists": "yes"}, "must be a boolean"),
+            ({"sha256": "abc"}, "64-hex sha256"),
+            ({"size": -1}, "nonnegative integer size"),
+            ({"exists": False}, "null sha256/size"),
+        ]
+        for mutation, needle in mutations:
+            entry = dict(good)
+            entry.update(mutation)
+            code, err = check_of(entry)
+            self.assertEqual(code, 2, (mutation, err))
+            self.assertIn(needle, err)
+
+    def test_duplicate_baseline_entries_rejected(self) -> None:
+        a = self.path("a.txt", "alpha")
+        entry = json.loads(self.record(a))["files"][0]
+        base = json.dumps({"schema": "file-baseline/v1", "files": [entry, entry]})
+        code, _, err = run(["check", "--baseline", "-"], stdin=base)
+        self.assertEqual(code, 2)
+        self.assertIn("duplicate path/realpath", err)
+
+    def test_cwd_independence_with_decoy(self) -> None:
+        proj = os.path.join(self.dir, "proj")
+        decoy_dir = os.path.join(self.dir, "decoy")
+        os.mkdir(proj)
+        os.mkdir(decoy_dir)
+        real_file = os.path.join(proj, "Foo.lean")
+        with open(real_file, "w") as f:
+            f.write("theorem real : True := trivial")
+        with open(os.path.join(decoy_dir, "Foo.lean"), "w") as f:
+            f.write("theorem decoy : False := sorry")
+        os.chdir(proj)
+        base = self.record("Foo.lean")  # relative at record time
+        stored = json.loads(base)["files"][0]["path"]
+        self.assertEqual(stored, real_file)  # stored absolute
+        os.chdir(decoy_dir)  # cwd now contains a same-named decoy
+        code, result = self.check(base)
+        self.assertEqual(code, 0, result)  # checks proj/Foo.lean, not decoy
+        # A stale relative selector from the decoy cwd is rejected, not
+        # silently rebound to the decoy:
+        code, _, err = run(
+            ["check", "--baseline", "-", "--only", "Foo.lean"], stdin=base
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("not in baseline", err)
+        # Advance from the decoy cwd via the stored absolute path re-records
+        # the real file, untouched by the decoy:
+        with open(real_file, "a") as f:
+            f.write("\n-- advanced")
+        code, out, err = run(["advance", "--baseline", "-", stored], stdin=base)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(json.loads(out)["files"][0]["path"], real_file)
+
+    def test_deleted_symlink_reports_deleted_not_retargeted(self) -> None:
+        t = self.path("target.txt", "bytes")
+        link = os.path.join(self.dir, "link.txt")
+        os.symlink(t, link)
+        base = self.record(link)
+        os.unlink(link)
+        code, result = self.check(base)
+        self.assertEqual(code, 3)
+        self.assertEqual(self.statuses(result)[link], "deleted")
+
+    def test_error_detail_preserved_in_output(self) -> None:
+        a = self.path("a.txt", "alpha")
+        base = self.record(a)
+        os.unlink(a)
+        os.mkdir(a)
+        code, result = self.check(base)
+        self.assertEqual(code, 4)
+        entries = result["entries"]
+        assert isinstance(entries, list)
+        self.assertIn("not a regular file", entries[0]["detail"])
+
     def test_operational_error_distinct_from_drift_and_usage(self) -> None:
         d = os.path.join(self.dir, "subdir")
         os.mkdir(d)

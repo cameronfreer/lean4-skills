@@ -49,6 +49,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 
 SCHEMA = "file-baseline/v1"
@@ -75,6 +76,12 @@ def _hash_file(path: str) -> tuple[str, int]:
 
 
 def _entry_for(path: str) -> dict[str, object]:
+    # Identity is cwd-independent: `path` is the normalized absolute
+    # LEXICAL path (symlink endpoint preserved, no resolution) so a later
+    # check or advance from a different working directory can never bind
+    # to a same-named decoy; `realpath` is the resolved target, kept for
+    # retarget detection.
+    path = os.path.abspath(path)
     real = os.path.realpath(path)
     if not os.path.lexists(path) or (os.path.islink(path) and not os.path.exists(path)):
         # Missing target, or a symlink dangling to nowhere: recordable as
@@ -149,11 +156,58 @@ def _load_baseline(source: str) -> list[dict[str, object]]:
             file=sys.stderr,
         )
         sys.exit(EXIT_USAGE)
+    if not files:
+        # Fail closed: an empty record can gate nothing — treating it as a
+        # trivially matching baseline would authorize unchecked mutation.
+        print(
+            "error: empty baseline (no file entries) — refusing to treat "
+            "an empty record as a match",
+            file=sys.stderr,
+        )
+        sys.exit(EXIT_USAGE)
+    seen_paths: set[str] = set()
+    seen_reals: set[str] = set()
     for e in files:
-        if not isinstance(e.get("path"), str) or not isinstance(e.get("realpath"), str):
-            print("error: malformed baseline entry (path/realpath)", file=sys.stderr)
+        _validate_entry(e)
+        path = str(e["path"])
+        real = str(e["realpath"])
+        if path in seen_paths or real in seen_reals:
+            print(
+                f"error: malformed baseline: duplicate path/realpath entry {path!r}",
+                file=sys.stderr,
+            )
             sys.exit(EXIT_USAGE)
+        seen_paths.add(path)
+        seen_reals.add(real)
     return list(files)
+
+
+def _validate_entry(e: dict[str, object]) -> None:
+    """Reject anything that is not a complete, consistent v1 entry."""
+
+    def bad(reason: str) -> None:
+        print(f"error: malformed baseline entry: {reason}", file=sys.stderr)
+        sys.exit(EXIT_USAGE)
+
+    path, real = e.get("path"), e.get("realpath")
+    if not isinstance(path, str) or not isinstance(real, str):
+        bad("path/realpath must be strings")
+        return
+    if not os.path.isabs(path) or not os.path.isabs(real):
+        bad(f"{path!r}: path/realpath must be absolute")
+    exists = e.get("exists")
+    if not isinstance(exists, bool):
+        bad(f"{path!r}: exists must be a boolean")
+        return
+    sha, size = e.get("sha256"), e.get("size")
+    if exists:
+        if not (isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{64}", sha)):
+            bad(f"{path!r}: existing entry needs a 64-hex sha256")
+        if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+            bad(f"{path!r}: existing entry needs a nonnegative integer size")
+    else:
+        if sha is not None or size is not None:
+            bad(f"{path!r}: absent entry must have null sha256/size")
 
 
 def _emit_baseline(entries: list[dict[str, object]]) -> None:
@@ -171,45 +225,73 @@ def cmd_record(paths: list[str]) -> int:
     return EXIT_OK
 
 
-def _check_one(entry: dict[str, object]) -> str:
+def _check_one(entry: dict[str, object]) -> tuple[str, str | None]:
+    """Return (status, detail). Existence transitions are classified before
+    realpath transitions so deleting a symlink reports ``deleted``, not
+    ``retargeted``; the operational-error message is preserved as detail."""
     path = str(entry["path"])
     try:
         current = _entry_for(path)
-    except OperationalError:
-        return "error"
-    if str(current["realpath"]) != str(entry["realpath"]):
-        return "retargeted"
+    except OperationalError as exc:
+        return "error", str(exc)
     was = bool(entry.get("exists"))
     now = bool(current["exists"])
     if was and not now:
-        return "deleted"
+        return "deleted", None
     if not was and now:
-        return "created"
+        return "created", None
     if not was and not now:
-        return "unchanged"
+        return "unchanged", None
+    if str(current["realpath"]) != str(entry["realpath"]):
+        return "retargeted", None
     if current["sha256"] != entry.get("sha256"):
-        return "modified"
-    return "unchanged"
+        return "modified", None
+    return "unchanged", None
+
+
+def _resolve_selector(arg: str, by_path: dict[str, dict[str, object]]) -> str | None:
+    """Map a --only/advance argument to a stored absolute path, or None.
+
+    Exact stored-path match wins; otherwise the argument is normalized via
+    abspath (against the CURRENT cwd — so from a different directory a
+    relative name that no longer matches the stored entry is rejected
+    rather than silently rebound to a decoy)."""
+    if arg in by_path:
+        return arg
+    norm = os.path.abspath(arg)
+    return norm if norm in by_path else None
 
 
 def cmd_check(baseline_src: str, only: list[str]) -> int:
     entries = _load_baseline(baseline_src)
     by_path = {str(e["path"]): e for e in entries}
     if only:
-        unknown = [p for p in only if p not in by_path]
+        resolved: list[str] = []
+        unknown: list[str] = []
+        for p in only:
+            r = _resolve_selector(p, by_path)
+            (resolved.append(r) if r is not None else unknown.append(p))
         if unknown:
             print(
                 f"error: --only path(s) not in baseline: {unknown!r}",
                 file=sys.stderr,
             )
             return EXIT_USAGE
-        selected = [by_path[p] for p in only]
-        unchecked = [str(e["path"]) for e in entries if str(e["path"]) not in set(only)]
+        selected = [by_path[p] for p in resolved]
+        unchecked = [
+            str(e["path"]) for e in entries if str(e["path"]) not in set(resolved)
+        ]
     else:
         selected = entries
         unchecked = []
 
-    results = [{"path": str(e["path"]), "status": _check_one(e)} for e in selected]
+    results = []
+    for e in selected:
+        status, detail = _check_one(e)
+        item: dict[str, object] = {"path": str(e["path"]), "status": status}
+        if detail is not None:
+            item["detail"] = detail
+        results.append(item)
     statuses = {r["status"] for r in results}
     if "error" in statuses:
         overall, code = "error", EXIT_OPERATIONAL
@@ -234,7 +316,11 @@ def cmd_check(baseline_src: str, only: list[str]) -> int:
 def cmd_advance(baseline_src: str, changed: list[str]) -> int:
     entries = _load_baseline(baseline_src)
     by_path = {str(e["path"]): e for e in entries}
-    unknown = [p for p in changed if p not in by_path]
+    resolved: list[str] = []
+    unknown: list[str] = []
+    for p in changed:
+        r = _resolve_selector(p, by_path)
+        (resolved.append(r) if r is not None else unknown.append(p))
     if unknown:
         print(
             f"error: advance path(s) not in baseline: {unknown!r} — new "
@@ -242,7 +328,7 @@ def cmd_advance(baseline_src: str, changed: list[str]) -> int:
             file=sys.stderr,
         )
         return EXIT_USAGE
-    changed_set = set(changed)
+    changed_set = set(resolved)
     out: list[dict[str, object]] = []
     try:
         for e in entries:

@@ -110,7 +110,7 @@ echo "-- file-baseline drift check passes through (issue #102) --"
 # via heredoc. Not a git/gh op, so guardrails must not gate it on either
 # host; a false block here would break the pre-mutation drift check.
 run_test "file-baseline check via heredoc (allow)" 'lean4-skills-file-baseline check --baseline - <<EOF
-{"schema":"file-baseline/v1","files":[]}
+{"schema":"file-baseline/v1","files":[{"path":"/proj/Foo.lean","realpath":"/proj/Foo.lean","exists":true,"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":42}]}
 EOF' 0
 
 echo ""

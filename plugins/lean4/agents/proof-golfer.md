@@ -48,7 +48,7 @@ model: opus
    - If replacement needs statement changes or multi-file refactor → stop, hand off to axiom-eliminator
 
 5. **Apply optimizations** (max 3 hunks × 60 lines each):
-   - If the dispatch context includes a `### File baseline` record: `lean4-skills-file-baseline check --baseline -` before every mutating tool operation (all intended targets first); on drift, apply nothing, report the structured stale-baseline result, and stop — never re-record and retry. Advance only intentionally changed entries after success (cycle-engine.md § File baselines and drift)
+   - Fail closed on file baselines: a valid, nonempty `### File baseline` record is required before any mutation (missing/malformed record or unavailable checker → no mutation). `lean4-skills-file-baseline check --baseline -` before every mutating tool operation (all intended targets first) — only exit 0 authorizes the mutation; on any nonzero exit, apply nothing, report the structured stale-baseline result, and stop — never re-record and retry. Advance only intentionally changed entries after success; if advance fails, stop (cycle-engine.md § File baselines and drift)
    - Priority: directness wins first (`by exact`→`t`, `apply+exact`→`exact`, `ext+rfl`→`rfl`), then perf (linter simp cleanup, `simp only` narrowing), then verified inlines
    - `lean_diagnostic_messages(file)` after each change; `lake build` only for final verification
    - Revert immediately on failure
