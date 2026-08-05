@@ -253,6 +253,18 @@ class FileBaselineTests(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertEqual(json.loads(out)["files"][0]["path"], real_file)
 
+    def test_dangling_symlink_retarget_is_drift(self) -> None:
+        # Dangling A -> dangling B: both absent, but the resolved identity
+        # changed — a subsequent create would affect the wrong location.
+        link = os.path.join(self.dir, "dangling.txt")
+        os.symlink(os.path.join(self.dir, "missing-A"), link)
+        base = self.record(link)
+        os.unlink(link)
+        os.symlink(os.path.join(self.dir, "missing-B"), link)
+        code, result = self.check(base)
+        self.assertEqual(code, 3)
+        self.assertEqual(self.statuses(result)[link], "retargeted")
+
     def test_deleted_symlink_reports_deleted_not_retargeted(self) -> None:
         t = self.path("target.txt", "bytes")
         link = os.path.join(self.dir, "link.txt")

@@ -228,9 +228,13 @@ def cmd_record(paths: list[str]) -> int:
 
 
 def _check_one(entry: dict[str, object]) -> tuple[str, str | None]:
-    """Return (status, detail). Existence transitions are classified before
-    realpath transitions so deleting a symlink reports ``deleted``, not
-    ``retargeted``; the operational-error message is preserved as detail."""
+    """Return (status, detail). Precedence: deleted → retargeted → created →
+    both-absent-unchanged → hash. Deletion is classified before retarget
+    (deleting a symlink reports ``deleted``), but retarget is classified
+    before the both-absent short-circuit — a dangling symlink retargeted
+    between two missing targets is drift, not a match, since a subsequent
+    create would affect the wrong location. Operational-error messages are
+    preserved as detail."""
     path = str(entry["path"])
     try:
         current = _entry_for(path)
@@ -240,12 +244,12 @@ def _check_one(entry: dict[str, object]) -> tuple[str, str | None]:
     now = bool(current["exists"])
     if was and not now:
         return "deleted", None
+    if str(current["realpath"]) != str(entry["realpath"]):
+        return "retargeted", None
     if not was and now:
         return "created", None
     if not was and not now:
         return "unchanged", None
-    if str(current["realpath"]) != str(entry["realpath"]):
-        return "retargeted", None
     if current["sha256"] != entry.get("sha256"):
         return "modified", None
     return "unchanged", None
