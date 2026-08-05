@@ -146,6 +146,24 @@ for entry in $EXPECTED; do
     done
 done
 
+# Transport regression (issue #102): the canonical file-baseline heredoc
+# MUST use a quoted delimiter so the JSON payload reaches the checker
+# byte-exact — no $VAR, backtick, or $(...) expansion. The payload below
+# carries all three; with the quoted form the checker must see the
+# literals unchanged (they surface in its absolute-path validation error),
+# and the $(...) must NOT execute (marker file must not appear).
+_tp_marker="$SCRATCH/transport-pwned"
+_tp_err=$("$BASH_FOR_COMPAT" -c '"'"$BIN_DIR"'/lean4-skills-file-baseline" check --baseline - <<'"'"'EOF'"'"'
+{"schema":"file-baseline/v1","files":[{"path":"rel/$HOME `whoami` $(touch '"$_tp_marker"') Foo.lean","realpath":"/x","exists":false,"sha256":null,"size":null}]}
+EOF' 2>&1 >/dev/null) || true
+if [[ -e "$_tp_marker" ]]; then
+    fail "quoted-heredoc transport: embedded \$(...) EXECUTED (marker created) — payload was expanded"
+elif [[ "$_tp_err" != *'$HOME `whoami` $(touch'* ]]; then
+    fail "quoted-heredoc transport: dangerous literals did not reach the checker byte-exact (stderr: $(echo "$_tp_err" | head -1))"
+else
+    pass "quoted-heredoc transport: payload reaches checker byte-exact, embedded command not executed"
+fi
+
 echo ""
 echo "=== test_wrapper_runtime.sh: $PASS passed, $FAIL failed ==="
 [[ $FAIL -eq 0 ]]

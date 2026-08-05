@@ -18,7 +18,9 @@ Stateless primitive behind ``lean4-skills-file-baseline``. Three subcommands:
     advance --baseline FILE|- <changed-path>...
         Emit a new baseline in which ONLY the named entries (which the
         caller intentionally mutated) are re-recorded; every other entry is
-        carried over byte-identical. This is how a writer advances its
+        carried forward unchanged. The emitted JSON REPLACES the previous
+        current baseline for subsequent check/advance calls. This is how a
+        writer advances its
         single-writer chain without blessing external drift on files it
         did not touch. Paths not present in the baseline are rejected.
 

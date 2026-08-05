@@ -107,10 +107,14 @@ run_test "git remote set-url --push (allow)"      "git remote set-url --push ori
 echo ""
 echo "-- file-baseline drift check passes through (issue #102) --"
 # The canonical agent-side invocation: baseline JSON delivered over stdin
-# via heredoc. Not a git/gh op, so guardrails must not gate it on either
-# host; a false block here would break the pre-mutation drift check.
-run_test "file-baseline check via heredoc (allow)" 'lean4-skills-file-baseline check --baseline - <<EOF
-{"schema":"file-baseline/v1","files":[{"path":"/proj/Foo.lean","realpath":"/proj/Foo.lean","exists":true,"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":42}]}
+# via QUOTED heredoc (<<'"'"'EOF'"'"' — an unquoted delimiter would expand
+# $/backticks/$(...) inside the payload, corrupting repository-controlled
+# filenames and potentially executing embedded commands). Not a git/gh op,
+# so guardrails must not gate it on either host; a false block here would
+# break the pre-mutation drift check. The payload deliberately contains
+# dangerous literals to pin the quoted-transport form.
+run_test "file-baseline check via quoted heredoc (allow)" 'lean4-skills-file-baseline check --baseline - <<'"'"'EOF'"'"'
+{"schema":"file-baseline/v1","files":[{"path":"/proj/$HOME `w` $(x) Foo.lean","realpath":"/proj/$HOME `w` $(x) Foo.lean","exists":true,"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":42}]}
 EOF' 0
 
 echo ""

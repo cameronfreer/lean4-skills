@@ -166,9 +166,14 @@ class FileBaselineTests(unittest.TestCase):
         by_path = {e["path"]: e for e in advanced["files"]}
         old_by_path = {e["path"]: e for e in json.loads(base)["files"]}
         self.assertNotEqual(by_path[a]["sha256"], old_by_path[a]["sha256"])
-        # Untouched entry carried over byte-identical — external drift on b
-        # is NOT blessed and still fails the next check.
+        # Untouched entry carried forward unchanged (field-for-field AND at
+        # the serialization level) — external drift on b is NOT blessed and
+        # still fails the next check.
         self.assertEqual(by_path[b], old_by_path[b])
+        self.assertEqual(
+            json.dumps(by_path[b], sort_keys=True),
+            json.dumps(old_by_path[b], sort_keys=True),
+        )
         code, result = self.check(json.dumps(advanced))
         self.assertEqual(code, 3)
         self.assertEqual(self.statuses(result)[b], "modified")

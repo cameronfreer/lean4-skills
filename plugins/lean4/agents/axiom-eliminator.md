@@ -48,7 +48,7 @@ model: opus
    - If not: compose from mathlib lemmas
    - If stuck: convert to `theorem ... := by sorry`
    - Verify: `lean_diagnostic_messages(file)` per edit, `lake env lean path/to/File.lean` for file gate (run from the project root), axiom count decreased; reserve `lake build` for final/project gate
-   - Fail closed on file baselines: a valid, nonempty `### File baseline` record is required before any mutation (missing/malformed record or unavailable checker → no mutation). `lean4-skills-file-baseline check --baseline -` before every mutating tool operation (all intended targets first) — only exit 0 authorizes the mutation; on any nonzero exit, apply nothing, report the structured stale-baseline result, and stop — never re-record and retry. Advance only intentionally changed entries after success; if advance fails, stop (cycle-engine.md § File baselines and drift)
+   - Fail closed on file baselines: whenever the dispatch context contains `### Owned files`, a valid nonempty `### File baseline` is required before any mutation (absent/malformed record or unavailable checker → dispatch-protocol error, no mutation; standalone work outside a structured dispatch is governed by the direct caller). `lean4-skills-file-baseline check --baseline -` before every mutating tool operation (all intended targets first) — only exit 0 authorizes the mutation; on any nonzero exit, apply nothing, report the structured stale-baseline result, and stop — never re-record and retry. Advance only intentionally changed entries after success — advance's output replaces the current baseline for subsequent checks; if advance fails, stop (cycle-engine.md § File baselines and drift)
 
 4. **Report progress** after each elimination and final summary
 
