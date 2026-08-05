@@ -73,6 +73,7 @@ lean4-skills-disprove-emit-artifact:2
 lean4-skills-disprove-method-probe:2
 lean4-skills-disprove-target-profile:2
 lean4-skills-disprove-target-resolve:2
+lean4-skills-file-baseline:2
 lean4-skills-find-exact-candidates:2
 lean4-skills-find-golfable:2
 lean4-skills-find-usages:1

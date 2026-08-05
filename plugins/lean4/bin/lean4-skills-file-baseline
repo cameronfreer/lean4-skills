@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# lean4-skills-file-baseline — model-facing wrapper around lib/scripts/file_baseline.py.
+# Records, checks, and advances dispatch-time file-content baselines
+# (issue #102 drift detection). See lean4-skills-cycle-tracker for the
+# bin/-wrapper rationale.
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+exec "${LEAN4_PYTHON_BIN:-python3}" "$PLUGIN_ROOT/lib/scripts/file_baseline.py" "$@"

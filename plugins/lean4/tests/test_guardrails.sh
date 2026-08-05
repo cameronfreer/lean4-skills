@@ -105,6 +105,15 @@ echo "-- Fix 1: --push false positive --"
 run_test "git remote set-url --push (allow)"      "git remote set-url --push origin url"   0
 
 echo ""
+echo "-- file-baseline drift check passes through (issue #102) --"
+# The canonical agent-side invocation: baseline JSON delivered over stdin
+# via heredoc. Not a git/gh op, so guardrails must not gate it on either
+# host; a false block here would break the pre-mutation drift check.
+run_test "file-baseline check via heredoc (allow)" 'lean4-skills-file-baseline check --baseline - <<EOF
+{"schema":"file-baseline/v1","files":[]}
+EOF' 0
+
+echo ""
 echo "-- Fix 2: wrapper prefix bypass --"
 run_test "sudo -u root git push (block)"           "sudo -u root git push origin main"      2
 run_test "env -i git push (block)"                 "env -i git push origin main"            2
