@@ -1,5 +1,14 @@
 # Changelog
 
+## v4.6.2 (August 2026)
+
+File baselines at dispatch with drift abort before mutation — #102 phase 1, the roadmap's last Track 0 reliability item. Prompt-contract orchestration with a tested runtime primitive: two agents targeting the same file could both succeed at Edit, the second silently overwriting the first (the Edit tool only catches local-region mismatch, not whole-file drift).
+
+### Added
+
+- **`lean4-skills-file-baseline`** (new wrapper + `lib/scripts/file_baseline.py`) — stateless, versioned (`file-baseline/v1`): `record` captures normalized path identity (realpath), existence state, and exact sha256 per target (never mtime; never consults git — dirty files are valid baselines); `check` recomputes and classifies every entry (`unchanged`/`modified`/`deleted`/`created`/`retargeted`) with distinct exit codes for drift (3) vs operational errors (4) vs bad input (2); `advance` re-records only intentionally changed entries, carrying the rest over byte-identical. Symlink identity is the resolved path: retargeting is drift even with identical bytes; regular-file replacement with identical bytes is not. `--only` subsets reject unknown paths and report what they skipped. 12-case unit suite in CI (both hosts' invocation path covered by a guardrails passthrough probe; wrapper in the runtime smoke table).
+- **Custody rule + dispatch wiring** (`cycle-engine.md` § File baselines and drift): the pre-flight dispatch block gains a `### File baseline` field computed by the parent immediately before dispatch. A baseline is the last *accepted* content revision in a single-writer chain — editing agents (`sorry-filler-deep`, `proof-golfer`, `axiom-eliminator`) check before **every mutating tool operation** (all targets first for multi-file operations), advance only what they intentionally changed, and on drift apply nothing, emit a structured stale-baseline result (`rerun` / `serialize` / `isolation: "worktree"`), and stop — never re-record and retry. The parent owns check-and-advance when applying proof-repair's line-anchored diffs. The check→edit window is documented as check-to-write, not compare-and-swap: ownership serialization and worktree isolation remain the primary defenses; the baseline is the tripwire. Schema designed for later embedding in Track 3's run artifact.
+
 ## v4.6.1 (August 2026)
 
 Documentation restructuring: both READMEs become concise front doors, and the guardrail policy gets a single canonical owner. Covers the root-README trim (PR #171, merged unversioned) and the plugin-README trim (PR #172). No runtime changes.
