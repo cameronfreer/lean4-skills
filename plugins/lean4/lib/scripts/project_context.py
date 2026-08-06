@@ -122,10 +122,20 @@ def _scan_git(
     elif code == 0 and out.strip() == "false":
         # Inside a git-controlled area but not a work tree (e.g. .git dir).
         git_facts["is_repository"] = False
+        _warn(
+            warnings,
+            "not-git-repository",
+            "directory is not inside a git work tree; remote scan skipped",
+        )
         return git_facts, remotes
     elif code != 0 and "not a git repository" in err.lower():
         # Unambiguous non-repository (LC_ALL=C makes the message stable).
         git_facts["is_repository"] = False
+        _warn(
+            warnings,
+            "not-git-repository",
+            "directory is not inside a git repository; remote scan skipped",
+        )
         return git_facts, remotes
     else:
         # Timeout, permission, corrupt config, dubious ownership, … —
@@ -158,10 +168,11 @@ def _scan_git(
                 f"could not read URLs for remote {name!r}",
             )
             continue
-        # splitlines, not split(): a configured URL may contain spaces and
-        # must be preserved exactly, one URL per line as git emits them.
-        fetch_urls = sorted({u.strip() for u in fetch_out.splitlines() if u.strip()})
-        push_urls = sorted({u.strip() for u in push_out.splitlines() if u.strip()})
+        # splitlines, not split(), and NO per-URL strip: a configured URL
+        # may contain interior or even leading/trailing spaces and must be
+        # preserved verbatim, one URL per line exactly as git emits them.
+        fetch_urls = sorted({u for u in fetch_out.splitlines() if u})
+        push_urls = sorted({u for u in push_out.splitlines() if u})
         remotes.append(
             {
                 "name": name,

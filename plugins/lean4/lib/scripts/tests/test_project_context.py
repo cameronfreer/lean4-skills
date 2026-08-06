@@ -115,6 +115,9 @@ class ProjectContextTests(unittest.TestCase):
         assert isinstance(git_f, dict)
         self.assertFalse(git_f["is_repository"])
         self.assertEqual(git_f["remote_scan"], "skipped")
+        warnings = data["warnings"]
+        assert isinstance(warnings, list)
+        self.assertTrue(any(w["code"] == "not-git-repository" for w in warnings))
         # Not a confident 'no': remote scan did not complete.
         self.assertEqual(self.intent(data), ("unknown", "default"))
 
@@ -301,6 +304,37 @@ class ProjectContextTests(unittest.TestCase):
         assert isinstance(remotes, list)
         self.assertEqual(remotes[0]["fetch_urls"], [weird])
         self.assertEqual(remotes[0]["push_urls"], [weird])
+
+    def test_padded_url_round_trips_verbatim(self) -> None:
+        # A URL with leading/trailing spaces, configured directly via git
+        # config: our record must match git's own get-url output verbatim.
+        root = self.mkproj(git_init=True)
+        padded = "  /padded path  "
+        git(root, "config", "remote.pad.url", padded)
+        emitted = subprocess.run(
+            ["git", "remote", "get-url", "pad"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.splitlines()[0]
+        data = self.ctx("--from", root)
+        remotes = self.facts(data)["remotes"]
+        assert isinstance(remotes, list)
+        pad = next(r for r in remotes if r["name"] == "pad")
+        self.assertEqual(pad["fetch_urls"], [emitted])
+
+    def test_tree_signature_classifies_mathlib(self) -> None:
+        # Non-mathlib package name, but root Mathlib.lean + Mathlib/ tree:
+        # the TREE signature alone must classify as mathlib.
+        root = self.mkproj(
+            name="tree", lakefile_toml='name = "someport"\n', git_init=False
+        )
+        with open(os.path.join(root, "Mathlib.lean"), "w") as f:
+            f.write("import Mathlib.Init\n")
+        os.makedirs(os.path.join(root, "Mathlib"), exist_ok=True)
+        data = self.ctx("--from", root)
+        self.assertEqual(self.facts(data)["repository_kind"], "mathlib")
 
     def test_unreadable_or_empty_toolchain_warns_and_blocks_confident_kind(
         self,
