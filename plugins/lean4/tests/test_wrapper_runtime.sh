@@ -73,6 +73,7 @@ lean4-skills-disprove-emit-artifact:2
 lean4-skills-disprove-method-probe:2
 lean4-skills-disprove-target-profile:2
 lean4-skills-disprove-target-resolve:2
+lean4-skills-file-baseline:2
 lean4-skills-find-exact-candidates:2
 lean4-skills-find-golfable:2
 lean4-skills-find-usages:1
@@ -144,6 +145,51 @@ for entry in $EXPECTED; do
         fi
     done
 done
+
+# Transport regression (issue #102): the canonical file-baseline heredoc
+# MUST use a quoted delimiter so the JSON payload reaches the checker
+# byte-exact — no $VAR, backtick, or $(...) expansion. The payload below
+# carries all three; with the quoted form the checker must see the
+# literals unchanged (they surface in its absolute-path validation error),
+# and the $(...) must NOT execute (marker file must not appear).
+_tp_marker="$SCRATCH/transport-pwned"
+_tp_err=$("$BASH_FOR_COMPAT" -c '"'"$BIN_DIR"'/lean4-skills-file-baseline" check --baseline - <<'"'"'EOF'"'"'
+{"schema":"file-baseline/v1","files":[{"path":"rel/$HOME `whoami` $(touch '"$_tp_marker"') Foo.lean","realpath":"/x","exists":false,"sha256":null,"size":null}]}
+EOF' 2>&1 >/dev/null) || true
+if [[ -e "$_tp_marker" ]]; then
+    fail "quoted-heredoc transport: embedded \$(...) EXECUTED (marker created) — payload was expanded"
+elif [[ "$_tp_err" != *'$HOME `whoami` $(touch'* ]]; then
+    fail "quoted-heredoc transport: dangerous literals did not reach the checker byte-exact (stderr: $(echo "$_tp_err" | head -1))"
+else
+    pass "quoted-heredoc transport: payload reaches checker byte-exact, embedded command not executed"
+fi
+
+# Argv transport regression (issue #102): record/advance take
+# repository-controlled filenames as shell OPERANDS — the canonical form
+# shell-quotes each path and uses `--` before positionals. A file whose
+# literal name contains spaces, $HOME, and $(...) must round-trip through
+# record → check → advance with no expansion and no command execution.
+_av_dir=$(mktemp -d)
+# Marker is slash-free and relative: if any layer ever re-evaluates the
+# filename, the $(touch ...) would create it in the suite cwd ($SCRATCH).
+_av_marker="$SCRATCH/argv-pwned"
+_av_file="$_av_dir"'/$HOME `whoami` $(touch argv-pwned) x.lean'
+printf 'alpha\n' > "$_av_file"
+_av_base="$_av_dir/base.json"
+if ! "$BIN_DIR/lean4-skills-file-baseline" record -- "$_av_file" > "$_av_base" 2>/dev/null; then
+    fail "argv transport: record failed on hostile filename"
+elif [[ -e "$_av_marker" ]]; then
+    fail "argv transport: embedded \$(...) in filename EXECUTED during record"
+elif ! "$BIN_DIR/lean4-skills-file-baseline" check --baseline "$_av_base" >/dev/null 2>&1; then
+    fail "argv transport: check failed on hostile filename baseline"
+elif ! "$BIN_DIR/lean4-skills-file-baseline" advance --baseline "$_av_base" -- "$_av_file" >/dev/null 2>&1; then
+    fail "argv transport: advance failed on hostile filename"
+elif [[ -e "$_av_marker" ]]; then
+    fail "argv transport: embedded \$(...) in filename EXECUTED during check/advance"
+else
+    pass "argv transport: hostile filename round-trips record→check→advance unexpanded"
+fi
+rm -rf "$_av_dir"
 
 echo ""
 echo "=== test_wrapper_runtime.sh: $PASS passed, $FAIL failed ==="
