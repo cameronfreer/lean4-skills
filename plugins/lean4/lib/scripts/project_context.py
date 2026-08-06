@@ -65,11 +65,23 @@ def _find_root(start: str) -> str | None:
 
 
 def _normalize_url(url: str) -> str | None:
-    """Normalize a git URL to ``host/path`` (lowercase, no .git) — no network."""
-    u = url.strip().lower().rstrip("/")
-    m = re.match(r"^[a-z+]+://(?:[^@/]+@)?([^/:]+)(?::\d+)?/(.+)$", u)
+    """Normalize a git URL to ``host/path`` (lowercase, no .git) — no network.
+
+    Only the contract's promised transports are recognized: HTTPS, SSH,
+    and SCP-like syntax. Padded URLs are rejected outright (URLs are
+    preserved verbatim in the record, so padding is a real difference,
+    not noise to normalize away) — a false canonical match is the
+    dangerous direction, since consumers may enable mathlib-specific
+    behavior on ``yes``.
+    """
+    if not url or url != url.strip():
+        return None
+    u = url.lower().rstrip("/")
+    m = re.match(r"^(?:https|ssh)://(?:[^@/]+@)?([^/:]+)(?::\d+)?/(.+)$", u)
     if m:
         host, path = m.group(1), m.group(2)
+    elif "://" in u:
+        return None  # unrecognized scheme (file://, ftp://, ssh+bogus://, …)
     else:
         m = re.match(r"^(?:[^@/]+@)?([^/:]+):(.+)$", u)
         if not m:
@@ -195,37 +207,64 @@ def _read_text(path: str) -> str | None:
         return None
 
 
+def _scan_lakefile_toml(text: str) -> tuple[str | None, set[str]]:
+    """Line-oriented scan of the Lake TOML subset we care about.
+
+    Returns (root-scope package name, names declared in [[lean_exe]]
+    tables). Table-aware on purpose: a ``name = "mathlib"`` inside
+    ``[[require]]`` is a dependency on mathlib — the standard consumer
+    form — not the package name, and a ``name = "mk_all"`` inside
+    ``[[lean_lib]]`` is not an executable declaration.
+    """
+    table = ""  # "" = TOML root scope
+    pkg: str | None = None
+    exes: set[str] = set()
+    for line in text.splitlines():
+        stripped = line.strip()
+        header = re.match(r"^\[\[?\s*([^\]\s]+)\s*\]\]?", stripped)
+        if header:
+            table = header.group(1)
+            continue
+        m = re.match(r'^name\s*=\s*"([^"]*)"', stripped)
+        if m:
+            if table == "" and pkg is None:
+                pkg = m.group(1)
+            elif table == "lean_exe":
+                exes.add(m.group(1))
+    return pkg, exes
+
+
 def _classify_kind(
     root: str | None, markers: list[str], warnings: list[dict[str, str]]
 ) -> tuple[str, bool | None]:
-    """Return (repository_kind, mk_all_declared)."""
+    """Return (repository_kind, mk_all_declared) — syntax-aware per lakefile type."""
     if root is None:
         return "not-lean", None
     lakefiles = [m for m in markers if m.startswith("lakefile")]
-    texts: list[str] = []
+    name_is_mathlib = False
+    mk_all_found = False
+    inspected_any = False
     for lf in lakefiles:
         text = _read_text(os.path.join(root, lf))
         if text is None:
             _warn(warnings, "kind-inspection-failed", f"could not read {lf}")
             return "unknown", None
-        texts.append(text)
-    name_is_mathlib = any(
-        re.search(r'(?m)^\s*name\s*=\s*"mathlib"', t)
-        or re.search(r"(?m)^\s*package\s+«?mathlib»?\b", t)
-        for t in texts
-    )
+        inspected_any = True
+        if lf == "lakefile.toml":
+            pkg, exes = _scan_lakefile_toml(text)
+            name_is_mathlib = name_is_mathlib or pkg == "mathlib"
+            mk_all_found = mk_all_found or "mk_all" in exes
+        else:  # lakefile.lean
+            name_is_mathlib = name_is_mathlib or bool(
+                re.search(r"(?m)^\s*package\s+«?mathlib»?\b", text)
+            )
+            mk_all_found = mk_all_found or bool(
+                re.search(r"(?m)^\s*lean_exe\s+«?mk_all»?\b", text)
+            )
     tree_is_mathlib = os.path.isfile(
         os.path.join(root, "Mathlib.lean")
     ) and os.path.isdir(os.path.join(root, "Mathlib"))
-    mk_all_declared: bool | None
-    if texts:
-        mk_all_declared = any(
-            re.search(r"(?m)^\s*name\s*=\s*\"mk_all\"", t)
-            or re.search(r"(?m)^\s*lean_exe\s+«?mk_all»?\b", t)
-            for t in texts
-        )
-    else:
-        mk_all_declared = None  # toolchain-only marker: no lakefile to inspect
+    mk_all_declared: bool | None = mk_all_found if inspected_any else None
     kind = "mathlib" if (name_is_mathlib or tree_is_mathlib) else "other-lean"
     return kind, mk_all_declared
 

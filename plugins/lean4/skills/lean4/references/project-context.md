@@ -25,7 +25,7 @@
 
 - **"Could not determine" is never a confident fact**: `repository_kind` has an explicit `unknown`; `git.is_repository` is `null` when inspection could not run; every degradation adds a `{code, message}` warning.
 - `repository_kind` derivation: `mathlib` — confidently matched package/tree signatures (lakefile package name `mathlib`, or root `Mathlib.lean` + `Mathlib/`); `other-lean` — markers found, inspection succeeded, mathlib signatures absent; `not-lean` — no markers from an existing start path; `unknown` — inspection incomplete/inaccessible.
-- Remotes carry **all** configured fetch and push URLs; `is_canonical_mathlib` matches `leanprover-community/mathlib4` across normalized https/ssh/scp-like forms, no network.
+- Remotes carry **all effective fetch and push URLs as reported by `git remote get-url --all` / `--push --all`** (git may have applied `url.*.insteadOf` rewriting, and push URLs fall back to fetch URLs when no explicit pushurl exists — the effective interpretation is deliberate for intent detection). `is_canonical_mathlib` matches `leanprover-community/mathlib4` over exactly the whitelisted transports — HTTPS, SSH, and SCP-like syntax — with no network; unrecognized schemes and padded URLs never match.
 - `mk_all_declared` is **diagnostics-only** — consumers that need `mk_all` determine availability by actually running it, never by this field.
 
 ## Intent derivation (precedence: consumer flag > env > heuristic > default)

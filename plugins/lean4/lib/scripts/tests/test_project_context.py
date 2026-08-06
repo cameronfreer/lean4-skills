@@ -167,6 +167,56 @@ class ProjectContextTests(unittest.TestCase):
         # Kind alone never implies intent.
         self.assertEqual(self.intent(data), ("unknown", "default"))
 
+    def test_consumer_require_stanza_is_not_mathlib(self) -> None:
+        # The standard consumer lakefile: root name plus a [[require]] on
+        # mathlib and a [[lean_lib]] named mk_all. Must classify other-lean
+        # with mk_all_declared false — a table-unaware scan would misread
+        # both (the exact false-positive the review caught).
+        toml = (
+            'name = "consumer"\n\n'
+            "[[require]]\n"
+            'name = "mathlib"\n'
+            'git = "https://github.com/leanprover-community/mathlib4.git"\n\n'
+            "[[lean_lib]]\n"
+            'name = "mk_all"\n'
+        )
+        root = self.mkproj(name="consumer", lakefile_toml=toml)
+        git(root, "remote", "add", "origin", "https://github.com/user/consumer.git")
+        data = self.ctx("--from", root)
+        f = self.facts(data)
+        self.assertEqual(f["repository_kind"], "other-lean")
+        self.assertFalse(f["mk_all_declared"])
+        self.assertEqual(self.intent(data), ("no", "remote-heuristic"))
+
+    def test_lean_exe_table_declares_mk_all(self) -> None:
+        toml = 'name = "consumer"\n\n[[lean_exe]]\nname = "mk_all"\n'
+        root = self.mkproj(name="exedecl", lakefile_toml=toml, git_init=False)
+        data = self.ctx("--from", root)
+        self.assertTrue(self.facts(data)["mk_all_declared"])
+        self.assertEqual(self.facts(data)["repository_kind"], "other-lean")
+
+    def test_unknown_option_exits_2(self) -> None:
+        code, _, _ = run(["--bogus-option"])
+        self.assertEqual(code, 2)
+
+    def test_multiple_fetch_urls_canonical_not_first(self) -> None:
+        root = self.mkproj(git_init=True)
+        git(root, "remote", "add", "origin", "https://github.com/user/fork.git")
+        git(
+            root,
+            "remote",
+            "set-url",
+            "--add",
+            "origin",
+            "https://github.com/leanprover-community/mathlib4.git",
+        )
+        data = self.ctx("--from", root)
+        remotes = self.facts(data)["remotes"]
+        assert isinstance(remotes, list)
+        self.assertEqual(len(remotes[0]["fetch_urls"]), 2)
+        self.assertTrue(remotes[0]["is_canonical_mathlib"])
+        self.assertEqual(self.intent(data), ("yes", "remote-heuristic"))
+
     def test_url_form_matrix(self) -> None:
         forms = [
             "https://github.com/leanprover-community/mathlib4",
@@ -182,6 +232,11 @@ class ProjectContextTests(unittest.TestCase):
             "https://github.com/user/mathlib4.git",
             "https://gitlab.com/leanprover-community/mathlib4",
             "https://github.com/leanprover-community/mathlib4-fork",
+            "file://github.com/leanprover-community/mathlib4",
+            "ftp://github.com/leanprover-community/mathlib4",
+            "ssh+bogus://github.com/leanprover-community/mathlib4",
+            "  https://github.com/leanprover-community/mathlib4",
+            "https://github.com/leanprover-community/mathlib4  ",
         ]:
             self.assertFalse(project_context._is_canonical(url), url)
 
