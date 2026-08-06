@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Tests for project_context.py (issue #174).
 
-Real ``git init`` + ``git remote`` fixtures — no mocks. Covers the issue's
+Real ``git init`` + ``git remote`` fixtures, plus one narrow git shim
+(house pattern from the lake shim in test_check_axioms_inline) that
+delegates to real git except ``remote get-url``, injecting the
+otherwise-unreachable URL-scan failure. Covers the issue's
 fixture list: not-a-Lean-project; Lean project without git; consumer
 project with complete scan and no canonical URL -> no; fork-origin +
 canonical-upstream -> yes; canonical push-URL only -> yes; mathlib-kind
