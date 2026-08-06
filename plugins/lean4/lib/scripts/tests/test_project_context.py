@@ -203,8 +203,11 @@ class ProjectContextTests(unittest.TestCase):
         self.assertEqual(code, 2)
 
     def test_multiple_fetch_urls_canonical_not_first(self) -> None:
+        # The non-canonical URL must SORT before the canonical one
+        # ("aaa" < "leanprover-community"), so an implementation that only
+        # examined the first sorted URL would fail this regression.
         root = self.mkproj(git_init=True)
-        git(root, "remote", "add", "origin", "https://github.com/user/fork.git")
+        git(root, "remote", "add", "origin", "https://github.com/aaa/fork.git")
         git(
             root,
             "remote",
@@ -216,7 +219,10 @@ class ProjectContextTests(unittest.TestCase):
         data = self.ctx("--from", root)
         remotes = self.facts(data)["remotes"]
         assert isinstance(remotes, list)
-        self.assertEqual(len(remotes[0]["fetch_urls"]), 2)
+        urls = remotes[0]["fetch_urls"]
+        self.assertEqual(len(urls), 2)
+        self.assertFalse(project_context._is_canonical(urls[0]))
+        self.assertTrue(project_context._is_canonical(urls[1]))
         self.assertTrue(remotes[0]["is_canonical_mathlib"])
         self.assertEqual(self.intent(data), ("yes", "remote-heuristic"))
 

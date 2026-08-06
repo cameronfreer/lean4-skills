@@ -34,7 +34,7 @@
 |---|---|---|
 | `LEAN4_MATHLIB_INTENT=yes\|no` | that value | `env-override` |
 | `LEAN4_MATHLIB_INTENT` set to anything else | `unknown` + warning (invalid values fall to the non-enforcing value) | `invalid-env-override` |
-| any configured URL is canonical mathlib4 | `yes` | `remote-heuristic` |
+| any effective URL is canonical mathlib4 | `yes` | `remote-heuristic` |
 | `other-lean` kind **and** `remote_scan: complete` **and** no canonical URL | `no` (both facts confident) | `remote-heuristic` |
 | anything else (mathlib kind without canonical remote; scan failed/skipped; not-lean; kind unknown) | `unknown` | `default` |
 
