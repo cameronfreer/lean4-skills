@@ -164,6 +164,33 @@ else
     pass "quoted-heredoc transport: payload reaches checker byte-exact, embedded command not executed"
 fi
 
+# Argv transport regression (issue #102): record/advance take
+# repository-controlled filenames as shell OPERANDS — the canonical form
+# shell-quotes each path and uses `--` before positionals. A file whose
+# literal name contains spaces, $HOME, and $(...) must round-trip through
+# record → check → advance with no expansion and no command execution.
+_av_dir=$(mktemp -d)
+# Marker is slash-free and relative: if any layer ever re-evaluates the
+# filename, the $(touch ...) would create it in the suite cwd ($SCRATCH).
+_av_marker="$SCRATCH/argv-pwned"
+_av_file="$_av_dir"'/$HOME `whoami` $(touch argv-pwned) x.lean'
+printf 'alpha\n' > "$_av_file"
+_av_base="$_av_dir/base.json"
+if ! "$BIN_DIR/lean4-skills-file-baseline" record -- "$_av_file" > "$_av_base" 2>/dev/null; then
+    fail "argv transport: record failed on hostile filename"
+elif [[ -e "$_av_marker" ]]; then
+    fail "argv transport: embedded \$(...) in filename EXECUTED during record"
+elif ! "$BIN_DIR/lean4-skills-file-baseline" check --baseline "$_av_base" >/dev/null 2>&1; then
+    fail "argv transport: check failed on hostile filename baseline"
+elif ! "$BIN_DIR/lean4-skills-file-baseline" advance --baseline "$_av_base" -- "$_av_file" >/dev/null 2>&1; then
+    fail "argv transport: advance failed on hostile filename"
+elif [[ -e "$_av_marker" ]]; then
+    fail "argv transport: embedded \$(...) in filename EXECUTED during check/advance"
+else
+    pass "argv transport: hostile filename round-trips record→check→advance unexpanded"
+fi
+rm -rf "$_av_dir"
+
 echo ""
 echo "=== test_wrapper_runtime.sh: $PASS passed, $FAIL failed ==="
 [[ $FAIL -eq 0 ]]

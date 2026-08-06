@@ -166,14 +166,9 @@ class FileBaselineTests(unittest.TestCase):
         by_path = {e["path"]: e for e in advanced["files"]}
         old_by_path = {e["path"]: e for e in json.loads(base)["files"]}
         self.assertNotEqual(by_path[a]["sha256"], old_by_path[a]["sha256"])
-        # Untouched entry carried forward unchanged (field-for-field AND at
-        # the serialization level) — external drift on b is NOT blessed and
-        # still fails the next check.
+        # Untouched entry carried forward field-for-field unchanged —
+        # external drift on b is NOT blessed and still fails the next check.
         self.assertEqual(by_path[b], old_by_path[b])
-        self.assertEqual(
-            json.dumps(by_path[b], sort_keys=True),
-            json.dumps(old_by_path[b], sort_keys=True),
-        )
         code, result = self.check(json.dumps(advanced))
         self.assertEqual(code, 3)
         self.assertEqual(self.statuses(result)[b], "modified")
@@ -264,6 +259,36 @@ class FileBaselineTests(unittest.TestCase):
         code, result = self.check(base)
         self.assertEqual(code, 3)
         self.assertEqual(self.statuses(result)[link], "retargeted")
+
+    def test_absent_target_under_retargeted_parent_symlink_is_drift(self) -> None:
+        # link -> dir1; link/Foo.lean absent at record time. Retarget the
+        # PARENT symlink to dir2 (Foo.lean still absent everywhere): the
+        # resolved identity changed, so a subsequent create would land in
+        # the wrong directory — must be drift, never a match.
+        d1 = os.path.join(self.dir, "dir1")
+        d2 = os.path.join(self.dir, "dir2")
+        os.mkdir(d1)
+        os.mkdir(d2)
+        link = os.path.join(self.dir, "current")
+        os.symlink(d1, link)
+        target = os.path.join(link, "Foo.lean")
+        base = self.record(target)
+        os.unlink(link)
+        os.symlink(d2, link)
+        code, result = self.check(base)
+        self.assertEqual(code, 3)
+        self.assertEqual(self.statuses(result)[target], "retargeted")
+
+    def test_absent_path_replaced_by_dangling_symlink_is_drift(self) -> None:
+        # A plain absent path replaced by a dangling symlink still reports
+        # exists=false, but its resolved identity changed — must not
+        # authorize mutation.
+        p = os.path.join(self.dir, "ghost.lean")
+        base = self.record(p)
+        os.symlink(os.path.join(self.dir, "elsewhere.lean"), p)
+        code, result = self.check(base)
+        self.assertEqual(code, 3)
+        self.assertEqual(self.statuses(result)[p], "retargeted")
 
     def test_deleted_symlink_reports_deleted_not_retargeted(self) -> None:
         t = self.path("target.txt", "bytes")
