@@ -228,6 +228,96 @@ class ProjectContextTests(unittest.TestCase):
         self.assertEqual(code, 4)
         self.assertIn("does not exist", err)
 
+    def test_git_executable_unavailable(self) -> None:
+        root = self.mkproj(git_init=True)
+        empty_bin = os.path.join(self.dir, "emptybin")
+        os.makedirs(empty_bin, exist_ok=True)
+        data = self.ctx("--from", root, env={"PATH": empty_bin})
+        f = self.facts(data)
+        git_f = f["git"]
+        assert isinstance(git_f, dict)
+        self.assertFalse(git_f["available"])
+        self.assertIsNone(git_f["is_repository"])
+        self.assertEqual(git_f["remote_scan"], "skipped")
+        warnings = data["warnings"]
+        assert isinstance(warnings, list)
+        self.assertTrue(any(w["code"] == "git-unavailable" for w in warnings))
+        self.assertEqual(self.intent(data), ("unknown", "default"))
+
+    def test_membership_inspection_failure_is_null_not_false(self) -> None:
+        root = self.mkproj(git_init=True)
+        with open(os.path.join(root, ".git", "config"), "w") as f:
+            f.write("[core\ngarbage")
+        data = self.ctx("--from", root)
+        git_f = self.facts(data)["git"]
+        assert isinstance(git_f, dict)
+        self.assertIsNone(git_f["is_repository"])  # never a confident false
+        self.assertEqual(git_f["remote_scan"], "failed")
+        warnings = data["warnings"]
+        assert isinstance(warnings, list)
+        self.assertTrue(any(w["code"] == "git-inspection-failed" for w in warnings))
+        self.assertEqual(self.intent(data), ("unknown", "default"))
+
+    def test_remote_url_scan_failure(self) -> None:
+        # Modern git resolves even URL-less remotes (name-as-URL), so a
+        # config fixture can't force a get-url failure. Use a git shim
+        # (house pattern: the lake shim in test_check_axioms_inline) that
+        # delegates to real git except `remote get-url`, which fails.
+        real_git = __import__("shutil").which("git")
+        assert real_git is not None
+        root = self.mkproj(git_init=True)
+        git(root, "remote", "add", "origin", "https://github.com/user/x.git")
+        shim_dir = os.path.join(self.dir, "shim")
+        os.makedirs(shim_dir, exist_ok=True)
+        shim = os.path.join(shim_dir, "git")
+        with open(shim, "w") as f:
+            f.write(
+                "#!/bin/bash\n"
+                'if [ "$1" = remote ] && [ "$2" = get-url ]; then\n'
+                '  echo "fatal: shimmed get-url failure" >&2; exit 2\n'
+                "fi\n"
+                f'exec "{real_git}" "$@"\n'
+            )
+        os.chmod(shim, 0o755)
+        data = self.ctx(
+            "--from", root, env={"PATH": shim_dir + os.pathsep + "/usr/bin:/bin"}
+        )
+        git_f = self.facts(data)["git"]
+        assert isinstance(git_f, dict)
+        self.assertEqual(git_f["remote_scan"], "failed")
+        warnings = data["warnings"]
+        assert isinstance(warnings, list)
+        self.assertTrue(any(w["code"] == "remote-scan-failed" for w in warnings))
+        # Failed scan can never license a confident 'no'.
+        self.assertEqual(self.intent(data), ("unknown", "default"))
+
+    def test_remote_url_with_spaces_preserved_exactly(self) -> None:
+        root = self.mkproj(git_init=True)
+        weird = os.path.join(self.dir, "path with  spaces")
+        os.makedirs(weird, exist_ok=True)
+        git(root, "remote", "add", "local", weird)
+        data = self.ctx("--from", root)
+        remotes = self.facts(data)["remotes"]
+        assert isinstance(remotes, list)
+        self.assertEqual(remotes[0]["fetch_urls"], [weird])
+        self.assertEqual(remotes[0]["push_urls"], [weird])
+
+    def test_unreadable_or_empty_toolchain_warns_and_blocks_confident_kind(
+        self,
+    ) -> None:
+        root = self.mkproj(name="emptytc", markers=("lean-toolchain",), git_init=False)
+        with open(os.path.join(root, "lean-toolchain"), "w") as f:
+            f.write("   \n")
+        data = self.ctx("--from", root)
+        f2 = self.facts(data)
+        self.assertIsNone(f2["toolchain"])
+        self.assertEqual(f2["repository_kind"], "unknown")
+        warnings = data["warnings"]
+        assert isinstance(warnings, list)
+        self.assertTrue(
+            any(w["code"] == "toolchain-inspection-failed" for w in warnings)
+        )
+
     def test_toolchain_and_markers_sorted(self) -> None:
         root = self.mkproj(markers=("lean-toolchain", "lakefile.toml"))
         data = self.ctx("--from", root)

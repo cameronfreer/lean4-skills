@@ -83,7 +83,10 @@ def _is_canonical(url: str) -> bool:
     return _normalize_url(url) == f"{CANONICAL_HOST}/{CANONICAL_PATH}"
 
 
-def _git(args: list[str], cwd: str) -> tuple[int, str]:
+def _git(args: list[str], cwd: str) -> tuple[int, str, str]:
+    """Run git with a stable diagnostic locale; return (code, stdout, stderr)."""
+    env = dict(os.environ)
+    env["LC_ALL"] = "C"
     try:
         proc = subprocess.run(
             ["git", *args],
@@ -92,10 +95,11 @@ def _git(args: list[str], cwd: str) -> tuple[int, str]:
             text=True,
             timeout=30,
             check=False,
+            env=env,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        return 125, str(exc)
-    return proc.returncode, proc.stdout
+        return 125, "", str(exc)
+    return proc.returncode, proc.stdout, proc.stderr
 
 
 def _scan_git(
@@ -112,35 +116,38 @@ def _scan_git(
         return git_facts, remotes
     git_facts["available"] = True
 
-    code, out = _git(["rev-parse", "--is-inside-work-tree"], anchor)
+    code, out, err = _git(["rev-parse", "--is-inside-work-tree"], anchor)
     if code == 0 and out.strip() == "true":
         git_facts["is_repository"] = True
-    elif code != 0 and "not a git repository" in out.lower():
+    elif code == 0 and out.strip() == "false":
+        # Inside a git-controlled area but not a work tree (e.g. .git dir).
         git_facts["is_repository"] = False
         return git_facts, remotes
-    elif code != 0:
-        # rev-parse prints the not-a-repo message on stderr in some git
-        # versions; treat a plain nonzero as not-a-repository only when
-        # unambiguous, otherwise inspection failed.
+    elif code != 0 and "not a git repository" in err.lower():
+        # Unambiguous non-repository (LC_ALL=C makes the message stable).
         git_facts["is_repository"] = False
         return git_facts, remotes
     else:
+        # Timeout, permission, corrupt config, dubious ownership, … —
+        # inspection FAILED; a confident false would violate the
+        # could-not-determine-is-never-confident guarantee.
+        git_facts["remote_scan"] = "failed"
         _warn(
             warnings,
             "git-inspection-failed",
-            "could not determine repository membership",
+            f"could not determine repository membership: {(err or out).strip().splitlines()[0] if (err or out).strip() else f'git exited {code}'}",
         )
         return git_facts, remotes
 
-    code, out = _git(["remote"], anchor)
+    code, out, err = _git(["remote"], anchor)
     if code != 0:
         git_facts["remote_scan"] = "failed"
         _warn(warnings, "remote-scan-failed", "git remote enumeration failed")
         return git_facts, remotes
     scan_ok = True
-    for name in sorted(n for n in out.split() if n):
-        fetch_code, fetch_out = _git(["remote", "get-url", "--all", name], anchor)
-        push_code, push_out = _git(
+    for name in sorted(n.strip() for n in out.splitlines() if n.strip()):
+        fetch_code, fetch_out, _ = _git(["remote", "get-url", "--all", name], anchor)
+        push_code, push_out, _ = _git(
             ["remote", "get-url", "--push", "--all", name], anchor
         )
         if fetch_code != 0 or push_code != 0:
@@ -151,8 +158,10 @@ def _scan_git(
                 f"could not read URLs for remote {name!r}",
             )
             continue
-        fetch_urls = sorted({u for u in fetch_out.split() if u})
-        push_urls = sorted({u for u in push_out.split() if u})
+        # splitlines, not split(): a configured URL may contain spaces and
+        # must be preserved exactly, one URL per line as git emits them.
+        fetch_urls = sorted({u.strip() for u in fetch_out.splitlines() if u.strip()})
+        push_urls = sorted({u.strip() for u in push_out.splitlines() if u.strip()})
         remotes.append(
             {
                 "name": name,
@@ -262,14 +271,26 @@ def main(argv: list[str]) -> int:
         else []
     )
     toolchain: str | None = None
+    toolchain_ok = True
     if root is not None and "lean-toolchain" in markers:
         text = _read_text(os.path.join(root, "lean-toolchain"))
-        toolchain = (
-            text.strip().splitlines()[0].strip() if text and text.strip() else None
-        )
+        if text is None:
+            toolchain_ok = False
+            _warn(
+                warnings, "toolchain-inspection-failed", "could not read lean-toolchain"
+            )
+        elif not text.strip():
+            toolchain_ok = False
+            _warn(warnings, "toolchain-inspection-failed", "lean-toolchain is empty")
+        else:
+            toolchain = text.strip().splitlines()[0].strip()
 
     git_facts, remotes = _scan_git(root if root is not None else start, warnings)
     kind, mk_all_declared = _classify_kind(root, markers, warnings)
+    if not toolchain_ok and kind == "other-lean":
+        # A malformed/unreadable marker must not license a confident
+        # classification.
+        kind = "unknown"
     intent = _derive_intent(kind, remotes, str(git_facts["remote_scan"]), warnings)
 
     record: dict[str, object] = {
