@@ -1,5 +1,14 @@
 # Changelog
 
+## v4.6.3 (August 2026)
+
+Shared mathlib project-context helper (`project-context/v1`) — the Track 1 foundation (Refs #151; closes #174). Detection only: no consumer behavior changes in this release; #109/#113/#111 wire in separately.
+
+### Added
+
+- **`lean4-skills-project-context`** (new wrapper + `lib/scripts/project_context.py`) — stateless, deterministic (no network, no caching, sorted output): emits repository **facts** strictly separated from contribution **intent**. Facts: `repository_kind` (`mathlib | other-lean | not-lean | unknown` — "could not determine" is never a confident boolean), project markers, toolchain, decomposed git state (`available` / `is_repository: true|false|null` / `remote_scan: complete|failed|skipped`), all **effective** fetch and push URLs per remote (as reported by `git remote get-url`) with canonical-mathlib4 matching restricted to the whitelisted HTTPS/SSH/SCP-like transports, no network, and diagnostics-only `mk_all_declared` via table-aware Lake TOML classification (root-scope package name; `[[lean_exe]]`-scoped executables). Intent: `yes | no | unknown` with auditable `source` (`env-override | invalid-env-override | remote-heuristic | default`) — `LEAN4_MATHLIB_INTENT` override, invalid values fall to the non-enforcing `unknown` with a structured `{code, message}` warning, `no` only when kind and a complete remote scan are both confident, and kind alone never implies intent. Exit 0 = context emitted (unknown facts are valid output); 2 usage; 4 operational (nonexistent explicit `--from`).
+- **`references/project-context.md`** — the schema, derivation tables, consumer rule for `unknown` ("unknown context must never silently become an enforcement gate"), and failure behavior. Real-Git fixtures (plus one narrow Git shim for failure injection) in CI covering the #174 fixture list.
+
 ## v4.6.2 (August 2026)
 
 File baselines at dispatch with drift abort before mutation — #102 phase 1, the roadmap's last Track 0 reliability item. Prompt-contract orchestration with a tested runtime primitive: two agents targeting the same file could both succeed at Edit, the second silently overwriting the first (the Edit tool only catches local-region mismatch, not whole-file drift).

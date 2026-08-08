@@ -78,6 +78,7 @@ lean4-skills-find-exact-candidates:2
 lean4-skills-find-golfable:2
 lean4-skills-find-usages:1
 lean4-skills-preflight:2
+lean4-skills-project-context:0
 lean4-skills-search-mathlib:1
 lean4-skills-smart-search:1
 lean4-skills-sorry-analyzer:1

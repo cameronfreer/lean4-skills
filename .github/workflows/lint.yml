@@ -57,6 +57,7 @@ jobs:
           python3 plugins/lean4/lib/scripts/tests/test_ordering.py
           python3 plugins/lean4/lib/scripts/tests/test_sorry_analyzer.py
           python3 plugins/lean4/lib/scripts/tests/test_file_baseline.py
+          python3 plugins/lean4/lib/scripts/tests/test_project_context.py
 
       - name: Native Codex adapter contract (Python 3.10)
         run: /bin/bash plugins/lean4/tests/test_codex_adapter.sh

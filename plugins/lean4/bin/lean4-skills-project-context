@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# lean4-skills-project-context — model-facing wrapper around lib/scripts/project_context.py.
+# Emits the project-context/v1 record (repository facts + upstream-
+# contribution intent) for the Lean project containing --from (default:
+# cwd). See lean4-skills-cycle-tracker for the bin/-wrapper rationale.
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+exec "${LEAN4_PYTHON_BIN:-python3}" "$PLUGIN_ROOT/lib/scripts/project_context.py" "$@"
