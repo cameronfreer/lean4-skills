@@ -5,6 +5,8 @@ from __future__ import annotations
 from ..coercions import (
     CLAIM_SELECT_REQUIRES_SOURCE,
     INTENT_AUTO_COLLAPSE,
+    MATHLIB_TEMPLATE_CONFLICT,
+    MATHLIB_TEMPLATE_REQUIRES_OUTPUT_FILE,
     OUTPUT_FILE_OVERWRITE_CHECK,
     OUTPUT_FILE_REQUIRES_OUT,
     TOPIC_OR_SOURCE_REQUIRED,
@@ -14,6 +16,8 @@ from ._common import (
     claim_select_flag,
     intent_flag,
     level_flag,
+    mathlib_template_flag,
+    no_mathlib_template_flag,
     out_flag,
     output_flag,
     overwrite_flag,
@@ -81,6 +85,8 @@ SPEC = CommandSpec(
         output_flag(),
         out_flag(),
         overwrite_flag(),
+        mathlib_template_flag(),
+        no_mathlib_template_flag(),
         source_flag(),
         FLAG_INTENT,
         presentation_flag(),
@@ -97,5 +103,9 @@ SPEC = CommandSpec(
         # (Also enforced via FlagSpec.requires for the unconditional case,
         #  but the CrossValidation gives a clearer error message.)
         CLAIM_SELECT_REQUIRES_SOURCE,
+        # --mathlib-template + --no-mathlib-template -> startup validation error
+        MATHLIB_TEMPLATE_CONFLICT,
+        # Either template flag without --output=file -> startup validation error
+        MATHLIB_TEMPLATE_REQUIRES_OUTPUT_FILE,
     ),
 )

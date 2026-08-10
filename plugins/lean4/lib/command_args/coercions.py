@@ -508,6 +508,66 @@ CLAIM_SELECT_REQUIRES_SOURCE = CrossValidation(
 )
 
 
+# -- mathlib_template_conflict ---------------------------------------------
+
+
+def mathlib_template_conflict(
+    options: Mapping[str, object],
+    ctx: ParseContext,
+) -> list[str]:
+    """draft/formalize: --mathlib-template + --no-mathlib-template -> error."""
+    if options.get("--mathlib-template") and options.get("--no-mathlib-template"):
+        return [
+            "--mathlib-template and --no-mathlib-template are mutually "
+            "exclusive; pass at most one."
+        ]
+    return []
+
+
+MATHLIB_TEMPLATE_CONFLICT = CrossValidation(
+    rule_id="mathlib_template_conflict",
+    fn=mathlib_template_conflict,
+    severity="error",
+    doc_phrases=(
+        "--mathlib-template` with `--no-mathlib-template` \u2192 startup validation error",
+    ),
+    summary="--mathlib-template and --no-mathlib-template are mutually exclusive",
+)
+
+
+# -- mathlib_template_requires_output_file ---------------------------------
+
+
+def mathlib_template_requires_output_file(
+    options: Mapping[str, object],
+    ctx: ParseContext,
+) -> list[str]:
+    """draft/formalize: template flags without --output=file -> error.
+
+    The mathlib-template gate only affects whole-file writes; accepting the
+    flags in chat/scratch modes would make them silently inert.
+    """
+    if options.get("--output") == "file":
+        return []
+    errors = []
+    for flag in ("--mathlib-template", "--no-mathlib-template"):
+        if options.get(flag):
+            errors.append(f"{flag} requires --output=file; it only affects whole-file writes.")
+    return errors
+
+
+MATHLIB_TEMPLATE_REQUIRES_OUTPUT_FILE = CrossValidation(
+    rule_id="mathlib_template_requires_output_file",
+    fn=mathlib_template_requires_output_file,
+    severity="error",
+    doc_phrases=(
+        "without `--output=file` \u2192 startup validation error",
+        "only affects whole-file writes",
+    ),
+    summary="--mathlib-template / --no-mathlib-template require --output=file",
+)
+
+
 # -- formalize_auto_requires_source ----------------------------------------
 
 
