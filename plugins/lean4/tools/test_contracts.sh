@@ -753,6 +753,90 @@ if [[ "$check30_ok" -eq 1 ]]; then
     ok "Check 30: doctor→diagnose rename holds (no stale active references)"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 31: Mathlib template gate contract (#109). The gate's behavior lives
+# in prompt documentation, so pin its load-bearing clauses: --output=file
+# scope, helper invocation + exact schema/JSON field, flag precedence,
+# unknown/helper-failure degradation + advisory, emitted-header ordering
+# (module → public import → import → docstring), and mk_all non-execution
+# (#111 owns checkpoint enforcement). draft.md is the canonical owner;
+# formalize.md must carry the same summary and link back to it.
+# ---------------------------------------------------------------------------
+check31_ok=1
+_c31_style="$PLUGIN_ROOT/skills/lean4/references/mathlib-style.md"
+_c31_draft_gate=$(extract_section "$DRAFT" "### Mathlib Template Gate")
+_c31_form_gate=$(extract_section "$FORMALIZE" "### Mathlib Template Gate")
+for _c31_pair in "draft:$_c31_draft_gate" "formalize:$_c31_form_gate"; do
+    _c31_name="${_c31_pair%%:*}"
+    _c31_gate="${_c31_pair#*:}"
+    if [[ -z "$_c31_gate" ]]; then
+        fail "Check 31: $_c31_name.md has no '### Mathlib Template Gate' section"
+        check31_ok=0
+        continue
+    fi
+    # --output=file scope, other modes unchanged
+    if ! echo "$_c31_gate" | grep -q -- '--output=file` whole-file writes only'; then
+        fail "Check 31: $_c31_name gate does not scope to --output=file whole-file writes only"
+        check31_ok=0
+    fi
+    # Helper invocation, schema pin, exact JSON field
+    if ! echo "$_c31_gate" | grep -q 'lean4-skills-project-context --from' \
+        || ! echo "$_c31_gate" | grep -q 'project-context/v1' \
+        || ! echo "$_c31_gate" | grep -q 'intent\.contributing_upstream'; then
+        fail "Check 31: $_c31_name gate missing helper invocation, schema pin, or intent.contributing_upstream field"
+        check31_ok=0
+    fi
+    # Detection anchored at the nearest existing parent of --out (a new file
+    # passed directly to --from would exit 4)
+    if ! echo "$_c31_gate" | grep -q 'nearest existing parent'; then
+        fail "Check 31: $_c31_name gate does not anchor detection at the nearest existing parent of --out"
+        check31_ok=0
+    fi
+    # Flag precedence: explicit flag before helper consultation
+    if ! assert_ordered "$_c31_gate" 'Explicit flag wins' 'lean4-skills-project-context'; then
+        fail "Check 31: $_c31_name gate does not state explicit-flag precedence before helper consultation"
+        check31_ok=0
+    fi
+    # unknown → advisory naming the opt-in flag; helper failure degrades, never blocks
+    if ! echo "$_c31_gate" | grep 'unknown' | grep -q 'advisory' \
+        || ! echo "$_c31_gate" | grep -q 'helper-failure' \
+        || ! echo "$_c31_gate" | grep -q 'never blocks a write'; then
+        fail "Check 31: $_c31_name gate missing unknown-advisory, helper-failure source, or never-blocks clause"
+        check31_ok=0
+    fi
+    # mk_all non-execution + #111 ownership
+    if ! echo "$_c31_gate" | grep 'does not run `lake exe mk_all`' >/dev/null \
+        || ! echo "$_c31_gate" | grep -q '#111'; then
+        fail "Check 31: $_c31_name gate missing mk_all non-execution statement or #111 ownership"
+        check31_ok=0
+    fi
+done
+# Emitted-header ordering pinned in the canonical owner (draft.md), one exact line
+if ! echo "$_c31_draft_gate" | grep -Fq 'copyright block, then `module`, then the `public import` block, then the plain `import` block, then the `/-!` module docstring'; then
+    fail "Check 31: draft.md gate missing the exact emitted-header ordering sentence"
+    check31_ok=0
+fi
+# Import selection preserved — visibility split, not import rewriting
+if ! echo "$_c31_draft_gate" | grep -q 'never import selection'; then
+    fail "Check 31: draft.md gate missing the preserve-import-selection clause"
+    check31_ok=0
+fi
+# formalize links back to the canonical owner
+if ! echo "$_c31_form_gate" | grep -q 'draft.md#mathlib-template-gate'; then
+    fail "Check 31: formalize.md gate does not link back to draft.md#mathlib-template-gate"
+    check31_ok=0
+fi
+# Reference template ordering: mathlib-style.md canonical header shows
+# module → public import → plain import → docstring, and retains YYYY Author Name
+_c31_style_head=$(sed -n '1,60p' "$_c31_style")
+if ! assert_ordered "$_c31_style_head" 'Copyright (c) YYYY Author Name' '^module$' '^public import ' '^import ' '^/-!$'; then
+    fail "Check 31: mathlib-style.md canonical template not in module → public import → import → docstring order (or YYYY Author Name placeholder lost)"
+    check31_ok=0
+fi
+if [[ "$check31_ok" -eq 1 ]]; then
+    ok "Check 31: mathlib template gate contract pinned (draft canonical, formalize mirrored, style template ordered)"
+fi
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]

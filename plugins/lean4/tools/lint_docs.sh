@@ -68,8 +68,8 @@ check_commands() {
             checkpoint) max_lines=90 ;;
             diagnose)   max_lines=265 ;;
             disprove)   max_lines=300 ;;
-            draft)      max_lines=160 ;;
-            formalize)  max_lines=195 ;;
+            draft)      max_lines=170 ;;
+            formalize)  max_lines=210 ;;
             golf)       max_lines=170 ;;
             learn)      max_lines=210 ;;
             prove)      max_lines=235 ;;
