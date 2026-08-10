@@ -8,9 +8,11 @@ Quick reference for mathlib style conventions when writing Lean 4 proofs.
 
 ## Essential Rules
 
-### 1. Copyright Headers (CRITICAL)
+### 1. File Header: Copyright, `module`, Imports (CRITICAL)
 
-Every `.lean` file must start with a copyright header:
+Every `.lean` file starts with a copyright header, then the `module` keyword,
+then grouped imports, then the module docstring. Since mathlib's switch to the
+Lean module system (2025-11-19), this is the canonical header shape:
 
 ```lean
 /-
@@ -18,20 +20,30 @@ Copyright (c) YYYY Author Name. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Author Name
 -/
-import Mathlib.Foo
-import Mathlib.Bar
+module
+
+public import Mathlib.Foo
+public import Mathlib.Bar
+import Mathlib.Baz
 
 /-!
 # Module docstring
 ```
 
 **Key points:**
-- Goes at the very top (first line)
-- No blank line between copyright and imports
+- Copyright block goes at the very top (first line)
+- `module` immediately after the copyright block (no blank line), then a blank line
 - Authors line has no period at the end
 - Use `Authors:` even for single author
-- Imports follow immediately after copyright (no blank line)
+- `public import` for dependencies that appear in the file's public API
+  (statements, type signatures); plain `import` for implementation/proof-only
+  dependencies. Group `public import` lines first, then plain `import` lines,
+  alphabetized within each group.
 - Blank line between imports and module docstring
+
+**Repo-sensitive rule:** In mathlib repos, new files use `module`, grouped
+`public import` / `import`, and a module docstring. After adding or renaming
+files, update generated root-import files with `lake exe mk_all`.
 
 ### 2. Module Docstrings (REQUIRED)
 
@@ -72,7 +84,7 @@ import Mathlib.Data.Real.Basic
 /-! # My Module -/
 ```
 
-The error message names `import`, not the docstring — the docstring's position is the cause.
+The error message names `import`, not the docstring — the docstring's position is the cause. In module-system files the same ordering holds with `module` first: `module`, then the import block, then the docstring.
 
 ### 3. Naming Conventions
 
@@ -339,8 +351,10 @@ Should show only standard mathlib axioms:
 ## Quick Checklist for New Files
 
 - [ ] Copyright header at top
-- [ ] Imports immediately after copyright (no blank line)
+- [ ] `module` immediately after copyright (no blank line)
+- [ ] Grouped imports after `module`: `public import` block, then plain `import` block, alphabetized
 - [ ] Module docstring with `/-!` delimiter
+- [ ] Ran `lake exe mk_all` after adding or renaming files (mathlib repos)
 - [ ] Naming: `snake_case` theorems, `UpperCamelCase` types, `lowerCamelCase` functions
 - [ ] Lines ≤ 100 chars
 - [ ] `by` at end of line (not alone)
@@ -358,7 +372,9 @@ Copyright (c) 2025 Your Name. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Your Name
 -/
-import Mathlib.Foo
+module
+
+public import Mathlib.Foo
 import Mathlib.Bar
 
 /-!
