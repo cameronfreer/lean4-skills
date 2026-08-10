@@ -138,15 +138,21 @@ class TestFormalizeMathlibTemplateFlags(unittest.TestCase):
         )
         matching = [e for e in result.errors if "mutually exclusive" in e]
         self.assertEqual(
-            len(matching), 1, f"Expected exactly one conflict error, got: {result.errors}"
+            len(matching),
+            1,
+            f"Expected exactly one conflict error, got: {result.errors}",
         )
-        self.assertEqual(len(result.errors), 1, f"Unexpected extra errors: {result.errors}")
+        self.assertEqual(
+            len(result.errors), 1, f"Unexpected extra errors: {result.errors}"
+        )
 
     def test_opt_out_without_output_file_errors(self):
         result = parse_invocation(SPEC, '"x" --no-mathlib-template', cwd=CWD)
         matching = [e for e in result.errors if "requires --output=file" in e]
         self.assertEqual(
-            len(matching), 1, f"Expected requires-output-file error, got: {result.errors}"
+            len(matching),
+            1,
+            f"Expected requires-output-file error, got: {result.errors}",
         )
 
 

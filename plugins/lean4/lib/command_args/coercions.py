@@ -552,7 +552,9 @@ def mathlib_template_requires_output_file(
     errors = []
     for flag in ("--mathlib-template", "--no-mathlib-template"):
         if options.get(flag):
-            errors.append(f"{flag} requires --output=file; it only affects whole-file writes.")
+            errors.append(
+                f"{flag} requires --output=file; it only affects whole-file writes."
+            )
     return errors
 
 
