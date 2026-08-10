@@ -53,6 +53,8 @@ Startup requirements:
 | --output | no | `chat` | `chat` \| `scratch` \| `file` |
 | --out | no | — | Output path. Required when `--output=file`; startup validation error if missing. |
 | --overwrite | no | `false` | Allow overwriting existing files with `--output=file`. Without flag, existing target → startup validation error. |
+| --mathlib-template | no | `false` | Emit the mathlib module-system file header on `--output=file` writes regardless of detected project context. Requires `--output=file`; mutually exclusive with `--no-mathlib-template`. |
+| --no-mathlib-template | no | `false` | Never emit the mathlib module-system file header on `--output=file` writes, regardless of detected project context. Requires `--output=file`; mutually exclusive with `--mathlib-template`. |
 | --source | no | — | File path, URL, or PDF to seed drafting. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#source-handling). |
 | --intent | no | `math` | `auto` \| `usage` \| `math`. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-taxonomy). |
 | --presentation | no | `auto` | `informal` \| `supporting` \| `formal` \| `auto`. Controls user-facing display, not Lean backing. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#two-layer-architecture). |
@@ -63,6 +65,8 @@ Startup requirements:
 - `--output=file` without `--out` → startup validation error
 - `--output=scratch` → `.scratch/lean4/draft-<timestamp>.lean` (workspace-local). Auto-create `.scratch/lean4/` if missing; warn if `.scratch/` is not in `.gitignore`.
 - `--output=file` with existing target and no `--overwrite` → startup validation error
+- `--mathlib-template` with `--no-mathlib-template` → startup validation error (mutually exclusive)
+- `--mathlib-template` or `--no-mathlib-template` without `--output=file` → startup validation error (either flag only affects whole-file writes)
 
 ### Flag validation
 
@@ -84,6 +88,20 @@ Standalone draft processes one claim per invocation (batch-size is 1). When call
 ### File Write Contract
 
 Standalone draft writes whole files via `--output=file` + `--out`. When called with `--caller=autoformalize` or `--caller=formalize` (internal-only flag), draft writes declaration-only blocks to `$TMPDIR/lean4-draft/<session-id>/claim-<N>.lean` with `-- needs-import:` comments. The outer loop owns file assembly and commits. See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#file-assembly-contract).
+
+### Mathlib Template Gate
+
+Applies to `--output=file` whole-file writes only. Chat, scratch, and `--caller=*` declaration-block modes are unchanged. Resolve whether to emit the mathlib module-system file header ([mathlib-style.md](../skills/lean4/references/mathlib-style.md#1-file-header-copyright-module-imports-critical)):
+
+1. **Explicit flag wins.** `--mathlib-template` → emit it; `--no-mathlib-template` → do not.
+2. **Otherwise consult the shared project-context helper.** Run `lean4-skills-project-context --from <dir>` where `<dir>` is the nearest existing parent directory of the `--out` target (the target itself does not exist yet). Require `schema` equal to `project-context/v1` in the JSON output and read `intent.contributing_upstream`.
+3. `yes` → emit the mathlib header. `no` → existing generic behavior, unchanged. `unknown` → existing generic behavior, plus a one-line advisory in the output summary: pass `--mathlib-template` if this file targets mathlib.
+4. **Helper failure degrades to `unknown`.** Missing wrapper, nonzero exit, malformed JSON, or wrong `schema` → treat as `unknown` with source `helper-failure` (advisory included). The gate never blocks a write.
+5. **Report the decision.** The Resolved Inputs block states the effective decision and its source: `flag` when a flag decided it, the helper's reported `intent.source` (e.g. `env-override`, `remote-heuristic`, `default`) otherwise, or `helper-failure` when the helper could not be consulted.
+
+When the gate fires, the emitted file shape is: copyright block, then `module`, then the `public import` block, then the plain `import` block, then the `/-!` module docstring. Preserve the selected import set — assign `public import` to public-API dependencies (those appearing in statements and signatures) and plain `import` to implementation/proof-only dependencies, alphabetized within each block; the gate changes header shape, never import selection. For the copyright block, use the current year and `git config user.name` as best-effort defaults — user-supplied attribution always wins, lookup failure falls back to the `Author Name` placeholder and never blocks the write, and the chosen value is reported in the output summary.
+
+Draft does not run `lake exe mk_all`; it emits the correct file shape and reminds the user to run it after adding files. Checkpoint-time `mk_all` enforcement is #111's scope.
 
 ## Actions
 

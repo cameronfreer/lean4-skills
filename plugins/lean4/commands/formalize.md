@@ -55,6 +55,8 @@ Startup requirements:
 | --output | no | `chat` | `chat` \| `scratch` \| `file` |
 | --out | no | — | Output path. Required when `--output=file`; startup validation error if missing. |
 | --overwrite | no | `false` | Allow overwriting existing files with `--output=file`. Without flag, existing target → startup validation error. |
+| --mathlib-template | no | `false` | Emit the mathlib module-system file header on `--output=file` writes regardless of detected project context. Requires `--output=file`; mutually exclusive with `--no-mathlib-template`. |
+| --no-mathlib-template | no | `false` | Never emit the mathlib module-system file header on `--output=file` writes, regardless of detected project context. Requires `--output=file`; mutually exclusive with `--mathlib-template`. |
 | --source | no | — | File path, URL, or PDF to seed formalization. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#source-handling). |
 | --intent | no | `math` | `auto` \| `usage` \| `math`. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-taxonomy). |
 | --presentation | no | `auto` | `informal` \| `supporting` \| `formal` \| `auto`. Controls user-facing display, not Lean backing. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#two-layer-architecture). |
@@ -72,6 +74,8 @@ Startup requirements:
 - `--output=file` without `--out` → startup validation error
 - `--output=scratch` → `.scratch/lean4/formalize-<timestamp>.lean` (workspace-local). Auto-create `.scratch/lean4/` if missing; warn if `.scratch/` is not in `.gitignore`.
 - `--output=file` with existing target and no `--overwrite` → startup validation error
+- `--mathlib-template` with `--no-mathlib-template` → startup validation error (mutually exclusive)
+- `--mathlib-template` or `--no-mathlib-template` without `--output=file` → startup validation error (either flag only affects whole-file writes)
 
 ### Flag validation
 
@@ -89,6 +93,17 @@ Startup requirements:
 | `regex:"..."` | Match claims by regex on extracted claim text |
 
 Standalone formalize processes one claim per invocation (batch-size is 1).
+
+### Mathlib Template Gate
+
+Applies to `--output=file` whole-file writes only; chat and scratch modes are unchanged. Formalize follows the same gate contract as draft — see [Mathlib Template Gate](draft.md#mathlib-template-gate) for the full resolution rules. Summary:
+
+1. Explicit flag wins: `--mathlib-template` → emit the mathlib module-system file header ([mathlib-style.md](../skills/lean4/references/mathlib-style.md#1-file-header-copyright-module-imports-critical)); `--no-mathlib-template` → do not.
+2. Otherwise run `lean4-skills-project-context --from <dir>` from the nearest existing parent directory of the `--out` target, require `schema` equal to `project-context/v1`, and read `intent.contributing_upstream`: `yes` → emit the header; `no` → existing generic behavior; `unknown` → existing generic behavior plus a one-line advisory (pass `--mathlib-template` if this file targets mathlib).
+3. Helper failure (missing wrapper, nonzero exit, malformed JSON, wrong `schema`) degrades to `unknown` with source `helper-failure`; the gate never blocks a write.
+4. Report the effective decision and its source (`flag`, the helper's `intent.source`, or `helper-failure`) in the Resolved Inputs block.
+
+Formalize does not run `lake exe mk_all`; it emits the correct file shape and reminds the user to run it after adding files. Checkpoint-time `mk_all` enforcement is #111's scope.
 
 ## Actions
 
