@@ -8,9 +8,12 @@ Quick reference for mathlib style conventions when writing Lean 4 proofs.
 
 ## Essential Rules
 
-### 1. Copyright Headers (CRITICAL)
+### 1. File Header: Copyright, `module`, Imports (CRITICAL)
 
-Every `.lean` file must start with a copyright header:
+Every `.lean` file starts with a copyright header, then the `module` keyword,
+then grouped imports, then the module docstring, then a `public section`
+opening the file's exported scope. Since mathlib's switch to the Lean module
+system (2025-11-19), this is the canonical header shape:
 
 ```lean
 /-
@@ -18,20 +21,45 @@ Copyright (c) YYYY Author Name. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Author Name
 -/
-import Mathlib.Foo
-import Mathlib.Bar
+module
+
+public import Mathlib.Foo
+public import Mathlib.Bar
+
+import Mathlib.Baz
 
 /-!
 # Module docstring
+-/
+
+public section
 ```
 
 **Key points:**
-- Goes at the very top (first line)
-- No blank line between copyright and imports
+- Copyright block goes at the very top (first line)
+- `module` immediately after the copyright block (no blank line), then a blank line
 - Authors line has no period at the end
 - Use `Authors:` even for single author
-- Imports follow immediately after copyright (no blank line)
+- `public import` for dependencies the file's public API needs — statements
+  and type signatures are the central case, but exported instances, notation,
+  syntax, and metaprogramming can also require public visibility; Lean's own
+  public/private checking is authoritative over this heuristic. Plain `import`
+  for implementation/proof-only dependencies. Group `public import` lines
+  first, then plain `import` lines, alphabetized within each group, with a
+  blank line between the two nonempty groups (omit a group rather than leave
+  it empty).
 - Blank line between imports and module docstring
+- **Declarations in a `module` are private by default.** `public import` only
+  re-exports the imported module's public scope — it does not make this file's
+  declarations public. Open a `public section` after the module docstring (or
+  mark individual declarations `public`) so the file actually exports its API.
+  Use `@[expose] public section` only when downstream definitional unfolding
+  is intentionally part of the API; plain `public section` exports signatures
+  while keeping implementations opaque.
+
+**Repo-sensitive rule:** In mathlib repos, new files use `module`, grouped
+`public import` / `import`, and a module docstring. After adding or renaming
+files, update generated root-import files with `lake exe mk_all`.
 
 ### 2. Module Docstrings (REQUIRED)
 
@@ -72,7 +100,7 @@ import Mathlib.Data.Real.Basic
 /-! # My Module -/
 ```
 
-The error message names `import`, not the docstring — the docstring's position is the cause.
+The error message names `import`, not the docstring — the docstring's position is the cause. In module-system files the same ordering holds with `module` first: `module`, then the import block, then the docstring.
 
 ### 3. Naming Conventions
 
@@ -339,8 +367,11 @@ Should show only standard mathlib axioms:
 ## Quick Checklist for New Files
 
 - [ ] Copyright header at top
-- [ ] Imports immediately after copyright (no blank line)
+- [ ] `module` immediately after copyright (no blank line)
+- [ ] Grouped imports after `module`: `public import` block, blank line, then plain `import` block, alphabetized
 - [ ] Module docstring with `/-!` delimiter
+- [ ] `public section` after the module docstring (declarations in a `module` are private by default)
+- [ ] Ran `lake exe mk_all` after adding or renaming files (mathlib repos)
 - [ ] Naming: `snake_case` theorems, `UpperCamelCase` types, `lowerCamelCase` functions
 - [ ] Lines ≤ 100 chars
 - [ ] `by` at end of line (not alone)
@@ -354,11 +385,14 @@ Should show only standard mathlib axioms:
 
 ```lean
 /-
-Copyright (c) 2025 Your Name. All rights reserved.
+Copyright (c) YYYY Your Name. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Your Name
 -/
-import Mathlib.Foo
+module
+
+public import Mathlib.Foo
+
 import Mathlib.Bar
 
 /-!
@@ -370,6 +404,8 @@ Description of module.
 
 - `main_theorem`: What it proves
 -/
+
+public section
 
 noncomputable section
 

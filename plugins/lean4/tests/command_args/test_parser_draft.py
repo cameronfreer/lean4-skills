@@ -142,5 +142,88 @@ class TestDraftIntentCoercion(unittest.TestCase):
         self.assertIsNone(result.options["--intent"].coerced_from)
 
 
+class TestDraftMathlibTemplateFlags(unittest.TestCase):
+    """--mathlib-template / --no-mathlib-template validation."""
+
+    def test_defaults_false(self):
+        result = parse_invocation(SPEC, '"x" --output=file --out=Foo.lean', cwd=CWD)
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.options["--mathlib-template"].value, False)
+        self.assertEqual(result.options["--mathlib-template"].source, "default")
+        self.assertEqual(result.options["--no-mathlib-template"].value, False)
+        self.assertEqual(result.options["--no-mathlib-template"].source, "default")
+
+    def test_opt_in_with_output_file_ok(self):
+        result = parse_invocation(
+            SPEC, '"x" --output=file --out=Foo.lean --mathlib-template', cwd=CWD
+        )
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.options["--mathlib-template"].value, True)
+        self.assertEqual(result.options["--mathlib-template"].source, "explicit")
+
+    def test_opt_out_with_output_file_ok(self):
+        result = parse_invocation(
+            SPEC, '"x" --output=file --out=Foo.lean --no-mathlib-template', cwd=CWD
+        )
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.options["--no-mathlib-template"].value, True)
+
+    def test_both_flags_single_error(self):
+        result = parse_invocation(
+            SPEC,
+            '"x" --output=file --out=Foo.lean --mathlib-template --no-mathlib-template',
+            cwd=CWD,
+        )
+        matching = [e for e in result.errors if "mutually exclusive" in e]
+        self.assertEqual(
+            len(matching),
+            1,
+            f"Expected exactly one conflict error, got: {result.errors}",
+        )
+        self.assertEqual(
+            len(result.errors), 1, f"Unexpected extra errors: {result.errors}"
+        )
+
+    def test_opt_in_without_output_file_errors(self):
+        result = parse_invocation(SPEC, '"x" --mathlib-template', cwd=CWD)
+        matching = [e for e in result.errors if "requires --output=file" in e]
+        self.assertEqual(
+            len(matching),
+            1,
+            f"Expected requires-output-file error, got: {result.errors}",
+        )
+
+    def test_opt_out_without_output_file_errors(self):
+        result = parse_invocation(
+            SPEC, '"x" --output=scratch --no-mathlib-template', cwd=CWD
+        )
+        matching = [e for e in result.errors if "requires --output=file" in e]
+        self.assertEqual(
+            len(matching),
+            1,
+            f"Expected requires-output-file error, got: {result.errors}",
+        )
+
+    def test_explicit_false_equivalent_to_omission(self):
+        # Explicit false does not participate in precedence or validation:
+        # no requires-output-file error even without --output=file.
+        result = parse_invocation(SPEC, '"x" --mathlib-template=false', cwd=CWD)
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.options["--mathlib-template"].value, False)
+        self.assertEqual(result.options["--mathlib-template"].source, "explicit")
+
+    def test_explicit_false_does_not_conflict(self):
+        # --mathlib-template=false alongside --no-mathlib-template is not a
+        # conflict: only a flag resolving to true participates.
+        result = parse_invocation(
+            SPEC,
+            '"x" --output=file --out=Foo.lean'
+            " --mathlib-template=false --no-mathlib-template",
+            cwd=CWD,
+        )
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.options["--no-mathlib-template"].value, True)
+
+
 if __name__ == "__main__":
     unittest.main()

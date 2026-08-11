@@ -1,5 +1,18 @@
 # Changelog
 
+## v4.6.4 (August 2026)
+
+Mathlib module-system file templates — the first project-context consumer (Refs #151 Track 1; closes #109). Refreshes the mathlib file-header guidance for the post-2025-11-19 module system and gates command-side scaffolding on contribution intent.
+
+### Changed
+
+- **`references/mathlib-style.md`** — the canonical file-header template now shows the module-system shape: copyright block, then `module`, then grouped `public import` (public-API dependencies) / plain `import` (implementation-only) blocks alphabetized within each group with a blank line between them, then the `/-!` module docstring, then a `public section` opening the exported scope — declarations in a `module` are private by default, and `public import` alone does not export them (`@[expose] public section` only when downstream definitional unfolding is intentionally part of the API). Repo-sensitive rule added: after adding or renaming files in mathlib repos, regenerate root-import files with `lake exe mk_all`. The Quick Checklist and Good File Structure example updated to match; copyright wording unchanged.
+- **`references/mathlib-guide.md`** — new "New Files and Generated Root Imports" note cross-linking the header template and `mk_all`, and clarifying that the guide's import snippets teach import *selection*, not header visibility.
+
+### Added
+
+- **`--mathlib-template` / `--no-mathlib-template`** on `/lean4:draft` and `/lean4:formalize` (parser-enforced: mutually exclusive, and rejected without `--output=file` where they would be silently inert). Whole-file writes resolve a mathlib template gate: explicit flag wins; otherwise the shared `lean4-skills-project-context` helper runs from the nearest existing parent of the `--out` target (schema-validated `project-context/v1`, reading `intent.contributing_upstream`). `yes` emits the module-system header with declarations in a `public section`; `no` keeps existing generic behavior; `unknown` keeps existing behavior plus a one-line advisory naming the opt-in flag. Helper failure — including a malformed intent record — degrades to `unknown` with source `helper-failure` and never blocks a write; the effective decision and its source are reported in the Resolved Inputs block. Header attribution defaults to the current year + `git config user.name` (user-supplied attribution wins; lookup failure falls back to the placeholder). The gate changes header shape only — never import selection — and the commands do not run `mk_all` themselves (checkpoint enforcement is #111's scope). Contract pinned by a static doc test (Check 31) plus parser goldens for both commands.
+
 ## v4.6.3 (August 2026)
 
 Shared mathlib project-context helper (`project-context/v1`) — the Track 1 foundation (Refs #151; closes #174). Detection only: no consumer behavior changes in this release; #109/#113/#111 wire in separately.

@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from ..coercions import intent_auto_collapse
+from ..coercions import (
+    MATHLIB_TEMPLATE_CONFLICT,
+    MATHLIB_TEMPLATE_REQUIRES_OUTPUT_FILE,
+    intent_auto_collapse,
+)
 from ..types import (
     Coercion,
     CommandSpec,
@@ -165,6 +169,8 @@ FLAG_LEVEL = _common.FLAG_LEVEL
 FLAG_OUTPUT = _common.FLAG_OUTPUT
 FLAG_OUT = _common.FLAG_OUT
 FLAG_OVERWRITE = _common.FLAG_OVERWRITE
+FLAG_MATHLIB_TEMPLATE = _common.FLAG_MATHLIB_TEMPLATE
+FLAG_NO_MATHLIB_TEMPLATE = _common.FLAG_NO_MATHLIB_TEMPLATE
 
 FLAG_SOURCE = _common.FLAG_SOURCE
 
@@ -276,6 +282,8 @@ SPEC = CommandSpec(
         FLAG_OUTPUT,
         FLAG_OUT,
         FLAG_OVERWRITE,
+        FLAG_MATHLIB_TEMPLATE,
+        FLAG_NO_MATHLIB_TEMPLATE,
         FLAG_SOURCE,
         FLAG_INTENT_FORMALIZE,
         FLAG_PRESENTATION,
@@ -293,5 +301,7 @@ SPEC = CommandSpec(
         OUTPUT_FILE_REQUIRES_OUT,
         OVERWRITE_CHECK,
         CLAIM_SELECT_REQUIRES_SOURCE,
+        MATHLIB_TEMPLATE_CONFLICT,
+        MATHLIB_TEMPLATE_REQUIRES_OUTPUT_FILE,
     ),
 )

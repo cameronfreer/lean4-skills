@@ -49,6 +49,34 @@ def overwrite_flag() -> FlagSpec:
     )
 
 
+def mathlib_template_flag() -> FlagSpec:
+    """--mathlib-template flag: opt in to the mathlib module-system header."""
+    return FlagSpec(
+        name="--mathlib-template",
+        type="bool",
+        default=False,
+        enforcement="startup-validated",
+        notes=(
+            "Emit the mathlib module-system file header on --output=file "
+            "writes regardless of detected project context."
+        ),
+    )
+
+
+def no_mathlib_template_flag() -> FlagSpec:
+    """--no-mathlib-template flag: opt out of the mathlib module-system header."""
+    return FlagSpec(
+        name="--no-mathlib-template",
+        type="bool",
+        default=False,
+        enforcement="startup-validated",
+        notes=(
+            "Never emit the mathlib module-system file header on "
+            "--output=file writes, regardless of detected project context."
+        ),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Intent / presentation
 # ---------------------------------------------------------------------------
@@ -346,6 +374,8 @@ FLAG_LEVEL = level_flag()
 FLAG_OUTPUT = output_flag()
 FLAG_OUT = out_flag()
 FLAG_OVERWRITE = overwrite_flag()
+FLAG_MATHLIB_TEMPLATE = mathlib_template_flag()
+FLAG_NO_MATHLIB_TEMPLATE = no_mathlib_template_flag()
 FLAG_PRESENTATION = presentation_flag()
 FLAG_SOURCE = source_flag()
 FLAG_VERIFY = verify_flag()
