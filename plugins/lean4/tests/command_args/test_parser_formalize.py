@@ -155,6 +155,13 @@ class TestFormalizeMathlibTemplateFlags(unittest.TestCase):
             f"Expected requires-output-file error, got: {result.errors}",
         )
 
+    def test_explicit_false_equivalent_to_omission(self):
+        # Explicit false does not participate in precedence or validation.
+        result = parse_invocation(SPEC, '"x" --no-mathlib-template=false', cwd=CWD)
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.options["--no-mathlib-template"].value, False)
+        self.assertEqual(result.options["--no-mathlib-template"].source, "explicit")
+
 
 if __name__ == "__main__":
     unittest.main()

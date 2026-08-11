@@ -98,7 +98,7 @@ Standalone formalize processes one claim per invocation (batch-size is 1).
 
 Applies to `--output=file` whole-file writes only; chat and scratch modes are unchanged. Formalize follows the same gate contract as draft — see [Mathlib Template Gate](draft.md#mathlib-template-gate) for the full resolution rules. Summary:
 
-1. Explicit flag wins: `--mathlib-template` → emit the mathlib module-system file header ([mathlib-style.md](../skills/lean4/references/mathlib-style.md#1-file-header-copyright-module-imports-critical)); `--no-mathlib-template` → do not.
+1. Explicit flag wins: `--mathlib-template` → emit the mathlib module-system file header ([mathlib-style.md](../skills/lean4/references/mathlib-style.md#1-file-header-copyright-module-imports-critical)); `--no-mathlib-template` → do not. Only a flag resolving to true participates in precedence; explicit false is equivalent to omission.
 2. Otherwise run `lean4-skills-project-context --from <dir>` from the nearest existing parent directory of the `--out` target, require `schema` equal to `project-context/v1`, and read `intent.contributing_upstream`: `yes` → emit the header; `no` → existing generic behavior; `unknown` → existing generic behavior plus a one-line advisory (pass `--mathlib-template` if this file targets mathlib).
 3. Helper failure (missing wrapper, nonzero exit, malformed JSON, wrong `schema`) degrades to `unknown` with source `helper-failure`; the gate never blocks a write.
 4. Report the effective decision and its source (`flag`, the helper's `intent.source`, or `helper-failure`) in the Resolved Inputs block.

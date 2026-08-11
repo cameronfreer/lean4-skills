@@ -24,6 +24,7 @@ module
 
 public import Mathlib.Foo
 public import Mathlib.Bar
+
 import Mathlib.Baz
 
 /-!
@@ -38,7 +39,7 @@ import Mathlib.Baz
 - `public import` for dependencies that appear in the file's public API
   (statements, type signatures); plain `import` for implementation/proof-only
   dependencies. Group `public import` lines first, then plain `import` lines,
-  alphabetized within each group.
+  alphabetized within each group, with a blank line between the two groups.
 - Blank line between imports and module docstring
 
 **Repo-sensitive rule:** In mathlib repos, new files use `module`, grouped
@@ -352,7 +353,7 @@ Should show only standard mathlib axioms:
 
 - [ ] Copyright header at top
 - [ ] `module` immediately after copyright (no blank line)
-- [ ] Grouped imports after `module`: `public import` block, then plain `import` block, alphabetized
+- [ ] Grouped imports after `module`: `public import` block, blank line, then plain `import` block, alphabetized
 - [ ] Module docstring with `/-!` delimiter
 - [ ] Ran `lake exe mk_all` after adding or renaming files (mathlib repos)
 - [ ] Naming: `snake_case` theorems, `UpperCamelCase` types, `lowerCamelCase` functions
@@ -375,6 +376,7 @@ Authors: Your Name
 module
 
 public import Mathlib.Foo
+
 import Mathlib.Bar
 
 /-!

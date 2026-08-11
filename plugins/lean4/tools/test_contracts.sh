@@ -816,6 +816,15 @@ if ! echo "$_c31_draft_gate" | grep -Fq 'copyright block, then `module`, then th
     fail "Check 31: draft.md gate missing the exact emitted-header ordering sentence"
     check31_ok=0
 fi
+# Explicit-false semantics: only true participates in precedence, in both commands
+for _c31_pair in "draft:$_c31_draft_gate" "formalize:$_c31_form_gate"; do
+    _c31_name="${_c31_pair%%:*}"
+    _c31_gate="${_c31_pair#*:}"
+    if ! echo "$_c31_gate" | grep -Fq 'Only a flag resolving to true participates in precedence; explicit false'; then
+        fail "Check 31: $_c31_name gate missing the explicit-false-equals-omission sentence"
+        check31_ok=0
+    fi
+done
 # Import selection preserved — visibility split, not import rewriting
 if ! echo "$_c31_draft_gate" | grep -q 'never import selection'; then
     fail "Check 31: draft.md gate missing the preserve-import-selection clause"
@@ -831,6 +840,18 @@ fi
 _c31_style_head=$(sed -n '1,60p' "$_c31_style")
 if ! assert_ordered "$_c31_style_head" 'Copyright (c) YYYY Author Name' '^module$' '^public import ' '^import ' '^/-!$'; then
     fail "Check 31: mathlib-style.md canonical template not in module → public import → import → docstring order (or YYYY Author Name placeholder lost)"
+    check31_ok=0
+fi
+# Blank-line separator between the public import and plain import groups
+# (required by the mathlib style guide): no `public import` line may be
+# immediately followed by a plain `import` line anywhere in the style doc,
+# and the separated pattern (public import / blank / import) must appear.
+if awk 'prev ~ /^public import / && /^import /{bad=1} {prev=$0} END{exit bad?0:1}' "$_c31_style"; then
+    fail "Check 31: mathlib-style.md has a public import line directly followed by a plain import line (missing blank-line separator)"
+    check31_ok=0
+fi
+if ! awk 'p2 ~ /^public import / && p1 == "" && /^import /{found=1} {p2=p1; p1=$0} END{exit found?0:1}' "$_c31_style"; then
+    fail "Check 31: mathlib-style.md never shows the blank-line-separated public import / import groups"
     check31_ok=0
 fi
 if [[ "$check31_ok" -eq 1 ]]; then

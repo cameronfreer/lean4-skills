@@ -204,6 +204,26 @@ class TestDraftMathlibTemplateFlags(unittest.TestCase):
             f"Expected requires-output-file error, got: {result.errors}",
         )
 
+    def test_explicit_false_equivalent_to_omission(self):
+        # Explicit false does not participate in precedence or validation:
+        # no requires-output-file error even without --output=file.
+        result = parse_invocation(SPEC, '"x" --mathlib-template=false', cwd=CWD)
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.options["--mathlib-template"].value, False)
+        self.assertEqual(result.options["--mathlib-template"].source, "explicit")
+
+    def test_explicit_false_does_not_conflict(self):
+        # --mathlib-template=false alongside --no-mathlib-template is not a
+        # conflict: only a flag resolving to true participates.
+        result = parse_invocation(
+            SPEC,
+            '"x" --output=file --out=Foo.lean'
+            " --mathlib-template=false --no-mathlib-template",
+            cwd=CWD,
+        )
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.options["--no-mathlib-template"].value, True)
+
 
 if __name__ == "__main__":
     unittest.main()
