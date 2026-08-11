@@ -342,8 +342,10 @@ ls -la .lake/packages/mathlib/Mathlib/MeasureTheory/Function/
 ### New Files and Generated Root Imports
 
 New files in mathlib repos start with the copyright header, then `module`, then
-grouped `public import` / `import` blocks, then the module docstring — see the
-canonical header template in [mathlib-style.md](mathlib-style.md#1-file-header-copyright-module-imports-critical).
+grouped `public import` / `import` blocks, then the module docstring, then a
+`public section` opening the exported scope (declarations in a `module` are
+private by default) — see the canonical header template in
+[mathlib-style.md](mathlib-style.md#1-file-header-copyright-module-imports-critical).
 After adding or renaming files, regenerate the root-import files (e.g.
 `Mathlib.lean`) with `lake exe mk_all`. The import snippets in this guide teach
 *which* imports to select, not header visibility; in mathlib files those lines

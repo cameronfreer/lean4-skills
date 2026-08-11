@@ -811,17 +811,24 @@ for _c31_pair in "draft:$_c31_draft_gate" "formalize:$_c31_form_gate"; do
         check31_ok=0
     fi
 done
-# Emitted-header ordering pinned in the canonical owner (draft.md), one exact line
-if ! echo "$_c31_draft_gate" | grep -Fq 'copyright block, then `module`, then the `public import` block, then the plain `import` block, then the `/-!` module docstring'; then
-    fail "Check 31: draft.md gate missing the exact emitted-header ordering sentence"
+# Emitted-header ordering pinned in the canonical owner (draft.md), one exact
+# line — including the public section, without which the generated
+# declarations would remain private and the file would export nothing
+if ! echo "$_c31_draft_gate" | grep -Fq 'copyright block, then `module`, then the `public import` block, then the plain `import` block, then the `/-!` module docstring, then a `public section` opening the exported scope before any declarations'; then
+    fail "Check 31: draft.md gate missing the exact emitted-header ordering sentence (incl. public section)"
     check31_ok=0
 fi
-# Explicit-false semantics: only true participates in precedence, in both commands
+# Explicit-false semantics and the public-scope export rule, in both commands
 for _c31_pair in "draft:$_c31_draft_gate" "formalize:$_c31_form_gate"; do
     _c31_name="${_c31_pair%%:*}"
     _c31_gate="${_c31_pair#*:}"
     if ! echo "$_c31_gate" | grep -Fq 'Only a flag resolving to true participates in precedence; explicit false'; then
         fail "Check 31: $_c31_name gate missing the explicit-false-equals-omission sentence"
+        check31_ok=0
+    fi
+    if ! echo "$_c31_gate" | grep -q 'public section' \
+        || ! echo "$_c31_gate" | grep -q 'private by default'; then
+        fail "Check 31: $_c31_name gate missing the public-section / private-by-default export rule"
         check31_ok=0
     fi
 done
@@ -852,6 +859,21 @@ if awk 'prev ~ /^public import / && /^import /{bad=1} {prev=$0} END{exit bad?0:1
 fi
 if ! awk 'p2 ~ /^public import / && p1 == "" && /^import /{found=1} {p2=p1; p1=$0} END{exit found?0:1}' "$_c31_style"; then
     fail "Check 31: mathlib-style.md never shows the blank-line-separated public import / import groups"
+    check31_ok=0
+fi
+# Canonical template must CLOSE the module docstring and then open a public
+# section (declarations in a module are private by default; a template
+# without the public section would generate files that export nothing).
+# Slice from the docstring opener so the copyright block's -/ can't satisfy
+# the close-delimiter token.
+_c31_style_doc=$(echo "$_c31_style_head" | sed -n '/^\/-!$/,$p')
+if ! assert_ordered "$_c31_style_doc" '^-/$' '^public section$'; then
+    fail "Check 31: mathlib-style.md canonical template does not close the /-! docstring and open a public section"
+    check31_ok=0
+fi
+_c31_gfs=$(extract_section "$_c31_style" "### Good File Structure")
+if ! echo "$_c31_gfs" | grep -q '^public section$'; then
+    fail "Check 31: Good File Structure example missing the public section (declarations would stay private)"
     check31_ok=0
 fi
 if [[ "$check31_ok" -eq 1 ]]; then
