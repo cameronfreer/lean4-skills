@@ -1,5 +1,14 @@
 # Changelog
 
+## v4.6.5 (August 2026)
+
+Module-system troubleshooting — error-triggered, advisory-only (Refs #151 Track 1; closes #113). Post-module-system errors are emitted by Lean regardless of project, so this guidance keys on error text, not mathlib intent.
+
+### Added
+
+- **`references/compilation-errors.md` §16–§19** — worked entries for the four common module-system failures, quoting the exact error strings (verified against the Lean source and reference so error-paste matching works): §16 ``cannot import non-`module` X from `module` `` distinguishing a genuinely non-module file (add the `module` header) from a stale generated aggregator (regenerate — `lake exe mk_all` in mathlib, whose aggregators are already module-style; `--module` only when *creating* a module-style aggregator; staleness by itself does not make an aggregator non-module); §17 module visibility with each signature mapped to its own remedy (``Unknown identifier`` for a private-scope name → public API / same-library `import all` (never on a downstream dependency) / upstream `public`; ``Expected a definition with an exposed body`` → API lemmas or upstream `@[expose]`; the transitional `backward.privateInPublic` warning documented as a signature only, not a recommendation); §18 the two *opposite* meta-phase failures split explicitly — ``not marked `meta` `` (meta code lacks a meta-phase dependency → `meta`/`meta import`; `public meta import` only when reachable from a public metaprogram) vs ``may not access declaration ... marked as `meta` `` (ordinary code using meta-only code — `meta import` is not the fix; the consumer becomes `meta` or uses a non-meta implementation); §19 old-style header in a module-system repo → the shipped mathlib-style.md template (`module`, grouped imports, `public section`) + `lake exe mk_all`. Four Quick Reference Table rows; §15's file-top-order see-also extended with the module-system shape.
+- **`/lean4:diagnose` error triage** — a pasted-error input form (`/lean4:diagnose <pasted error>`): unrecognized-mode arguments are treated as diagnostic text and matched against the compilation-errors patterns, with specific module-system patterns taking precedence over the generic `Build fails → lake update && lake clean && lake build` row. New "Module-System Troubleshooting" section maps each error class to its §16–§19 entry; the `lake exe mk_all` remediation string matches what the #111 checkpoint gate will surface. No `shake` recommendation anywhere (retired with the module system); advisory-only — no automated rewrites (Check 32 pins the exact strings, the direction split, the triage precedence, and the no-shake guard).
+
 ## v4.6.4 (August 2026)
 
 Mathlib module-system file templates — the first project-context consumer (Refs #151 Track 1; closes #109). Refreshes the mathlib file-header guidance for the post-2025-11-19 module system and gates command-side scaffolding on contribution intent.
