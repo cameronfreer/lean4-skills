@@ -880,6 +880,104 @@ if [[ "$check31_ok" -eq 1 ]]; then
     ok "Check 31: mathlib template gate contract pinned (draft canonical, formalize mirrored, style template ordered)"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 32: Module-system troubleshooting contract (#113). Error-triggered
+# guidance lives in compilation-errors.md §16-§19 + diagnose.md; pin the
+# exact Lean error strings (verified against the Lean source/reference so
+# error-paste matching works), the direction split for meta-phase errors,
+# the aggregator-vs-non-module distinction, scoped worked-example coverage,
+# the diagnose triage contract, and the no-shake negative guard. Scoped to
+# the new sections — whole-file token greps would prove little.
+# ---------------------------------------------------------------------------
+check32_ok=1
+_c32_ce="$PLUGIN_ROOT/skills/lean4/references/compilation-errors.md"
+_c32_diag="$PLUGIN_ROOT/commands/diagnose.md"
+_c32_s16=$(extract_section "$_c32_ce" "### 16. Cannot Import Non-Module from Module")
+_c32_s17=$(extract_section "$_c32_ce" "### 17. Module Visibility: Name Exists Upstream but Is Not Exported")
+_c32_s18=$(extract_section "$_c32_ce" "### 18. Meta-Phase Errors (\`meta import\`, \`public meta import\`)")
+_c32_s19=$(extract_section "$_c32_ce" "### 19. Old-Style Header in a Module-System Repo")
+for _c32_pair in "16:$_c32_s16" "17:$_c32_s17" "18:$_c32_s18" "19:$_c32_s19"; do
+    if [[ -z "${_c32_pair#*:}" ]]; then
+        fail "Check 32: compilation-errors.md § ${_c32_pair%%:*} missing"
+        check32_ok=0
+    fi
+done
+# §16: exact backticked error string + aggregator distinction + mk_all forms
+if ! echo "$_c32_s16" | grep -Fq 'cannot import non-`module`' \
+    || ! echo "$_c32_s16" | grep -Fq 'Staleness by itself does not make an aggregator non-module' \
+    || ! echo "$_c32_s16" | grep -Fq 'lake exe mk_all' \
+    || ! echo "$_c32_s16" | grep -Fq -- '--module'; then
+    fail "Check 32: §16 missing the exact non-module error string, the staleness/non-module distinction, or the mk_all forms"
+    check32_ok=0
+fi
+# §17: three signatures, each with its own remedy, and the import-all scope fence
+if ! echo "$_c32_s17" | grep -Fq 'Unknown identifier' \
+    || ! echo "$_c32_s17" | grep -Fq 'Expected a definition with an exposed body' \
+    || ! echo "$_c32_s17" | grep -Fq 'backward.privateInPublic' \
+    || ! echo "$_c32_s17" | grep -Fq '@[expose]' \
+    || ! echo "$_c32_s17" | grep -Fq 'never use `import all` on a downstream dependency'; then
+    fail "Check 32: §17 missing a visibility signature, its remedy, or the import-all same-library fence"
+    check32_ok=0
+fi
+# §18: both exact strings and the direction-B negation
+if ! echo "$_c32_s18" | grep -Fq 'not marked `meta`' \
+    || ! echo "$_c32_s18" | grep -Fq 'may not access declaration' \
+    || ! echo "$_c32_s18" | grep -Fq 'marked as `meta`' \
+    || ! echo "$_c32_s18" | grep -Fq '`meta import` is **not** the fix' \
+    || ! echo "$_c32_s18" | grep -Fq 'public meta import'; then
+    fail "Check 32: §18 missing an exact meta-phase error string, the direction-B negation, or public meta import"
+    check32_ok=0
+fi
+# §19: public-section rule + canonical template link
+if ! echo "$_c32_s19" | grep -Fq 'public section' \
+    || ! echo "$_c32_s19" | grep -q 'mathlib-style.md#1-file-header'; then
+    fail "Check 32: §19 missing the public-section rule or the mathlib-style.md template link"
+    check32_ok=0
+fi
+# Worked-example token coverage scoped to the new sections (acceptance criteria)
+_c32_new="$_c32_s16
+$_c32_s17
+$_c32_s18
+$_c32_s19"
+for _c32_tok in 'module' 'public import' 'import all' 'public meta import'; do
+    if ! echo "$_c32_new" | grep -Fq "$_c32_tok"; then
+        fail "Check 32: new sections lack a worked example mentioning '$_c32_tok'"
+        check32_ok=0
+    fi
+done
+# §15 see-also carries the module-system file-top order
+_c32_s15=$(extract_section "$_c32_ce" "### 15. Invalid 'import' Command (Module Docstring Before Imports)")
+if ! echo "$_c32_s15" | grep -Fq 'public section'; then
+    fail "Check 32: §15 see-also not updated with the module-system file-top order"
+    check32_ok=0
+fi
+# diagnose.md: triage input form, precedence over the generic build row,
+# module-system section cross-linking the entries, #111 consistency note
+_c32_diag_sec=$(extract_section "$_c32_diag" "### Module-System Troubleshooting")
+if ! grep -Fq '/lean4:diagnose <pasted error>' "$_c32_diag"; then
+    fail "Check 32: diagnose.md missing the pasted-error triage usage form"
+    check32_ok=0
+fi
+if [[ -z "$_c32_diag_sec" ]]; then
+    fail "Check 32: diagnose.md missing the Module-System Troubleshooting section"
+    check32_ok=0
+else
+    if ! echo "$_c32_diag_sec" | grep -q 'precedence over the generic' \
+        || ! echo "$_c32_diag_sec" | grep -q 'compilation-errors.md' \
+        || ! echo "$_c32_diag_sec" | grep -Fq '#111'; then
+        fail "Check 32: diagnose Module-System section missing precedence rule, compilation-errors cross-link, or #111 consistency note"
+        check32_ok=0
+    fi
+fi
+# Negative guard: no shake recommendation (the executable command, not the word)
+if grep -Fq 'lake exe shake' "$_c32_ce" || grep -Fq 'lake exe shake' "$_c32_diag"; then
+    fail "Check 32: 'lake exe shake' recommendation present — shake was retired with the module system"
+    check32_ok=0
+fi
+if [[ "$check32_ok" -eq 1 ]]; then
+    ok "Check 32: module-system troubleshooting contract pinned (exact error strings, direction split, triage precedence, no shake)"
+fi
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]
