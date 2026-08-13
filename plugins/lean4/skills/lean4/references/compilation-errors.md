@@ -22,6 +22,10 @@ This reference provides detailed explanations and fixes for the most common comp
 | **"binder x doesn't match goal's binder ω"** | Alpha/beta-equivalence issue | Use `set F := <expr> with hF`, apply to `F`, unfold with `simpa [hF]` |
 | **Error at line N** | Actual error before line N | Check 5-10 lines before reported location |
 | **OOM kill (exit 137)** on sorry'd file or LSP timeout on importers | Large dependent type signatures | Isolate heavy signatures into small files; see [below](#oom-from-large-dependent-type-signatures) |
+| **"cannot import non-\`module\` X from \`module\`"** | Imported file lacks `module`, or a generated aggregator needs regeneration | Add `module` header, or `lake exe mk_all` (mathlib); see [§ 16 below](#16-cannot-import-non-module-from-module) |
+| **"Unknown identifier"** for a name that exists upstream / **"Expected a definition with an exposed body"** | Module-system visibility: private-by-default declarations, non-exposed bodies | Use public API, `import all` (same library only), or upstream `public`/`@[expose]`; see [§ 17 below](#17-module-visibility-name-exists-upstream-but-is-not-exported) |
+| **"Invalid \`meta\` definition ..., not marked \`meta\`"** / **"may not access declaration ... marked as \`meta\`"** | Meta-phase mismatch — two opposite directions | Direction-specific: `meta import` vs make the consumer `meta`; see [§ 18 below](#18-meta-phase-errors-meta-import-public-meta-import) |
+| **Old-style plain `import` header in a module-system repo** | File generated from a pre-module-system template | Rewrite to the [mathlib-style.md](mathlib-style.md#1-file-header-copyright-module-imports-critical) header; `lake exe mk_all`; see [§ 19 below](#19-old-style-header-in-a-module-system-repo) |
 
 ---
 
@@ -668,7 +672,71 @@ import Mathlib.Data.Real.Basic
 
 **Fix:** Move the `/-! ... -/` module docstring after the `import` block. The error message names `import`, not the docstring — the docstring's position is the cause.
 
-**See also:** [mathlib-style.md § 2 Placement](mathlib-style.md#placement) for the canonical file-top order (copyright → imports → module docstring).
+**See also:** [mathlib-style.md § 2 Placement](mathlib-style.md#placement) for the canonical file-top order — copyright → imports → module docstring in plain files; in module-system files, copyright → `module` → imports → module docstring → `public section` ([mathlib-style.md § 1](mathlib-style.md#1-file-header-copyright-module-imports-critical)).
+
+### 16. Cannot Import Non-Module from Module
+
+**Problem:** A file that starts with `module` imports a file that does not.
+
+**Full error message:**
+```
+error: cannot import non-`module` Foo from `module`
+```
+
+**What's wrong:** All imports of a `module` file must themselves be modules. The named file `Foo` lacks a `module` declaration. Distinguish three situations by what `Foo` is:
+
+1. **`Foo` is your own source file** — it genuinely lacks the `module` keyword. Inspect its header and add `module` after the copyright block (see the canonical template in [mathlib-style.md § 1](mathlib-style.md#1-file-header-copyright-module-imports-critical)).
+2. **`Foo` is a generated aggregator** (a root-import file such as `Mathlib.lean` or `Mathlib/Foo.lean` whose body is only import lines) **that has gone stale** after files were added, renamed, or deleted. Staleness by itself does not make an aggregator non-module — but a stale aggregator is the common companion failure, and the same regeneration fixes both. Run the project's prescribed regeneration command: in mathlib, `lake exe mk_all`. Current mathlib aggregators are already modules, and `mk_all` infers module style from an existing aggregator, so the plain command is correct mathlib maintenance.
+3. **`Foo` is a newly created aggregator** that was generated in plain style. `mk_all` defaults a *new* aggregator to plain style unless `--module` is supplied — use `lake exe mk_all --module` only where module style is actually wanted.
+
+**Fix:** Case 1 → add the `module` header to `Foo`. Case 2 → regenerate (`lake exe mk_all` in mathlib). Case 3 → regenerate with `--module`.
+
+### 17. Module Visibility: Name Exists Upstream but Is Not Exported
+
+**Problem:** Declarations inside a `module` are private by default; `public import` re-exports only the imported module's public scope. Code that worked with plain imports can fail against module-system dependencies. Three distinct signatures, each with its own remedy:
+
+**Signature A — the name is simply missing:**
+```
+error: Unknown identifier `greeting`
+```
+The declaration exists in the imported module's *private* scope. Before treating this as a missing-import problem (§ 5), check whether the defining file is a `module` and the name is non-`public`. Remedies, in order: use the module's public API instead; within the *same library* (tests, internal files), `import all TheModule` adds its private scope — never use `import all` on a downstream dependency; if the export gap is the actual bug, fix it upstream by making the declaration `public`.
+
+**Signature B — the name resolves but its body won't unfold:**
+```
+error: Invalid `simp` theorem `greeting`: Expected a definition with an exposed body
+```
+The definition is public but its body is not exposed (plain `public section` exports signatures while keeping implementations opaque). Don't unfold it in downstream proofs — use the module's API lemmas. If downstream definitional unfolding is intentionally part of the API, the upstream fix is `@[expose]`.
+
+**Signature C — a transitional warning, not an error:**
+```
+Private declaration `drop2` accessed publicly; this is allowed only because the
+`backward.privateInPublic` option is enabled.
+```
+Recognize this as a module-visibility signal: the code compiles only under a backward-compatibility option. Fix the visibility (as in A/B) rather than relying on the option.
+
+### 18. Meta-Phase Errors (`meta import`, `public meta import`)
+
+**Problem:** The module system separates the compile-time (meta) phase from the ordinary phase. There are two *opposite* failure directions — do not apply the same fix to both.
+
+**Direction A — meta code lacks a meta-phase dependency:**
+```
+error: Invalid `meta` definition `myMacro`, `helper` not marked `meta`
+```
+A macro/tactic/elaborator uses a declaration that is not available at the meta phase. If `helper` is in the current module, mark it `meta`; if it comes from another module, `meta import` that module. Use `public meta import` only when the meta dependency must propagate through a *public* metaprogram (i.e. it is reachable from a public meta definition).
+
+**Direction B — ordinary code uses meta-only code:**
+```
+error: Invalid definition `colors`, may not access declaration `toPalindrome` marked as `meta`
+```
+This is the reverse: a runtime definition accesses something that exists only at the meta phase. `meta import` is **not** the fix here. Either the consumer must itself become `meta`, or use a non-meta implementation available at the ordinary phase — e.g. move the shared code to a module imported at both phases (`meta import` for compile time *and* a regular `import` for runtime).
+
+### 19. Old-Style Header in a Module-System Repo
+
+**Problem:** A file starts with plain top-of-file `import` lines (no `module` keyword) in a repository whose files use the module system — commonly a file generated from a pre-module-system template. It may elaborate on its own but breaks importers (§ 16) and exports nothing an aggregator can re-export.
+
+**What's wrong:** The current mathlib header shape is: copyright block → `module` → grouped `public import` / plain `import` blocks (blank line between them) → `/-!` docstring → `public section`. Declarations in a `module` are private by default, so a converted file also needs the `public section` (or per-declaration `public`) to export its API.
+
+**Fix:** Rewrite the header to the canonical template in [mathlib-style.md § 1](mathlib-style.md#1-file-header-copyright-module-imports-critical), then refresh generated root-import files with `lake exe mk_all`. Command-side: `/lean4:draft` and `/lean4:formalize` emit this shape for mathlib-targeted `--output=file` writes (`--mathlib-template`).
 
 ---
 
