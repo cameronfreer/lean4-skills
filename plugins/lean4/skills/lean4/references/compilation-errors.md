@@ -23,7 +23,7 @@ This reference provides detailed explanations and fixes for the most common comp
 | **Error at line N** | Actual error before line N | Check 5-10 lines before reported location |
 | **OOM kill (exit 137)** on sorry'd file or LSP timeout on importers | Large dependent type signatures | Isolate heavy signatures into small files; see [below](#oom-from-large-dependent-type-signatures) |
 | **"cannot import non-\`module\` X from \`module\`"** | Imported file lacks `module`, or an aggregator is plain-style | Add the `module` header, or `lake exe mk_all --module` to convert a plain aggregator (plain `mk_all` preserves plain style); see [§ 16 below](#16-cannot-import-non-module-from-module) |
-| **"Unknown identifier"** for a name that exists upstream / **"Expected a definition with an exposed body"** | Module-system visibility: private-by-default declarations, non-exposed bodies | Use public API, `import all` (same library only), or upstream `public`/`@[expose]`; see [§ 17 below](#17-module-visibility-name-exists-upstream-but-is-not-exported) |
+| **"Unknown identifier"** for a name that exists upstream / **"Expected a definition with an exposed body"** | Module-system visibility: private-by-default declarations, non-exposed bodies | Use public API, `import all` (same Lake package), or upstream `public`/`@[expose]`; see [§ 17 below](#17-module-visibility-name-exists-upstream-but-is-not-exported) |
 | **"Invalid \`meta\` definition ..., not marked \`meta\`"** / **"may not access declaration ... marked as \`meta\`"** | Meta-phase mismatch — two opposite directions | Direction-specific: `meta import` vs make the consumer `meta`; see [§ 18 below](#18-meta-phase-errors-meta-import-public-meta-import) |
 | **Old-style plain `import` header in a module-system repo** | File generated from a pre-module-system template | Rewrite to the [mathlib-style.md](mathlib-style.md#1-file-header-copyright-module-imports-critical) header; `lake exe mk_all`; see [§ 19 below](#19-old-style-header-in-a-module-system-repo) |
 
@@ -705,7 +705,7 @@ error: cannot import non-`module` Foo from `module`
 ```
 error: Unknown identifier `greeting`
 ```
-The declaration exists in the imported module's *private* scope. Before treating this as a missing-import problem (§ 5), check whether the defining file is a `module` and the name is non-`public`. Remedies, in order: use the module's public API instead; within the *same library* (tests, internal files), `import all TheModule` adds its private scope — never use `import all` on a downstream dependency; if the export gap is the actual bug, fix it upstream by making the declaration `public`.
+The declaration exists in the imported module's *private* scope. Before treating this as a missing-import problem (§ 5), check whether the defining file is a `module` and the name is non-`public`. Remedies, in order: use the module's public API instead; within the *same Lake package* (tests, internal files), `import all TheModule` adds its private scope — by default `import all` is allowed only within the same package (a package may set the Lake `allowImportAll` option to open its private scope to other packages), but never use `import all` on a downstream dependency's private API you don't control; if the export gap is the actual bug, fix it upstream by making the declaration `public`.
 
 **Signature B — the name resolves but its body won't unfold:**
 ```
@@ -735,7 +735,14 @@ The rest of the emitted line names a backward-compatibility transition option (t
 ```
 error: Invalid `meta` definition `myMacro`, `helper` not marked `meta`
 ```
-A macro/tactic/elaborator uses a declaration that is not available at the meta phase. If `helper` is in the current module, mark it `meta`; if it comes from another module, `meta import` that module. Use `public meta import` only when the meta dependency must propagate through a *public* metaprogram (i.e. it is reachable from a public meta definition).
+A macro/tactic/elaborator uses a declaration that is not available at the meta phase. If `helper` is in the current module, mark it `meta`; if it comes from another module, `meta import` that module:
+```lean
+meta import Macros.Helper
+```
+Use `public meta import` only when the meta dependency must propagate through a *public* metaprogram (i.e. it is reachable from a public meta definition) — this re-exports it at the meta phase to downstream modules:
+```lean
+public meta import Macros.Helper
+```
 
 **Direction B — ordinary code uses meta-only code:**
 ```

@@ -923,11 +923,13 @@ _c32_s17c=$(echo "$_c32_s17" | sed -n '/^Private declaration/p')
 if ! echo "$_c32_s17" | grep -Fq 'Unknown identifier `greeting`' \
     || ! echo "$_c32_s17" | grep -Fq 'Invalid simp theorem `greeting`: Expected a definition with an exposed body' \
     || ! echo "$_c32_s17" | grep -Fq 'import all Tree.Basic' \
+    || ! echo "$_c32_s17" | grep -Fq 'same Lake package' \
+    || ! echo "$_c32_s17" | grep -Fq 'allowImportAll' \
     || ! echo "$_c32_s17" | grep -Fq 'never use `import all` on a downstream dependency' \
     || ! echo "$_c32_s17" | grep -Fq '@[expose]' \
     || [[ "$_c32_s17c" != 'Private declaration `drop2` accessed publicly' ]] \
     || ! echo "$_c32_s17" | grep -Fq 'rewrite the public signature'; then
-    fail "Check 32: §17 missing an exact visibility error line, the same-package import-all remedy/fence, the stable-prefix backward warning (no wildcard in the block), or the concrete backward.* three-option fix"
+    fail "Check 32: §17 missing an exact visibility error line, the same-Lake-package boundary / allowImportAll escape hatch, the import-all downstream fence, the stable-prefix backward warning (no wildcard in the block), or the concrete backward.* three-option fix"
     check32_ok=0
 fi
 # §18: full direction-B literal, direction-A fragments (identifiers vary), the
@@ -937,10 +939,10 @@ if ! echo "$_c32_s18" | grep -Fq 'Invalid definition `colors`, may not access de
     || ! echo "$_c32_s18" | grep -Fq 'Invalid `meta` definition' \
     || ! echo "$_c32_s18" | grep -Fq 'not marked `meta`' \
     || ! echo "$_c32_s18" | grep -Fq '`meta import` is **not** the fix' \
-    || ! echo "$_c32_s18" | grep -Fq 'public meta import' \
+    || ! echo "$_c32_s18" | grep -Eq '^public meta import ' \
     || ! echo "$_c32_s18" | grep -Fq 'meta import Phases.Pal' \
     || ! echo "$_c32_s18" | grep -Eq '^import Phases\.Pal'; then
-    fail "Check 32: §18 missing the full direction-B error line, a direction-A fragment, the direction-B negation, public meta import, or the both-phases worked example"
+    fail "Check 32: §18 missing the full direction-B error line, a direction-A fragment, the direction-B negation, a real public-meta-import code line, or the both-phases worked example"
     check32_ok=0
 fi
 # §19: public-section rule + canonical template link
