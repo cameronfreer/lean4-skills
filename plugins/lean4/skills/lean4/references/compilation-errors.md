@@ -686,7 +686,7 @@ error: cannot import non-`module` Foo from `module`
 **What's wrong:** All imports of a `module` file must themselves be modules. The named file `Foo` is not a module. Two things cause this exact error; a third is a common companion problem that does *not*:
 
 1. **`Foo` is your own source file** lacking the `module` keyword. Add `module` after the copyright block (canonical template in [mathlib-style.md § 1](mathlib-style.md#1-file-header-copyright-module-imports-critical)).
-2. **`Foo` is a plain-style generated aggregator** (a root-import file such as `Mathlib.lean` or `Mathlib/Tactic.lean` whose body is only import lines). Inspect its header. Plain `lake exe mk_all` **preserves the existing style** — it refreshes a module-style aggregator as a module and leaves a plain aggregator plain, so on a plain aggregator the non-module error persists. Use `lake exe mk_all --module` to create **or convert** an aggregator to module style (it emits a `module` header with `public import` lines):
+2. **`Foo` is a plain-style generated aggregator** (a generated root-import aggregator such as `Mathlib.lean` or `Mathlib/Tactic.lean`). Inspect its header. Plain `lake exe mk_all` **preserves the existing style** — it refreshes a module-style aggregator as a module and leaves a plain aggregator plain, so on a plain aggregator the non-module error persists. Use `lake exe mk_all --module` to create **or convert** an aggregator to module style (it emits a `module` header with `public import` lines):
    ```lean
    module
 
