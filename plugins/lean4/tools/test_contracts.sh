@@ -902,30 +902,42 @@ for _c32_pair in "16:$_c32_s16" "17:$_c32_s17" "18:$_c32_s18" "19:$_c32_s19"; do
         check32_ok=0
     fi
 done
-# §16: exact backticked error string + aggregator distinction + mk_all forms
-if ! echo "$_c32_s16" | grep -Fq 'cannot import non-`module`' \
-    || ! echo "$_c32_s16" | grep -Fq 'Staleness by itself does not make an aggregator non-module' \
-    || ! echo "$_c32_s16" | grep -Fq 'lake exe mk_all' \
-    || ! echo "$_c32_s16" | grep -Fq -- '--module'; then
-    fail "Check 32: §16 missing the exact non-module error string, the staleness/non-module distinction, or the mk_all forms"
+# §16: full non-module error line + plain-preserves-style / --module-converts
+# distinction + the staleness caveat + a real module-style aggregator snippet
+if ! echo "$_c32_s16" | grep -Fq 'cannot import non-`module` Foo from `module`' \
+    || ! echo "$_c32_s16" | grep -Fq 'preserves the existing style' \
+    || ! echo "$_c32_s16" | grep -Fq 'create **or convert**' \
+    || ! echo "$_c32_s16" | grep -Fq 'Staleness by itself does not cause the non-module error' \
+    || ! echo "$_c32_s16" | grep -Fq 'public import Mathlib.Tactic.Basic'; then
+    fail "Check 32: §16 missing the full non-module error line, the plain-preserves/--module-converts distinction, the staleness caveat, or the module-style aggregator snippet"
     check32_ok=0
 fi
-# §17: three signatures, each with its own remedy, and the import-all scope fence
-if ! echo "$_c32_s17" | grep -Fq 'Unknown identifier' \
-    || ! echo "$_c32_s17" | grep -Fq 'Expected a definition with an exposed body' \
-    || ! echo "$_c32_s17" | grep -Fq 'backward.privateInPublic' \
+# §17: full visibility error lines, per-signature remedies, the same-package
+# import-all worked example + downstream fence, and the concrete backward.*
+# three-option fix. The exact backward.* option name is deliberately NOT
+# pinned — reference sources disagree on the literal, so pin only the stable
+# "Private declaration ... accessed publicly" signature and the remedies.
+if ! echo "$_c32_s17" | grep -Fq 'Unknown identifier `greeting`' \
+    || ! echo "$_c32_s17" | grep -Fq 'Invalid simp theorem `greeting`: Expected a definition with an exposed body' \
+    || ! echo "$_c32_s17" | grep -Fq 'import all Tree.Basic' \
+    || ! echo "$_c32_s17" | grep -Fq 'never use `import all` on a downstream dependency' \
     || ! echo "$_c32_s17" | grep -Fq '@[expose]' \
-    || ! echo "$_c32_s17" | grep -Fq 'never use `import all` on a downstream dependency'; then
-    fail "Check 32: §17 missing a visibility signature, its remedy, or the import-all same-library fence"
+    || ! echo "$_c32_s17" | grep -Fq 'Private declaration' \
+    || ! echo "$_c32_s17" | grep -Fq 'rewrite the public signature'; then
+    fail "Check 32: §17 missing an exact visibility error line, the same-package import-all remedy/fence, or the concrete backward.* three-option fix"
     check32_ok=0
 fi
-# §18: both exact strings and the direction-B negation
-if ! echo "$_c32_s18" | grep -Fq 'not marked `meta`' \
-    || ! echo "$_c32_s18" | grep -Fq 'may not access declaration' \
-    || ! echo "$_c32_s18" | grep -Fq 'marked as `meta`' \
+# §18: full direction-B literal, direction-A fragments (identifiers vary), the
+# direction-B negation, public meta import, and the both-phases worked example
+# (a meta import line and a distinct runtime import line)
+if ! echo "$_c32_s18" | grep -Fq 'Invalid definition `colors`, may not access declaration `toPalindrome` marked as `meta`' \
+    || ! echo "$_c32_s18" | grep -Fq 'Invalid `meta` definition' \
+    || ! echo "$_c32_s18" | grep -Fq 'not marked `meta`' \
     || ! echo "$_c32_s18" | grep -Fq '`meta import` is **not** the fix' \
-    || ! echo "$_c32_s18" | grep -Fq 'public meta import'; then
-    fail "Check 32: §18 missing an exact meta-phase error string, the direction-B negation, or public meta import"
+    || ! echo "$_c32_s18" | grep -Fq 'public meta import' \
+    || ! echo "$_c32_s18" | grep -Fq 'meta import Phases.Pal' \
+    || ! echo "$_c32_s18" | grep -Eq '^import Phases\.Pal'; then
+    fail "Check 32: §18 missing the full direction-B error line, a direction-A fragment, the direction-B negation, public meta import, or the both-phases worked example"
     check32_ok=0
 fi
 # §19: public-section rule + canonical template link
@@ -958,14 +970,21 @@ if ! grep -Fq '/lean4:diagnose <pasted error>' "$_c32_diag"; then
     fail "Check 32: diagnose.md missing the pasted-error triage usage form"
     check32_ok=0
 fi
+# Dispatch is decided by the first positional token; mode flags stay flags
+if ! grep -Fq 'first positional token' "$_c32_diag" \
+    || ! grep -Fq 'never treated as error text' "$_c32_diag"; then
+    fail "Check 32: diagnose.md missing the first-positional-token dispatch rule or the flags-not-error-text clause"
+    check32_ok=0
+fi
 if [[ -z "$_c32_diag_sec" ]]; then
     fail "Check 32: diagnose.md missing the Module-System Troubleshooting section"
     check32_ok=0
 else
     if ! echo "$_c32_diag_sec" | grep -q 'precedence over the generic' \
         || ! echo "$_c32_diag_sec" | grep -q 'compilation-errors.md' \
-        || ! echo "$_c32_diag_sec" | grep -Fq '#111'; then
-        fail "Check 32: diagnose Module-System section missing precedence rule, compilation-errors cross-link, or #111 consistency note"
+        || ! echo "$_c32_diag_sec" | grep -Fq '#111' \
+        || ! echo "$_c32_diag_sec" | grep -Fq 'create **or convert**'; then
+        fail "Check 32: diagnose Module-System section missing precedence rule, compilation-errors cross-link, #111 note, or the --module convert distinction"
         check32_ok=0
     fi
 fi

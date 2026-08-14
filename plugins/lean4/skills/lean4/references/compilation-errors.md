@@ -22,7 +22,7 @@ This reference provides detailed explanations and fixes for the most common comp
 | **"binder x doesn't match goal's binder ω"** | Alpha/beta-equivalence issue | Use `set F := <expr> with hF`, apply to `F`, unfold with `simpa [hF]` |
 | **Error at line N** | Actual error before line N | Check 5-10 lines before reported location |
 | **OOM kill (exit 137)** on sorry'd file or LSP timeout on importers | Large dependent type signatures | Isolate heavy signatures into small files; see [below](#oom-from-large-dependent-type-signatures) |
-| **"cannot import non-\`module\` X from \`module\`"** | Imported file lacks `module`, or a generated aggregator needs regeneration | Add `module` header, or `lake exe mk_all` (mathlib); see [§ 16 below](#16-cannot-import-non-module-from-module) |
+| **"cannot import non-\`module\` X from \`module\`"** | Imported file lacks `module`, or an aggregator is plain-style | Add the `module` header, or `lake exe mk_all --module` to convert a plain aggregator (plain `mk_all` preserves plain style); see [§ 16 below](#16-cannot-import-non-module-from-module) |
 | **"Unknown identifier"** for a name that exists upstream / **"Expected a definition with an exposed body"** | Module-system visibility: private-by-default declarations, non-exposed bodies | Use public API, `import all` (same library only), or upstream `public`/`@[expose]`; see [§ 17 below](#17-module-visibility-name-exists-upstream-but-is-not-exported) |
 | **"Invalid \`meta\` definition ..., not marked \`meta\`"** / **"may not access declaration ... marked as \`meta\`"** | Meta-phase mismatch — two opposite directions | Direction-specific: `meta import` vs make the consumer `meta`; see [§ 18 below](#18-meta-phase-errors-meta-import-public-meta-import) |
 | **Old-style plain `import` header in a module-system repo** | File generated from a pre-module-system template | Rewrite to the [mathlib-style.md](mathlib-style.md#1-file-header-copyright-module-imports-critical) header; `lake exe mk_all`; see [§ 19 below](#19-old-style-header-in-a-module-system-repo) |
@@ -683,13 +683,19 @@ import Mathlib.Data.Real.Basic
 error: cannot import non-`module` Foo from `module`
 ```
 
-**What's wrong:** All imports of a `module` file must themselves be modules. The named file `Foo` lacks a `module` declaration. Distinguish three situations by what `Foo` is:
+**What's wrong:** All imports of a `module` file must themselves be modules. The named file `Foo` is not a module. Two things cause this exact error; a third is a common companion problem that does *not*:
 
-1. **`Foo` is your own source file** — it genuinely lacks the `module` keyword. Inspect its header and add `module` after the copyright block (see the canonical template in [mathlib-style.md § 1](mathlib-style.md#1-file-header-copyright-module-imports-critical)).
-2. **`Foo` is a generated aggregator** (a root-import file such as `Mathlib.lean` or `Mathlib/Foo.lean` whose body is only import lines) **that has gone stale** after files were added, renamed, or deleted. Staleness by itself does not make an aggregator non-module — but a stale aggregator is the common companion failure, and the same regeneration fixes both. Run the project's prescribed regeneration command: in mathlib, `lake exe mk_all`. Current mathlib aggregators are already modules, and `mk_all` infers module style from an existing aggregator, so the plain command is correct mathlib maintenance.
-3. **`Foo` is a newly created aggregator** that was generated in plain style. `mk_all` defaults a *new* aggregator to plain style unless `--module` is supplied — use `lake exe mk_all --module` only where module style is actually wanted.
+1. **`Foo` is your own source file** lacking the `module` keyword. Add `module` after the copyright block (canonical template in [mathlib-style.md § 1](mathlib-style.md#1-file-header-copyright-module-imports-critical)).
+2. **`Foo` is a plain-style generated aggregator** (a root-import file such as `Mathlib.lean` or `Mathlib/Tactic.lean` whose body is only import lines). Inspect its header. Plain `lake exe mk_all` **preserves the existing style** — it refreshes a module-style aggregator as a module and leaves a plain aggregator plain, so on a plain aggregator the non-module error persists. Use `lake exe mk_all --module` to create **or convert** an aggregator to module style (it emits a `module` header with `public import` lines):
+   ```lean
+   module
 
-**Fix:** Case 1 → add the `module` header to `Foo`. Case 2 → regenerate (`lake exe mk_all` in mathlib). Case 3 → regenerate with `--module`.
+   public import Mathlib.Tactic.Basic
+   public import Mathlib.Tactic.Ring
+   ```
+3. **Aggregator staleness is a separate companion problem.** After files are added, renamed, or deleted, an aggregator's import *list* goes stale; refresh it with `lake exe mk_all`. Staleness by itself does not cause the non-module error — an already-module-style aggregator that is merely stale still imports fine.
+
+**Fix:** Case 1 → add the `module` header to `Foo`. Case 2 → `lake exe mk_all --module` to convert (or create) a module-style aggregator; plain `mk_all` will not convert it. Case 3 → `lake exe mk_all` to refresh the import list.
 
 ### 17. Module Visibility: Name Exists Upstream but Is Not Exported
 
@@ -703,16 +709,24 @@ The declaration exists in the imported module's *private* scope. Before treating
 
 **Signature B — the name resolves but its body won't unfold:**
 ```
-error: Invalid `simp` theorem `greeting`: Expected a definition with an exposed body
+error: Invalid simp theorem `greeting`: Expected a definition with an exposed body
 ```
-The definition is public but its body is not exposed (plain `public section` exports signatures while keeping implementations opaque). Don't unfold it in downstream proofs — use the module's API lemmas. If downstream definitional unfolding is intentionally part of the API, the upstream fix is `@[expose]`.
+The definition is public but its body is not exposed (plain `public section` exports signatures while keeping implementations opaque). The remedy depends on where you are:
+- **Within the same package** (an internal lemma or test that legitimately needs the body), import the module's *private* scope with `import all` — the reference demonstrates exactly this to unfold a definition in a proof:
+  ```lean
+  module
+
+  import all Tree.Basic   -- brings Tree.Basic's private scope in, so its body can unfold here
+  ```
+- **Across a package boundary**, do not unfold — use the module's API lemmas.
+- If definitional unfolding is *intentionally* part of the public API, the upstream fix is `@[expose]` on the definition.
 
 **Signature C — a transitional warning, not an error:**
 ```
-Private declaration `drop2` accessed publicly; this is allowed only because the
-`backward.privateInPublic` option is enabled.
+Private declaration `drop2` accessed publicly; this is allowed only because a
+`backward.*` compatibility option is enabled.
 ```
-Recognize this as a module-visibility signal: the code compiles only under a backward-compatibility option. Fix the visibility (as in A/B) rather than relying on the option.
+A public declaration's signature (or default argument) refers to a *private* declaration; it compiles only under a backward-compatibility transition option. Recognize it as a visibility problem in the *definition's* interface, not an importer-side one. Concrete fixes: make the referenced declaration `public`; make the consuming declaration `private`; or rewrite the public signature so it no longer mentions the private declaration. Prefer a real fix over leaving the option enabled.
 
 ### 18. Meta-Phase Errors (`meta import`, `public meta import`)
 
@@ -728,11 +742,15 @@ A macro/tactic/elaborator uses a declaration that is not available at the meta p
 ```
 error: Invalid definition `colors`, may not access declaration `toPalindrome` marked as `meta`
 ```
-This is the reverse: a runtime definition accesses something that exists only at the meta phase. `meta import` is **not** the fix here. Either the consumer must itself become `meta`, or use a non-meta implementation available at the ordinary phase — e.g. move the shared code to a module imported at both phases (`meta import` for compile time *and* a regular `import` for runtime).
+This is the reverse: a runtime definition accesses something that exists only at the meta phase. `meta import` is **not** the fix here. Either the consumer must itself become `meta`, or the shared code moves to its own module imported at *both* phases — a `meta import` for compile time and a regular `import` for runtime. The reference demonstrates this by moving the shared `toPalindrome` into `Phases.Pal`:
+```lean
+meta import Phases.Pal
+import Phases.Pal
+```
 
 ### 19. Old-Style Header in a Module-System Repo
 
-**Problem:** A file starts with plain top-of-file `import` lines (no `module` keyword) in a repository whose files use the module system — commonly a file generated from a pre-module-system template. It may elaborate on its own but breaks importers (§ 16) and exports nothing an aggregator can re-export.
+**Problem:** A file starts with plain top-of-file `import` lines (no `module` keyword) in a repository whose files use the module system — commonly a file generated from a pre-module-system template. It may elaborate on its own, but a module-style importer or aggregator cannot import it at all (§ 16).
 
 **What's wrong:** The current mathlib header shape is: copyright block → `module` → grouped `public import` / plain `import` blocks (blank line between them) → `/-!` docstring → `public section`. Declarations in a `module` are private by default, so a converted file also needs the `public section` (or per-declaration `public`) to export its API.
 

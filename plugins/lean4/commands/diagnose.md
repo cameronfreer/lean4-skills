@@ -27,7 +27,13 @@ Diagnostics, troubleshooting, and migration assistance for the Lean4 plugin.
 | mode | No | `env`, `migrate`, `cleanup`, or full (default) |
 | --global | No | Include user-level paths (~/); migrate only |
 | --apply | No | Execute removals; cleanup only |
-| error text | No | Any argument that is not a recognized mode is treated as pasted diagnostic text for error triage |
+| error text | No | Positional text whose first token is not a recognized mode is treated as pasted diagnostic text for error triage |
+
+**Dispatch** is decided by the **first positional token** only:
+- a recognized mode (`env`, `migrate`, `cleanup`) or no positional token → existing mode behavior (default full diagnostic when absent);
+- otherwise → treat the positional text as pasted diagnostic input for error triage.
+
+Mode-specific flags (`--global`, `--apply`) remain flags in every case — they are never treated as error text.
 
 **Error triage precedence:** pasted text is matched against the specific patterns in [compilation-errors.md](../skills/lean4/references/compilation-errors.md) (Quick Reference Table first), including the module-system patterns below, **before** falling back to the generic `Build fails → lake update && lake clean && lake build` row. A specific match wins over the generic remediation.
 
@@ -259,7 +265,7 @@ Error-triggered guidance for the Lean module system (post-2025-11-19 mathlib). T
 
 | Error pattern | Fix |
 |---------------|-----|
-| ``cannot import non-`module` X from `module` `` | `X` lacks a `module` header, or a generated aggregator needs regeneration (`lake exe mk_all` in mathlib; `--module` only when *creating* a module-style aggregator) — [§ 16](../skills/lean4/references/compilation-errors.md#16-cannot-import-non-module-from-module) |
+| ``cannot import non-`module` X from `module` `` | `X` lacks a `module` header, or an aggregator is plain-style. Plain `lake exe mk_all` preserves the existing style; use `lake exe mk_all --module` to create **or convert** a module-style aggregator. Import-list staleness is a separate companion problem — [§ 16](../skills/lean4/references/compilation-errors.md#16-cannot-import-non-module-from-module) |
 | `Unknown identifier` for a name that exists upstream; `Expected a definition with an exposed body`; `backward.privateInPublic` warning | Module visibility: private-by-default declarations / non-exposed bodies. Use the public API, `import all` (same library only), or upstream `public`/`@[expose]` — [§ 17](../skills/lean4/references/compilation-errors.md#17-module-visibility-name-exists-upstream-but-is-not-exported) |
 | ``Invalid `meta` definition ..., not marked `meta` `` vs ``may not access declaration ... marked as `meta` `` | Two *opposite* meta-phase failures: the first may need `meta import`; for the second, `meta import` is not the fix — the consumer becomes `meta` or uses a non-meta implementation — [§ 18](../skills/lean4/references/compilation-errors.md#18-meta-phase-errors-meta-import-public-meta-import) |
 | Old-style plain `import` header in a module-system repo | Rewrite to the [mathlib-style.md](../skills/lean4/references/mathlib-style.md#1-file-header-copyright-module-imports-critical) header (`module`, grouped `public import`/`import`, `public section`), then `lake exe mk_all` — [§ 19](../skills/lean4/references/compilation-errors.md#19-old-style-header-in-a-module-system-repo) |
