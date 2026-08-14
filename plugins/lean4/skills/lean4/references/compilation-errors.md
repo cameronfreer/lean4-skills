@@ -693,7 +693,7 @@ error: cannot import non-`module` Foo from `module`
    public import Mathlib.Tactic.Basic
    public import Mathlib.Tactic.Ring
    ```
-3. **Aggregator staleness is a separate companion problem.** After files are added, renamed, or deleted, an aggregator's import *list* goes stale; refresh it with `lake exe mk_all`. Staleness by itself does not cause the non-module error — an already-module-style aggregator that is merely stale still imports fine.
+3. **Aggregator staleness is a separate companion problem.** After files are added, renamed, or deleted, an aggregator's import *list* goes stale; refresh it with `lake exe mk_all`. Staleness does not change the aggregator's module status, so it does not cause this specific non-module error — though it causes *other* failures: adding a file may leave the aggregator buildable but incomplete, while a rename or deletion may leave it importing the old module and failing with a missing/unknown-module error.
 
 **Fix:** Case 1 → add the `module` header to `Foo`. Case 2 → `lake exe mk_all --module` to convert (or create) a module-style aggregator; plain `mk_all` will not convert it. Case 3 → `lake exe mk_all` to refresh the import list.
 
@@ -723,10 +723,9 @@ The definition is public but its body is not exposed (plain `public section` exp
 
 **Signature C — a transitional warning, not an error:**
 ```
-Private declaration `drop2` accessed publicly; this is allowed only because a
-`backward.*` compatibility option is enabled.
+Private declaration `drop2` accessed publicly
 ```
-A public declaration's signature (or default argument) refers to a *private* declaration; it compiles only under a backward-compatibility transition option. Recognize it as a visibility problem in the *definition's* interface, not an importer-side one. Concrete fixes: make the referenced declaration `public`; make the consuming declaration `private`; or rewrite the public signature so it no longer mentions the private declaration. Prefer a real fix over leaving the option enabled.
+The rest of the emitted line names a backward-compatibility transition option (the current reference cites `backward.privateInPublic`; the exact suffix may vary by toolchain version). A public declaration's signature (or default argument) refers to a *private* declaration; it compiles only under that option. Recognize it as a visibility problem in the *definition's* interface, not an importer-side one. Concrete fixes: make the referenced declaration `public`; make the consuming declaration `private`; or rewrite the public signature so it no longer mentions the private declaration. Prefer a real fix over leaving the option enabled.
 
 ### 18. Meta-Phase Errors (`meta import`, `public meta import`)
 

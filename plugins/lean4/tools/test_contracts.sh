@@ -907,24 +907,27 @@ done
 if ! echo "$_c32_s16" | grep -Fq 'cannot import non-`module` Foo from `module`' \
     || ! echo "$_c32_s16" | grep -Fq 'preserves the existing style' \
     || ! echo "$_c32_s16" | grep -Fq 'create **or convert**' \
-    || ! echo "$_c32_s16" | grep -Fq 'Staleness by itself does not cause the non-module error' \
+    || ! echo "$_c32_s16" | grep -Fq 'does not cause this specific non-module error' \
+    || ! echo "$_c32_s16" | grep -Fq 'missing/unknown-module error' \
     || ! echo "$_c32_s16" | grep -Fq 'public import Mathlib.Tactic.Basic'; then
-    fail "Check 32: §16 missing the full non-module error line, the plain-preserves/--module-converts distinction, the staleness caveat, or the module-style aggregator snippet"
+    fail "Check 32: §16 missing the full non-module error line, the plain-preserves/--module-converts distinction, the staleness caveat (incl. the rename/delete missing-module nuance), or the module-style aggregator snippet"
     check32_ok=0
 fi
 # §17: full visibility error lines, per-signature remedies, the same-package
 # import-all worked example + downstream fence, and the concrete backward.*
-# three-option fix. The exact backward.* option name is deliberately NOT
-# pinned — reference sources disagree on the literal, so pin only the stable
-# "Private declaration ... accessed publicly" signature and the remedies.
+# three-option fix. The backward.* option SUFFIX is deliberately NOT inside the
+# emitted-diagnostic code block (Lean does not emit wildcards, and the suffix
+# varies by toolchain) — pin only the stable "Private declaration `drop2`
+# accessed publicly" prefix as the block's exact content, plus the remedies.
+_c32_s17c=$(echo "$_c32_s17" | sed -n '/^Private declaration/p')
 if ! echo "$_c32_s17" | grep -Fq 'Unknown identifier `greeting`' \
     || ! echo "$_c32_s17" | grep -Fq 'Invalid simp theorem `greeting`: Expected a definition with an exposed body' \
     || ! echo "$_c32_s17" | grep -Fq 'import all Tree.Basic' \
     || ! echo "$_c32_s17" | grep -Fq 'never use `import all` on a downstream dependency' \
     || ! echo "$_c32_s17" | grep -Fq '@[expose]' \
-    || ! echo "$_c32_s17" | grep -Fq 'Private declaration' \
+    || [[ "$_c32_s17c" != 'Private declaration `drop2` accessed publicly' ]] \
     || ! echo "$_c32_s17" | grep -Fq 'rewrite the public signature'; then
-    fail "Check 32: §17 missing an exact visibility error line, the same-package import-all remedy/fence, or the concrete backward.* three-option fix"
+    fail "Check 32: §17 missing an exact visibility error line, the same-package import-all remedy/fence, the stable-prefix backward warning (no wildcard in the block), or the concrete backward.* three-option fix"
     check32_ok=0
 fi
 # §18: full direction-B literal, direction-A fragments (identifiers vary), the
