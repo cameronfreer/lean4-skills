@@ -81,6 +81,45 @@ class CheckpointMathlibRootsTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(self._changes(data), {("added", "Mathlib/Untracked.lean")})
 
+    def test_untracked_seen_despite_showuntrackedfiles_no(self) -> None:
+        # A new file is untracked precisely because checkpoint staging runs
+        # after this gate; status.showUntrackedFiles=no must not hide it
+        # (--untracked-files=all overrides the repo/user setting).
+        _git(self.root, "config", "status.showUntrackedFiles", "no")
+        self._write("Mathlib/New.lean", "x\n")
+        code, data = _run(self.root, ["Mathlib/New.lean"])
+        self.assertEqual(code, 0)
+        self.assertEqual(self._changes(data), {("added", "Mathlib/New.lean")})
+
+    def test_glob_metachars_are_literal_pathspecs(self) -> None:
+        # A candidate named Foo[1].lean must match only itself, never Foo1.lean
+        # (--literal-pathspecs; `--` alone does not disable pathspec magic).
+        self._write("Mathlib/Foo1.lean", "a\n")  # untracked, off-list decoy
+        self._write("Mathlib/Foo[1].lean", "b\n")  # the literal candidate
+        code, data = _run(self.root, ["Mathlib/Foo[1].lean"])
+        self.assertEqual(code, 0)
+        self.assertEqual(self._changes(data), {("added", "Mathlib/Foo[1].lean")})
+
+    def test_symlinked_root_resolves(self) -> None:
+        # `git rev-parse --show-toplevel` returns the physical repo path;
+        # containment must compare physical paths so a symlinked --root still
+        # matches Mathlib/ results. The emitted root stays the symlink path.
+        self._write("Mathlib/New.lean", "x\n")
+        link = os.path.join(
+            os.path.dirname(self.root), "link-" + os.path.basename(self.root)
+        )
+        os.symlink(self.root, link)
+
+        def _rm_link() -> None:
+            if os.path.islink(link):
+                os.unlink(link)
+
+        self.addCleanup(_rm_link)
+        code, data = _run(link, ["Mathlib/New.lean"])
+        self.assertEqual(code, 0)
+        self.assertEqual(self._changes(data), {("added", "Mathlib/New.lean")})
+        self.assertEqual(data["root"], os.path.abspath(link))
+
     def test_deletion(self) -> None:
         _git(self.root, "rm", "-q", "Mathlib/Base.lean")
         code, data = _run(self.root, ["Mathlib/Base.lean"])

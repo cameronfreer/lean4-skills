@@ -153,14 +153,26 @@ def _run(root_arg: str) -> dict[str, object]:
         raise _GateError(EXIT_OPERATIONAL, "git reported an empty work-tree root")
 
     # Query status for exactly the candidate paths (activation is candidate-
-    # scoped). --no-renames collapses renames to delete+add; -z is NUL-safe.
+    # scoped). Flags that matter for correctness:
+    #   --literal-pathspecs   candidate filenames are literal, not globs — a
+    #                         real name like `Foo[1].lean` must not also match
+    #                         `Foo1.lean` (`--` ends option parsing but does
+    #                         NOT disable pathspec magic).
+    #   --untracked-files=all a newly created file is untracked precisely
+    #                         because checkpoint staging runs AFTER this gate;
+    #                         without this the repo/user `status.showUntracked-
+    #                         Files` setting can silently hide the principal
+    #                         case, yielding a false negative.
+    #   --no-renames          collapse renames to delete+add.  -z is NUL-safe.
     code, out, err = _git(
         [
             "-C",
             root,
+            "--literal-pathspecs",
             "status",
             "--porcelain=v1",
             "-z",
+            "--untracked-files=all",
             "--no-renames",
             "--",
             *candidates,
@@ -171,10 +183,13 @@ def _run(root_arg: str) -> dict[str, object]:
         detail = err.strip().splitlines()[0] if err.strip() else "git status failed"
         raise _GateError(EXIT_OPERATIONAL, f"git status failed: {detail}")
 
-    # Mathlib/ is resolved relative to --root (the validated Lean project
-    # root), NOT the wider git repository root — a project may sit in a
-    # subdirectory of its repo.
-    mathlib_prefix = os.path.join(root, "Mathlib") + os.sep
+    # Containment is decided on PHYSICAL paths: `git rev-parse --show-toplevel`
+    # returns the resolved repo path, so a symlinked --root would otherwise
+    # never match a Mathlib/ prefix built from the logical path. The emitted
+    # `root` stays the caller's original (possibly symlinked) absolute path.
+    root_phys = os.path.realpath(root)
+    repo_root_phys = os.path.realpath(repo_root)
+    mathlib_dir = os.path.join(root_phys, "Mathlib")
     seen: dict[str, str] = {}
     for entry in out.split("\x00"):
         if not entry:
@@ -187,14 +202,19 @@ def _run(root_arg: str) -> dict[str, object]:
         kind = _classify(status_xy)
         if kind is None:
             continue
-        # Porcelain paths are repo-root-relative; resolve to absolute, then
-        # keep only those under <repo_root>/Mathlib/ ending in .lean.
-        abs_path = os.path.normpath(os.path.join(repo_root, path))
-        if not abs_path.startswith(mathlib_prefix):
+        # Porcelain paths are repo-root-relative; resolve to a physical
+        # absolute path, then keep only those under <root>/Mathlib/ ending in
+        # .lean. commonpath avoids the `Mathlib` vs `MathlibExtra` prefix trap.
+        abs_path = os.path.normpath(os.path.join(repo_root_phys, path))
+        try:
+            if os.path.commonpath([abs_path, mathlib_dir]) != mathlib_dir:
+                continue
+        except ValueError:
+            # Different drives / mixed absolute-relative — not under Mathlib/.
             continue
         if not abs_path.endswith(".lean"):
             continue
-        rel = os.path.relpath(abs_path, root)
+        rel = os.path.relpath(abs_path, root_phys)
         rel_posix = rel.replace(os.sep, "/")
         # A path can only carry one net status; last classification wins but
         # the set of candidate paths is unique so collisions are benign.
