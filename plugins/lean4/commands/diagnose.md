@@ -17,6 +17,7 @@ Diagnostics, troubleshooting, and migration assistance for the Lean4 plugin.
 /lean4:diagnose migrate --global   # Include user-level ~/.claude scan
 /lean4:diagnose cleanup            # Show stale files + removal commands
 /lean4:diagnose cleanup --apply    # Actually remove stale files
+/lean4:diagnose <pasted error>     # Error triage: match against known patterns
 ```
 
 ## Inputs
@@ -26,6 +27,15 @@ Diagnostics, troubleshooting, and migration assistance for the Lean4 plugin.
 | mode | No | `env`, `migrate`, `cleanup`, or full (default) |
 | --global | No | Include user-level paths (~/); migrate only |
 | --apply | No | Execute removals; cleanup only |
+| error text | No | Positional text whose first token is not a recognized mode is treated as pasted diagnostic text for error triage |
+
+**Dispatch** is decided by the **first positional token** only:
+- a recognized mode (`env`, `migrate`, `cleanup`) or no positional token → existing mode behavior (default full diagnostic when absent);
+- otherwise → treat the positional text as pasted diagnostic input for error triage.
+
+Mode-specific flags (`--global`, `--apply`) remain flags in every case — they are never treated as error text.
+
+**Error triage precedence:** pasted text is matched against the specific patterns in [compilation-errors.md](../skills/lean4/references/compilation-errors.md) (Quick Reference Table first), including the module-system patterns below, **before** falling back to the generic `Build fails → lake update && lake clean && lake build` row. A specific match wins over the generic remediation.
 
 ## Actions
 
@@ -248,6 +258,19 @@ No changes made. Run `/lean4:diagnose cleanup --apply` to remove.
 | Lean LSP MCP tools unavailable | Check `claude mcp list` (Claude Code); if missing, `claude mcp add --transport stdio --scope user lean-lsp -- uvx lean-lsp-mcp` or see [INSTALLATION.md](../../../INSTALLATION.md#lean-lsp-mcp-server-all-hosts) |
 
 Under Codex, PreToolUse is advisory and is not a security boundary.
+
+### Module-System Troubleshooting
+
+Error-triggered guidance for the Lean module system (post-2025-11-19 mathlib). These patterns take precedence over the generic `Build fails` row above; each links to a worked entry in [compilation-errors.md](../skills/lean4/references/compilation-errors.md).
+
+| Error pattern | Fix |
+|---------------|-----|
+| ``cannot import non-`module` X from `module` `` | `X` lacks a `module` header, or an aggregator is plain-style. Plain `lake exe mk_all` preserves the existing style; use `lake exe mk_all --module` to create **or convert** a module-style aggregator. Import-list staleness is a separate companion problem — [§ 16](../skills/lean4/references/compilation-errors.md#16-cannot-import-non-module-from-module) |
+| `Unknown identifier` for a name that exists upstream; `Expected a definition with an exposed body`; `backward.privateInPublic` warning | Module visibility: private-by-default declarations / non-exposed bodies. Use the public API, `import all` (same Lake package), or upstream `public`/`@[expose]` — [§ 17](../skills/lean4/references/compilation-errors.md#17-module-visibility-name-exists-upstream-but-is-not-exported) |
+| ``Invalid `meta` definition ..., not marked `meta` `` vs ``may not access declaration ... marked as `meta` `` | Two *opposite* meta-phase failures: the first may need `meta import`; for the second, `meta import` is not the fix — the consumer becomes `meta` or uses a non-meta implementation — [§ 18](../skills/lean4/references/compilation-errors.md#18-meta-phase-errors-meta-import-public-meta-import) |
+| Old-style plain `import` header in a module-system repo | Rewrite to the [mathlib-style.md](../skills/lean4/references/mathlib-style.md#1-file-header-copyright-module-imports-critical) header (`module`, grouped `public import`/`import`, `public section`), then `lake exe mk_all` — [§ 19](../skills/lean4/references/compilation-errors.md#19-old-style-header-in-a-module-system-repo) |
+
+The `lake exe mk_all` remediation string here is the same one `/lean4:checkpoint`'s mk_all gate (#111) will surface at checkpoint time — users hitting it mid-build and at checkpoint get one consistent instruction.
 
 ## Safety
 
