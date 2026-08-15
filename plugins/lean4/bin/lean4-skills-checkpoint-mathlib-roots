@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# lean4-skills-checkpoint-mathlib-roots — model-facing wrapper around
+# lib/scripts/checkpoint_mathlib_roots.py. Reads NUL-delimited candidate
+# paths on stdin and emits the checkpoint-mathlib-roots/v1 JSON record of
+# added/deleted .lean files under <--root>/Mathlib/. See
+# lean4-skills-project-context for the bin/-wrapper rationale.
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+exec "${LEAN4_PYTHON_BIN:-python3}" "$PLUGIN_ROOT/lib/scripts/checkpoint_mathlib_roots.py" "$@"
