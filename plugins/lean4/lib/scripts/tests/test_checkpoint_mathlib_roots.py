@@ -120,6 +120,34 @@ class CheckpointMathlibRootsTests(unittest.TestCase):
         self.assertEqual(self._changes(data), {("added", "Mathlib/New.lean")})
         self.assertEqual(data["root"], os.path.abspath(link))
 
+    def test_absolute_candidate_through_symlinked_root(self) -> None:
+        # An absolute candidate written through the symlinked root is
+        # normalized to a root-relative literal pathspec, so git (which
+        # resolves the work tree physically) still matches it.
+        self._write("Mathlib/New.lean", "x\n")
+        link = os.path.join(
+            os.path.dirname(self.root), "alink-" + os.path.basename(self.root)
+        )
+        os.symlink(self.root, link)
+
+        def _rm_link() -> None:
+            if os.path.islink(link):
+                os.unlink(link)
+
+        self.addCleanup(_rm_link)
+        abs_through_link = os.path.join(link, "Mathlib/New.lean")
+        code, data = _run(link, [abs_through_link])
+        self.assertEqual(code, 0)
+        self.assertEqual(self._changes(data), {("added", "Mathlib/New.lean")})
+
+    def test_absolute_candidate_physical_path(self) -> None:
+        # A physical absolute candidate is likewise normalized root-relative.
+        self._write("Mathlib/New.lean", "x\n")
+        abs_physical = os.path.join(os.path.realpath(self.root), "Mathlib/New.lean")
+        code, data = _run(self.root, [abs_physical])
+        self.assertEqual(code, 0)
+        self.assertEqual(self._changes(data), {("added", "Mathlib/New.lean")})
+
     def test_deletion(self) -> None:
         _git(self.root, "rm", "-q", "Mathlib/Base.lean")
         code, data = _run(self.root, ["Mathlib/Base.lean"])

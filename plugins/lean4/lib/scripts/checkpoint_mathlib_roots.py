@@ -131,14 +131,37 @@ def _classify(status_xy: str) -> str | None:
     return None
 
 
+def _to_pathspec(candidate: str, root: str, root_phys: str) -> str:
+    """Normalize an absolute candidate under the logical or physical root to a
+    root-relative literal pathspec.
+
+    git resolves its work tree physically, so an absolute candidate written
+    through a symlinked --root can be rejected as "outside repository" on some
+    git versions. Making such candidates root-relative sidesteps that entirely.
+    Relative candidates, and absolutes outside both roots, pass through
+    unchanged (the latter let git reject them → a fail-closed operational
+    error, never a false "clean").
+    """
+    if not os.path.isabs(candidate):
+        return candidate
+    for cand in (os.path.normpath(candidate), os.path.realpath(candidate)):
+        for base in (root, root_phys):
+            rel = os.path.relpath(cand, base)
+            if rel != os.pardir and not rel.startswith(os.pardir + os.sep):
+                return rel
+    return candidate
+
+
 def _run(root_arg: str) -> dict[str, object]:
     root = os.path.abspath(root_arg)
     if not os.path.isdir(root):
         raise _GateError(EXIT_USAGE, f"--root is not a directory: {root_arg}")
+    root_phys = os.path.realpath(root)
 
     candidates = _read_candidates()
     if not candidates:
         return {"schema": SCHEMA, "root": root, "changes": []}
+    pathspecs = [_to_pathspec(c, root, root_phys) for c in candidates]
 
     # Resolve the git work tree that owns --root; classification paths are
     # reported relative to --root regardless of where the repo root sits.
@@ -175,7 +198,7 @@ def _run(root_arg: str) -> dict[str, object]:
             "--untracked-files=all",
             "--no-renames",
             "--",
-            *candidates,
+            *pathspecs,
         ],
         cwd=root,
     )
@@ -187,7 +210,7 @@ def _run(root_arg: str) -> dict[str, object]:
     # returns the resolved repo path, so a symlinked --root would otherwise
     # never match a Mathlib/ prefix built from the logical path. The emitted
     # `root` stays the caller's original (possibly symlinked) absolute path.
-    root_phys = os.path.realpath(root)
+    # (root_phys was resolved above for candidate normalization.)
     repo_root_phys = os.path.realpath(repo_root)
     mathlib_dir = os.path.join(root_phys, "Mathlib")
     seen: dict[str, str] = {}
