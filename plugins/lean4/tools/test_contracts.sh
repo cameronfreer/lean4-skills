@@ -1044,9 +1044,19 @@ if ! echo "$_c33_gate" | grep -Fq 'lean4-skills-project-context --from "$PWD"' \
     fail "Check 33: gate missing the project-context invocation, schema/field validation, or the mk_all_declared-never-consulted rule"
     check33_ok=0
 fi
-# Explicit opt-in must never fail open
-if ! echo "$_c33_gate" | grep -Fq 'Explicit opt-in never fails open'; then
-    fail "Check 33: gate missing the explicit-opt-in-never-fails-open rule"
+# Explicit opt-in overrides only the intent decision, not root discovery,
+# and must not fail open when the root cannot be acquired.
+if ! echo "$_c33_gate" | grep -Fq 'overrides only the *intent* decision' \
+    || ! echo "$_c33_gate" | grep -Fq 'explicit opt-in must not fail open'; then
+    fail "Check 33: gate does not require project-root acquisition under explicit opt-in / fail-closed"
+    check33_ok=0
+fi
+# Fail closed on ANY unusable candidate-helper result, not just exit 4 —
+# validate the versioned schema before trusting an empty changes list.
+if ! echo "$_c33_gate" | grep -Fq 'Fail closed on any unusable result' \
+    || ! echo "$_c33_gate" | grep -Fq 'do not treat an empty `changes` list as' \
+    || ! echo "$_c33_gate" | grep -Fq 'schema` ≠ `checkpoint-mathlib-roots/v1'; then
+    fail "Check 33: gate does not fail closed on every unusable candidate-helper result (schema/root/fields)"
     check33_ok=0
 fi
 # Stale output vs operational failure are distinguished; never invent filenames

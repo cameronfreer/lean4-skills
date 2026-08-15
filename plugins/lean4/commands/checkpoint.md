@@ -51,7 +51,7 @@ Startup requirements:
 
 ## Actions
 
-1. **Verify Touched Files** - For each existing added/modified `.lean` file in the **candidate set** for this checkpoint — the files touched during this session that step 5 will stage, determined independently of the current git index (staging happens later) — compile individually:
+1. **Verify Touched Files** - For each existing added/modified `.lean` file in the **candidate set** for this checkpoint — the files touched during this session that the *Stage and Commit* step will stage, determined independently of the current git index (staging happens later) — compile individually:
    ```bash
    lake env lean <path/to/File.lean>   # from project root
    ```
@@ -80,19 +80,22 @@ Startup requirements:
 
 Mathlib's generated root-import aggregators (`Mathlib.lean`, `Mathlib/Tactic.lean`, …) go stale when a `.lean` file is added, renamed, or deleted, and mathlib CI runs `lake exe mk_all --check` as a dedicated gate. This step catches that follow-up **before** the main build — but only when the current work is plausibly aimed at upstream mathlib contribution, so a personal mathlib fork used for experimentation is not blocked on every checkpoint.
 
-**1. Resolve whether the gate fires** (precedence — a flag resolving to true wins; explicit false behaves like omission):
-- `--mathlib-mk-all` true → gate fires (explicit opt-in).
-- else `--no-mathlib-mk-all` true → gate skipped; done.
-- else run `lean4-skills-project-context --from "$PWD"` and validate the full record exactly as `/lean4:draft` does: `schema` = `project-context/v1`, `intent.contributing_upstream` a string in `yes | no | unknown`, `intent.source` a string in its domain — any missing/non-string/out-of-domain value is malformed helper output. `yes` → gate fires; `no`, `unknown`, or malformed/failed helper → gate skipped. `mk_all_declared` is **never** consulted; availability is decided by actually running the command.
+**1. Resolve whether the gate fires and acquire the project root** (a flag resolving to true wins the *intent* decision; explicit false behaves like omission):
+- `--no-mathlib-mk-all` true → gate skipped; done. No helper is consulted and no root is needed.
+- Otherwise run `lean4-skills-project-context --from "$PWD"` to acquire **and** validate the project root, and validate the full record exactly as `/lean4:draft` does: `schema` = `project-context/v1`, `intent.contributing_upstream` a string in `yes | no | unknown`, `intent.source` a string in its domain — any missing/non-string/out-of-domain value is malformed helper output. Take `$project_root` from the record's non-null top-level `root`. Then:
+  - **`--mathlib-mk-all` true** → gate fires. The flag overrides only the *intent* decision, **not** root discovery: if project-context fails, is malformed, or returns a null `root`, **stop** (explicit opt-in must not fail open) — do not skip and do not proceed to the build.
+  - **no flag** → use `intent.contributing_upstream`: `yes` → gate fires; `no`, `unknown`, or a malformed/failed helper (including a null `root`) → gate skipped. Inferred intent may fail open (skip).
 
-**Explicit opt-in never fails open.** When the gate was requested explicitly (`--mathlib-mk-all`), an inability to locate the project root or inspect the candidate set is a **stop**, not a silent skip. Inferred intent may fail open (skip); an explicitly requested gate may not.
+`mk_all_declared` is **never** consulted; availability is decided by actually running the command.
 
-**2. Detect root-affecting candidate changes.** The **candidate set** is the session-touched files this checkpoint will stage — not unrelated local work. Pass them NUL-delimited to the helper, anchored at the project root the previous step returned (its non-null top-level `root`):
+**2. Detect root-affecting candidate changes.** The **candidate set** is the session-touched files the *Stage and Commit* step will stage — not unrelated local work. Pass them NUL-delimited to the helper, anchored at the `$project_root` acquired above:
 ```bash
 printf '%s\0' "${candidate_paths[@]}" \
   | lean4-skills-checkpoint-mathlib-roots --root "$project_root"
 ```
-It emits a `checkpoint-mathlib-roots/v1` JSON record listing added/deleted `.lean` files under `<root>/Mathlib/` (renames surface as delete + add). Exit 0 = valid (including no changes); 2 = usage; 4 = git/operational failure. On exit 4 (or a null `root`), **stop** — activation cannot be determined safely; do not skip and do not proceed to the build. If `changes` is empty, there is nothing to check → proceed to Verify Build.
+It emits a `checkpoint-mathlib-roots/v1` JSON record listing added/deleted `.lean` files under `<root>/Mathlib/` (renames surface as delete + add). Exit 0 = valid (including no changes); 2 = usage; 4 = git/operational failure.
+
+**Fail closed on any unusable result.** Because the gate has already fired, validate the candidate-helper output **before** trusting it — do not treat an empty `changes` list as "clean" unless the result is well-formed. Any of the following is a **stop** (report that activation could not be determined; do not skip, do not proceed to the build): a nonzero exit (2 *or* 4), non-JSON output, `schema` ≠ `checkpoint-mathlib-roots/v1`, a `root` that does not match the `$project_root` passed in, or a missing/ill-typed `changes` field. Only a well-formed exit-0 record with an empty `changes` list means "no root-affecting changes → proceed to Verify Build".
 
 **3. Run the check.** When `changes` is non-empty, run `lake exe mk_all --check` from `$project_root` and **preserve its output verbatim**:
 - Output explicitly names outdated files → stop before Verify Build; report those lines as-is and print the remediation `lake exe mk_all` (the same string [diagnose §16](../skills/lean4/references/compilation-errors.md#16-cannot-import-non-module-from-module) surfaces). **Never** auto-rewrite root files.

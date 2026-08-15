@@ -312,14 +312,17 @@ run_test_json \
   ".hookSpecificOutput.hookEventName" \
   "UserPromptSubmit"
 
+# These assert only that a valid invocation is accepted (a block is emitted);
+# the message-survival and explicit-false *semantics* are pinned by the
+# parser goldens in test_parser_checkpoint.py, not re-asserted here.
 run_test_json \
-  "19d. Valid checkpoint with custom message survives (hookEventName)" \
+  "19d. checkpoint with custom message accepted (block emitted)" \
   '{"prompt":"/lean4:checkpoint \"after refactor\"","cwd":"/tmp"}' \
   ".hookSpecificOutput.hookEventName" \
   "UserPromptSubmit"
 
 run_test_json \
-  "19e. Valid checkpoint explicit-false opt-out (hookEventName)" \
+  "19e. checkpoint explicit-false + opt-out accepted (block emitted)" \
   '{"prompt":"/lean4:checkpoint --mathlib-mk-all=false --no-mathlib-mk-all","cwd":"/tmp"}' \
   ".hookSpecificOutput.hookEventName" \
   "UserPromptSubmit"

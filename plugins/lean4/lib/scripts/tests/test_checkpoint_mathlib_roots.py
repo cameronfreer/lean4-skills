@@ -128,6 +128,19 @@ class CheckpointMathlibRootsTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(data["changes"], [])
 
+    def test_root_affecting_change_outside_candidate_set_excluded(self) -> None:
+        # The central candidate-scoping guarantee, tested against the exact
+        # change class that activates the gate: a Mathlib/*.lean file that IS
+        # added and IS deleted, but is NOT in the supplied candidate set, must
+        # not appear. (Distinct from the modification/outside-Mathlib case.)
+        self._write("Mathlib/SneakyAdd.lean", "x\n")  # untracked add, off-list
+        _git(self.root, "rm", "-q", "Mathlib/Base.lean")  # deletion, off-list
+        # Candidate set is a single, unrelated in-Mathlib add.
+        self._write("Mathlib/OnList.lean", "y\n")
+        code, data = _run(self.root, ["Mathlib/OnList.lean"])
+        self.assertEqual(code, 0)
+        self.assertEqual(self._changes(data), {("added", "Mathlib/OnList.lean")})
+
     def test_non_lean_under_mathlib_excluded(self) -> None:
         self._write("Mathlib/data.txt", "x\n")
         code, data = _run(self.root, ["Mathlib/data.txt"])
