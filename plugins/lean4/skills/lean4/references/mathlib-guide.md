@@ -351,6 +351,12 @@ After adding or renaming files, regenerate the root-import files (e.g.
 *which* imports to select, not header visibility; in mathlib files those lines
 take the `public import` / `import` form after `module`.
 
+Mathlib CI enforces this with `lake exe mk_all --check`. When work is aimed at
+upstream mathlib, `/lean4:checkpoint` runs that same check before its build
+whenever the checkpoint adds, renames, or deletes a `.lean` file under
+`Mathlib/`, and reports `lake exe mk_all` as the remediation — see the
+[Generated Root Files gate](../../../commands/checkpoint.md#generated-root-files-gate).
+
 ### Prefer Specific Imports
 
 ```lean
