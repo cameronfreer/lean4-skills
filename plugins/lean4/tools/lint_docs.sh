@@ -65,7 +65,7 @@ check_commands() {
         case "$cmd" in
             autoformalize) max_lines=180 ;;
             autoprove)  max_lines=290 ;;
-            checkpoint) max_lines=90 ;;
+            checkpoint) max_lines=155 ;;
             diagnose)   max_lines=290 ;;
             disprove)   max_lines=300 ;;
             draft)      max_lines=170 ;;
@@ -1888,7 +1888,7 @@ check_command_invocation_contract() {
         warn "command-invocation.md: Missing 'Adapter Implementations' section"
     fi
 
-    for cmd in draft formalize autoformalize prove autoprove learn; do
+    for cmd in draft formalize autoformalize prove autoprove learn checkpoint; do
         file="$PLUGIN_ROOT/commands/$cmd.md"
         base="$cmd.md"
         if [[ ! -f "$file" ]]; then

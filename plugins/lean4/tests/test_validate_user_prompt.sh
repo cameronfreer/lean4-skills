@@ -176,8 +176,8 @@ run_test_empty \
   '{"prompt":"/lean4:diagnose"}'
 
 run_test_empty \
-  "10. Uncovered command (checkpoint)" \
-  '{"prompt":"/lean4:checkpoint"}'
+  "10. Uncovered command (golf)" \
+  '{"prompt":"/lean4:golf"}'
 
 # ---------------------------------------------------------------------------
 # Blocked cases (exit 0, stdout has decision:block)
@@ -227,6 +227,19 @@ run_test \
 run_test_json \
   "14b. Bad int for autoprove --max-cycles (decision=block)" \
   '{"prompt":"/lean4:autoprove --max-cycles=cat","cwd":"/tmp"}' \
+  ".decision" \
+  "block"
+
+# checkpoint (#111): now a covered command with two gate flags
+run_test_json \
+  "14c. checkpoint conflicting true flags (decision=block)" \
+  '{"prompt":"/lean4:checkpoint --mathlib-mk-all --no-mathlib-mk-all","cwd":"/tmp"}' \
+  ".decision" \
+  "block"
+
+run_test_json \
+  "14d. checkpoint unknown flag (decision=block)" \
+  '{"prompt":"/lean4:checkpoint --bogus","cwd":"/tmp"}' \
   ".decision" \
   "block"
 
@@ -289,6 +302,28 @@ run_test \
 run_test_json \
   "19b. Valid formalize (hookEventName)" \
   '{"prompt":"/lean4:formalize \"Zorn\"","cwd":"/tmp"}' \
+  ".hookSpecificOutput.hookEventName" \
+  "UserPromptSubmit"
+
+# checkpoint (#111) valid invocations inject a validated block
+run_test_json \
+  "19c. Valid checkpoint --mathlib-mk-all (hookEventName)" \
+  '{"prompt":"/lean4:checkpoint --mathlib-mk-all","cwd":"/tmp"}' \
+  ".hookSpecificOutput.hookEventName" \
+  "UserPromptSubmit"
+
+# These assert only that a valid invocation is accepted (a block is emitted);
+# the message-survival and explicit-false *semantics* are pinned by the
+# parser goldens in test_parser_checkpoint.py, not re-asserted here.
+run_test_json \
+  "19d. checkpoint with custom message accepted (block emitted)" \
+  '{"prompt":"/lean4:checkpoint \"after refactor\"","cwd":"/tmp"}' \
+  ".hookSpecificOutput.hookEventName" \
+  "UserPromptSubmit"
+
+run_test_json \
+  "19e. checkpoint explicit-false + opt-out accepted (block emitted)" \
+  '{"prompt":"/lean4:checkpoint --mathlib-mk-all=false --no-mathlib-mk-all","cwd":"/tmp"}' \
   ".hookSpecificOutput.hookEventName" \
   "UserPromptSubmit"
 

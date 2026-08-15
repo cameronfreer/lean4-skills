@@ -1002,6 +1002,96 @@ if [[ "$check32_ok" -eq 1 ]]; then
     ok "Check 32: module-system troubleshooting contract pinned (exact error strings, direction split, triage precedence, no shake)"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 33: checkpoint mk_all gate contract (#111). The gate is prompt-defined
+# in checkpoint.md over a tested helper; pin the load-bearing clauses so they
+# cannot silently regress: the versioned helper schema, before-build ordering,
+# candidate-set-not-index definition, the project-context decision order, the
+# explicit-opt-in-never-fails-open rule, stale-vs-operational distinction,
+# check-only behaviour, verbatim mk_all remediation, and the global-check
+# limitation note.
+# ---------------------------------------------------------------------------
+check33_ok=1
+_c33_cp="$PLUGIN_ROOT/commands/checkpoint.md"
+_c33_actions=$(extract_section "$_c33_cp" "## Actions")
+_c33_gate=$(extract_section "$_c33_cp" "## Generated Root Files gate")
+if [[ -z "$_c33_gate" ]]; then
+    fail "Check 33: checkpoint.md missing the '## Generated Root Files gate' section"
+    check33_ok=0
+fi
+# Ordering: the gate step runs before Verify Build in the Actions list
+if ! assert_ordered "$_c33_actions" 'Generated Root Files gate' 'Verify Build'; then
+    fail "Check 33: checkpoint.md Actions do not run the Generated Root Files gate before Verify Build"
+    check33_ok=0
+fi
+# Versioned helper schema + wrapper invocation
+if ! echo "$_c33_gate" | grep -Fq 'checkpoint-mathlib-roots/v1' \
+    || ! echo "$_c33_gate" | grep -Fq 'lean4-skills-checkpoint-mathlib-roots'; then
+    fail "Check 33: gate missing the versioned helper schema or the wrapper invocation"
+    check33_ok=0
+fi
+# Candidate set defined independently of the git index (staging happens later)
+if ! echo "$_c33_actions" | grep -Fq 'candidate set' \
+    || ! echo "$_c33_actions" | grep -Fq 'independently of the current git index'; then
+    fail "Check 33: checkpoint.md does not define the candidate set independently of the git index"
+    check33_ok=0
+fi
+# project-context decision order + full-record validation + mk_all_declared unused
+if ! echo "$_c33_gate" | grep -Fq 'lean4-skills-project-context --from "$PWD"' \
+    || ! echo "$_c33_gate" | grep -Fq 'project-context/v1' \
+    || ! echo "$_c33_gate" | grep -Fq 'intent.contributing_upstream' \
+    || ! echo "$_c33_gate" | grep -Fq 'mk_all_declared` is **never** consulted'; then
+    fail "Check 33: gate missing the project-context invocation, schema/field validation, or the mk_all_declared-never-consulted rule"
+    check33_ok=0
+fi
+# Explicit opt-in overrides only the intent decision, not root discovery,
+# and must not fail open when the root cannot be acquired.
+if ! echo "$_c33_gate" | grep -Fq 'overrides only the *intent* decision' \
+    || ! echo "$_c33_gate" | grep -Fq 'explicit opt-in must not fail open'; then
+    fail "Check 33: gate does not require project-root acquisition under explicit opt-in / fail-closed"
+    check33_ok=0
+fi
+# Fail closed on ANY unusable candidate-helper result, not just exit 4 —
+# validate the versioned schema before trusting an empty changes list.
+if ! echo "$_c33_gate" | grep -Fq 'Fail closed on any unusable result' \
+    || ! echo "$_c33_gate" | grep -Fq 'do not treat an empty `changes` list as' \
+    || ! echo "$_c33_gate" | grep -Fq 'schema` ≠ `checkpoint-mathlib-roots/v1'; then
+    fail "Check 33: gate does not fail closed on every unusable candidate-helper result (schema/root/fields)"
+    check33_ok=0
+fi
+# Stale output vs operational failure are distinguished; never invent filenames
+if ! echo "$_c33_gate" | grep -Fq 'could not complete' \
+    || ! echo "$_c33_gate" | grep -Fq 'do **not** invent stale filenames'; then
+    fail "Check 33: gate does not distinguish stale output from operational failure"
+    check33_ok=0
+fi
+# Check-only (no auto-rewrite) + verbatim remediation + preserve output
+if ! echo "$_c33_gate" | grep -Fq 'Never** auto-rewrite' \
+    || ! echo "$_c33_gate" | grep -Fq 'preserve its output verbatim' \
+    || ! echo "$_c33_gate" | grep -Fq 'lake exe mk_all`'; then
+    fail "Check 33: gate missing check-only/no-auto-rewrite, output-preservation, or the verbatim mk_all remediation"
+    check33_ok=0
+fi
+# Global-check limitation honestly stated
+if ! echo "$_c33_gate" | grep -Fq 'Global-check limitation'; then
+    fail "Check 33: gate missing the global-check limitation note"
+    check33_ok=0
+fi
+# The helper wrapper exists and is executable; its delegate too
+_c33_wrap="$PLUGIN_ROOT/bin/lean4-skills-checkpoint-mathlib-roots"
+_c33_py="$PLUGIN_ROOT/lib/scripts/checkpoint_mathlib_roots.py"
+if [[ ! -x "$_c33_wrap" ]]; then
+    fail "Check 33: bin/lean4-skills-checkpoint-mathlib-roots missing or not executable"
+    check33_ok=0
+fi
+if [[ ! -x "$_c33_py" ]]; then
+    fail "Check 33: lib/scripts/checkpoint_mathlib_roots.py missing or not executable"
+    check33_ok=0
+fi
+if [[ "$check33_ok" -eq 1 ]]; then
+    ok "Check 33: checkpoint mk_all gate contract pinned (schema, ordering, decision order, opt-in-never-fails-open, check-only)"
+fi
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]

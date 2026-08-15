@@ -67,6 +67,7 @@ CLEAN_PATH="/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin"
 EXPECTED="
 lean4-skills-analyze-let-usage:2
 lean4-skills-check-axioms-inline:1
+lean4-skills-checkpoint-mathlib-roots:2
 lean4-skills-cycle-tracker:2
 lean4-skills-disprove-artifact-txn:2
 lean4-skills-disprove-emit-artifact:2
