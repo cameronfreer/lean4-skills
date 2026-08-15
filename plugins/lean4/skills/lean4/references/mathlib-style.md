@@ -293,11 +293,28 @@ See [domain-patterns.md](domain-patterns.md) for detailed implicit parameter con
 /-- In earlier drafts, this used axioms, but now it doesn't. -/
 /-- Originally defined differently, but we changed the approach. -/
 /-- This replaces the old broken implementation. -/
+/-- The canonical Karp theorem (sorry-free). -/
+/-- Sorry-free variant of `exists_complete_stabilization`. -/
 
 -- ✅ GOOD
 /-- Uses mathlib's standard measure theory infrastructure. -/
 /-- Constructs via the Koopman representation. -/
 ```
+
+**"sorry-free" / "no sorry" is the most common instance of this anti-pattern.** A proof gets filled, the author annotates the docstring to celebrate, and the annotation never gets removed. Treat it like "axiom-free": timeless docs describe what a declaration *is*, not that it no longer has sorries.
+
+**Section headers (`/-! ... -/`) get the same treatment** — they're documentation too and accumulate the same development-history language:
+
+```lean
+-- ❌ BAD
+/-! ### Karp's Theorem at universe w (sorry-free)
+    Both directions are now fully proved (no sorry). -/
+
+-- ✅ GOOD
+/-! ### Karp's theorem at universe `w` -/
+```
+
+**Inline comments — review triggers, not automatic-deletion rules.** During review (Rule B), *flag* development-scaffolding comments and propose replacements; do not silently delete them. Common triggers: `-- TODO`, `-- HACK`, `-- FIXME`, `-- XXX`, `-- this is temporary`, `-- old approach, keeping for reference`. A finding is advisory — the review reports it, the author decides.
 
 **Rationale:** Comments should be timeless documentation of current state. History belongs in git commits.
 
