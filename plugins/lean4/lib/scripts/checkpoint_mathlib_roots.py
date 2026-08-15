@@ -204,7 +204,9 @@ def _run(root_arg: str) -> dict[str, object]:
             continue
         # Porcelain paths are repo-root-relative; resolve to a physical
         # absolute path, then keep only those under <root>/Mathlib/ ending in
-        # .lean. commonpath avoids the `Mathlib` vs `MathlibExtra` prefix trap.
+        # .lean. commonpath compares whole path components (a trailing-slash
+        # prefix would also exclude a `MathlibExtra` sibling, but commonpath
+        # states the containment directly).
         abs_path = os.path.normpath(os.path.join(repo_root_phys, path))
         try:
             if os.path.commonpath([abs_path, mathlib_dir]) != mathlib_dir:
