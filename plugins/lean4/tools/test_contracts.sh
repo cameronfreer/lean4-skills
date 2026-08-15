@@ -1092,6 +1092,73 @@ if [[ "$check33_ok" -eq 1 ]]; then
     ok "Check 33: checkpoint mk_all gate contract pinned (schema, ordering, decision order, opt-in-never-fails-open, check-only)"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 34: workflow-scoped docstring policy (#54 + #116). The old blanket
+# "docstrings are off-limits" prohibition is replaced by three mode-scoped
+# rules; pin the load-bearing boundary of each in its owning file, the
+# absence of the blanket rule, and #54's content, without duplicating prose.
+# ---------------------------------------------------------------------------
+check34_ok=1
+_c34_skill="$PLUGIN_ROOT/skills/lean4/SKILL.md"
+_c34_style="$PLUGIN_ROOT/skills/lean4/references/mathlib-style.md"
+# The old blanket prohibition must be gone (it bundled docstrings with
+# statements/signatures as globally off-limits).
+if grep -Fq 'docstrings are off-limits' "$_c34_skill"; then
+    fail "Check 34: SKILL.md still contains the old blanket 'docstrings are off-limits' prohibition"
+    check34_ok=0
+fi
+# SKILL.md carries the three-rule permission matrix (Mode | May do | Boundary).
+if ! grep -Fq '| Mode | May do | Boundary |' "$_c34_skill" \
+    || ! grep -Fq 'Docstrings are scoped by workflow' "$_c34_skill"; then
+    fail "Check 34: SKILL.md missing the workflow-scoped docstring permission matrix"
+    check34_ok=0
+fi
+# Rule A is the default for ANY workflow mutating existing declarations, not
+# only the named proof commands.
+if ! grep -Fq 'any workflow that mutates existing declarations' "$_c34_skill"; then
+    fail "Check 34: SKILL.md does not make Rule A the fallback for every existing-declaration edit"
+    check34_ok=0
+fi
+# Each rule's boundary lives in its owning command doc.
+_c34_prove=$(extract_section "$PLUGIN_ROOT/commands/prove.md" "## Safety")
+if ! echo "$_c34_prove" | grep -Fq 'Rule A' \
+    || ! echo "$_c34_prove" | grep -Fq 'never rewrite an existing docstring'; then
+    fail "Check 34: prove.md Safety missing the Rule A existing-docstring protection"
+    check34_ok=0
+fi
+_c34_review=$(extract_section "$PLUGIN_ROOT/commands/review.md" "## Safety")
+if ! echo "$_c34_review" | grep -Fq 'Rule B' \
+    || ! echo "$_c34_review" | grep -Fq 'propose replacement' \
+    || ! echo "$_c34_review" | grep -Fq 'read-only'; then
+    fail "Check 34: review.md Safety missing Rule B (flag + propose text, read-only)"
+    check34_ok=0
+fi
+# Rule C in all three generation commands, each linked to the CANONICAL
+# template section (durable), not to issue #109. Scope to the Safety section
+# so the pin verifies Rule C's own link — draft/formalize already carry that
+# same anchor in their #109 Mathlib Template Gate section, which must not
+# satisfy this check on its own.
+for _c34_cmd in draft formalize autoformalize; do
+    _c34_safety=$(extract_section "$PLUGIN_ROOT/commands/$_c34_cmd.md" "## Safety")
+    if ! echo "$_c34_safety" | grep -Fq 'Rule C' \
+        || ! echo "$_c34_safety" | grep -Fq 'mathlib-style.md#1-file-header'; then
+        fail "Check 34: $_c34_cmd.md Safety missing Rule C or its canonical-template link"
+        check34_ok=0
+    fi
+done
+# #54 content: sorry-free anti-pattern, section-header treatment, and the
+# inline patterns framed as review triggers (not deletion rules).
+_c34_devhist=$(extract_section "$_c34_style" "### Avoid Development History References")
+if ! echo "$_c34_devhist" | grep -Fq 'sorry-free' \
+    || ! echo "$_c34_devhist" | grep -Fq 'Section headers' \
+    || ! echo "$_c34_devhist" | grep -Fq 'review triggers, not automatic-deletion rules'; then
+    fail "Check 34: mathlib-style.md dev-history section missing sorry-free, section-header, or the review-trigger framing"
+    check34_ok=0
+fi
+if [[ "$check34_ok" -eq 1 ]]; then
+    ok "Check 34: workflow-scoped docstring policy pinned (matrix, per-command boundaries, #54 content, no blanket rule)"
+fi
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]
