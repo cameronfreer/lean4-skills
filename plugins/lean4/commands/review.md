@@ -319,6 +319,7 @@ See [Codex SDK Cookbook](https://cookbook.openai.com/examples/codex/build_code_r
 - Axiom check temporarily appends `#print axioms`, then restores
 - Does not create commits
 - Does not apply fixes
+- **Docstring policy — Rule B (review).** Review may flag weak or missing docstrings, development-history language (e.g. "sorry-free", "earlier drafts"), and scaffolding comments (`TODO`/`HACK`/`FIXME`), and may **propose replacement wording** in the report. It stays read-only: a docstring finding is a suggestion, never an in-place edit. See [mathlib-style.md § Avoid Development History References](../skills/lean4/references/mathlib-style.md#avoid-development-history-references) for what to flag.
 
 ## See Also
 
