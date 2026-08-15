@@ -535,6 +535,37 @@ MATHLIB_TEMPLATE_CONFLICT = CrossValidation(
 )
 
 
+# -- mathlib_mk_all_conflict -----------------------------------------------
+
+
+def mathlib_mk_all_conflict(
+    options: Mapping[str, object],
+    ctx: ParseContext,
+) -> list[str]:
+    """checkpoint: --mathlib-mk-all + --no-mathlib-mk-all -> error.
+
+    Truthiness-based: only flags resolving to true participate, so a single
+    error fires when both are true and explicit false behaves like omission.
+    """
+    if options.get("--mathlib-mk-all") and options.get("--no-mathlib-mk-all"):
+        return [
+            "--mathlib-mk-all and --no-mathlib-mk-all are mutually "
+            "exclusive; pass at most one."
+        ]
+    return []
+
+
+MATHLIB_MK_ALL_CONFLICT = CrossValidation(
+    rule_id="mathlib_mk_all_conflict",
+    fn=mathlib_mk_all_conflict,
+    severity="error",
+    doc_phrases=(
+        "--mathlib-mk-all` with `--no-mathlib-mk-all` \u2192 startup validation error",
+    ),
+    summary="--mathlib-mk-all and --no-mathlib-mk-all are mutually exclusive",
+)
+
+
 # -- mathlib_template_requires_output_file ---------------------------------
 
 

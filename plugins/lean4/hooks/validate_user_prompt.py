@@ -40,6 +40,7 @@ _COVERED_COMMANDS = {
     "prove",
     "autoprove",
     "disprove",
+    "checkpoint",
 }
 
 
