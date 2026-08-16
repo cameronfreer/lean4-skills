@@ -1146,13 +1146,17 @@ for _c34_cmd in draft formalize autoformalize; do
         check34_ok=0
     fi
 done
-# #54 content: sorry-free anti-pattern, section-header treatment, and the
-# inline patterns framed as review triggers (not deletion rules).
+# #54 content: sorry-free anti-pattern, section-header treatment, the inline
+# patterns framed as review triggers (not deletion rules), and the blueprint
+# surfaces (@[blueprint] fields + blueprint/src/content.tex) under Rule B —
+# #54's fifth documented gap, required for `Closes #54` to be accurate.
 _c34_devhist=$(extract_section "$_c34_style" "### Avoid Development History References")
 if ! echo "$_c34_devhist" | grep -Fq 'sorry-free' \
     || ! echo "$_c34_devhist" | grep -Fq 'Section headers' \
-    || ! echo "$_c34_devhist" | grep -Fq 'review triggers, not automatic-deletion rules'; then
-    fail "Check 34: mathlib-style.md dev-history section missing sorry-free, section-header, or the review-trigger framing"
+    || ! echo "$_c34_devhist" | grep -Fq 'review triggers, not automatic-deletion rules' \
+    || ! echo "$_c34_devhist" | grep -Fq '@[blueprint]' \
+    || ! echo "$_c34_devhist" | grep -Fq 'blueprint/src/content.tex'; then
+    fail "Check 34: mathlib-style.md dev-history section missing sorry-free, section-header, review-trigger framing, or the blueprint surfaces"
     check34_ok=0
 fi
 if [[ "$check34_ok" -eq 1 ]]; then

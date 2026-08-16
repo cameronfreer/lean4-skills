@@ -316,6 +316,20 @@ See [domain-patterns.md](domain-patterns.md) for detailed implicit parameter con
 
 **Inline comments — review triggers, not automatic-deletion rules.** During review (Rule B), *flag* development-scaffolding comments and propose replacements; do not silently delete them. Common triggers: `-- TODO`, `-- HACK`, `-- FIXME`, `-- XXX`, `-- this is temporary`, `-- old approach, keeping for reference`. A finding is advisory — the review reports it, the author decides.
 
+**Blueprint documentation surfaces get the same Rule B treatment.** LeanArchitect `@[blueprint]` annotations carry documentation-bearing `title` / `statement` / `proof` fields (TeX), and `blueprint/src/content.tex` is a parallel documentation layer; both accumulate the same development-history language as docstrings.
+
+```lean
+-- ❌ BAD: development history in a @[blueprint] field
+@[blueprint "thm:karp"
+  (statement := /-- Sorry-free version of Theorem 1.2.1 of \cite{KK04}. -/)]
+
+-- ✅ GOOD: timeless statement
+@[blueprint "thm:karp"
+  (statement := /-- Theorem 1.2.1 of \cite{KK04}: ... -/)]
+```
+
+During review, flag development-history wording in `@[blueprint]` fields and in `blueprint/src/content.tex` and propose timeless replacements — never auto-edit them (Rule B is read-only, in blueprint TeX exactly as in Lean docstrings).
+
 **Rationale:** Comments should be timeless documentation of current state. History belongs in git commits.
 
 ### Avoid Discussing Lean `axiom` Declarations (After Proved)
