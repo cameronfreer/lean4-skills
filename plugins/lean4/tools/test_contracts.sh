@@ -1194,6 +1194,45 @@ else
         fail "Check 35: 'Naming & namespace' is not its own bucket"
         check35_ok=0
     fi
+    # Every bucket must actually carry the promised four-field shape. Extract
+    # each '## N.' section by number and require all four markers — the intro,
+    # issue, and changelog all promise this shape, so a missing field is a
+    # broken structural promise, not cosmetics.
+    for _c35_n in 1 2 3 4 5 6 7 8 9; do
+        _c35_sec=$(awk -v n="^## ${_c35_n}\\\\. " '
+            $0 ~ n {f=1; print; next}
+            f && /^## [0-9]+\. / {exit}
+            f {print}
+        ' "$_c35_tax")
+        for _c35_field in '**Reviewers mean:**' '**Cheap:**' '**Annoying:**' '**Example:**'; do
+            if ! echo "$_c35_sec" | grep -Fq "$_c35_field"; then
+                fail "Check 35: bucket $_c35_n missing '$_c35_field'"
+                check35_ok=0
+            fi
+        done
+    done
+    # Load-bearing companion links live in their buckets, not only See Also.
+    _c35_b4=$(extract_section "$_c35_tax" "## 4. File placement / import hygiene")
+    _c35_b6=$(extract_section "$_c35_tax" "## 6. Attributes / \`simp\`")
+    _c35_b7=$(extract_section "$_c35_tax" "## 7. Instances")
+    if ! echo "$_c35_b4" | grep -Fq 'mathlib-guide.md'; then
+        fail "Check 35: bucket 4 does not link mathlib-guide.md (the duplicate-result / search axis)"
+        check35_ok=0
+    fi
+    if ! echo "$_c35_b6" | grep -Fq 'simp-reference.md'; then
+        fail "Check 35: bucket 6 does not link simp-reference.md"
+        check35_ok=0
+    fi
+    if ! echo "$_c35_b7" | grep -Fq 'instance-pollution.md'; then
+        fail "Check 35: bucket 7 does not link instance-pollution.md"
+        check35_ok=0
+    fi
+    # Bucket 4 carries the duplicate-existing-result axis (#110 Library
+    # Integration), not just file placement.
+    if ! echo "$_c35_b4" | grep -Fq 'already'; then
+        fail "Check 35: bucket 4 missing the 'does an equivalent/more-general result already exist' axis"
+        check35_ok=0
+    fi
     # #60 vacuous-api: settled triple + semantic (not lexical) scope + advisory
     _c35_b5=$(extract_section "$_c35_tax" "## 5. API / generalization")
     if ! echo "$_c35_b5" | grep -Fq 'vacuous-api' \

@@ -12,10 +12,15 @@ results, weakest assumptions, `@[simp]` choices, instance design, and
 generated-file chores. The buckets below name that vocabulary and cross-link
 the existing references instead of duplicating them.
 
-**On the category / rule_id / severity tags below:** these are
-*illustrative candidate mappings*, not a schema. They keep this taxonomy
-aligned with the eventual machine-readable review output. Only
-`api` / `vacuous-api` / `advisory` (bucket 5) is settled.
+**On the category / rule_id / severity tags below:** conceptual review
+buckets and machine-readable categories are **not one-to-one** — one bucket
+may map to several schema categories. The tags are
+*illustrative candidate mappings*, not a schema; they track the provisional
+enum in Issue #115
+(`style`, `naming`, `docstring`, `module-doc`, `file-placement`,
+`import-hygiene`, `api`, `generalization`, `attribute`, `simp`, `instance`,
+`module-system`, `metadata`). Only the vacuous-API rule's full triple is
+settled — `category: api`, `rule_id: vacuous-api`, `severity: advisory`.
 Issue #115 owns the final enums and severity semantics; nothing here freezes
 the review schema.
 
@@ -50,20 +55,27 @@ governed by the workflow-scoped policy (Rule A/B/C) in
 [SKILL.md](../SKILL.md); review flags and proposes wording but never mutates
 (Rule B). What counts as development-history language lives in
 [mathlib-style.md § Avoid Development History References](mathlib-style.md#avoid-development-history-references).
-*Candidate:* `category: docs`.
+*Candidate:* `category: docstring` / `module-doc`.
 
 ## 4. File placement / import hygiene
 
-**Reviewers mean:** does the declaration live in the lowest sensible module?
-Are the imports heavier than needed? **Cheap:** drop an unused import.
-**Annoying:** move a declaration to a new file and fix downstream imports.
-**Example:** [mathlib4#33420](https://github.com/leanprover-community/mathlib4/pull/33420) (`Change mathlib imports from OrderType`), [mathlib4#35906](https://github.com/leanprover-community/mathlib4/pull/35906)
-(`rename the file name`). *Candidate:* `category: placement`.
+**Reviewers mean:** does an **equivalent or more-general result already
+exist** (search first — see [mathlib-guide.md](mathlib-guide.md))? If not,
+does the declaration live in the lowest sensible module, with the lightest
+reasonable imports? **Cheap:** drop an unused import. **Annoying:** move a
+declaration to a new file and fix downstream imports.
+**Example:** [mathlib4#33420](https://github.com/leanprover-community/mathlib4/pull/33420) (`Change mathlib imports from OrderType`; review also found declarations/instances that already existed), [mathlib4#35906](https://github.com/leanprover-community/mathlib4/pull/35906)
+(rename the file to match the moved declaration, e.g. `SimpleGraph/Walk/Chord.lean`).
+*Candidate:* `category: file-placement` / `import-hygiene`.
 
 ## 5. API / generalization
 
 **Reviewers mean:** the weakest reasonable hypotheses; `structure` vs a
-conjunction; natural generalizations the current form blocks.
+conjunction; natural generalizations the current form blocks; and whether a
+declaration is substantive at all. **Cheap:** remove an obviously unnecessary
+hypothesis, or delete an isolated vacuous placeholder. **Annoying:** generalize
+or redesign public API and migrate callers, or replace a depended-on
+placeholder with a substantive result.
 
 **Vacuous-API rule (absorbs Issue #60).** Flag a **public declaration that
 presents as substantive API but whose conclusion collapses to `True` or is
@@ -73,8 +85,8 @@ credibility. Scope it **semantically, not lexically**: this is *not* "any use
 of `True`/`trivial`" (many legitimate statements use them), and it explicitly
 does **not** cover `sorry`-scaffolding — the `sorry` linter already flags that.
 The **proposed** remedy is delete-or-replace (track the planned result in a
-blueprint or comment); it is surfaced as an **advisory** finding —
-never an automatic edit.
+blueprint or comment). Its settled review semantics are **advisory**: when
+emitted (by Issue #110), it is a suggestion, never an automatic edit.
 
 ```lean
 -- ❌ Vacuous: renders as a real theorem in doc-gen4, proves nothing.
@@ -83,16 +95,20 @@ theorem homDensity_concentration (W : Graphon α μ) (ε : ℝ) (hε : ε > 0) :
     ∃ N : ℕ, ∀ n ≥ N, True := ⟨1, fun _ _ => trivial⟩
 ```
 
-*Mapping (settled):* `category: api`, `rule_id: vacuous-api`, `severity: advisory`.
-**Example:** [mathlib4#35906](https://github.com/leanprover-community/mathlib4/pull/35906) (`IsChordless` as `def` vs `structure`).
+*Mapping (settled):* `category: api`, `rule_id: vacuous-api`, `severity: advisory`
+(the broader bucket also maps to `generalization`).
+**Example:** [mathlib4#35906](https://github.com/leanprover-community/mathlib4/pull/35906) — the review separated chordlessness from cyclehood, generalized it beyond closed walks, and weighed a bundled vs unbundled representation (`def` vs `structure`), landing `Walk.IsChordless` in `SimpleGraph/Walk/Chord.lean`.
 
 ## 6. Attributes / `simp`
 
-**Reviewers mean:** is `@[simp]` justified (confluent, terminating, good LHS)?
-Is `@[ext]` needed? Should this be `@[reducible]`? **Cheap:** drop an
-unjustified `@[simp]`. **Annoying:** re-derive a simp normal form. **Example:**
+**Reviewers mean:** is `@[simp]` globally canonical — an LHS already in simp
+normal form (it does not rewrite under the intended set *excluding the
+candidate lemma itself*), an RHS that reaches or approaches the chosen normal
+form, and no applicable cycle or conflicting rewrite? Is `@[ext]` needed?
+Should this be `@[reducible]`? **Cheap:** drop an unjustified `@[simp]`.
+**Annoying:** re-derive a simp normal form. **Example:**
 [mathlib4#33420](https://github.com/leanprover-community/mathlib4/pull/33420) (`Remove simp tag`, `Adding simp tag`). See
-[simp-reference.md](simp-reference.md). *Candidate:* `category: attribute`.
+[simp-reference.md](simp-reference.md). *Candidate:* `category: attribute` / `simp`.
 
 ## 7. Instances
 
@@ -114,14 +130,18 @@ the checkpoint gate in
 and error triage in
 [compilation-errors.md §16–§19](compilation-errors.md#16-cannot-import-non-module-from-module)
 (reachable via [`/lean4:diagnose`](../../../commands/diagnose.md)).
-*Candidate:* `category: integration`.
+*Candidate:* `category: module-system`.
 
 ## 9. Metadata / process
 
-**Reviewers mean:** PR title shape, description, labels, move/deletion
-metadata. **Out of runtime scope today** — `/lean4:review` has no GitHub PR
-context — but named so the vocabulary is complete for future GitHub-aware
-work. *Candidate:* `category: process`.
+**Reviewers mean:** PR title shape, description, labels, dependency
+declaration, and move/deletion metadata. **Out of runtime scope today** —
+`/lean4:review` has no GitHub PR context — but named so the vocabulary is
+complete for future GitHub-aware work. **Cheap:** repair the PR title,
+description, labels, dependency declaration, or omitted move/deletion
+metadata. **Annoying:** reconstruct move/deletion provenance after a large
+refactor. **Example:** [mathlib4#33420](https://github.com/leanprover-community/mathlib4/pull/33420)'s dependency checkbox and standard `Moves:` / `Deletions:` metadata contract.
+*Candidate:* `category: metadata`.
 
 ## See Also
 
