@@ -146,7 +146,7 @@ When autoformalize stops, emit:
 - **Header fence.** Proof engines (inner cycle) never modify declaration headers. Statement changes are handled by the synthesis outer loop's redraft path, not by deep mode.
 - **All `guardrails.sh` rules apply.**
 - **Line width.** Follow mathlib 100-char line width — do not wrap lines at 80 when they fit within 100.
-- **Docstring policy — Rule C (new-file / new-decl generation).** Session-generated files and declarations may carry module/declaration docstrings from creation; pre-existing declarations retain Rule A (no silent docstring rewrites). Newly created module docstrings must respect the applicable project template — when the outer loop's Mathlib Template Gate fires, they fill the [mathlib-style.md § 1](../skills/lean4/references/mathlib-style.md#1-file-header-copyright-module-imports-critical) header's docstring slot; Rule C neither selects nor redefines that template.
+- **Docstring policy — Rule C (new-file / new-decl generation).** Session-generated files and declarations may carry module/declaration docstrings from creation; pre-existing declarations retain Rule A (no silent docstring rewrites). Newly created module docstrings must respect the applicable project template. If the generated file uses the mathlib header, they fill the [mathlib-style.md § 1](../skills/lean4/references/mathlib-style.md#1-file-header-copyright-module-imports-critical) module-docstring slot; Rule C neither selects nor redefines that header.
 
 ## See Also
 
