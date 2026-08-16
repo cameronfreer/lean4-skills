@@ -1169,6 +1169,81 @@ if [[ "$check34_ok" -eq 1 ]]; then
     ok "Check 34: workflow-scoped docstring policy pinned (matrix, per-command boundaries, #54 content, no blanket rule)"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 35: mathlib review taxonomy (#114 + #60). A reference file, not
+# runtime behavior; pin the nine-bucket structure, naming/namespace as its
+# own bucket, #60's semantically-scoped vacuous-api rule (the settled
+# category/rule_id/severity), bucket 8's durable shipped-reference links (not
+# closed issue numbers, and /lean4:diagnose never /lean4:doctor), the
+# schema-not-frozen note, and the three navigational pointers.
+# ---------------------------------------------------------------------------
+check35_ok=1
+_c35_tax="$PLUGIN_ROOT/skills/lean4/references/mathlib-review-taxonomy.md"
+if [[ ! -f "$_c35_tax" ]]; then
+    fail "Check 35: mathlib-review-taxonomy.md is missing"
+    check35_ok=0
+else
+    # Nine buckets (## 1. … ## 9.)
+    _c35_buckets=$(grep -cE '^## [1-9]\. ' "$_c35_tax")
+    if [[ "$_c35_buckets" -ne 9 ]]; then
+        fail "Check 35: expected 9 review buckets, found $_c35_buckets"
+        check35_ok=0
+    fi
+    # Naming & namespace is its own bucket, not folded into surface style.
+    if ! grep -qE '^## 2\. Naming & namespace' "$_c35_tax"; then
+        fail "Check 35: 'Naming & namespace' is not its own bucket"
+        check35_ok=0
+    fi
+    # #60 vacuous-api: settled triple + semantic (not lexical) scope + advisory
+    _c35_b5=$(extract_section "$_c35_tax" "## 5. API / generalization")
+    if ! echo "$_c35_b5" | grep -Fq 'vacuous-api' \
+        || ! echo "$_c35_b5" | grep -Fq 'category: api' \
+        || ! echo "$_c35_b5" | grep -Fq 'severity: advisory' \
+        || ! echo "$_c35_b5" | grep -Fq 'semantically, not lexically' \
+        || ! echo "$_c35_b5" | grep -Fq 'does **not** cover `sorry`-scaffolding' \
+        || ! echo "$_c35_b5" | grep -Fq 'never an automatic edit'; then
+        fail "Check 35: bucket 5 missing the semantically-scoped vacuous-api rule / settled mapping / advisory framing"
+        check35_ok=0
+    fi
+    # Bucket 8: durable shipped-reference links + /lean4:diagnose, never doctor.
+    _c35_b8=$(extract_section "$_c35_tax" "## 8. Generated-file / module-system chores")
+    if ! echo "$_c35_b8" | grep -Fq 'mathlib-style.md#1-file-header' \
+        || ! echo "$_c35_b8" | grep -Fq 'checkpoint.md#generated-root-files-gate' \
+        || ! echo "$_c35_b8" | grep -Fq 'compilation-errors.md#16' \
+        || ! echo "$_c35_b8" | grep -Fq '/lean4:diagnose'; then
+        fail "Check 35: bucket 8 missing a durable shipped-reference link or the /lean4:diagnose pointer"
+        check35_ok=0
+    fi
+    if grep -Fq 'lean4:doctor' "$_c35_tax"; then
+        fail "Check 35: taxonomy references the retired /lean4:doctor"
+        check35_ok=0
+    fi
+    # Schema not frozen — #115 owns the enums; other tags are illustrative.
+    if ! grep -Fq 'illustrative candidate mappings' "$_c35_tax" \
+        || ! grep -Fq 'Issue #115 owns the final enums' "$_c35_tax"; then
+        fail "Check 35: taxonomy does not mark non-settled category tags as illustrative / defer enums to #115"
+        check35_ok=0
+    fi
+fi
+# Three navigational pointers; review.md's must disclaim activation.
+if ! grep -Fq 'mathlib-review-taxonomy' "$PLUGIN_ROOT/skills/lean4/SKILL.md"; then
+    fail "Check 35: SKILL.md missing the taxonomy pointer"
+    check35_ok=0
+fi
+if ! grep -Fq 'mathlib-review-taxonomy' "$PLUGIN_ROOT/skills/lean4/references/mathlib-guide.md"; then
+    fail "Check 35: mathlib-guide.md missing the taxonomy pointer"
+    check35_ok=0
+fi
+_c35_rev_seealso=$(extract_section "$PLUGIN_ROOT/commands/review.md" "## See Also")
+if ! echo "$_c35_rev_seealso" | grep -Fq 'mathlib-review-taxonomy' \
+    || ! echo "$_c35_rev_seealso" | grep -Fq 'does **not** change'; then
+    fail "Check 35: review.md See Also missing the taxonomy pointer or its 'does not change behavior' disclaimer"
+    check35_ok=0
+fi
+if [[ "$check35_ok" -eq 1 ]]; then
+    ok "Check 35: mathlib review taxonomy pinned (nine buckets, naming bucket, vacuous-api #60, durable links, schema-deferred, pointers)"
+fi
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]
