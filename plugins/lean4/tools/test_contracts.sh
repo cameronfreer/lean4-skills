@@ -1140,9 +1140,13 @@ fi
 # satisfy this check on its own.
 for _c34_cmd in draft formalize autoformalize; do
     _c34_safety=$(extract_section "$PLUGIN_ROOT/commands/$_c34_cmd.md" "## Safety")
+    # Rule C must (a) name Rule C, (b) link the canonical template, and (c)
+    # keep pre-existing declarations under Rule A — without (c) the commands
+    # could regress to "generation may rewrite existing docstrings".
     if ! echo "$_c34_safety" | grep -Fq 'Rule C' \
-        || ! echo "$_c34_safety" | grep -Fq 'mathlib-style.md#1-file-header'; then
-        fail "Check 34: $_c34_cmd.md Safety missing Rule C or its canonical-template link"
+        || ! echo "$_c34_safety" | grep -Fq 'mathlib-style.md#1-file-header' \
+        || ! echo "$_c34_safety" | grep -Fq 'Rule A'; then
+        fail "Check 34: $_c34_cmd.md Safety missing Rule C, its canonical-template link, or the pre-existing→Rule A boundary"
         check34_ok=0
     fi
 done
@@ -1155,8 +1159,10 @@ if ! echo "$_c34_devhist" | grep -Fq 'sorry-free' \
     || ! echo "$_c34_devhist" | grep -Fq 'Section headers' \
     || ! echo "$_c34_devhist" | grep -Fq 'review triggers, not automatic-deletion rules' \
     || ! echo "$_c34_devhist" | grep -Fq '@[blueprint]' \
-    || ! echo "$_c34_devhist" | grep -Fq 'blueprint/src/content.tex'; then
-    fail "Check 34: mathlib-style.md dev-history section missing sorry-free, section-header, review-trigger framing, or the blueprint surfaces"
+    || ! echo "$_c34_devhist" | grep -Fq 'blueprint/src/content.tex' \
+    || ! echo "$_c34_devhist" | grep -Fq 'result-level API contract' \
+    || ! echo "$_c34_devhist" | grep -Fq 'routine'; then
+    fail "Check 34: mathlib-style.md dev-history section missing sorry-free, section-header, review-trigger framing, blueprint surfaces, or the result-vs-proof-method rule"
     check34_ok=0
 fi
 if [[ "$check34_ok" -eq 1 ]]; then

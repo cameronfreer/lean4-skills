@@ -30,7 +30,7 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 | **B — review** (`/lean4:review`) | flag weak/missing docstrings and propose replacement text in the report | read-only — never mutates files |
 | **C — new-file / new-decl generation** (`/lean4:draft`, `/lean4:formalize`, `/lean4:autoformalize`) | emit module/declaration docstrings on files or declarations it newly creates | existing docstrings stay under Rule A |
 
-Per-command policy lives in each command's doc; docstrings on newly created files follow the canonical header template in [mathlib-style](references/mathlib-style.md#1-file-header-copyright-module-imports-critical).
+Per-command policy lives in each command's doc. The docstring split applies in every project; when the mathlib Template Gate selects the mathlib header, Rule C fills its module-docstring slot — Rule C neither selects nor redefines the [template](references/mathlib-style.md#1-file-header-copyright-module-imports-critical).
 
 ## Commands
 

@@ -330,6 +330,8 @@ See [domain-patterns.md](domain-patterns.md) for detailed implicit parameter con
 
 During review, flag development-history wording in `@[blueprint]` fields and in `blueprint/src/content.tex` and propose timeless replacements — never auto-edit them (Rule B is read-only, in blueprint TeX exactly as in Lean docstrings).
 
+**Document the result, not routine proof mechanics.** A declaration docstring should summarize the result-level API contract — what the statement provides to a caller. Routine tactic or proof-strategy narration belongs in inline proof comments (freely editable), not the docstring. A short proof *sketch* is appropriate when it materially helps explain a genuinely intricate argument. Avoid PR-relative history and trivially derivable specializations ("the special case `r := m + 1` gives…") that a caller can obtain directly.
+
 **Rationale:** Comments should be timeless documentation of current state. History belongs in git commits.
 
 ### Avoid Discussing Lean `axiom` Declarations (After Proved)
