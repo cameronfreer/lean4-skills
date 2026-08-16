@@ -407,6 +407,8 @@ lean4-skills-sorry-analyzer . --report-only
 
 **Search:** [mathlib-guide](references/mathlib-guide.md) (read when searching for existing lemmas), [lean-phrasebook](references/lean-phrasebook.md) (math→Lean translations)
 
+**Review:** [mathlib-review-taxonomy](references/mathlib-review-taxonomy.md) (what mathlib reviewers ask for — the nine review buckets)
+
 **Errors:** [compilation-errors](references/compilation-errors.md) (read first for any build error), [instance-pollution](references/instance-pollution.md) (typeclass conflicts — grep `## Sub-` for patterns), [compiler-guided-repair](references/compiler-guided-repair.md) (escalation-only repair — not first-pass)
 
 **Tactics:** [tactics-reference](references/tactics-reference.md) (tactic lookup — grep `^### TacticName`), [grind-tactic](references/grind-tactic.md) (SMT-style automation — when simp can't close), [simp-reference](references/simp-reference.md) (mechanism choice, simp normal forms, `@[simp]` hygiene, simproc authoring), [tactic-patterns](references/tactic-patterns.md), [calc-patterns](references/calc-patterns.md)
