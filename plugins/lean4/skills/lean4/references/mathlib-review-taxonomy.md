@@ -20,13 +20,13 @@ Issue #115 owns the final enums and severity semantics; nothing here freezes
 the review schema.
 
 Each bucket lists what reviewers usually mean, cheap fixes, annoying fixes,
-and one example from a recent mathlib PR (#33420, #33443, #35906).
+and one example from a recent mathlib PR ([mathlib4#33420](https://github.com/leanprover-community/mathlib4/pull/33420), [mathlib4#33443](https://github.com/leanprover-community/mathlib4/pull/33443), [mathlib4#35906](https://github.com/leanprover-community/mathlib4/pull/35906)).
 
 ## 1. Surface style
 
 **Reviewers mean:** line width, whitespace, tactic choices, `↦` vs `=>`.
 **Cheap:** reflow to 100 chars, fix spacing. **Annoying:** large tactic-block
-rewrites. **Example:** PR #33443 (100-char fixes). See
+rewrites. **Example:** [mathlib4#33443](https://github.com/leanprover-community/mathlib4/pull/33443) (100-char fixes). See
 [mathlib-style.md](mathlib-style.md). *Candidate:* `category: style`.
 
 ## 2. Naming & namespace
@@ -35,7 +35,7 @@ rewrites. **Example:** PR #33443 (100-char fixes). See
 types, `lowerCamelCase` for functions; dot-notation friendliness; the right
 namespace and depth so callers write `X.foo`, not `Foo.X.baz`. **Cheap:**
 rename a private lemma. **Annoying:** re-namespacing a public declaration that
-callers already use. **Example:** PR #35906 (naming discussion). See
+callers already use. **Example:** [mathlib4#35906](https://github.com/leanprover-community/mathlib4/pull/35906) (naming discussion). See
 [mathlib-style.md § 3 Naming Conventions](mathlib-style.md#3-naming-conventions).
 *Candidate:* `category: naming`.
 
@@ -45,7 +45,7 @@ callers already use. **Example:** PR #35906 (naming discussion). See
 proof sketch for genuinely intricate arguments, cross-references, no
 development-history language. **Cheap:** add a missing one-line docstring.
 **Annoying:** write a real module docstring for a large file. **Example:**
-PR #33420 (`Add doc-string and some more typos`). Docstring *editing* is
+[mathlib4#33420](https://github.com/leanprover-community/mathlib4/pull/33420) (`Add doc-string and some more typos`). Docstring *editing* is
 governed by the workflow-scoped policy (Rule A/B/C) in
 [SKILL.md](../SKILL.md); review flags and proposes wording but never mutates
 (Rule B). What counts as development-history language lives in
@@ -57,7 +57,7 @@ governed by the workflow-scoped policy (Rule A/B/C) in
 **Reviewers mean:** does the declaration live in the lowest sensible module?
 Are the imports heavier than needed? **Cheap:** drop an unused import.
 **Annoying:** move a declaration to a new file and fix downstream imports.
-**Example:** PR #33420 (`Change mathlib imports from OrderType`), PR #35906
+**Example:** [mathlib4#33420](https://github.com/leanprover-community/mathlib4/pull/33420) (`Change mathlib imports from OrderType`), [mathlib4#35906](https://github.com/leanprover-community/mathlib4/pull/35906)
 (`rename the file name`). *Candidate:* `category: placement`.
 
 ## 5. API / generalization
@@ -84,21 +84,21 @@ theorem homDensity_concentration (W : Graphon α μ) (ε : ℝ) (hε : ε > 0) :
 ```
 
 *Mapping (settled):* `category: api`, `rule_id: vacuous-api`, `severity: advisory`.
-**Example:** PR #35906 (`IsChordless` as `def` vs `structure`).
+**Example:** [mathlib4#35906](https://github.com/leanprover-community/mathlib4/pull/35906) (`IsChordless` as `def` vs `structure`).
 
 ## 6. Attributes / `simp`
 
 **Reviewers mean:** is `@[simp]` justified (confluent, terminating, good LHS)?
 Is `@[ext]` needed? Should this be `@[reducible]`? **Cheap:** drop an
 unjustified `@[simp]`. **Annoying:** re-derive a simp normal form. **Example:**
-PR #33420 (`Remove simp tag`, `Adding simp tag`). See
+[mathlib4#33420](https://github.com/leanprover-community/mathlib4/pull/33420) (`Remove simp tag`, `Adding simp tag`). See
 [simp-reference.md](simp-reference.md). *Candidate:* `category: attribute`.
 
 ## 7. Instances
 
 **Reviewers mean:** diamonds, instance loops, unification hazards, `Prop` vs
 `Type` instances. **Cheap:** add a missing `instance` docstring. **Annoying:**
-restructure a diamond. **Example:** PR #33420 (`Add docs to instance`). See
+restructure a diamond. **Example:** [mathlib4#33420](https://github.com/leanprover-community/mathlib4/pull/33420) (`Add docs to instance`). See
 [instance-pollution.md](instance-pollution.md). *Candidate:* `category: instance`.
 
 ## 8. Generated-file / module-system chores
@@ -106,7 +106,7 @@ restructure a diamond. **Example:** PR #33420 (`Add docs to instance`). See
 **Reviewers mean:** stale `Mathlib.lean` after add/rename/delete, a missing
 `module` header, wrong `public import` vs `import`. **Cheap:** run
 `lake exe mk_all`. **Annoying:** convert a file to the module system.
-**Example:** PR #33420 (`Run mk_all`, `Fix module error`, `Fix Mathlib.lean`).
+**Example:** [mathlib4#33420](https://github.com/leanprover-community/mathlib4/pull/33420) (`Run mk_all`, `Fix module error`, `Fix Mathlib.lean`).
 Shipped tooling covers this end to end: the canonical header in
 [mathlib-style.md § 1](mathlib-style.md#1-file-header-copyright-module-imports-critical),
 the checkpoint gate in
