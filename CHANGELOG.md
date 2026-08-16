@@ -1,5 +1,15 @@
 # Changelog
 
+## v4.6.8 (August 2026)
+
+Mathlib review taxonomy — second Track 2 item (Refs #151; closes #114, closes #60). A reference file, not a runtime behavior change; it names the vocabulary that the schema (#115) and the broadened `/lean4:review` (#110) will build on.
+
+### Added
+
+- **`references/mathlib-review-taxonomy.md`** — what mathlib reviewers actually ask for, in nine buckets (surface style; **naming & namespace**, promoted to its own bucket; documentation; file placement / import hygiene; API / generalization; attributes / `simp`; instances; generated-file / module-system chores; metadata / process), each with what-reviewers-mean / cheap / annoying fixes and a recent-PR example. Cross-links existing references (`mathlib-style.md`, `simp-reference.md`, `instance-pollution.md`) rather than duplicating; bucket 8 links the **shipped** tooling by durable path — the canonical header template (`mathlib-style.md § 1`), the checkpoint `mk_all` gate (`checkpoint.md`), and module-system troubleshooting (`compilation-errors.md` §16–§19 via `/lean4:diagnose`).
+- **Vacuous-API rule (closes #60)** in bucket 5 — flags a *public declaration presenting as substantive API but whose conclusion collapses to `True` or is otherwise vacuous*, scoped **semantically** (not any `True`/`trivial` use, and not `sorry`-scaffolding); delete-or-replace is a *proposed* remedy surfaced as an **advisory** finding, never an automatic edit. Settled mapping `category: api` / `rule_id: vacuous-api` / `severity: advisory`; other buckets carry *illustrative* candidate mappings only — #115 owns the final enums, nothing here freezes the schema.
+- Navigational pointers from `SKILL.md`, `commands/review.md`, and `mathlib-guide.md`. The `review.md` pointer states explicitly that this is background material and **does not** change `/lean4:review`'s behavior — deciding when the buckets become emitted findings is #110's job. Contract test Check 35 pins the structure, the vacuous-api rule, the durable links (never `/lean4:doctor`), the schema-deferral, and the three pointers.
+
 ## v4.6.7 (August 2026)
 
 Workflow-scoped docstring policy — the first Track 2 (mathlib-aware review) item (Refs #151; closes #54, closes #116). Replaces the single blanket "docstrings are off-limits" rule with three mode-scoped rules, and folds in the specific development-history anti-patterns #54 catalogued.
