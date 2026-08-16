@@ -1,5 +1,17 @@
 # Changelog
 
+## v4.6.7 (August 2026)
+
+Workflow-scoped docstring policy — the first Track 2 (mathlib-aware review) item (Refs #151; closes #54, closes #116). Replaces the single blanket "docstrings are off-limits" rule with three mode-scoped rules, and folds in the specific development-history anti-patterns #54 catalogued.
+
+### Changed
+
+- **`SKILL.md`** — the blanket docstring prohibition becomes a compact **Mode | May do | Boundary** permission matrix. **Rule A** (default for *any* workflow mutating existing declarations — prove, sorry-filler-deep, golf, refactor, any agent editing existing decls) keeps existing docstrings protected, escape hatch being an explicit user request; statement/signature protection is unchanged. **Rule B** (`/lean4:review`) may flag weak/missing docstrings and *propose replacement text*, staying read-only. **Rule C** (`/lean4:draft`, `/lean4:formalize`, `/lean4:autoformalize`) may emit module/declaration docstrings on files or declarations it *newly creates*, without rewriting pre-existing ones. Detailed policy lives in each command doc. The split applies in every project; when an applicable generation workflow selects the mathlib header, Rule C fills its [mathlib-style.md § 1](plugins/lean4/skills/lean4/references/mathlib-style.md) module-docstring slot — Rule C neither selects nor redefines the template.
+- **`commands/prove.md`, `review.md`, `draft.md`, `formalize.md`, `autoformalize.md`** — each carries the boundary of its mode (Rule A / B / C), with the three generation commands linked to the canonical template section rather than to historical issue wording.
+- **`references/mathlib-style.md`** — "Avoid Development History References" now calls out **"sorry-free"** as the most common instance beside "axiom-free", extends the guidance to section headers (`/-! … -/`), and lists scaffolding comments (`TODO`/`HACK`/`FIXME`/"temporary") as **review triggers, not automatic-deletion rules** (advisory findings under Rule B).
+
+Contract test Check 34 pins the matrix, the per-command boundaries, the canonical-template links, #54's content, and the absence of the old blanket rule. `#60`'s `api`/`vacuous-api` rule is intentionally deferred to #114's taxonomy (not this PR or #115), preserving the taxonomy → schema → review-behavior order.
+
 ## v4.6.6 (August 2026)
 
 Checkpoint `mk_all --check` gate — the final Track 1 item (Refs #151; closes #111). `/lean4:checkpoint` now catches stale generated root-import aggregators before its build, but only when work is plausibly aimed at upstream mathlib contribution.

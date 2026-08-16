@@ -293,11 +293,44 @@ See [domain-patterns.md](domain-patterns.md) for detailed implicit parameter con
 /-- In earlier drafts, this used axioms, but now it doesn't. -/
 /-- Originally defined differently, but we changed the approach. -/
 /-- This replaces the old broken implementation. -/
+/-- The canonical Karp theorem (sorry-free). -/
+/-- Sorry-free variant of `exists_complete_stabilization`. -/
 
 -- ✅ GOOD
 /-- Uses mathlib's standard measure theory infrastructure. -/
 /-- Constructs via the Koopman representation. -/
 ```
+
+**"sorry-free" / "no sorry" is the most common instance of this anti-pattern.** A proof gets filled, the author annotates the docstring to celebrate, and the annotation never gets removed. Treat it like "axiom-free": timeless docs describe what a declaration *is*, not that it no longer has sorries.
+
+**Section headers (`/-! ... -/`) get the same treatment** — they're documentation too and accumulate the same development-history language:
+
+```lean
+-- ❌ BAD
+/-! ### Karp's Theorem at universe w (sorry-free)
+    Both directions are now fully proved (no sorry). -/
+
+-- ✅ GOOD
+/-! ### Karp's theorem at universe `w` -/
+```
+
+**Inline comments — review triggers, not automatic-deletion rules.** During review (Rule B), *flag* development-scaffolding comments and propose replacements; do not silently delete them. Common triggers: `-- TODO`, `-- HACK`, `-- FIXME`, `-- XXX`, `-- this is temporary`, `-- old approach, keeping for reference`. A finding is advisory — the review reports it, the author decides.
+
+**Blueprint documentation surfaces get the same Rule B treatment.** LeanArchitect `@[blueprint]` annotations carry documentation-bearing `title` / `statement` / `proof` fields (TeX), and `blueprint/src/content.tex` is a parallel documentation layer; both accumulate the same development-history language as docstrings.
+
+```lean
+-- ❌ BAD: development history in a @[blueprint] field
+@[blueprint "thm:karp"
+  (statement := /-- Sorry-free version of Theorem 1.2.1 of \cite{KK04}. -/)]
+
+-- ✅ GOOD: timeless statement
+@[blueprint "thm:karp"
+  (statement := /-- Theorem 1.2.1 of \cite{KK04}: ... -/)]
+```
+
+During review, flag development-history wording in `@[blueprint]` fields and in `blueprint/src/content.tex` and propose timeless replacements — never auto-edit them (Rule B is read-only, in blueprint TeX exactly as in Lean docstrings).
+
+**Document the result, not routine proof mechanics.** A declaration docstring should summarize the result-level API contract — what the statement provides to a caller. Routine tactic or proof-strategy narration belongs in inline proof comments (freely editable), not the docstring. A short proof *sketch* is appropriate when it materially helps explain a genuinely intricate argument. Avoid PR-relative history and trivially derivable specializations ("the special case `r := m + 1` gives…") that a caller can obtain directly.
 
 **Rationale:** Comments should be timeless documentation of current state. History belongs in git commits.
 

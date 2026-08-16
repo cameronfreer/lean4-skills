@@ -20,7 +20,17 @@ Use this skill whenever you're editing Lean 4 proofs, debugging Lean builds, for
 
 **Mathlib style quick check.** For ordinary mathematical lambdas, write `fun x ↦ ...` (`\mapsto`), not `fun x => ...`. Use `=>` for `match`/`do` branches and metaprogramming callback idioms. Prefer `show P by tac` for tactic proofs; use `show P from term` only for term proofs. See [mathlib-style](references/mathlib-style.md).
 
-**Preserve statements, signatures, and docstrings — they're the file's API.** Theorem/lemma statements, type signatures, and docstrings are off-limits unless the user explicitly requests changes; changing them can break callers or alter the theorem being proved. Inline comments may be adjusted, but docstrings may not. If a proof seems to require changing a statement or adding a custom axiom, stop and discuss first because that changes the contract or the proof's trust basis. Exception: within synthesis wrappers (`/lean4:formalize`, `/lean4:autoformalize`), session-generated declarations may be redrafted under the outer-loop statement-safety rules; see cycle-engine.md.
+**Preserve statements and signatures — they're the file's contract.** Theorem/lemma statements and type signatures are off-limits unless the user explicitly requests changes; changing them can break callers or alter the theorem being proved. If a proof seems to require changing a statement or adding a custom axiom, stop and discuss first because that changes the contract or the proof's trust basis. Exception: within synthesis wrappers (`/lean4:formalize`, `/lean4:autoformalize`), session-generated declarations may be redrafted under the outer-loop statement-safety rules; see cycle-engine.md.
+
+**Docstrings are scoped by workflow.** Existing docstrings are API. The default is **Rule A** — any workflow that mutates existing declarations follows it unless the user explicitly requests docstring changes:
+
+| Mode | May do | Boundary |
+|------|--------|----------|
+| **A — editing existing declarations** (e.g. `/lean4:prove`, `sorry-filler-deep`, golf, refactor, any agent editing existing decls) | adjust inline comments in proof bodies | never rewrite an existing docstring — explicit user request only |
+| **B — review** (`/lean4:review`) | flag weak/missing docstrings and propose replacement text in the report | read-only — never mutates files |
+| **C — new-file / new-decl generation** (`/lean4:draft`, `/lean4:formalize`, `/lean4:autoformalize`) | emit module/declaration docstrings on files or declarations it newly creates | existing docstrings stay under Rule A |
+
+Per-command policy lives in each command's doc. The docstring split applies in every project; when the mathlib Template Gate selects the mathlib header, Rule C fills its module-docstring slot — Rule C neither selects nor redefines the [template](references/mathlib-style.md#1-file-header-copyright-module-imports-critical).
 
 ## Commands
 

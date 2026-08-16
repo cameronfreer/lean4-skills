@@ -74,7 +74,7 @@ check_commands() {
             learn)      max_lines=210 ;;
             prove)      max_lines=235 ;;
             refactor)   max_lines=120 ;;
-            review)     max_lines=330 ;;
+            review)     max_lines=340 ;;
         esac
 
         if [[ $lines -gt $max_lines ]]; then

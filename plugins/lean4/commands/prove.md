@@ -213,6 +213,7 @@ See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#repair-mode) fo
 
 Guardrailed git commands are blocked. See [cycle-engine.md](../skills/lean4/references/cycle-engine.md#safety) for the full list.
 - **Line width.** Follow mathlib 100-char line width — do not wrap lines at 80 when they fit within 100.
+- **Docstring policy — Rule A (existing declarations).** Prove edits existing declarations, so existing docstrings remain protected: never rewrite an existing docstring; only inline comments in proof bodies may be adjusted. This is the SKILL.md default for any workflow mutating existing decls — the escape hatch is an explicit user request. Statement/signature changes route to `/lean4:formalize`.
 
 ## See Also
 
