@@ -215,6 +215,12 @@ jobs:
       - name: test_contracts.sh (wrapper/doc/agent contract suite)
         run: bash plugins/lean4/tools/test_contracts.sh
 
+      # Also run the lint_docs self-test on Linux (GNU date), so its
+      # staleness probes (7–8) actually exercise the age-advisory path —
+      # they SKIP on the macOS bash3-compat runner, which lacks `date -d`.
+      - name: Self-test — lint_docs.sh (GNU-date staleness probes)
+        run: bash plugins/lean4/tests/test_lint_docs.sh
+
       # Regression suite for the extraction contract itself (prefix
       # collision, duplicate headings, empty section, malformed/missing
       # version) — fixture-based, so it covers the failure cases the
