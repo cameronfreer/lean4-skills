@@ -30,6 +30,15 @@ warn() {
     ((ISSUES++)) || true
 }
 
+# Non-fatal advisory: printed for visibility but does NOT count toward the
+# issue total or the exit code. Reserved for time-based "refresh recommended"
+# notices, which must not turn a valid, unchanged commit red just because the
+# wall clock advanced past a threshold. Structural problems (missing,
+# malformed, or unparseable metadata) stay fatal via warn().
+note() {
+    echo "ℹ️  $1"
+}
+
 ok() {
     echo "✓ $1"
 }
@@ -1319,7 +1328,10 @@ check_advanced_reference_metadata() {
             else
                 _am_age_days=$(( (_am_now_epoch - _am_date_epoch) / 86400 ))
                 if [[ $_am_age_days -gt 180 ]]; then
-                    warn "$_am_base: Last validated is $_am_age_days days old (refresh recommended)"
+                    # Advisory only: a valid-but-old date must not hard-fail CI
+                    # (that would make a green commit turn red purely because
+                    # time passed). Revalidation is tracked out of band.
+                    note "$_am_base: Last validated is $_am_age_days days old (refresh recommended)"
                 fi
             fi
         fi

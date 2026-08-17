@@ -242,6 +242,74 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Probes 7–8 — Check 20 staleness severity (lint-infra fix): a valid-but-old
+# "Last validated" date is ADVISORY (ℹ️, non-fatal) so a green commit cannot
+# turn red merely because the wall clock advanced; but MALFORMED metadata
+# stays fatal (⚠️, counts toward the exit code). simp-reference.md is one of
+# the scanned advanced references; we mutate its date and restore from a
+# mktemp backup (never git checkout).
+# ---------------------------------------------------------------------------
+SIMP_FILE="$PLUGIN_ROOT/skills/lean4/references/simp-reference.md"
+SIMP_BACKUP=$(mktemp)
+cp "$SIMP_FILE" "$SIMP_BACKUP"
+trap 'cp "$CE_BACKUP" "$CE_FILE"; cp "$CODEX_BACKUP" "$CODEX_MANIFEST"; cp "$SIMP_BACKUP" "$SIMP_FILE"; rm -f "$CE_BACKUP" "$CODEX_BACKUP" "$SIMP_BACKUP" "$SCRATCH"' EXIT
+
+# Baseline exit on the unmutated tree (staleness is advisory, so this is the
+# reference we compare against — a valid-but-old date must not change it).
+# Only the exit code matters here, so the output is discarded.
+if "$BASH_FOR_COMPAT" "$LINT" >/dev/null 2>&1; then base_ec=0; else base_ec=$?; fi
+
+# Probe 7 — valid but very old date → advisory (ℹ️), and the exit code is
+# UNCHANGED from baseline (the old date contributed no fatal issue).
+sed -i.bak -E 's/^(> - \*\*Last validated:\*\*) [0-9]{4}-[0-9]{2}-[0-9]{2}$/\1 2000-01-01/' "$SIMP_FILE" && rm -f "$SIMP_FILE.bak"
+if adv_out=$("$BASH_FOR_COMPAT" "$LINT" 2>&1); then adv_ec=0; else adv_ec=$?; fi
+
+probe7_ok=1
+if ! echo "$adv_out" | grep -qE "ℹ️  simp-reference\.md: Last validated is [0-9]+ days old"; then
+  echo "  FAIL: Probe 7 — old valid date did not produce the advisory (ℹ️) staleness line"
+  probe7_ok=0
+fi
+if echo "$adv_out" | grep -qE "⚠️  simp-reference\.md: Last validated is [0-9]+ days old"; then
+  echo "  FAIL: Probe 7 — staleness reported as a fatal warning (⚠️), should be advisory"
+  probe7_ok=0
+fi
+if [[ "$adv_ec" -ne "$base_ec" ]]; then
+  echo "  FAIL: Probe 7 — exit code changed ($base_ec → $adv_ec); an old valid date must not add a fatal issue"
+  probe7_ok=0
+fi
+if [[ $probe7_ok -eq 1 ]]; then
+  echo "  PASS: Probe 7 — old valid date is advisory (ℹ️) and does not change the exit code"
+  ((PASS++)) || true
+else
+  ((FAIL++)) || true
+fi
+
+cp "$SIMP_BACKUP" "$SIMP_FILE"
+
+# Probe 8 — malformed date (digit-shaped but unparseable) → fatal (⚠️) and a
+# nonzero exit, proving structural metadata problems are NOT downgraded.
+sed -i.bak -E 's/^(> - \*\*Last validated:\*\*) [0-9]{4}-[0-9]{2}-[0-9]{2}$/\1 2026-13-45/' "$SIMP_FILE" && rm -f "$SIMP_FILE.bak"
+if mal_out=$("$BASH_FOR_COMPAT" "$LINT" 2>&1); then mal_ec=0; else mal_ec=$?; fi
+
+probe8_ok=1
+if ! echo "$mal_out" | grep -qF "simp-reference.md: Could not parse Last validated date"; then
+  echo "  FAIL: Probe 8 — malformed date did not produce the fatal parse warning"
+  probe8_ok=0
+fi
+if [[ "$mal_ec" -eq 0 ]]; then
+  echo "  FAIL: Probe 8 — malformed metadata did not fail the lint (exit 0)"
+  probe8_ok=0
+fi
+if [[ $probe8_ok -eq 1 ]]; then
+  echo "  PASS: Probe 8 — malformed date stays fatal (⚠️, nonzero exit)"
+  ((PASS++)) || true
+else
+  ((FAIL++)) || true
+fi
+
+cp "$SIMP_BACKUP" "$SIMP_FILE"
+
+# ---------------------------------------------------------------------------
 echo ""
 echo "=== test_lint_docs.sh: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]
