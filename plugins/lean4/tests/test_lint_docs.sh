@@ -249,74 +249,72 @@ fi
 # the scanned advanced references; we mutate its date and restore from a
 # mktemp backup (never git checkout).
 # ---------------------------------------------------------------------------
-# Check 20's age computation uses GNU `date -d`, which BSD/macOS `date` does
-# not support — there, every date falls through to "Could not parse" and the
-# age-advisory path is never reached. The behavior under test is Linux-only,
-# so SKIP these probes gracefully when `date -d` is unavailable rather than
-# assert something the platform cannot produce.
-if ! date -d '2000-01-01' +%s >/dev/null 2>&1; then
-  echo "  SKIP: Probes 7–8 — GNU 'date -d' unavailable (age check is Linux-only)"
-else
-  SIMP_FILE="$PLUGIN_ROOT/skills/lean4/references/simp-reference.md"
-  SIMP_BACKUP=$(mktemp)
-  cp "$SIMP_FILE" "$SIMP_BACKUP"
-  trap 'cp "$CE_BACKUP" "$CE_FILE"; cp "$CODEX_BACKUP" "$CODEX_MANIFEST"; cp "$SIMP_BACKUP" "$SIMP_FILE"; rm -f "$CE_BACKUP" "$CODEX_BACKUP" "$SIMP_BACKUP" "$SCRATCH"' EXIT
+# Check 20 parses "Last validated" portably (GNU `date -d`, else BSD
+# `date -j -f`), so these probes run on BOTH platforms without a skip:
+# Linux exercises the GNU branch, macOS the BSD branch.
+SIMP_FILE="$PLUGIN_ROOT/skills/lean4/references/simp-reference.md"
+SIMP_BACKUP=$(mktemp)
+cp "$SIMP_FILE" "$SIMP_BACKUP"
+trap 'cp "$CE_BACKUP" "$CE_FILE"; cp "$CODEX_BACKUP" "$CODEX_MANIFEST"; cp "$SIMP_BACKUP" "$SIMP_FILE"; rm -f "$CE_BACKUP" "$CODEX_BACKUP" "$SIMP_BACKUP" "$SCRATCH"' EXIT
 
-  # Baseline exit on the unmutated tree (staleness is advisory, so this is the
-  # reference we compare against — a valid-but-old date must not change it).
-  # Only the exit code matters here, so the output is discarded.
-  if "$BASH_FOR_COMPAT" "$LINT" >/dev/null 2>&1; then base_ec=0; else base_ec=$?; fi
+# Baseline exit on the unmutated tree (staleness is advisory, so this is the
+# reference we compare against — a valid-but-old date must not change it).
+# Only the exit code matters here, so the output is discarded.
+if "$BASH_FOR_COMPAT" "$LINT" >/dev/null 2>&1; then base_ec=0; else base_ec=$?; fi
 
-  # Probe 7 — valid but very old date → advisory (ℹ️), and the exit code is
-  # UNCHANGED from baseline (the old date contributed no fatal issue).
-  sed -i.bak -E 's/^(> - \*\*Last validated:\*\*) [0-9]{4}-[0-9]{2}-[0-9]{2}$/\1 2000-01-01/' "$SIMP_FILE" && rm -f "$SIMP_FILE.bak"
-  if adv_out=$("$BASH_FOR_COMPAT" "$LINT" 2>&1); then adv_ec=0; else adv_ec=$?; fi
+# Probe 7 — valid but very old date → advisory (ℹ️), and the exit code is
+# UNCHANGED from baseline (the old date contributed no fatal issue). This also
+# proves the portable parser accepts a valid date on the BSD branch — the very
+# bug the parser fix addresses.
+sed -i.bak -E 's/^(> - \*\*Last validated:\*\*) [0-9]{4}-[0-9]{2}-[0-9]{2}$/\1 2000-01-01/' "$SIMP_FILE" && rm -f "$SIMP_FILE.bak"
+if adv_out=$("$BASH_FOR_COMPAT" "$LINT" 2>&1); then adv_ec=0; else adv_ec=$?; fi
 
-  probe7_ok=1
-  if ! echo "$adv_out" | grep -qE "ℹ️  simp-reference\.md: Last validated is [0-9]+ days old"; then
-    echo "  FAIL: Probe 7 — old valid date did not produce the advisory (ℹ️) staleness line"
-    probe7_ok=0
-  fi
-  if echo "$adv_out" | grep -qE "⚠️  simp-reference\.md: Last validated is [0-9]+ days old"; then
-    echo "  FAIL: Probe 7 — staleness reported as a fatal warning (⚠️), should be advisory"
-    probe7_ok=0
-  fi
-  if [[ "$adv_ec" -ne "$base_ec" ]]; then
-    echo "  FAIL: Probe 7 — exit code changed ($base_ec → $adv_ec); an old valid date must not add a fatal issue"
-    probe7_ok=0
-  fi
-  if [[ $probe7_ok -eq 1 ]]; then
-    echo "  PASS: Probe 7 — old valid date is advisory (ℹ️) and does not change the exit code"
-    ((PASS++)) || true
-  else
-    ((FAIL++)) || true
-  fi
-
-  cp "$SIMP_BACKUP" "$SIMP_FILE"
-
-  # Probe 8 — malformed date (digit-shaped but unparseable) → fatal (⚠️) and a
-  # nonzero exit, proving structural metadata problems are NOT downgraded.
-  sed -i.bak -E 's/^(> - \*\*Last validated:\*\*) [0-9]{4}-[0-9]{2}-[0-9]{2}$/\1 2026-13-45/' "$SIMP_FILE" && rm -f "$SIMP_FILE.bak"
-  if mal_out=$("$BASH_FOR_COMPAT" "$LINT" 2>&1); then mal_ec=0; else mal_ec=$?; fi
-
-  probe8_ok=1
-  if ! echo "$mal_out" | grep -qF "simp-reference.md: Could not parse Last validated date"; then
-    echo "  FAIL: Probe 8 — malformed date did not produce the fatal parse warning"
-    probe8_ok=0
-  fi
-  if [[ "$mal_ec" -eq 0 ]]; then
-    echo "  FAIL: Probe 8 — malformed metadata did not fail the lint (exit 0)"
-    probe8_ok=0
-  fi
-  if [[ $probe8_ok -eq 1 ]]; then
-    echo "  PASS: Probe 8 — malformed date stays fatal (⚠️, nonzero exit)"
-    ((PASS++)) || true
-  else
-    ((FAIL++)) || true
-  fi
-
-  cp "$SIMP_BACKUP" "$SIMP_FILE"
+probe7_ok=1
+if ! echo "$adv_out" | grep -qE "ℹ️  simp-reference\.md: Last validated is [0-9]+ days old"; then
+  echo "  FAIL: Probe 7 — old valid date did not produce the advisory (ℹ️) staleness line"
+  probe7_ok=0
 fi
+if echo "$adv_out" | grep -qE "⚠️  simp-reference\.md: Last validated is [0-9]+ days old"; then
+  echo "  FAIL: Probe 7 — staleness reported as a fatal warning (⚠️), should be advisory"
+  probe7_ok=0
+fi
+if [[ "$adv_ec" -ne "$base_ec" ]]; then
+  echo "  FAIL: Probe 7 — exit code changed ($base_ec → $adv_ec); an old valid date must not add a fatal issue"
+  probe7_ok=0
+fi
+if [[ $probe7_ok -eq 1 ]]; then
+  echo "  PASS: Probe 7 — old valid date is advisory (ℹ️) and does not change the exit code"
+  ((PASS++)) || true
+else
+  ((FAIL++)) || true
+fi
+
+cp "$SIMP_BACKUP" "$SIMP_FILE"
+
+# Probe 8 — malformed metadata stays FATAL (⚠️, nonzero exit). A non-date
+# value fails Check 20's strict format regex identically on GNU and BSD (no
+# date parsing involved), so this asserts the severity split deterministically
+# on both platforms: valid-but-old is advisory, structurally malformed is not.
+sed -i.bak -E 's/^(> - \*\*Last validated:\*\*) [0-9]{4}-[0-9]{2}-[0-9]{2}$/\1 not-a-date/' "$SIMP_FILE" && rm -f "$SIMP_FILE.bak"
+if mal_out=$("$BASH_FOR_COMPAT" "$LINT" 2>&1); then mal_ec=0; else mal_ec=$?; fi
+
+probe8_ok=1
+if ! echo "$mal_out" | grep -qF "simp-reference.md: Missing or malformed 'Last validated' field"; then
+  echo "  FAIL: Probe 8 — malformed metadata did not produce the fatal warning"
+  probe8_ok=0
+fi
+if [[ "$mal_ec" -eq 0 ]]; then
+  echo "  FAIL: Probe 8 — malformed metadata did not fail the lint (exit 0)"
+  probe8_ok=0
+fi
+if [[ $probe8_ok -eq 1 ]]; then
+  echo "  PASS: Probe 8 — malformed metadata stays fatal (⚠️, nonzero exit)"
+  ((PASS++)) || true
+else
+  ((FAIL++)) || true
+fi
+
+cp "$SIMP_BACKUP" "$SIMP_FILE"
 
 # ---------------------------------------------------------------------------
 echo ""

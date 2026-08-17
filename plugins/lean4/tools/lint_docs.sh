@@ -1322,7 +1322,13 @@ check_advanced_reference_metadata() {
 
         _am_date=$(grep -E '^> - \*\*Last validated:\*\* [0-9]{4}-[0-9]{2}-[0-9]{2}$' "$_am_file" 2>/dev/null | head -1 | sed -E 's/^> - \*\*Last validated:\*\* ([0-9-]+)$/\1/' || true)
         if [[ -n "$_am_date" ]]; then
-            _am_date_epoch=$(date -d "$_am_date" +%s 2>/dev/null || true)
+            # Parse portably: GNU `date -d` (Linux) then BSD `date -j -f`
+            # (macOS). Only when BOTH reject the value is it unparseable —
+            # otherwise macOS would treat every valid date as a fatal parse
+            # error. Pin midnight so the day count is deterministic.
+            _am_date_epoch=$(date -d "$_am_date" +%s 2>/dev/null \
+                || date -j -f '%Y-%m-%d %H:%M:%S' "$_am_date 00:00:00" +%s 2>/dev/null \
+                || true)
             if [[ -z "$_am_date_epoch" ]]; then
                 warn "$_am_base: Could not parse Last validated date '$_am_date'"
             else
