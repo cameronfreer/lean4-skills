@@ -215,9 +215,10 @@ jobs:
       - name: test_contracts.sh (wrapper/doc/agent contract suite)
         run: bash plugins/lean4/tools/test_contracts.sh
 
-      # Also run the lint_docs self-test on Linux (GNU date), so its
-      # staleness probes (7–8) actually exercise the age-advisory path —
-      # they SKIP on the macOS bash3-compat runner, which lacks `date -d`.
+      # Also run the lint_docs self-test on Linux so its staleness probes
+      # (7–8) exercise the GNU `date -d` branch of Check 20's portable date
+      # parser; the macOS bash3-compat job runs the same probes against the
+      # BSD `date -j -f` branch.
       - name: Self-test — lint_docs.sh (GNU-date staleness probes)
         run: bash plugins/lean4/tests/test_lint_docs.sh
 

@@ -291,24 +291,25 @@ fi
 
 cp "$SIMP_BACKUP" "$SIMP_FILE"
 
-# Probe 8 — malformed metadata stays FATAL (⚠️, nonzero exit). A non-date
-# value fails Check 20's strict format regex identically on GNU and BSD (no
-# date parsing involved), so this asserts the severity split deterministically
-# on both platforms: valid-but-old is advisory, structurally malformed is not.
-sed -i.bak -E 's/^(> - \*\*Last validated:\*\*) [0-9]{4}-[0-9]{2}-[0-9]{2}$/\1 not-a-date/' "$SIMP_FILE" && rm -f "$SIMP_FILE.bak"
+# Probe 8 — a format-valid but IMPOSSIBLE date (month 13) is unparseable,
+# stays FATAL (⚠️ "Could not parse"), and exits nonzero. Unlike a non-date
+# value (which fails the format regex before any parser runs), this passes the
+# regex and forces BOTH parsers to reject it, exercising the "both reject →
+# fatal" path on each platform (GNU date -d on Linux, BSD date -j -f on macOS).
+sed -i.bak -E 's/^(> - \*\*Last validated:\*\*) [0-9]{4}-[0-9]{2}-[0-9]{2}$/\1 2026-13-45/' "$SIMP_FILE" && rm -f "$SIMP_FILE.bak"
 if mal_out=$("$BASH_FOR_COMPAT" "$LINT" 2>&1); then mal_ec=0; else mal_ec=$?; fi
 
 probe8_ok=1
-if ! echo "$mal_out" | grep -qF "simp-reference.md: Missing or malformed 'Last validated' field"; then
-  echo "  FAIL: Probe 8 — malformed metadata did not produce the fatal warning"
+if ! echo "$mal_out" | grep -qF "simp-reference.md: Could not parse Last validated date"; then
+  echo "  FAIL: Probe 8 — impossible date did not produce the fatal 'Could not parse' warning"
   probe8_ok=0
 fi
 if [[ "$mal_ec" -eq 0 ]]; then
-  echo "  FAIL: Probe 8 — malformed metadata did not fail the lint (exit 0)"
+  echo "  FAIL: Probe 8 — unparseable metadata did not fail the lint (exit 0)"
   probe8_ok=0
 fi
 if [[ $probe8_ok -eq 1 ]]; then
-  echo "  PASS: Probe 8 — malformed metadata stays fatal (⚠️, nonzero exit)"
+  echo "  PASS: Probe 8 — unparseable date stays fatal (⚠️ 'Could not parse', nonzero exit)"
   ((PASS++)) || true
 else
   ((FAIL++)) || true
