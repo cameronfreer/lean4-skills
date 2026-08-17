@@ -15,11 +15,13 @@ the existing references instead of duplicating them.
 **On the category / rule_id / severity tags below:** conceptual review
 buckets and machine-readable categories are **not one-to-one** — one bucket
 may map to several schema categories. The tags are
-*illustrative candidate mappings*, not a schema; they track the provisional
-enum in Issue #115
+*illustrative candidate mappings*, not a schema; they are the taxonomy-facing
+subset of the enum in Issue #115
 (`style`, `naming`, `docstring`, `module-doc`, `file-placement`,
 `import-hygiene`, `api`, `generalization`, `attribute`, `simp`, `instance`,
-`module-system`, `metadata`). Only the vacuous-API rule's full triple is
+`module-system`, `metadata`) — which also retains proof-hygiene and
+compatibility values (`sorry`, `axiom`, `structure`, `golf`, `import`) that no
+bucket here maps to. Only the vacuous-API rule's full triple is
 settled — `category: api`, `rule_id: vacuous-api`, `severity: advisory`.
 Issue #115 owns the final enums and severity semantics; nothing here freezes
 the review schema.
