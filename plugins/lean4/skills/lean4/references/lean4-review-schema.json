@@ -29,11 +29,13 @@
         },
         "line": {
           "description": "1-indexed line; null when there is no concrete location (e.g. metadata).",
-          "type": ["integer", "null"]
+          "type": ["integer", "null"],
+          "minimum": 1
         },
         "column": {
           "description": "0-indexed column; null when unknown.",
-          "type": ["integer", "null"]
+          "type": ["integer", "null"],
+          "minimum": 0
         },
         "severity": {"$ref": "#/$defs/severity"},
         "category": {"$ref": "#/$defs/category"},

@@ -1,12 +1,13 @@
 """Structural tests for the review schema files (Issue #115).
 
-Stdlib only — this does NOT run a Draft-2020-12 validator (no `jsonschema`
-dependency), and therefore does not prove OpenAI accepts the output schema.
-It asserts the OpenAI Structured Outputs *shape* constraints recursively and
-that the documentation examples use values that belong to the canonical enums.
-A real `codex exec --output-schema "$LEAN4_REFS/lean4-review-schema.json"`
-smoke remains a required manual pre-merge check, because OpenAI supports only
-a subset of JSON Schema.
+Stdlib only — no `jsonschema` dependency. This (a) asserts the OpenAI
+Structured Outputs *shape* constraints recursively, (b) runs a NARROW instance
+validator over the subset the schemas actually use ($ref, const, enum,
+type + nullability, required, additionalProperties, minimum, arrays) against
+representative fixtures, and (c) checks that the doc examples use canonical
+enum values. It is NOT a general Draft-2020-12 validator, and OpenAI accepts
+only a subset of JSON Schema, so a real `codex exec --output-schema` smoke
+against the PR worktree's schema remains a required manual pre-merge check.
 """
 
 from __future__ import annotations
@@ -459,6 +460,39 @@ class OutputSchemaInstanceValidation(unittest.TestCase):
                 self.schema,
                 "$",
             )
+        )
+
+    def test_index_bounds(self) -> None:
+        def out(sug: dict[str, Any]) -> dict[str, Any]:
+            return {
+                "version": "2.0",
+                "suggestions": [sug],
+                "summary": {
+                    "total_suggestions": 1,
+                    "by_severity": self._by_sev(hint=1),
+                },
+                "error": None,
+            }
+
+        # line is 1-indexed: 0 and negatives rejected, null still allowed.
+        self.assertTrue(
+            _validate(out(self._sug(line=0)), self.schema, self.schema, "$")
+        )
+        self.assertTrue(
+            _validate(out(self._sug(line=-1)), self.schema, self.schema, "$")
+        )
+        self.assertEqual(
+            _validate(
+                out(self._sug(line=None, file=None)), self.schema, self.schema, "$"
+            ),
+            [],
+        )
+        # column is 0-indexed: negatives rejected, 0 and null allowed.
+        self.assertTrue(
+            _validate(out(self._sug(column=-1)), self.schema, self.schema, "$")
+        )
+        self.assertEqual(
+            _validate(out(self._sug(column=0)), self.schema, self.schema, "$"), []
         )
 
 

@@ -16,7 +16,7 @@
       "properties": {
         "scope": {"enum": ["sorry", "deps", "file", "changed", "project"]},
         "file": {"type": "string"},
-        "line": {"type": "integer"}
+        "line": {"type": "integer", "minimum": 1}
       }
     },
     "files": {
@@ -82,8 +82,8 @@
             "additionalProperties": true,
             "required": ["line"],
             "properties": {
-              "line": {"type": "integer"},
-              "column": {"type": "integer"},
+              "line": {"type": "integer", "minimum": 1},
+              "column": {"type": "integer", "minimum": 0},
               "goal": {"type": "string"},
               "hypotheses": {"type": "array", "items": {"type": "string"}}
             }
@@ -97,8 +97,8 @@
             "additionalProperties": true,
             "required": ["line", "severity", "message"],
             "properties": {
-              "line": {"type": "integer"},
-              "column": {"type": "integer"},
+              "line": {"type": "integer", "minimum": 1},
+              "column": {"type": "integer", "minimum": 0},
               "severity": {"type": "string"},
               "message": {"type": "string"}
             }
