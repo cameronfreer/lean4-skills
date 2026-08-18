@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "lean4-review-input/v2",
+  "description": "Hook INPUT contract (Issue #115) — the context /lean4:review sends to custom hooks on stdin. Plain Draft-2020-12 (not Codex-consumed, so not bound by OpenAI Structured Outputs). Lenient: existing callers that omit the new repo-state fields still validate; repository_kind / contributing_upstream reuse the project-context/v1 vocabulary verbatim.",
+  "type": "object",
+  "required": ["version"],
+  "additionalProperties": true,
+  "properties": {
+    "version": {"const": "2.0"},
+    "focus": {
+      "type": "object",
+      "properties": {
+        "scope": {"enum": ["sorry", "deps", "file", "changed", "project"]}
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {"type": "object"}
+    },
+    "repository_kind": {
+      "description": "Repository kind, reusing project-context/v1's enum verbatim. Kept separate from contribution intent.",
+      "enum": ["mathlib", "other-lean", "not-lean", "unknown"]
+    },
+    "contributing_upstream": {
+      "description": "Contribution intent, from project-context/v1. Separate from repository_kind.",
+      "enum": ["yes", "no", "unknown"]
+    },
+    "new_files": {
+      "description": ".lean files added in the current review candidate set.",
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "renamed_files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["from", "to"],
+        "properties": {
+          "from": {"type": "string"},
+          "to": {"type": "string"}
+        }
+      }
+    },
+    "deleted_files": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "generated_root_files": {
+      "description": "Generated root-import files that may need `lake exe mk_all` after add/rename/delete, e.g. [\"Mathlib.lean\"].",
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  }
+}
