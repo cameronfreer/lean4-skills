@@ -110,10 +110,12 @@ class OutputSchemaStructuredOutputs(unittest.TestCase):
         sev = set(_resolve_enum(self.schema, self.schema["$defs"]["severity"]) or [])
         # Property names are exactly the severity enum.
         self.assertEqual(set(by_sev["properties"]), sev)
-        # Counts are plain integers (0 for absent), never nullable.
+        # Counts are non-null nonnegative integers (0 for absent).
         for name, prop in by_sev["properties"].items():
             self.assertEqual(
-                prop, {"type": "integer"}, f"{name} count should be a non-null integer"
+                prop,
+                {"type": "integer", "minimum": 0},
+                f"{name} count should be a nonnegative non-null integer",
             )
 
     def test_settled_vacuous_api_triple_is_expressible(self) -> None:
@@ -301,6 +303,13 @@ def _validate(
             for key, sub in instance.items():
                 if key in props:
                     errors += _validate(sub, props[key], root, f"{path}.{key}")
+        if (
+            "minimum" in node
+            and isinstance(instance, (int, float))
+            and not isinstance(instance, bool)
+            and instance < node["minimum"]
+        ):
+            errors.append(f"{path}: {instance} < minimum {node['minimum']}")
         if isinstance(instance, list) and "array" in types and "items" in node:
             for i, item in enumerate(instance):
                 errors += _validate(item, node["items"], root, f"{path}[{i}]")
@@ -427,6 +436,23 @@ class OutputSchemaInstanceValidation(unittest.TestCase):
                     "version": "2.0",
                     "suggestions": [{"file": "x", "line": 1}],
                     "summary": {"total_suggestions": 1, "by_severity": self._by_sev()},
+                    "error": None,
+                },
+                self.schema,
+                self.schema,
+                "$",
+            )
+        )
+        # Negative counts violate minimum: 0.
+        self.assertTrue(
+            _validate(
+                {
+                    "version": "2.0",
+                    "suggestions": [],
+                    "summary": {
+                        "total_suggestions": -1,
+                        "by_severity": self._by_sev(hint=-2),
+                    },
                     "error": None,
                 },
                 self.schema,

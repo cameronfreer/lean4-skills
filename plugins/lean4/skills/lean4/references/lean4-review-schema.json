@@ -53,21 +53,21 @@
       "additionalProperties": false,
       "required": ["total_suggestions", "by_severity"],
       "properties": {
-        "total_suggestions": {"type": "integer"},
+        "total_suggestions": {"type": "integer", "minimum": 0},
         "by_severity": {"$ref": "#/$defs/by_severity"}
       }
     },
     "by_severity": {
-      "description": "Count per severity; nonnegative, 0 (never null) when a severity has no findings. Property names are exactly the severity enum.",
+      "description": "Count per severity; nonnegative integer, 0 (never null) when a severity has no findings. Property names are exactly the severity enum.",
       "type": "object",
       "additionalProperties": false,
       "required": ["error", "warning", "advisory", "hint", "style"],
       "properties": {
-        "error": {"type": "integer"},
-        "warning": {"type": "integer"},
-        "advisory": {"type": "integer"},
-        "hint": {"type": "integer"},
-        "style": {"type": "integer"}
+        "error": {"type": "integer", "minimum": 0},
+        "warning": {"type": "integer", "minimum": 0},
+        "advisory": {"type": "integer", "minimum": 0},
+        "hint": {"type": "integer", "minimum": 0},
+        "style": {"type": "integer", "minimum": 0}
       }
     },
     "severity": {
