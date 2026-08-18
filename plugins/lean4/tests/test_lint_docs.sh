@@ -2,8 +2,10 @@
 set -euo pipefail
 
 # Self-test for lint_docs.sh Check 8c (Python helper interpreter prefix),
-# Check 8e (compilation-errors.md heading uniqueness), and Check 23
-# (Claude/Codex release-metadata consistency).
+# Check 8e (compilation-errors.md heading uniqueness), Check 23
+# (Claude/Codex release-metadata consistency), and Check 20's staleness
+# severity split (a valid-but-old "Last validated" date is advisory, while
+# malformed/unparseable metadata stays fatal).
 # For each check, verify it fires on a planted violation and emits its
 # clean-run OK line once the violation is removed.
 #
