@@ -30,6 +30,15 @@ warn() {
     ((ISSUES++)) || true
 }
 
+# Non-fatal advisory: printed for visibility but does NOT count toward the
+# issue total or the exit code. Reserved for time-based "refresh recommended"
+# notices, which must not turn a valid, unchanged commit red just because the
+# wall clock advanced past a threshold. Structural problems (missing,
+# malformed, or unparseable metadata) stay fatal via warn().
+note() {
+    echo "ℹ️  $1"
+}
+
 ok() {
     echo "✓ $1"
 }
@@ -1313,13 +1322,22 @@ check_advanced_reference_metadata() {
 
         _am_date=$(grep -E '^> - \*\*Last validated:\*\* [0-9]{4}-[0-9]{2}-[0-9]{2}$' "$_am_file" 2>/dev/null | head -1 | sed -E 's/^> - \*\*Last validated:\*\* ([0-9-]+)$/\1/' || true)
         if [[ -n "$_am_date" ]]; then
-            _am_date_epoch=$(date -d "$_am_date" +%s 2>/dev/null || true)
+            # Parse portably: GNU `date -d` (Linux) then BSD `date -j -f`
+            # (macOS). Only when BOTH reject the value is it unparseable —
+            # otherwise macOS would treat every valid date as a fatal parse
+            # error. Pin midnight so the day count is deterministic.
+            _am_date_epoch=$(date -d "$_am_date" +%s 2>/dev/null \
+                || date -j -f '%Y-%m-%d %H:%M:%S' "$_am_date 00:00:00" +%s 2>/dev/null \
+                || true)
             if [[ -z "$_am_date_epoch" ]]; then
                 warn "$_am_base: Could not parse Last validated date '$_am_date'"
             else
                 _am_age_days=$(( (_am_now_epoch - _am_date_epoch) / 86400 ))
                 if [[ $_am_age_days -gt 180 ]]; then
-                    warn "$_am_base: Last validated is $_am_age_days days old (refresh recommended)"
+                    # Advisory only: a valid-but-old date must not hard-fail CI
+                    # (that would make a green commit turn red purely because
+                    # time passed). Revalidation is tracked out of band.
+                    note "$_am_base: Last validated is $_am_age_days days old (refresh recommended)"
                 fi
             fi
         fi
