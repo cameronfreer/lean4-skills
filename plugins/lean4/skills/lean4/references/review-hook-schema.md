@@ -86,6 +86,14 @@ Input sent to custom hooks via stdin. For `--codex`, this context is displayed f
 | `build_status` | string | "passing" or "failing" |
 | `preferences.focus` | string | "completeness", "style", or "performance" |
 | `preferences.verbosity` | string | "minimal", "normal", or "detailed" |
+| `repository_kind` | enum | `mathlib`/`other-lean`/`not-lean`/`unknown` (project-context/v1); optional |
+| `contributing_upstream` | enum | `yes`/`no`/`unknown` (project-context/v1); optional |
+| `new_files` | array | `.lean` files added in the candidate set; optional |
+| `renamed_files` | array | `{from, to}` renames; optional |
+| `deleted_files` | array | deleted `.lean` files; optional |
+| `generated_root_files` | array | root files that may need `mk_all`, e.g. `["Mathlib.lean"]`; optional |
+
+**Required:** `version`, `request_type`, `focus`, `files`, `build_status` — the established v1 core. The repo-state fields above are the only optional additions in v2; a complete caller may omit them but not the core contract.
 
 ---
 
@@ -123,10 +131,14 @@ Structured-Outputs output schema:
   ],
   "summary": {
     "total_suggestions": 2,
-    "by_severity": {"error": null, "warning": null, "advisory": null, "hint": 1, "style": 1}
-  }
+    "by_severity": {"error": 0, "warning": 0, "advisory": 0, "hint": 1, "style": 1}
+  },
+  "error": null
 }
 ```
+
+`by_severity` counts are nonnegative integers — `0` (never `null`) when a
+severity has no findings — and its keys are exactly the severity enum.
 
 ### Suggestion Fields
 
@@ -165,15 +177,25 @@ For CI automation, use `codex exec` with structured output. See [review.md](http
 """
 Example INTERNAL hook for /lean4:review --hook=./my_hook.py
 
-Internal hooks can include `fix` fields with suggested code.
-External reviews (--codex) set `fix` to null and provide strategic advice only.
-Simplified for illustration — a fully conforming hook emits every field
-(including column, rule_id, and the full by_severity object) per
-lean4-review-schema.json.
+Internal hooks may put suggested code in `fix`; external reviews (--codex)
+set `fix` to null and give strategic advice only. This emits fully-conforming
+v2 output: every suggestion carries all fields, `by_severity` covers the whole
+severity enum, and the root includes `error`.
 """
 
 import json
 import sys
+
+_SEVERITIES = ["error", "warning", "advisory", "hint", "style"]
+
+def suggestion(file, line, severity, category, message, *, column=None,
+               rule_id=None, fix=None):
+    """Build a v2 suggestion with every field present (nulls where absent)."""
+    return {
+        "file": file, "line": line, "column": column,
+        "severity": severity, "category": category, "rule_id": rule_id,
+        "message": message, "fix": fix,
+    }
 
 def analyze_sorries(files):
     """Generate suggestions for sorries."""
@@ -181,45 +203,32 @@ def analyze_sorries(files):
     for f in files:
         for sorry in f.get("sorries", []):
             goal = sorry.get("goal", "")
-
-            # Simple heuristic: suggest tactics based on goal shape
             if "Continuous" in goal:
-                suggestions.append({
-                    "file": f["path"],
-                    "line": sorry["line"],
-                    "severity": "hint",
-                    "category": "sorry",
-                    "message": "Try `continuity` or search for Continuous.* lemmas",
-                    "fix": "continuity"
-                })
+                suggestions.append(suggestion(
+                    f["path"], sorry["line"], "hint", "sorry",
+                    "Try `continuity` or search for Continuous.* lemmas",
+                    fix="continuity"))
             elif "=" in goal and "+" in goal:
-                suggestions.append({
-                    "file": f["path"],
-                    "line": sorry["line"],
-                    "severity": "hint",
-                    "category": "sorry",
-                    "message": "Arithmetic goal - try `ring` or `omega`",
-                    "fix": "ring"
-                })
+                suggestions.append(suggestion(
+                    f["path"], sorry["line"], "hint", "sorry",
+                    "Arithmetic goal - try `ring` or `omega`", fix="ring"))
     return suggestions
 
 def main():
-    # Read input from stdin
     input_data = json.load(sys.stdin)
-
-    # Generate suggestions
     suggestions = analyze_sorries(input_data.get("files", []))
-
-    # Output result
+    by_severity = {s: 0 for s in _SEVERITIES}
+    for s in suggestions:
+        by_severity[s["severity"]] += 1
     output = {
         "version": "2.0",
         "suggestions": suggestions,
         "summary": {
             "total_suggestions": len(suggestions),
-            "by_severity": {"hint": len(suggestions)}
-        }
+            "by_severity": by_severity,
+        },
+        "error": None,
     }
-
     json.dump(output, sys.stdout, indent=2)
 
 if __name__ == "__main__":
@@ -249,7 +258,7 @@ Hooks should handle errors gracefully:
 {
   "version": "2.0",
   "suggestions": [],
-  "summary": {"total_suggestions": 0, "by_severity": {"error": null, "warning": null, "advisory": null, "hint": null, "style": null}},
+  "summary": {"total_suggestions": 0, "by_severity": {"error": 0, "warning": 0, "advisory": 0, "hint": 0, "style": 0}},
   "error": "PARSE_ERROR: Failed to parse file Core.lean at line 42"
 }
 ```

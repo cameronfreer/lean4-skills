@@ -105,6 +105,17 @@ class OutputSchemaStructuredOutputs(unittest.TestCase):
         # message is genuinely required and non-null.
         self.assertEqual(sug["message"], {"type": "string"})
 
+    def test_by_severity_is_nonnullable_ints_keyed_by_severity_enum(self) -> None:
+        by_sev = self.schema["$defs"]["by_severity"]
+        sev = set(_resolve_enum(self.schema, self.schema["$defs"]["severity"]) or [])
+        # Property names are exactly the severity enum.
+        self.assertEqual(set(by_sev["properties"]), sev)
+        # Counts are plain integers (0 for absent), never nullable.
+        for name, prop in by_sev["properties"].items():
+            self.assertEqual(
+                prop, {"type": "integer"}, f"{name} count should be a non-null integer"
+            )
+
     def test_settled_vacuous_api_triple_is_expressible(self) -> None:
         sev = _resolve_enum(
             self.schema, self.schema["$defs"]["suggestion"]["properties"]["severity"]
@@ -166,10 +177,24 @@ class InputSchema(unittest.TestCase):
         ):
             self.assertIn(field, self.schema["properties"])
 
-    def test_lenient_only_version_required(self) -> None:
-        # Existing callers omitting repo-state fields must still validate.
-        self.assertEqual(self.schema["required"], ["version"])
-        self.assertIs(self.schema["additionalProperties"], True)
+    def test_core_v1_fields_required_repo_state_optional(self) -> None:
+        # The established v1 core is required and typed; only the new repo-state
+        # fields are optional. `{ "version": "2.0" }` must NOT validate.
+        self.assertEqual(
+            set(self.schema["required"]),
+            {"version", "request_type", "focus", "files", "build_status"},
+        )
+        for optional in (
+            "repository_kind",
+            "contributing_upstream",
+            "new_files",
+            "renamed_files",
+            "deleted_files",
+            "generated_root_files",
+        ):
+            self.assertNotIn(optional, self.schema["required"])
+        # A meaningful contract: no arbitrary extra top-level keys.
+        self.assertIs(self.schema["additionalProperties"], False)
 
 
 class DocExamplesUseCanonicalEnums(unittest.TestCase):
@@ -218,6 +243,197 @@ class DocExamplesUseCanonicalEnums(unittest.TestCase):
             self.assertIn(
                 sev, self.severities, f"review.md severity '{sev}' not in enum"
             )
+
+
+def _type_ok(value: object, typ: str) -> bool:
+    if typ == "null":
+        return value is None
+    if typ == "boolean":
+        return isinstance(value, bool)
+    if typ == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if typ == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if typ == "string":
+        return isinstance(value, str)
+    if typ == "array":
+        return isinstance(value, list)
+    if typ == "object":
+        return isinstance(value, dict)
+    raise AssertionError(f"unhandled type keyword: {typ}")
+
+
+def _validate(
+    instance: object, node: dict[str, Any], root: dict[str, Any], path: str
+) -> list[str]:
+    """Validate against the JSON-Schema *subset* this repo's schemas use:
+    $ref, const, enum, type (incl nullable via a type list), object with
+    properties/required/additionalProperties, and typed arrays. Deliberately
+    NOT a general Draft-2020-12 validator — see the module docstring.
+    """
+    errors: list[str] = []
+    if "$ref" in node:
+        ref = node["$ref"]
+        assert isinstance(ref, str) and ref.startswith("#/$defs/")
+        return _validate(instance, root["$defs"][ref.split("/")[-1]], root, path)
+    if "const" in node:
+        if instance != node["const"]:
+            errors.append(f"{path}: {instance!r} != const {node['const']!r}")
+        return errors
+    if "enum" in node:
+        if instance not in node["enum"]:
+            errors.append(f"{path}: {instance!r} not in enum {node['enum']}")
+        return errors
+    if "type" in node:
+        types = node["type"] if isinstance(node["type"], list) else [node["type"]]
+        if not any(_type_ok(instance, t) for t in types):
+            errors.append(f"{path}: {type(instance).__name__} not in types {types}")
+            return errors
+        if isinstance(instance, dict) and "object" in types:
+            props = node.get("properties", {})
+            for req in node.get("required", []):
+                if req not in instance:
+                    errors.append(f"{path}: missing required '{req}'")
+            if node.get("additionalProperties") is False:
+                for key in instance:
+                    if key not in props:
+                        errors.append(f"{path}: unexpected property '{key}'")
+            for key, sub in instance.items():
+                if key in props:
+                    errors += _validate(sub, props[key], root, f"{path}.{key}")
+        if isinstance(instance, list) and "array" in types and "items" in node:
+            for i, item in enumerate(instance):
+                errors += _validate(item, node["items"], root, f"{path}[{i}]")
+    return errors
+
+
+class OutputSchemaInstanceValidation(unittest.TestCase):
+    """Fixtures conform to the output schema under the narrow subset validator."""
+
+    def setUp(self) -> None:
+        self.schema = _load(_OUT)
+
+    def _assert_valid(self, instance: dict[str, Any]) -> None:
+        errors = _validate(instance, self.schema, self.schema, "$")
+        self.assertEqual(errors, [], f"unexpected schema errors: {errors}")
+
+    def _sug(self, **over: Any) -> dict[str, Any]:
+        base = {
+            "file": "Core.lean",
+            "line": 1,
+            "column": None,
+            "severity": "hint",
+            "category": "sorry",
+            "rule_id": None,
+            "message": "m",
+            "fix": None,
+        }
+        base.update(over)
+        return base
+
+    def _by_sev(self, **counts: int) -> dict[str, int]:
+        d = {"error": 0, "warning": 0, "advisory": 0, "hint": 0, "style": 0}
+        d.update(counts)
+        return d
+
+    def test_success_fixture_validates(self) -> None:
+        self._assert_valid(
+            {
+                "version": "2.0",
+                "suggestions": [
+                    self._sug(fix="ring"),
+                    self._sug(line=42, severity="style", category="naming"),
+                ],
+                "summary": {
+                    "total_suggestions": 2,
+                    "by_severity": self._by_sev(hint=1, style=1),
+                },
+                "error": None,
+            }
+        )
+
+    def test_error_fixture_validates(self) -> None:
+        self._assert_valid(
+            {
+                "version": "2.0",
+                "suggestions": [],
+                "summary": {"total_suggestions": 0, "by_severity": self._by_sev()},
+                "error": "PARSE_ERROR: could not parse",
+            }
+        )
+
+    def test_vacuous_api_fixture_validates(self) -> None:
+        self._assert_valid(
+            {
+                "version": "2.0",
+                "suggestions": [
+                    self._sug(
+                        file="G.lean",
+                        line=10,
+                        severity="advisory",
+                        category="api",
+                        rule_id="vacuous-api",
+                        message="Public API collapses to True.",
+                    )
+                ],
+                "summary": {
+                    "total_suggestions": 1,
+                    "by_severity": self._by_sev(advisory=1),
+                },
+                "error": None,
+            }
+        )
+
+    def test_metadata_finding_may_omit_location(self) -> None:
+        # file/line null is the reason they are required-but-nullable.
+        self._assert_valid(
+            {
+                "version": "2.0",
+                "suggestions": [
+                    self._sug(
+                        file=None,
+                        line=None,
+                        category="metadata",
+                        message="PR title should follow mathlib convention",
+                    )
+                ],
+                "summary": {
+                    "total_suggestions": 1,
+                    "by_severity": self._by_sev(hint=1),
+                },
+                "error": None,
+            }
+        )
+
+    def test_validator_rejects_bad_instances(self) -> None:
+        # The validator must actually catch violations, else the above prove nothing.
+        self.assertTrue(_validate({"version": "1.0"}, self.schema, self.schema, "$"))
+        self.assertTrue(
+            _validate(
+                {
+                    "version": "2.0",
+                    "suggestions": [self._sug(severity="nope")],
+                    "summary": {"total_suggestions": 1, "by_severity": self._by_sev()},
+                    "error": None,
+                },
+                self.schema,
+                self.schema,
+                "$",
+            )
+        )
+        self.assertTrue(
+            _validate(
+                {
+                    "version": "2.0",
+                    "suggestions": [{"file": "x", "line": 1}],
+                    "summary": {"total_suggestions": 1, "by_severity": self._by_sev()},
+                    "error": None,
+                },
+                self.schema,
+                self.schema,
+                "$",
+            )
+        )
 
 
 if __name__ == "__main__":

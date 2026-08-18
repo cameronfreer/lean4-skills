@@ -58,15 +58,16 @@
       }
     },
     "by_severity": {
+      "description": "Count per severity; nonnegative, 0 (never null) when a severity has no findings. Property names are exactly the severity enum.",
       "type": "object",
       "additionalProperties": false,
       "required": ["error", "warning", "advisory", "hint", "style"],
       "properties": {
-        "error": {"type": ["integer", "null"]},
-        "warning": {"type": ["integer", "null"]},
-        "advisory": {"type": ["integer", "null"]},
-        "hint": {"type": ["integer", "null"]},
-        "style": {"type": ["integer", "null"]}
+        "error": {"type": "integer"},
+        "warning": {"type": "integer"},
+        "advisory": {"type": "integer"},
+        "hint": {"type": "integer"},
+        "style": {"type": "integer"}
       }
     },
     "severity": {

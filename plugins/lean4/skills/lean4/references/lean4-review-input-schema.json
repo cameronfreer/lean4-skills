@@ -1,21 +1,36 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "lean4-review-input/v2",
-  "description": "Hook INPUT contract (Issue #115) — the context /lean4:review sends to custom hooks on stdin. Plain Draft-2020-12 (not Codex-consumed, so not bound by OpenAI Structured Outputs). Lenient: existing callers that omit the new repo-state fields still validate; repository_kind / contributing_upstream reuse the project-context/v1 vocabulary verbatim.",
+  "description": "Hook INPUT contract (Issue #115) — the context /lean4:review sends to custom hooks on stdin. Plain Draft-2020-12 (not Codex-consumed, so not bound by OpenAI Structured Outputs). The established v1 core fields are required and typed; only the new repo-state fields are optional, so a complete v2 caller may omit repo state but not the existing input contract. repository_kind / contributing_upstream reuse the project-context/v1 vocabulary verbatim.",
   "type": "object",
-  "required": ["version"],
-  "additionalProperties": true,
+  "additionalProperties": false,
+  "required": ["version", "request_type", "focus", "files", "build_status"],
   "properties": {
     "version": {"const": "2.0"},
+    "request_type": {"const": "review"},
+    "mode": {"enum": ["batch", "stuck"]},
     "focus": {
       "type": "object",
+      "additionalProperties": false,
+      "required": ["scope"],
       "properties": {
-        "scope": {"enum": ["sorry", "deps", "file", "changed", "project"]}
+        "scope": {"enum": ["sorry", "deps", "file", "changed", "project"]},
+        "file": {"type": "string"},
+        "line": {"type": "integer"}
       }
     },
     "files": {
       "type": "array",
-      "items": {"type": "object"}
+      "items": {"$ref": "#/$defs/file"}
+    },
+    "build_status": {"enum": ["passing", "failing"]},
+    "preferences": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "focus": {"enum": ["completeness", "style", "performance"]},
+        "verbosity": {"enum": ["minimal", "normal", "detailed"]}
+      }
     },
     "repository_kind": {
       "description": "Repository kind, reusing project-context/v1's enum verbatim. Kept separate from contribution intent.",
@@ -34,6 +49,7 @@
       "type": "array",
       "items": {
         "type": "object",
+        "additionalProperties": false,
         "required": ["from", "to"],
         "properties": {
           "from": {"type": "string"},
@@ -49,6 +65,46 @@
       "description": "Generated root-import files that may need `lake exe mk_all` after add/rename/delete, e.g. [\"Mathlib.lean\"].",
       "type": "array",
       "items": {"type": "string"}
+    }
+  },
+  "$defs": {
+    "file": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["path"],
+      "properties": {
+        "path": {"type": "string"},
+        "content": {"type": "string"},
+        "sorries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["line"],
+            "properties": {
+              "line": {"type": "integer"},
+              "column": {"type": "integer"},
+              "goal": {"type": "string"},
+              "hypotheses": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        },
+        "axioms": {"type": "array", "items": {"type": "string"}},
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["line", "severity", "message"],
+            "properties": {
+              "line": {"type": "integer"},
+              "column": {"type": "integer"},
+              "severity": {"type": "string"},
+              "message": {"type": "string"}
+            }
+          }
+        }
+      }
     }
   }
 }
