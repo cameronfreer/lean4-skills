@@ -2,6 +2,8 @@
 
 This reference provides comprehensive guidance for finding, importing, and using mathlib lemmas effectively.
 
+> For what mathlib *reviewers* ask for (style, docs, placement, API, `simp`, instances, generated-file chores), see the companion [mathlib-review-taxonomy.md](mathlib-review-taxonomy.md).
+
 ## Philosophy: Search Before Prove
 
 **DON'T:** Spend hours proving something mathlib already has

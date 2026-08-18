@@ -328,4 +328,5 @@ See [Codex SDK Cookbook](https://cookbook.openai.com/examples/codex/build_code_r
 - `/lean4:disprove` - Guided counterexample search with certified refutation
 - `/lean4:golf` - Apply golfing optimizations
 - [mathlib-style.md](../skills/lean4/references/mathlib-style.md)
+- [mathlib-review-taxonomy.md](../skills/lean4/references/mathlib-review-taxonomy.md) — reference for what mathlib reviewers ask for. This is background material only: it does **not** change `/lean4:review`'s current behavior; deciding when these buckets become emitted findings is Issue #110.
 - [Examples](../skills/lean4/references/command-examples.md#review)
