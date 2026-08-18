@@ -275,35 +275,28 @@ codex exec "Review this Lean 4 proof for correctness, focusing on:
 3. Non-standard axiom usage
 
 $(cat Core.lean)
-" --output-schema lean4-review-schema.json -o review-output.json
+" --output-schema "$LEAN4_REFS/lean4-review-schema.json" -o review-output.json
 ```
 
-**Schema file (`lean4-review-schema.json`):**
+The `--output-schema` argument points at the **shipped, normative** contract
+[`lean4-review-schema.json`](../skills/lean4/references/lean4-review-schema.json)
+(`$LEAN4_REFS` is the installed references directory). It is the single source
+of truth for the category/severity enums — this command does not restate the
+full schema. External Codex reviews emit `fix: null` and set `rule_id` only
+for a specific rule (e.g. `vacuous-api` under `api`). A minimal conforming
+suggestion:
+
 ```json
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
-  "properties": {
-    "suggestions": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "file": {"type": "string"},
-          "line": {"type": "integer"},
-          "severity": {"enum": ["hint", "warning"]},
-          "category": {"enum": ["sorry", "axiom", "style", "structure"]},
-          "message": {"type": "string"}
-        },
-        "required": ["file", "line", "severity", "message"]
-      }
-    }
-  },
-  "required": ["suggestions"]
+  "file": "Core.lean", "line": 89, "column": null,
+  "severity": "advisory", "category": "api", "rule_id": "vacuous-api",
+  "message": "Public API collapses to True; delete or replace.", "fix": null
 }
 ```
 
-See [Codex SDK Cookbook](https://cookbook.openai.com/examples/codex/build_code_review_with_codex_sdk) for CI integration patterns.
+See [review-hook-schema.md](../skills/lean4/references/review-hook-schema.md)
+for the field tables and the [Codex SDK Cookbook](https://cookbook.openai.com/examples/codex/build_code_review_with_codex_sdk)
+for CI integration patterns.
 
 > **Future autonomous external review:** External review is currently manual-handoff only. Future versions may support autonomous external review via non-interactive CLI execution (e.g., `codex exec`) behind an explicit opt-in flag (`--external-autonomous`). Until then, unattended autoprove runs default to internal review.
 >

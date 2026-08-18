@@ -2,6 +2,19 @@
 
 JSON schema for `/lean4:review` external hooks and Codex integration.
 
+**Normative machine-readable schemas (v2):** the enums and structure below are
+documentation of two shipped JSON Schema files — do not treat the tables as an
+independent source of truth:
+
+- Output (Codex `--output-schema` and hook stdout): [`lean4-review-schema.json`](lean4-review-schema.json)
+- Input (hook stdin): [`lean4-review-input-schema.json`](lean4-review-input-schema.json)
+
+The output schema is OpenAI Structured Outputs constrained (object root,
+`additionalProperties: false` everywhere, every property required, semantic
+optionals as nullable types). Category values are the mathlib-review taxonomy
+(#114) plus legacy-accepted values (`sorry, axiom, style, structure, naming,
+golf, import`) — accepted, not normalized.
+
 ---
 
 ## Hook Input Schema
@@ -10,7 +23,7 @@ Input sent to custom hooks via stdin. For `--codex`, this context is displayed f
 
 ```json
 {
-  "version": "1.0",
+  "version": "2.0",
   "request_type": "review",
   "mode": "batch",
   "focus": {
@@ -53,7 +66,7 @@ Input sent to custom hooks via stdin. For `--codex`, this context is displayed f
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `version` | string | Schema version (currently "1.0") |
+| `version` | string | Schema version (currently "2.0") |
 | `request_type` | string | Always "review" for review hooks |
 | `focus` | object | Scope of this review |
 | `focus.scope` | string | "sorry", "deps", "file", "changed", or "project" |
@@ -80,9 +93,12 @@ Input sent to custom hooks via stdin. For `--codex`, this context is displayed f
 
 Output returned by hooks (via stdout):
 
+Every suggestion carries all fields (nulls where a value is absent), per the
+Structured-Outputs output schema:
+
 ```json
 {
-  "version": "1.0",
+  "version": "2.0",
   "suggestions": [
     {
       "file": "Core.lean",
@@ -90,38 +106,44 @@ Output returned by hooks (via stdout):
       "column": 4,
       "severity": "hint",
       "category": "sorry",
+      "rule_id": null,
       "message": "Try tendsto_atTop from Mathlib.Topology.Order.Basic",
       "fix": "exact tendsto_atTop.mpr fun n ↦ ⟨n, fun m hm ↦ hm⟩"
     },
     {
       "file": "Core.lean",
       "line": 42,
+      "column": null,
       "severity": "style",
       "category": "naming",
-      "message": "Consider renaming `aux` to describe its purpose"
+      "rule_id": null,
+      "message": "Consider renaming `aux` to describe its purpose",
+      "fix": null
     }
   ],
   "summary": {
     "total_suggestions": 2,
-    "by_severity": {
-      "hint": 1,
-      "style": 1
-    }
+    "by_severity": {"error": null, "warning": null, "advisory": null, "hint": 1, "style": 1}
   }
 }
 ```
 
 ### Suggestion Fields
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `file` | string | Yes | File the suggestion applies to |
-| `line` | number | Yes | Line number (1-indexed) |
-| `column` | number | No | Column number (0-indexed) |
-| `severity` | string | Yes | "error", "warning", "hint", or "style" |
-| `category` | string | No | "sorry", "axiom", "naming", "golf", "import" |
-| `message` | string | Yes | Human-readable suggestion |
-| `fix` | string | No | Suggested code (internal hooks only; external reviews omit this) |
+Enums are normative in [`lean4-review-schema.json`](lean4-review-schema.json).
+Under Structured Outputs every field is present; "required-but-nullable" means
+the value may be `null` (e.g. a PR-level `metadata` finding has no `file`/`line`).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `file` | string \| null | File the suggestion applies to (`null` for a location-less finding) |
+| `line` | integer \| null | Line number (1-indexed; `null` when there is no location) |
+| `column` | integer \| null | Column number (0-indexed; `null` when unknown) |
+| `severity` | enum | `error`, `warning`, `advisory`, `hint`; legacy `style` accepted |
+| `category` | enum | Taxonomy vocabulary + legacy-accepted values — see the JSON schema |
+| `rule_id` | string \| null | Specific rule within a category, e.g. `vacuous-api` under `api`; `null` when unset |
+| `message` | string | Human-readable suggestion |
+| `fix` | string \| null | Suggested code (internal hooks); external Codex reviews set `null` |
 
 ---
 
@@ -144,7 +166,10 @@ For CI automation, use `codex exec` with structured output. See [review.md](http
 Example INTERNAL hook for /lean4:review --hook=./my_hook.py
 
 Internal hooks can include `fix` fields with suggested code.
-External reviews (--codex) should omit `fix` and provide strategic advice only.
+External reviews (--codex) set `fix` to null and provide strategic advice only.
+Simplified for illustration — a fully conforming hook emits every field
+(including column, rule_id, and the full by_severity object) per
+lean4-review-schema.json.
 """
 
 import json
@@ -187,7 +212,7 @@ def main():
 
     # Output result
     output = {
-        "version": "1.0",
+        "version": "2.0",
         "suggestions": suggestions,
         "summary": {
             "total_suggestions": len(suggestions),
@@ -222,14 +247,15 @@ Hooks should handle errors gracefully:
 
 ```json
 {
-  "version": "1.0",
+  "version": "2.0",
   "suggestions": [],
-  "error": {
-    "code": "PARSE_ERROR",
-    "message": "Failed to parse file Core.lean at line 42"
-  }
+  "summary": {"total_suggestions": 0, "by_severity": {"error": null, "warning": null, "advisory": null, "hint": null, "style": null}},
+  "error": "PARSE_ERROR: Failed to parse file Core.lean at line 42"
 }
 ```
+
+`error` is a nullable string — a message when the reviewer could not complete
+(with `suggestions` then empty), `null` on success.
 
 The review command will report hook errors but continue with other analysis.
 
