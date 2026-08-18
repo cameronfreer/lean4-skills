@@ -1,5 +1,20 @@
 # Changelog
 
+## v4.6.9 (August 2026)
+
+Versioned review schema — third Track 2 item (Refs #151; closes #115). The review schema becomes genuinely machine-readable and stops disagreeing with itself across three sites.
+
+### Added
+
+- **`references/lean4-review-schema.json`** — the shipped, normative **output** contract (Codex `--output-schema` and hook stdout), a single shared v2 format. OpenAI Structured Outputs constrained: object root, `additionalProperties: false` on every object (including `$defs`), every property `required`, and semantic optionals expressed as nullable types. Suggestion fields: `file`/`line`/`column` (required-but-nullable — a PR-level `metadata` finding has no location), `severity` (`error`/`warning`/**`advisory`**/`hint`, legacy `style` accepted), `category` (the mathlib-review taxonomy vocabulary plus legacy-accepted `sorry`/`axiom`/`style`/`structure`/`naming`/`golf`/`import` — accepted, not normalized), `rule_id` (nullable; the settled `api`/`vacuous-api`/`advisory` triple validates), `message`, `fix` (nullable — external Codex sets `null`). `summary`/`by_severity` and a nullable `error` are fixed-shape.
+- **`references/lean4-review-input-schema.json`** — the **input** hook contract (plain Draft-2020-12). Reuses `project-context/v1`'s `repository_kind` (`mathlib`/`other-lean`/`not-lean`/`unknown`) and `contributing_upstream` **verbatim** rather than inventing a classification, and adds `new_files`/`renamed_files`/`deleted_files`/`generated_root_files`. Lenient: existing callers that omit the new fields still validate.
+
+### Changed
+
+- **`review-hook-schema.md`** now documents the two JSON files as the normative source (human-readable field tables only, no copied schema); version bumped 1.0 → 2.0. **`review.md`**'s Codex command points `--output-schema` at the installed `"$LEAN4_REFS/lean4-review-schema.json"` (fixing a bare filename that never resolved) and links the shipped file instead of re-inlining a full, divergent schema block.
+
+Compatibility is stated precisely: v2 requires `version: "2.0"`, so a v1 payload does not validate against it; only the **category vocabulary** is backward-compatible (every v1 value remains accepted). `plugins/lean4/tests/test_review_schema.py` (stdlib only) recursively asserts the Structured Outputs shape and that doc examples use canonical enum values — it does **not** run a Draft-2020-12 validator, so a real `codex exec --output-schema` smoke remains a manual pre-merge check. Contract Check 36 pins the file existence, `repository_kind` reuse, installed path, and de-duplication.
+
 ## v4.6.8 (August 2026)
 
 Mathlib review taxonomy — second Track 2 item (Refs #151; closes #114, closes #60). A reference file, not a runtime behavior change; it names the vocabulary that the schema (#115) and the broadened `/lean4:review` (#110) will build on.
