@@ -99,6 +99,12 @@ Input sent to custom hooks via stdin. For `--codex`, this context is displayed f
 
 ## Hook Output Schema
 
+**Migrating a v1 hook to v2 (breaking):** bump `version` to `"2.0"`; add
+`column`, `rule_id`, and `fix` to every suggestion (`null` where absent); add
+a root `error` (`null` on success); and make `summary.by_severity` a full
+object with all five severity keys as counts (`0`, not omitted). See the
+worked script under [Example Custom Hook Script](#example-custom-hook-script).
+
 Output returned by hooks (via stdout):
 
 Every suggestion carries all fields (nulls where a value is absent), per the

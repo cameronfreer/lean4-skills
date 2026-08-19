@@ -247,6 +247,27 @@ class DocExamplesUseCanonicalEnums(unittest.TestCase):
                 sev, self.severities, f"review.md severity '{sev}' not in enum"
             )
 
+    def test_external_handoff_uses_v2_not_stale_fragment(self) -> None:
+        # The `_values` enum test deliberately skips `a|b` placeholders, so it
+        # cannot catch the old handoff pseudo-schema. Pin that fragment's
+        # removal and that the handoff points at the v2 contract instead.
+        text = self._read(_REVIEW_MD)
+        self.assertNotIn(
+            '"severity": "hint|warning"',
+            text,
+            "stale external-handoff pseudo-schema must be removed",
+        )
+        self.assertNotIn(
+            '"severity":"hint|warning"',
+            text,
+            "stale external-handoff pseudo-schema must be removed",
+        )
+        self.assertIn(
+            "lean4-review-output/v2",
+            text,
+            "external handoff should reference the v2 output contract",
+        )
+
 
 def _type_ok(value: object, typ: str) -> bool:
     if typ == "null":
@@ -493,6 +514,78 @@ class OutputSchemaInstanceValidation(unittest.TestCase):
         )
         self.assertEqual(
             _validate(out(self._sug(column=0)), self.schema, self.schema, "$"), []
+        )
+
+
+class InputSchemaInstanceValidation(unittest.TestCase):
+    """Instance-validate the input schema, not just inspect its structure."""
+
+    def setUp(self) -> None:
+        self.schema = _load(_IN)
+
+    def _valid_input(self, **over: Any) -> dict[str, Any]:
+        base: dict[str, Any] = {
+            "version": "2.0",
+            "request_type": "review",
+            "focus": {"scope": "file", "file": "Core.lean"},
+            "files": [{"path": "Core.lean"}],
+            "build_status": "passing",
+        }
+        base.update(over)
+        return base
+
+    def _errs(self, instance: dict[str, Any]) -> list[str]:
+        return _validate(instance, self.schema, self.schema, "$")
+
+    def test_complete_v2_input_validates(self) -> None:
+        self.assertEqual(
+            self._errs(
+                self._valid_input(
+                    repository_kind="mathlib",
+                    contributing_upstream="yes",
+                    new_files=["Mathlib/New.lean"],
+                    renamed_files=[{"from": "A.lean", "to": "B.lean"}],
+                    deleted_files=[],
+                    generated_root_files=["Mathlib.lean"],
+                )
+            ),
+            [],
+        )
+
+    def test_version_only_is_rejected(self) -> None:
+        self.assertTrue(self._errs({"version": "2.0"}))
+
+    def test_bad_repository_kind_rejected(self) -> None:
+        self.assertTrue(self._errs(self._valid_input(repository_kind="downstream")))
+
+    def test_renamed_files_missing_to_rejected(self) -> None:
+        self.assertTrue(
+            self._errs(self._valid_input(renamed_files=[{"from": "A.lean"}]))
+        )
+
+    def test_unexpected_root_field_rejected(self) -> None:
+        self.assertTrue(self._errs(self._valid_input(surprise=1)))
+
+    def test_input_index_bounds(self) -> None:
+        self.assertTrue(
+            self._errs(
+                self._valid_input(files=[{"path": "C.lean", "sorries": [{"line": 0}]}])
+            )
+        )
+        self.assertTrue(
+            self._errs(
+                self._valid_input(
+                    files=[{"path": "C.lean", "sorries": [{"line": 1, "column": -1}]}]
+                )
+            )
+        )
+        self.assertEqual(
+            self._errs(
+                self._valid_input(
+                    files=[{"path": "C.lean", "sorries": [{"line": 1, "column": 0}]}]
+                )
+            ),
+            [],
         )
 
 

@@ -189,8 +189,12 @@ To review in Codex CLI:
 2. Type `/review` → select "Review uncommitted changes"
 3. Or paste the above context and ask for review
 
-Return suggestions as JSON:
-{"suggestions": [{"file": "...", "line": N, "severity": "hint|warning", "message": "..."}]}
+Return one complete `lean4-review-output/v2` object conforming to the shipped
+[`lean4-review-schema.json`](../skills/lean4/references/lean4-review-schema.json):
+every suggestion carries all eight fields (using `null` where unavailable), and
+the root also includes `version`, `summary`, and `error`. See
+[review-hook-schema.md](../skills/lean4/references/review-hook-schema.md) for a
+worked example.
 ─────────────────────────────────────────────────────────
 ```
 
@@ -217,9 +221,12 @@ If "yes":
 
 **Note:** When `--mode=stuck` is triggered by prove/autoprove, skip this prompt—the proving command handles the follow-up with its own "Apply this plan? [yes/no]" prompt.
 
-## JSON Output Schema
+## Built-in `--json` report schema (`lean4-review-report/v1`)
 
-When using `--json`, output follows this structure:
+This legacy report format is **distinct** from the hook/Codex
+`lean4-review-output/v2` interchange contract above ([`lean4-review-schema.json`](../skills/lean4/references/lean4-review-schema.json)):
+it is the built-in command's own human-oriented `--json` dump, unchanged by
+#115. When using `--json`, output follows this structure:
 
 ```json
 {
@@ -264,7 +271,7 @@ When using `--json`, output follows this structure:
 
 **Tip:** Use `/diff` after `/review` to see exact file changes.
 
-### Option B: SDK Automation (`codex exec`)
+### Option B: Non-interactive CLI automation (`codex exec`)
 
 For CI or scripted reviews, use `codex exec` with a review prompt:
 
