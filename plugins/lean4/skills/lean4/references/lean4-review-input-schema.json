@@ -4,103 +4,223 @@
   "description": "Hook INPUT contract (Issue #115) — the context /lean4:review sends to custom hooks on stdin. Plain Draft-2020-12 (not Codex-consumed, so not bound by OpenAI Structured Outputs). The established v1 core fields are required and typed; only the new repo-state fields are optional, so a complete v2 caller may omit repo state but not the existing input contract. repository_kind / contributing_upstream reuse the project-context/v1 vocabulary verbatim.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "request_type", "focus", "files", "build_status"],
+  "required": [
+    "version",
+    "request_type",
+    "focus",
+    "files",
+    "build_status"
+  ],
   "properties": {
-    "version": {"const": "2.0"},
-    "request_type": {"const": "review"},
-    "mode": {"enum": ["batch", "stuck"]},
+    "version": {
+      "type": "string",
+      "const": "2.0"
+    },
+    "request_type": {
+      "type": "string",
+      "const": "review"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "batch",
+        "stuck"
+      ]
+    },
     "focus": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["scope"],
+      "required": [
+        "scope"
+      ],
       "properties": {
-        "scope": {"enum": ["sorry", "deps", "file", "changed", "project"]},
-        "file": {"type": "string"},
-        "line": {"type": "integer", "minimum": 1}
+        "scope": {
+          "type": "string",
+          "enum": [
+            "sorry",
+            "deps",
+            "file",
+            "changed",
+            "project"
+          ]
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        }
       }
     },
     "files": {
       "type": "array",
-      "items": {"$ref": "#/$defs/file"}
+      "items": {
+        "$ref": "#/$defs/file"
+      }
     },
-    "build_status": {"enum": ["passing", "failing"]},
+    "build_status": {
+      "type": "string",
+      "enum": [
+        "passing",
+        "failing"
+      ]
+    },
     "preferences": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "focus": {"enum": ["completeness", "style", "performance"]},
-        "verbosity": {"enum": ["minimal", "normal", "detailed"]}
+        "focus": {
+          "type": "string",
+          "enum": [
+            "completeness",
+            "style",
+            "performance"
+          ]
+        },
+        "verbosity": {
+          "type": "string",
+          "enum": [
+            "minimal",
+            "normal",
+            "detailed"
+          ]
+        }
       }
     },
     "repository_kind": {
+      "type": "string",
       "description": "Repository kind, reusing project-context/v1's enum verbatim. Kept separate from contribution intent.",
-      "enum": ["mathlib", "other-lean", "not-lean", "unknown"]
+      "enum": [
+        "mathlib",
+        "other-lean",
+        "not-lean",
+        "unknown"
+      ]
     },
     "contributing_upstream": {
+      "type": "string",
       "description": "Contribution intent, from project-context/v1. Separate from repository_kind.",
-      "enum": ["yes", "no", "unknown"]
+      "enum": [
+        "yes",
+        "no",
+        "unknown"
+      ]
     },
     "new_files": {
       "description": ".lean files added in the current review candidate set.",
       "type": "array",
-      "items": {"type": "string"}
+      "items": {
+        "type": "string"
+      }
     },
     "renamed_files": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["from", "to"],
+        "required": [
+          "from",
+          "to"
+        ],
         "properties": {
-          "from": {"type": "string"},
-          "to": {"type": "string"}
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
         }
       }
     },
     "deleted_files": {
       "type": "array",
-      "items": {"type": "string"}
+      "items": {
+        "type": "string"
+      }
     },
     "generated_root_files": {
       "description": "Generated root-import files that may need `lake exe mk_all` after add/rename/delete, e.g. [\"Mathlib.lean\"].",
       "type": "array",
-      "items": {"type": "string"}
+      "items": {
+        "type": "string"
+      }
     }
   },
   "$defs": {
     "file": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["path"],
+      "required": [
+        "path"
+      ],
       "properties": {
-        "path": {"type": "string"},
-        "content": {"type": "string"},
+        "path": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
         "sorries": {
           "type": "array",
           "items": {
             "type": "object",
             "additionalProperties": true,
-            "required": ["line"],
+            "required": [
+              "line"
+            ],
             "properties": {
-              "line": {"type": "integer", "minimum": 1},
-              "column": {"type": "integer", "minimum": 0},
-              "goal": {"type": "string"},
-              "hypotheses": {"type": "array", "items": {"type": "string"}}
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "column": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "goal": {
+                "type": "string"
+              },
+              "hypotheses": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
             }
           }
         },
-        "axioms": {"type": "array", "items": {"type": "string"}},
+        "axioms": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "diagnostics": {
           "type": "array",
           "items": {
             "type": "object",
             "additionalProperties": true,
-            "required": ["line", "severity", "message"],
+            "required": [
+              "line",
+              "severity",
+              "message"
+            ],
             "properties": {
-              "line": {"type": "integer", "minimum": 1},
-              "column": {"type": "integer", "minimum": 0},
-              "severity": {"type": "string"},
-              "message": {"type": "string"}
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "column": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "severity": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
             }
           }
         }

@@ -39,6 +39,22 @@ def _load(path: str) -> dict[str, Any]:
     return data
 
 
+def _const_enum_without_type(node: object, path: str) -> list[str]:
+    """Every schema node carrying const or enum must also declare a type —
+    OpenAI Structured Outputs requires it, and plain Draft-2020-12 tolerates it.
+    """
+    bad: list[str] = []
+    if isinstance(node, dict):
+        if ("const" in node or "enum" in node) and "type" not in node:
+            bad.append(path)
+        for key, value in node.items():
+            bad += _const_enum_without_type(value, f"{path}.{key}")
+    elif isinstance(node, list):
+        for i, item in enumerate(node):
+            bad += _const_enum_without_type(item, f"{path}[{i}]")
+    return bad
+
+
 def _resolve_enum(schema: dict[str, Any], node: dict[str, Any]) -> list[Any] | None:
     """Return the enum list a node denotes, following a single local $ref."""
     if "enum" in node:
@@ -72,7 +88,9 @@ class OutputSchemaStructuredOutputs(unittest.TestCase):
         self.assertNotIn("anyOf", self.schema)
 
     def test_version_const(self) -> None:
-        self.assertEqual(self.schema["properties"]["version"], {"const": "2.0"})
+        self.assertEqual(
+            self.schema["properties"]["version"], {"type": "string", "const": "2.0"}
+        )
 
     def test_every_object_additionalproperties_false_and_required_equals_properties(
         self,
@@ -130,6 +148,13 @@ class OutputSchemaStructuredOutputs(unittest.TestCase):
         self.assertIn("advisory", sev)
         self.assertIn("api", cat)
 
+    def test_every_const_or_enum_node_declares_a_type(self) -> None:
+        # OpenAI Structured Outputs rejects a const/enum node without a type
+        # ("schema must have a type key") — the live smoke failed on exactly
+        # this. Enforce it recursively so it cannot regress.
+        missing = _const_enum_without_type(self.schema, "$")
+        self.assertEqual(missing, [], f"const/enum nodes missing 'type': {missing}")
+
     def test_category_enum_has_new_and_legacy(self) -> None:
         cat = set(_resolve_enum(self.schema, self.schema["$defs"]["category"]) or [])
         new = {
@@ -157,7 +182,9 @@ class InputSchema(unittest.TestCase):
         self.schema = _load(_IN)
 
     def test_version_const(self) -> None:
-        self.assertEqual(self.schema["properties"]["version"], {"const": "2.0"})
+        self.assertEqual(
+            self.schema["properties"]["version"], {"type": "string", "const": "2.0"}
+        )
 
     def test_reuses_project_context_repository_kind(self) -> None:
         # Must be repository_kind with project-context/v1's enum, NOT a new repo_kind.
@@ -170,6 +197,10 @@ class InputSchema(unittest.TestCase):
             self.schema["properties"]["contributing_upstream"]["enum"],
             ["yes", "no", "unknown"],
         )
+
+    def test_every_const_or_enum_node_declares_a_type(self) -> None:
+        missing = _const_enum_without_type(self.schema, "$")
+        self.assertEqual(missing, [], f"const/enum nodes missing 'type': {missing}")
 
     def test_repo_state_fields_present(self) -> None:
         for field in (
@@ -300,14 +331,12 @@ def _validate(
         ref = node["$ref"]
         assert isinstance(ref, str) and ref.startswith("#/$defs/")
         return _validate(instance, root["$defs"][ref.split("/")[-1]], root, path)
-    if "const" in node:
-        if instance != node["const"]:
-            errors.append(f"{path}: {instance!r} != const {node['const']!r}")
-        return errors
-    if "enum" in node:
-        if instance not in node["enum"]:
-            errors.append(f"{path}: {instance!r} not in enum {node['enum']}")
-        return errors
+    # const/enum do NOT early-return: Structured Outputs requires a type
+    # alongside them, so the type block below must still run and be checked.
+    if "const" in node and instance != node["const"]:
+        errors.append(f"{path}: {instance!r} != const {node['const']!r}")
+    if "enum" in node and instance not in node["enum"]:
+        errors.append(f"{path}: {instance!r} not in enum {node['enum']}")
     if "type" in node:
         types = node["type"] if isinstance(node["type"], list) else [node["type"]]
         if not any(_type_ok(instance, t) for t in types):

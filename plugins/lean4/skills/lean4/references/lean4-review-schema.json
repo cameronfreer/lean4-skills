@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["version", "suggestions", "summary", "error"],
   "properties": {
-    "version": {"const": "2.0"},
+    "version": {"type": "string", "const": "2.0"},
     "suggestions": {
       "type": "array",
       "items": {"$ref": "#/$defs/suggestion"}
@@ -74,10 +74,12 @@
     },
     "severity": {
       "description": "advisory is the settled value for the vacuous-api rule; style is legacy-accepted.",
+      "type": "string",
       "enum": ["error", "warning", "advisory", "hint", "style"]
     },
     "category": {
       "description": "Mathlib-review taxonomy vocabulary (#114) plus legacy-accepted values. Legacy values are accepted, not normalized.",
+      "type": "string",
       "enum": [
         "docstring",
         "module-doc",
