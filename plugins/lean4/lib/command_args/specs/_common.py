@@ -336,6 +336,30 @@ def golf_flag(
     )
 
 
+def debate_flag(
+    *,
+    default: str = "ask",
+    enum_values: tuple[str, ...] = ("ask", "auto", "off"),
+    coerce: Coercion | None = None,
+) -> FlagSpec:
+    """Gate for the shared debate engine (references/debate-engine.md).
+
+    Shared factory: draft uses it today; future instances (prove, refactor,
+    golf, formalize) reuse it, with `coerce` reserved for commands that must
+    restrict `ask` at startup. review also advertises --debate but is not a
+    parser-covered command.
+    """
+    return FlagSpec(
+        name="--debate",
+        type="enum",
+        enum_values=enum_values,
+        default=default,
+        enforcement="startup-validated",
+        coerce=coerce,
+        notes="Gate for the trigger-detected debate; ask proposes and waits for opt-in",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Level flag (shared across draft, learn, formalize)
 # ---------------------------------------------------------------------------

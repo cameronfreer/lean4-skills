@@ -1283,6 +1283,143 @@ if [[ "$check35_ok" -eq 1 ]]; then
     ok "Check 35: mathlib review taxonomy pinned (nine buckets, naming bucket, vacuous-api #60, durable links, schema-deferred, pointers)"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 36: debate engine module. Pins the parametrized module's structure
+# (eight parameters, instance matrix), the opt-in gate invariants (ask never
+# auto-runs, non-interactive means no, no silent coercion to auto — including
+# the deliberate deferral of the autonomous commands), the draft and review
+# instance wiring (doc section + flag row + parser spec for draft), and the
+# learn instance being a behavior-preserving parameter mapping of the
+# pre-existing pedagogical self-debate.
+# ---------------------------------------------------------------------------
+check36_ok=1
+_c36_eng="$PLUGIN_ROOT/skills/lean4/references/debate-engine.md"
+_c36_learn="$PLUGIN_ROOT/commands/learn.md"
+_c36_lp="$PLUGIN_ROOT/skills/lean4/references/learn-pathways.md"
+if [[ ! -f "$_c36_eng" ]]; then
+    fail "Check 36: debate-engine.md is missing"
+    check36_ok=0
+else
+    # Structural headings of the module reference.
+    for _c36_h in \
+        '## Parameters' \
+        '## Gate and Opt-In Protocol' \
+        '## Deliberation Procedure' \
+        '## Instance Matrix' \
+        '### Draft: Formalization Debate' \
+        '### Review: Finding Adjudication' \
+        '### Learn: Pedagogical Self-Debate' \
+        '## Deferred: Autonomous Commands'; do
+        if ! grep -Fxq "$_c36_h" "$_c36_eng"; then
+            fail "Check 36: debate-engine.md missing heading '$_c36_h'"
+            check36_ok=0
+        fi
+    done
+    # The eight instantiation parameters — the module's whole signature.
+    _c36_params=$(extract_section "$_c36_eng" "## Parameters")
+    for _c36_p in panel substrate rounds evidence trigger gate adjudication outcome; do
+        if ! echo "$_c36_params" | grep -Fq "| \`$_c36_p\` |"; then
+            fail "Check 36: Parameters table missing \`$_c36_p\`"
+            check36_ok=0
+        fi
+    done
+    # Gate invariants: ask never auto-runs, session persistence words exist,
+    # non-interactive defaults to no, and coercion to auto is forbidden.
+    _c36_gate=$(extract_section "$_c36_eng" "## Gate and Opt-In Protocol")
+    if ! echo "$_c36_gate" | grep -Fq 'Never auto-run' \
+        || ! echo "$_c36_gate" | grep -Fq '`always` / `never` persist for the session' \
+        || ! echo "$_c36_gate" | grep -Fq 'treat the answer as `no`' \
+        || ! echo "$_c36_gate" | grep -Fq 'never silently coerced to `auto`'; then
+        fail "Check 36: gate protocol missing an opt-in invariant (never auto-run / session persistence / non-interactive no / no silent auto)"
+        check36_ok=0
+    fi
+    # Exactly three implemented instances in the matrix; auto* deliberately absent.
+    _c36_impl=$(grep -c '\*\*implemented\*\*' "$_c36_eng" || true)
+    if [[ "$_c36_impl" -ne 3 ]]; then
+        fail "Check 36: expected exactly 3 implemented matrix rows, found $_c36_impl"
+        check36_ok=0
+    fi
+    _c36_def=$(extract_section "$_c36_eng" "## Deferred: Autonomous Commands")
+    if ! echo "$_c36_def" | grep -Fq 'deliberately **not**' \
+        || ! echo "$_c36_def" | grep -Fq 'startup-time opt-in'; then
+        fail "Check 36: autonomous-command deferral missing the no-silent-coercion rationale"
+        check36_ok=0
+    fi
+    # Learn instance is a mapping of pre-existing behavior, normative elsewhere.
+    _c36_li=$(extract_section "$_c36_eng" "### Learn: Pedagogical Self-Debate")
+    if ! echo "$_c36_li" | grep -Fq 'unchanged in behavior' \
+        || ! echo "$_c36_li" | grep -Fq 'Behavior is normative in'; then
+        fail "Check 36: learn instance section does not mark itself behavior-preserving / defer normative behavior"
+        check36_ok=0
+    fi
+fi
+# Draft wiring: flag row (ask default), section with never-auto-run and the
+# fidelity-first adjudication, parser spec coverage, See Also pointer.
+if ! grep -Fq '| --debate | no | `ask` |' "$DRAFT"; then
+    fail "Check 36: draft.md missing the --debate input row with ask default"
+    check36_ok=0
+fi
+_c36_ds=$(extract_section "$DRAFT" "### 4. Formalization Debate (trigger-gated)")
+if [[ -z "$_c36_ds" ]] \
+    || ! echo "$_c36_ds" | grep -Fq 'never auto-run under `--debate=ask`' \
+    || ! echo "$_c36_ds" | grep -Fq 'Fidelity > Idiom > Provability'; then
+    fail "Check 36: draft.md formalization-debate section missing (or missing never-auto-run / fidelity precedence)"
+    check36_ok=0
+fi
+if ! grep -Fq 'FLAG_DEBATE = debate_flag()' "$PLUGIN_ROOT/lib/command_args/specs/draft.py" \
+    || ! grep -Fq 'def debate_flag(' "$PLUGIN_ROOT/lib/command_args/specs/_common.py"; then
+    fail "Check 36: draft parser spec does not carry --debate via the shared debate_flag factory"
+    check36_ok=0
+fi
+_c36_dsa=$(extract_section "$DRAFT" "## See Also")
+if ! echo "$_c36_dsa" | grep -Fq 'debate-engine.md'; then
+    fail "Check 36: draft.md See Also missing the debate-engine pointer"
+    check36_ok=0
+fi
+# Review wiring: flag row, adjudication section with the batch-only, schema-
+# unchanged (#115), no-new-finding-sources (#110), and read-only boundaries.
+if ! grep -Fq '| --debate | No | `ask` (default), `auto`, or `off`.' "$REVIEW"; then
+    fail "Check 36: review.md missing the --debate input row"
+    check36_ok=0
+fi
+_c36_rs=$(extract_section "$REVIEW" "## Finding Adjudication (trigger-gated)")
+if [[ -z "$_c36_rs" ]] \
+    || ! echo "$_c36_rs" | grep -Fq 'never auto-run' \
+    || ! echo "$_c36_rs" | grep -Fq 'batch mode only' \
+    || ! echo "$_c36_rs" | grep -Fq 'never runs debates or proposals' \
+    || ! echo "$_c36_rs" | grep -Fq 'the `--json` schema is unchanged' \
+    || ! echo "$_c36_rs" | grep -Fq '#115' \
+    || ! echo "$_c36_rs" | grep -Fq 'does not create new finding sources' \
+    || ! echo "$_c36_rs" | grep -Fq '#110' \
+    || ! echo "$_c36_rs" | grep -Fq 'read-only'; then
+    fail "Check 36: review.md finding-adjudication section missing a boundary (never-auto-run / batch-only / stuck exclusion / schema-deferral / #110 scope / read-only)"
+    check36_ok=0
+fi
+_c36_rsa=$(extract_section "$REVIEW" "## See Also")
+if ! echo "$_c36_rsa" | grep -Fq 'debate-engine.md'; then
+    fail "Check 36: review.md See Also missing the debate-engine pointer"
+    check36_ok=0
+fi
+# Learn wiring: step 5 names the instance and its gate; learn-pathways carries
+# the parameter mapping and keeps itself normative; SKILL.md indexes the module.
+if ! grep -Fq 'debate-engine.md#learn-pedagogical-self-debate' "$_c36_learn" \
+    || ! grep -Fq '`always-inline` gate' "$_c36_learn"; then
+    fail "Check 36: learn.md step 5 does not name its debate-engine instance and gate"
+    check36_ok=0
+fi
+if ! grep -Fq 'debate-engine.md#learn-pedagogical-self-debate' "$_c36_lp" \
+    || ! grep -Fq 'the engine reference adds nothing beyond the parameter mapping' "$_c36_lp"; then
+    fail "Check 36: learn-pathways.md missing the instance mapping (or does not keep itself normative)"
+    check36_ok=0
+fi
+if ! grep -Fq 'debate-engine' "$PLUGIN_ROOT/skills/lean4/SKILL.md"; then
+    fail "Check 36: SKILL.md missing the debate-engine pointer"
+    check36_ok=0
+fi
+if [[ "$check36_ok" -eq 1 ]]; then
+    ok "Check 36: debate engine pinned (parameters, opt-in gate invariants, draft/review wiring + parser spec, learn mapping, deferred auto commands)"
+fi
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]
