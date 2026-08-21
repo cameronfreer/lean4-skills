@@ -425,6 +425,6 @@ lean4-skills-sorry-analyzer . --report-only
 
 **Quality:** [linter-authoring](references/linter-authoring.md) (project-specific linter rules), [ffi-interop](references/ffi-interop.md) (FFI, `@&`, init, symbol linkage)
 
-**Workflows:** [agent-workflows](references/agent-workflows.md), [subagent-workflows](references/subagent-workflows.md), [command-examples](references/command-examples.md), [learn-pathways](references/learn-pathways.md) (intent taxonomy, game tracks, source handling)
+**Workflows:** [agent-workflows](references/agent-workflows.md), [subagent-workflows](references/subagent-workflows.md), [command-examples](references/command-examples.md), [learn-pathways](references/learn-pathways.md) (intent taxonomy, game tracks, source handling), [debate-engine](references/debate-engine.md) (opt-in multi-perspective deliberation — draft/review/learn instances)
 
 **Internals:** [review-hook-schema](references/review-hook-schema.md), [compiler-internals](references/compiler-internals.md) (attributes, specialization, pipeline)

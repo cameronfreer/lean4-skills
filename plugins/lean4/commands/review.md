@@ -32,6 +32,7 @@ Read-only review of Lean proofs for quality, style, and optimization opportuniti
 | --hook | No | Run custom analysis script |
 | --json | No | Output structured JSON for external tools |
 | --mode | No | `batch` (default) or `stuck` (triage) |
+| --debate | No | `ask` (default), `auto`, or `off`. Gate for trigger-detected finding adjudication — see [Finding Adjudication](#finding-adjudication-trigger-gated). Batch mode only. |
 
 ## Scope Behavior
 
@@ -130,6 +131,18 @@ The agent selects files based on scope, then runs these analyses (per file or di
 6. **Complexity Metrics** - Proof sizes, longest proofs, tactic patterns
 
 **Stuck mode:** Steps 5–6 are skipped; focus is on blockers (steps 1–4) for quick triage.
+
+## Finding Adjudication (trigger-gated)
+
+Review's instance of the shared [debate engine](../skills/lean4/references/debate-engine.md#review-finding-adjudication). After the analyses complete and before the report is written, check each candidate finding for adjudication triggers:
+
+- the evidence is uncertain — no specific rule, lemma, or diagnostic backs the finding
+- the severity or category boundary is contested
+- the proposed remedy is destructive enough that a false positive would be costly (delete-or-replace class suggestions)
+
+If any finding triggers and `--debate=ask` (the default), show one proposal covering all triggered findings and wait for opt-in — never auto-run. `--debate=auto` runs without prompting; `--debate=off` disables adjudication and its proposals. On opt-in, run one inline round per triggered finding: **Advocate**, **Skeptic**, and **Maintainer** each commit to a position over the collected analysis output (budget: 0 new tool calls). A finding is reported only if the Advocate's case survives the Skeptic's strongest objection; the Maintainer's answer sets severity and placement. Findings that fail adjudication move from Recommendations to a short "Set aside by adjudication" list with one-line reasons.
+
+Boundaries: batch mode only — stuck mode is a fast triage path owned by the proving commands and never runs debates or proposals. Adjudication filters and labels findings the analyses above already produced; it does not create new finding sources (broadening what review emits remains #110's scope). It affects the human-readable report only — the `--json` schema is unchanged (machine-readable adjudication markers are deferred to #115). Review stays read-only throughout.
 
 ## Output
 
@@ -327,6 +340,7 @@ See [Codex SDK Cookbook](https://cookbook.openai.com/examples/codex/build_code_r
 - `/lean4:autoprove` - Autonomous multi-cycle proving
 - `/lean4:disprove` - Guided counterexample search with certified refutation
 - `/lean4:golf` - Apply golfing optimizations
+- [debate-engine.md](../skills/lean4/references/debate-engine.md) — shared deliberation module; review's finding-adjudication instance
 - [mathlib-style.md](../skills/lean4/references/mathlib-style.md)
 - [mathlib-review-taxonomy.md](../skills/lean4/references/mathlib-review-taxonomy.md) — reference for what mathlib reviewers ask for. This is background material only: it does **not** change `/lean4:review`'s current behavior; deciding when these buckets become emitted findings is Issue #110.
 - [Examples](../skills/lean4/references/command-examples.md#review)

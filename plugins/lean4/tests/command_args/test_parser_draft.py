@@ -225,5 +225,42 @@ class TestDraftMathlibTemplateFlags(unittest.TestCase):
         self.assertEqual(result.options["--no-mathlib-template"].value, True)
 
 
+class TestDraftDebateFlag(unittest.TestCase):
+    """--debate gate for the formalization debate (debate-engine.md)."""
+
+    def test_default_ask(self):
+        result = parse_invocation(SPEC, '"x"', cwd=CWD)
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.options["--debate"].value, "ask")
+        self.assertEqual(result.options["--debate"].source, "default")
+
+    def test_explicit_auto(self):
+        result = parse_invocation(SPEC, '"x" --debate=auto', cwd=CWD)
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.options["--debate"].value, "auto")
+        self.assertEqual(result.options["--debate"].source, "explicit")
+
+    def test_explicit_off(self):
+        result = parse_invocation(SPEC, '"x" --debate=off', cwd=CWD)
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.options["--debate"].value, "off")
+
+    def test_bad_value_lists_enum(self):
+        result = parse_invocation(SPEC, '"x" --debate=maybe', cwd=CWD)
+        self.assertTrue(len(result.errors) > 0)
+        self.assertIn("maybe", result.errors[0])
+        self.assertIn("ask", result.errors[0])
+        self.assertIn("auto", result.errors[0])
+        self.assertIn("off", result.errors[0])
+
+    def test_no_coercion_on_ask(self):
+        # Interactive command: ask is served as-is, never coerced.
+        result = parse_invocation(SPEC, '"x" --debate=ask', cwd=CWD)
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.coercions, [])
+        self.assertEqual(result.options["--debate"].value, "ask")
+        self.assertIsNone(result.options["--debate"].coerced_from)
+
+
 if __name__ == "__main__":
     unittest.main()

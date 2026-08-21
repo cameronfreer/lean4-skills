@@ -77,13 +77,13 @@ check_commands() {
             checkpoint) max_lines=155 ;;
             diagnose)   max_lines=290 ;;
             disprove)   max_lines=300 ;;
-            draft)      max_lines=170 ;;
+            draft)      max_lines=190 ;;
             formalize)  max_lines=210 ;;
             golf)       max_lines=170 ;;
             learn)      max_lines=210 ;;
             prove)      max_lines=235 ;;
             refactor)   max_lines=120 ;;
-            review)     max_lines=340 ;;
+            review)     max_lines=360 ;;
         esac
 
         if [[ $lines -gt $max_lines ]]; then

@@ -14,6 +14,7 @@ from ..coercions import (
 from ..types import CommandSpec, FlagSpec, PositionalSpec
 from ._common import (
     claim_select_flag,
+    debate_flag,
     intent_flag,
     level_flag,
     mathlib_template_flag,
@@ -61,6 +62,10 @@ FLAG_INTENT = intent_flag(
 # Claim-select unconditionally requires --source in draft context.
 FLAG_CLAIM_SELECT = claim_select_flag(requires=("--source",))
 
+# Gate for the formalization debate (debate-engine.md draft instance).
+# Interactive command: ask needs no startup coercion.
+FLAG_DEBATE = debate_flag()
+
 
 # ---------------------------------------------------------------------------
 # Spec
@@ -91,6 +96,7 @@ SPEC = CommandSpec(
         FLAG_INTENT,
         presentation_flag(),
         FLAG_CLAIM_SELECT,
+        FLAG_DEBATE,
     ),
     cross_validations=(
         # At least one of topic or --source must be given

@@ -180,6 +180,8 @@ This mechanism turns `/lean4:learn` from a static Q&A into an adaptive tutor. Wi
 
 After receiving a user response and before formulating a reply, `/lean4:learn` internally reasons from three advisor perspectives to select the best response strategy. This runs inside the iterate loop (step 5 in `learn.md`).
 
+This mechanism is learn's instance of the shared [debate engine](debate-engine.md#learn-pedagogical-self-debate): panel = Pace/Method/Depth; substrate = inline, 1 round; trigger = the [When to Run](#when-to-run) table; gate = `always-inline` (no `--debate` flag — zero tool calls, and the effect scope is gated by `--adaptive` plus explicit-flag precedence); adjudication = the momentum tiebreak; outcome = a [named strategy](#named-strategies) plus the `*Pedagogy: ...*` note. Everything below is the normative behavior of that instance — the engine reference adds nothing beyond the parameter mapping.
+
 ### Debate State
 
 The debate maintains lightweight structured state across turns (not persisted across conversations):

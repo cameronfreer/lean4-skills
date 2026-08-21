@@ -147,7 +147,7 @@ Offer the depth-check menu:
 
 ### 5. Pedagogical Self-Debate
 
-Without this step, learn responds in whatever style was set at the start — if a learner is struggling, it keeps explaining the same way; if they're bored, it doesn't notice. This step makes learn adaptive: it reads what the user's response reveals about their understanding and adjusts pace, method, and depth before each reply.
+Without this step, learn responds in whatever style was set at the start — if a learner is struggling, it keeps explaining the same way; if they're bored, it doesn't notice. This step makes learn adaptive: it reads what the user's response reveals about their understanding and adjusts pace, method, and depth before each reply. It is learn's instance of the shared [debate engine](../skills/lean4/references/debate-engine.md#learn-pedagogical-self-debate) (`always-inline` gate: zero tool calls, effect scope gated by `--adaptive`); behavior is defined here and in learn-pathways.md.
 
 After receiving the user's response (answer attempt, question, menu choice, or freeform message) and before formulating a reply, reason from three advisor perspectives to choose the best response strategy:
 
@@ -200,6 +200,7 @@ Output format follows `--presentation`: `informal` → prose with math notation 
 
 - [Examples](../skills/lean4/references/command-examples.md#learn)
 - [Cycle Engine](../skills/lean4/references/cycle-engine.md) — shared mechanics
+- [Debate Engine](../skills/lean4/references/debate-engine.md) — shared deliberation module; this step's parameter mapping
 - [LSP Tools API](../skills/lean4/references/lean-lsp-tools-api.md) — search tools used in mathlib mode
 - [Mathlib Guide](../skills/lean4/references/mathlib-guide.md) — mathlib navigation
 - [Learning Pathways](../skills/lean4/references/learn-pathways.md) — intent taxonomy, game tracks, source handling

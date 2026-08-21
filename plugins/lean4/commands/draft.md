@@ -59,6 +59,7 @@ Startup requirements:
 | --intent | no | `math` | `auto` \| `usage` \| `math`. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#intent-taxonomy). |
 | --presentation | no | `auto` | `informal` \| `supporting` \| `formal` \| `auto`. Controls user-facing display, not Lean backing. See [learn-pathways.md](../skills/lean4/references/learn-pathways.md#two-layer-architecture). |
 | --claim-select | no | — | `first` \| `named:"..."` \| `regex:"..."`. Noninteractive claim selection from `--source`. See below. |
+| --debate | no | `ask` | `ask` \| `auto` \| `off`. Gate for the trigger-detected formalization debate — see [Formalization Debate](#4-formalization-debate-trigger-gated). |
 
 ### Output validation
 
@@ -70,7 +71,7 @@ Startup requirements:
 
 ### Flag validation
 
-- `--intent`, `--presentation`, or `--elab-check` with invalid value → startup validation error.
+- `--intent`, `--presentation`, `--elab-check`, or `--debate` with invalid value → startup validation error.
 - `--intent=auto` inference: apply the shared [inference rules](../skills/lean4/references/learn-pathways.md#inference-rules-when---intentauto), then coerce `internals` → `usage` and `authoring` → `usage` (draft does not define behavior for those intents).
 - `--source` + unreadable format → warn + ask for text excerpt.
 - `--claim-select` without `--source` → startup validation error (nothing to select from).
@@ -125,13 +126,23 @@ Parse natural-language claim → draft theorem skeleton with appropriate types, 
 
 Run `lean_diagnostic_messages` on the drafted skeleton. Under `--elab-check=strict`, all diagnostics must be clean (excluding the expected sorry). Under `--elab-check=best-effort`, attempt to fix diagnostics but continue if unfixable.
 
-### 4. Proof Attempt (--mode=attempt only)
+### 4. Formalization Debate (trigger-gated)
+
+Draft's instance of the shared [debate engine](../skills/lean4/references/debate-engine.md#draft-formalization-debate). Propose it (never auto-run under `--debate=ask`, the default) when any trigger fires during steps 2–3:
+
+- two or more materially different candidate statements survive drafting — different encoding, quantifier structure, or typeclass generality, not cosmetic variants
+- faithfulness risk: the leading candidate may be vacuous, trivially true, or weaker/stronger than the informal claim
+- repeated strict elaboration failures that implicate the statement shape rather than the proof
+
+On opt-in (`yes`/`always`; `--debate=auto` skips the prompt, `--debate=off` disables detection announcements), run one inline round: **Fidelity**, **Idiom**, and **Provability** each commit to a position over the already-collected candidates, search results, and diagnostics (budget: ≤2 new LSP search calls). Adjudicate with Fidelity > Idiom > Provability — a candidate failing Fidelity is eliminated regardless of other merits. The winner becomes the drafted statement; viable losers become depth-check "alternative formalization" entries; emit the one-line `*Debate ...*` note. Full parameters, opt-in protocol (`always`/`never` session persistence), and failure handling: [debate-engine.md](../skills/lean4/references/debate-engine.md).
+
+### 5. Proof Attempt (--mode=attempt only)
 
 When `--mode=attempt`: `lean_goal` + `lean_multi_attempt` loop. Search mathlib for existing proofs or applicable lemmas before writing tactics from scratch. If proof succeeds, include it. If proof fails, leave sorry and note the attempt.
 
 This mode recovers the proof-attempt behavior of the old `/lean4:formalize` command. For full synthesis (including falsification, rigor completion, and assumption ledgers), use `/lean4:formalize`.
 
-### 5. Depth Check
+### 6. Depth Check
 
 Offer the depth-check menu:
 
@@ -158,6 +169,7 @@ Output format follows `--presentation`: `informal` → prose with math notation 
 ## See Also
 
 - [Examples](../skills/lean4/references/command-examples.md#draft)
+- [Debate Engine](../skills/lean4/references/debate-engine.md) — shared deliberation module; draft's formalization-debate instance
 - [LSP Tools API](../skills/lean4/references/lean-lsp-tools-api.md) — search tools used in proof attempts
 - [Learning Pathways](../skills/lean4/references/learn-pathways.md) — intent taxonomy, source handling
 - `/lean4:formalize` — interactive synthesis (draft + prove)
