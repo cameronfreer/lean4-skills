@@ -160,7 +160,7 @@ The agent selects files based on scope, then runs these analyses (per file or di
 
 ## External Hooks
 
-Custom hooks receive structured JSON on stdin with file information, sorries, axioms, and build status. They return JSON with a `suggestions` array.
+Custom hooks receive structured JSON on stdin with file information, sorries, axioms, and build status. They return a complete `lean4-review-output/v2` object containing a `suggestions` array.
 
 See [review-hook-schema.md](../skills/lean4/references/review-hook-schema.md) for full input/output schemas, examples, and performance tips for rate-limited APIs.
 
