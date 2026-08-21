@@ -1283,6 +1283,58 @@ if [[ "$check35_ok" -eq 1 ]]; then
     ok "Check 35: mathlib review taxonomy pinned (nine buckets, naming bucket, vacuous-api #60, durable links, schema-deferred, pointers)"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 36: review schema files (#115). Pin the load-bearing decisions that
+# test_review_schema.py's structural checks don't cover at the doc level: the
+# two shipped JSON files exist; the input reuses project-context/v1's
+# repository_kind (not a new repo_kind); review.md points --output-schema at
+# the installed $LEAN4_REFS path (not a bare filename) and no longer inlines a
+# full duplicate schema; and the version bumped to 2.0.
+# ---------------------------------------------------------------------------
+check36_ok=1
+_c36_refs="$PLUGIN_ROOT/skills/lean4/references"
+_c36_out="$_c36_refs/lean4-review-schema.json"
+_c36_in="$_c36_refs/lean4-review-input-schema.json"
+for _c36_f in "$_c36_out" "$_c36_in"; do
+    if [[ ! -f "$_c36_f" ]]; then
+        fail "Check 36: missing schema file $(basename "$_c36_f")"
+        check36_ok=0
+    fi
+done
+# Input reuses project-context/v1's repository_kind, not an invented repo_kind.
+if [[ -f "$_c36_in" ]]; then
+    if grep -Fq '"repo_kind"' "$_c36_in"; then
+        fail "Check 36: input schema introduces repo_kind; reuse project-context/v1 repository_kind"
+        check36_ok=0
+    fi
+    if ! grep -Fq '"repository_kind"' "$_c36_in" \
+        || ! grep -Fq '"contributing_upstream"' "$_c36_in"; then
+        fail "Check 36: input schema missing repository_kind / contributing_upstream (project-context/v1 reuse)"
+        check36_ok=0
+    fi
+fi
+# Output schema is Structured-Outputs-shaped + versioned.
+if [[ -f "$_c36_out" ]]; then
+    if ! grep -Fq '"const": "2.0"' "$_c36_out" \
+        || ! grep -Fq '"additionalProperties": false' "$_c36_out"; then
+        fail "Check 36: output schema missing version const 2.0 or additionalProperties:false"
+        check36_ok=0
+    fi
+fi
+# review.md: installed-path --output-schema, and no re-inlined full schema.
+_c36_rev="$PLUGIN_ROOT/commands/review.md"
+if ! grep -Fq -- '--output-schema "$LEAN4_REFS/lean4-review-schema.json"' "$_c36_rev"; then
+    fail "Check 36: review.md does not point --output-schema at the installed \$LEAN4_REFS path"
+    check36_ok=0
+fi
+if grep -Fq '"$schema": "https://json-schema.org/draft/2020-12/schema"' "$_c36_rev"; then
+    fail "Check 36: review.md still inlines a full JSON Schema block (should link the shipped file)"
+    check36_ok=0
+fi
+if [[ "$check36_ok" -eq 1 ]]; then
+    ok "Check 36: review schema files pinned (two files, repository_kind reuse, structured-outputs shape, installed path, no duplication)"
+fi
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]

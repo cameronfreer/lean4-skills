@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "lean4-review-output/v2",
+  "description": "Shared review-OUTPUT contract (Issue #115). Consumed by Codex via `codex exec --output-schema \"$LEAN4_REFS/lean4-review-schema.json\"` and produced by custom /lean4:review hooks. OpenAI Structured Outputs constrained: object root, additionalProperties:false on every object, every property in required, semantic optionals expressed as nullable types.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "suggestions", "summary", "error"],
+  "properties": {
+    "version": {"type": "string", "const": "2.0"},
+    "suggestions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/suggestion"}
+    },
+    "summary": {"$ref": "#/$defs/summary"},
+    "error": {
+      "description": "Non-null when the reviewer could not complete; suggestions is then empty.",
+      "type": ["string", "null"]
+    }
+  },
+  "$defs": {
+    "suggestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "line", "column", "severity", "category", "rule_id", "message", "fix"],
+      "properties": {
+        "file": {
+          "description": "File the finding applies to; null for a PR-level (metadata) finding with no file location.",
+          "type": ["string", "null"]
+        },
+        "line": {
+          "description": "1-indexed line; null when there is no concrete location (e.g. metadata).",
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "column": {
+          "description": "0-indexed column; null when unknown.",
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "severity": {"$ref": "#/$defs/severity"},
+        "category": {"$ref": "#/$defs/category"},
+        "rule_id": {
+          "description": "Optional specific rule within a category, e.g. \"vacuous-api\" under category \"api\"; null when unset.",
+          "type": ["string", "null"]
+        },
+        "message": {"type": "string"},
+        "fix": {
+          "description": "Suggested code (internal hooks only). External Codex reviews set null.",
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total_suggestions", "by_severity"],
+      "properties": {
+        "total_suggestions": {"type": "integer", "minimum": 0},
+        "by_severity": {"$ref": "#/$defs/by_severity"}
+      }
+    },
+    "by_severity": {
+      "description": "Count per severity; nonnegative integer, 0 (never null) when a severity has no findings. Property names are exactly the severity enum.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error", "warning", "advisory", "hint", "style"],
+      "properties": {
+        "error": {"type": "integer", "minimum": 0},
+        "warning": {"type": "integer", "minimum": 0},
+        "advisory": {"type": "integer", "minimum": 0},
+        "hint": {"type": "integer", "minimum": 0},
+        "style": {"type": "integer", "minimum": 0}
+      }
+    },
+    "severity": {
+      "description": "advisory is the settled value for the vacuous-api rule; style is legacy-accepted.",
+      "type": "string",
+      "enum": ["error", "warning", "advisory", "hint", "style"]
+    },
+    "category": {
+      "description": "Mathlib-review taxonomy vocabulary (#114) plus legacy-accepted values. Legacy values are accepted, not normalized.",
+      "type": "string",
+      "enum": [
+        "docstring",
+        "module-doc",
+        "api",
+        "generalization",
+        "attribute",
+        "simp",
+        "instance",
+        "file-placement",
+        "import-hygiene",
+        "module-system",
+        "metadata",
+        "sorry",
+        "axiom",
+        "style",
+        "structure",
+        "naming",
+        "golf",
+        "import"
+      ]
+    }
+  }
+}
