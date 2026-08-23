@@ -789,6 +789,33 @@ class OutputValidatorWrapperEndToEnd(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
         self.assertTrue(proc.stderr.strip())
 
+    def test_unreadable_shipped_schema_exits_4(self) -> None:
+        # LEAN4_REFS is consulted first; a malformed schema there is an
+        # operational failure (exit 4), distinct from a validation failure (3).
+        import tempfile
+
+        obj = {
+            "version": "2.0",
+            "suggestions": [],
+            "summary": {"total_suggestions": 0, "by_severity": self._by_sev()},
+            "error": None,
+        }
+        with tempfile.TemporaryDirectory() as refs:
+            with open(
+                os.path.join(refs, "lean4-review-schema.json"), "w", encoding="utf-8"
+            ) as f:
+                f.write("{ this is not valid json")
+            proc = subprocess.run(
+                [_WRAPPER],
+                input=json.dumps(obj),
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env={**os.environ, "LEAN4_REFS": refs},
+            )
+        self.assertEqual(proc.returncode, 4, proc.stderr)
+        self.assertTrue(proc.stderr.strip())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,6 +1,6 @@
 """Layer 4 hook -> block round-trip integration tests.
 
-For each of the 7 covered commands, verify that:
+For each of the nine covered commands, verify that:
 1. The hook subprocess produces valid JSON with the expected structure.
 2. The validated-invocation block in additionalContext round-trips through
    parse_validated_block / format_validated_block.
@@ -419,6 +419,11 @@ class TestReviewRoundTrip(unittest.TestCase):
         )
         self.assertEqual(out["decision"], "block")
         self.assertIn("mutually exclusive", out["reason"])
+
+    def test_review_blocked_sorry_scope_without_line(self):
+        out = _run_hook("/lean4:review Core.lean --scope=sorry", self.tmpdir)
+        self.assertEqual(out["decision"], "block")
+        self.assertIn("--line", out["reason"])
 
 
 # ═══════════════════════════════════════════════════════════════════════════

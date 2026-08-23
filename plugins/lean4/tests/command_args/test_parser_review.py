@@ -129,5 +129,46 @@ class TestReviewRejections(unittest.TestCase):
         self.assertTrue(any("positional" in e.lower() for e in result.errors))
 
 
+class TestReviewScopePreconditions(unittest.TestCase):
+    """sorry/deps require target+line; file requires target (documented in
+    review.md's Scope Behavior). The parser is authoritative at startup, so it
+    must reject these — the input schema only protects the hook payload."""
+
+    def _errs(self, tail: str) -> list[str]:
+        return parse_invocation(SPEC, tail, cwd=CWD).errors
+
+    def test_sorry_without_target_or_line_rejected(self):
+        errs = self._errs("--scope=sorry")
+        self.assertTrue(any("target" in e for e in errs))
+        self.assertTrue(any("--line" in e for e in errs))
+
+    def test_sorry_with_target_but_no_line_rejected(self):
+        errs = self._errs("Core.lean --scope=sorry")
+        self.assertTrue(any("--line" in e for e in errs))
+        self.assertFalse(any("target" in e for e in errs))
+
+    def test_deps_without_target_rejected(self):
+        self.assertTrue(any("target" in e for e in self._errs("--scope=deps --line=9")))
+
+    def test_file_without_target_rejected(self):
+        self.assertTrue(any("target" in e for e in self._errs("--scope=file")))
+
+    def test_bare_line_without_target_rejected(self):
+        self.assertTrue(any("target" in e for e in self._errs("--line=9")))
+
+    def test_documented_valid_scopes_accepted(self):
+        for tail in (
+            "",
+            "Core.lean",
+            "Core.lean --line=89",
+            "Core.lean --line=89 --scope=deps",
+            "Core.lean --scope=file",
+            "Core.lean --scope=sorry --line=5",
+            "--scope=changed",
+            "--scope=project",
+        ):
+            self.assertEqual(self._errs(tail), [], f"{tail!r} should be accepted")
+
+
 if __name__ == "__main__":
     unittest.main()

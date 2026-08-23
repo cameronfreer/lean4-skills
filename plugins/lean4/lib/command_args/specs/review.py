@@ -14,7 +14,10 @@ before any Layer-2 precedence resolution.
 
 from __future__ import annotations
 
-from ..coercions import REVIEW_MATHLIB_REVIEW_CONFLICT
+from ..coercions import (
+    REVIEW_MATHLIB_REVIEW_CONFLICT,
+    REVIEW_SCOPE_REQUIRES_TARGET_AND_LINE,
+)
 from ..types import CommandSpec, FlagSpec, PositionalSpec
 
 SPEC = CommandSpec(
@@ -91,5 +94,8 @@ SPEC = CommandSpec(
         # --mathlib-review + --no-mathlib-review -> single startup error,
         # evaluated before Layer-2 precedence.
         REVIEW_MATHLIB_REVIEW_CONFLICT,
+        # sorry/deps need target+line; file needs target (documented scope
+        # preconditions — the parser is authoritative at startup).
+        REVIEW_SCOPE_REQUIRES_TARGET_AND_LINE,
     ),
 )

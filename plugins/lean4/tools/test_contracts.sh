@@ -1274,9 +1274,12 @@ if ! grep -Fq 'mathlib-review-taxonomy' "$PLUGIN_ROOT/skills/lean4/references/ma
     check35_ok=0
 fi
 _c35_rev_seealso=$(extract_section "$PLUGIN_ROOT/commands/review.md" "## See Also")
+# Since #110 the taxonomy is no longer background-only: review.md's See Also
+# pointer must tie it to the Mathlib Review Layer that emits it (the old
+# "does not change behavior" disclaimer would now contradict the command).
 if ! echo "$_c35_rev_seealso" | grep -Fq 'mathlib-review-taxonomy' \
-    || ! echo "$_c35_rev_seealso" | grep -Fq 'does **not** change'; then
-    fail "Check 35: review.md See Also missing the taxonomy pointer or its 'does not change behavior' disclaimer"
+    || ! echo "$_c35_rev_seealso" | grep -Fq 'Mathlib Review Layer'; then
+    fail "Check 35: review.md See Also missing the taxonomy pointer or its Mathlib Review Layer (Layer 2) link"
     check35_ok=0
 fi
 if [[ "$check35_ok" -eq 1 ]]; then
@@ -1409,6 +1412,23 @@ fi
 if ! grep -Fq 'Mathlib Review Layer (Layer 2)' "$_c37_rev" \
     || ! grep -Fq 'helper-failure' "$_c37_rev"; then
     fail "Check 37: review.md missing Layer-2 activation table / helper-failure fail-safe"
+    check37_ok=0
+fi
+# review.md: Layer-2 detection is executable — the actual project-context
+# invocation and the exact validated nested fields, not just the table.
+if ! grep -Fq 'lean4-skills-project-context --from' "$_c37_rev"; then
+    fail "Check 37: review.md Layer-2 activation never runs lean4-skills-project-context --from"
+    check37_ok=0
+fi
+for _c37_field in 'project-context/v1' 'facts.repository_kind' 'intent.contributing_upstream' 'intent.source'; do
+    if ! grep -Fq "$_c37_field" "$_c37_rev"; then
+        fail "Check 37: review.md Layer-2 activation does not validate $_c37_field"
+        check37_ok=0
+    fi
+done
+# review.md: the documented scope preconditions the parser now enforces.
+if ! grep -Fq 'requires target file + --line' "$_c37_rev"; then
+    fail "Check 37: review.md missing the sorry/deps 'requires target file + --line' precondition"
     check37_ok=0
 fi
 

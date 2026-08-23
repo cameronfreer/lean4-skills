@@ -126,7 +126,7 @@ Proceed? (yes / no)
 **next_action:** continue
 ```
 
-The **Primary blocker class** value uses the Blocked-Goal Triage vocabulary from [sorry-filling.md](../skills/lean4/references/sorry-filling.md) (definitional equality / missing intro-constructor-cases / missing rewrite / arithmetic / missing library lemma / typeclass-coercion-elaboration / needs helper lemma) and classifies the top blocker — the listed blockers may span classes. The **Evidence** block records the searches attempted, top candidate lemmas returned, and `lean_multi_attempt` outcomes required by the cycle-engine stuck-handoff contract, so a stuck review is a valid handoff record on its own. These fields are part of the human-readable report only — the JSON summary schema is unchanged; machine-readable extension is deferred pending the schema work in #115.
+The **Primary blocker class** value uses the Blocked-Goal Triage vocabulary from [sorry-filling.md](../skills/lean4/references/sorry-filling.md) (definitional equality / missing intro-constructor-cases / missing rewrite / arithmetic / missing library lemma / typeclass-coercion-elaboration / needs helper lemma) and classifies the top blocker — the listed blockers may span classes. The **Evidence** block records the searches attempted, top candidate lemmas returned, and `lean_multi_attempt` outcomes required by the cycle-engine stuck-handoff contract, so a stuck review is a valid handoff record on its own. These fields are part of the human-readable stuck report only — they are **not** represented in the `lean4-review-output/v2` interchange contract, which carries per-finding suggestions, not stuck-triage narrative.
 
 **next_action classification (stuck mode):** `continue` (retryable), `deep` (needs escalation), `repair` (compiler blocker), `redraft` (statement-shape blocker), `golf` (sorry-free), `stop` (no path). Informational unless autoprove outer loop is active.
 
@@ -188,22 +188,34 @@ precedence**:
    `--mathlib-review=false` (or `--no-mathlib-review=false`) equals omission. If
    **both** `--mathlib-review` and `--no-mathlib-review` resolve to `true`,
    refuse to start (one startup validation error) — do not silently pick one.
-2. **Then precedence** (at most one flag is now `true`):
+2. **Explicit `true` flag wins — skip the helper.** If `--mathlib-review`
+   resolves to `true`, use full strictness; if `--no-mathlib-review` resolves to
+   `true`, use advisory. Do **not** consult project-context in either case.
+3. **Otherwise acquire project context.** Run
+   `lean4-skills-project-context --from "<target>"` (the target file/dir if one
+   was given, else `$PWD`) and validate the record exactly as `/lean4:checkpoint`
+   does: `schema` = `project-context/v1`; `facts.repository_kind` a string in
+   `mathlib | other-lean | not-lean | unknown`; `intent.contributing_upstream` a
+   string in `yes | no | unknown`; `intent.source` a non-empty string. A nonzero
+   exit, unparseable output, or any missing / non-string / out-of-domain field is
+   **malformed helper output**.
+4. **Then precedence** on the validated record:
 
 | Condition (in order) | Layer-2 behavior | Source |
 |----------------------|------------------|--------|
-| `--no-mathlib-review` | advisory | `flag` |
-| `--mathlib-review` | full strictness | `flag` |
-| `repository_kind == mathlib` | full strictness | `repository_kind` |
-| `contributing_upstream == yes` | full strictness | `contributing_upstream` |
-| any other resolved context (`other-lean`/`not-lean`/`unknown`, `no`/`unknown` intent) | advisory | `repository_kind` |
-| project-context helper unavailable/failed | advisory | `helper-failure` |
+| `--no-mathlib-review` true | advisory | `flag` |
+| `--mathlib-review` true | full strictness | `flag` |
+| `facts.repository_kind == mathlib` | full strictness | `repository_kind` |
+| `intent.contributing_upstream == yes` | full strictness | `contributing_upstream` |
+| any other resolved context (`other-lean`/`not-lean`/`unknown`, `no`/`unknown` intent) | advisory | `intent.source` |
+| helper nonzero / unparseable / malformed record | advisory | `helper-failure` |
 
-`repository_kind` (what the repo *is*) and `contributing_upstream` (intent) are
-distinct signals; either independently activates full strictness, and an
-explicit flag overrides both. The fail direction is toward **advisory** — the
-opposite of the checkpoint gate's fail-closed — because a review consumer must
-not impose mathlib blockers when the context is uncertain.
+`facts.repository_kind` (what the repo *is*) and `intent.contributing_upstream`
+(intent) are distinct signals; either independently activates full strictness,
+and an explicit flag overrides both. The fail direction is toward **advisory** —
+the opposite of the checkpoint gate's fail-closed — because a review consumer
+must never impose mathlib blockers when the context is uncertain. Report the
+resolved mode **and its source** in the **Resolved Inputs** block.
 
 ### Output labeling (normative)
 
@@ -433,5 +445,5 @@ for CI integration patterns.
 - `/lean4:disprove` - Guided counterexample search with certified refutation
 - `/lean4:golf` - Apply golfing optimizations
 - [mathlib-style.md](../skills/lean4/references/mathlib-style.md)
-- [mathlib-review-taxonomy.md](../skills/lean4/references/mathlib-review-taxonomy.md) — reference for what mathlib reviewers ask for. This is background material only: it does **not** change `/lean4:review`'s current behavior; deciding when these buckets become emitted findings is Issue #110.
+- [mathlib-review-taxonomy.md](../skills/lean4/references/mathlib-review-taxonomy.md) — the vocabulary the [Mathlib Review Layer](#mathlib-review-layer-layer-2) emits. Its buckets become first-class findings when Layer 2 is at full strictness, and advisory findings otherwise.
 - [Examples](../skills/lean4/references/command-examples.md#review)
