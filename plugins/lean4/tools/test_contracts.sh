@@ -1335,6 +1335,87 @@ if [[ "$check36_ok" -eq 1 ]]; then
     ok "Check 36: review schema files pinned (two files, repository_kind reuse, structured-outputs shape, installed path, no duplication)"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 37: /lean4:review broadened to the mathlib-review bar (#110). Pin the
+# load-bearing decisions the unit tests don't assert at the doc/wiring level:
+# review adopted its first command_args spec (registered + hook-covered); the
+# two mathlib-review gate flags + conflict rule + Invocation Contract are
+# documented; the runtime output validator wrapper exists, delegates to the
+# production module, and is wired into review.md; the input schema carries the
+# scope-dependent if/then conditionals; and review.md states the Layer-2
+# activation truth table (project-context gating, helper-failure → advisory)
+# with normative advisory labelling.
+# ---------------------------------------------------------------------------
+check37_ok=1
+_c37_rev="$PLUGIN_ROOT/commands/review.md"
+_c37_spec="$PLUGIN_ROOT/lib/command_args/specs/review.py"
+_c37_in="$PLUGIN_ROOT/skills/lean4/references/lean4-review-input-schema.json"
+_c37_wrapper="$PLUGIN_ROOT/bin/lean4-skills-validate-review-output"
+_c37_module="$PLUGIN_ROOT/lib/scripts/review_validate.py"
+
+# Parser adoption: spec module + registration + hook coverage.
+if [[ ! -f "$_c37_spec" ]]; then
+    fail "Check 37: missing command_args spec lib/command_args/specs/review.py"
+    check37_ok=0
+fi
+if ! grep -Fq 'from .review import SPEC' "$PLUGIN_ROOT/lib/command_args/specs/__init__.py"; then
+    fail "Check 37: review SPEC not registered in command_args specs/__init__.py"
+    check37_ok=0
+fi
+if ! grep -Fq '"review"' "$PLUGIN_ROOT/hooks/validate_user_prompt.py"; then
+    fail "Check 37: 'review' not added to _COVERED_COMMANDS in validate_user_prompt.py"
+    check37_ok=0
+fi
+
+# review.md: Invocation Contract, both gate flags, conflict rule.
+if ! grep -Fq '## Invocation Contract' "$_c37_rev" \
+    || ! grep -Fq '**Primary path (hook-validated):**' "$_c37_rev"; then
+    fail "Check 37: review.md missing Invocation Contract / Primary-path marker"
+    check37_ok=0
+fi
+for _c37_flag in -- '--mathlib-review' '--no-mathlib-review'; do
+    [[ "$_c37_flag" == "--" ]] && continue
+    if ! grep -Fq -- "$_c37_flag" "$_c37_rev"; then
+        fail "Check 37: review.md does not document $_c37_flag"
+        check37_ok=0
+    fi
+done
+if ! grep -Fq 'startup validation error' "$_c37_rev"; then
+    fail "Check 37: review.md missing the mathlib-review conflict → startup validation error rule"
+    check37_ok=0
+fi
+
+# Runtime output validator: wrapper + production module + doc wiring.
+if [[ ! -f "$_c37_wrapper" ]]; then
+    fail "Check 37: missing validator wrapper bin/lean4-skills-validate-review-output"
+    check37_ok=0
+fi
+if [[ ! -f "$_c37_module" ]]; then
+    fail "Check 37: missing production validator lib/scripts/review_validate.py"
+    check37_ok=0
+fi
+if ! grep -Fq 'lean4-skills-validate-review-output' "$_c37_rev"; then
+    fail "Check 37: review.md does not wire the output validator into the merge path"
+    check37_ok=0
+fi
+
+# Input schema: scope-dependent conditionals present.
+if [[ -f "$_c37_in" ]] && ! grep -Fq '"allOf"' "$_c37_in"; then
+    fail "Check 37: input schema missing the scope-dependent if/then (allOf) conditionals"
+    check37_ok=0
+fi
+
+# review.md: Layer-2 activation truth table with helper-failure → advisory.
+if ! grep -Fq 'Mathlib Review Layer (Layer 2)' "$_c37_rev" \
+    || ! grep -Fq 'helper-failure' "$_c37_rev"; then
+    fail "Check 37: review.md missing Layer-2 activation table / helper-failure fail-safe"
+    check37_ok=0
+fi
+
+if [[ "$check37_ok" -eq 1 ]]; then
+    ok "Check 37: /lean4:review mathlib-review bar pinned (parser adoption, gate flags + conflict, output validator wiring, input conditionals, Layer-2 activation)"
+fi
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]

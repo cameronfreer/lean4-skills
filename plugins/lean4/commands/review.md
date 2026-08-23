@@ -18,7 +18,33 @@ Read-only review of Lean proofs for quality, style, and optimization opportuniti
 /lean4:review File.lean --line=89          # Review single sorry
 /lean4:review File.lean --line=89 --scope=deps  # Review sorry + its dependencies
 /lean4:review --scope=project              # Review entire project (prompts)
+/lean4:review --mathlib-review             # Force the mathlib-review bar (Layer 2)
 ```
+
+## Invocation Contract
+
+Interpret this command's inputs per the
+[Command Invocation Contract](../skills/lean4/references/command-invocation.md).
+
+**Primary path (hook-validated):** If a `validated-invocation` block for this
+command appears in context, treat it as the authoritative interpretation of
+parser-decidable inputs and do **not** re-parse the raw invocation text for
+those inputs. Start by reading all parser-decided fields from the block. Emit
+the final **Resolved Inputs** summary from the block values.
+See [Validated Invocation Block](../skills/lean4/references/command-invocation.md#validated-invocation-block-host-provided).
+
+**Fallback path (other hosts):** If no `validated-invocation` block is present,
+parse the raw invocation text against this command's input table before acting.
+
+Startup requirements:
+
+1. Emit a **Resolved Inputs** block with explicit values, defaults, and any
+   ignored flags — including the effective **Layer-2 activation** decision and
+   its source (`flag`, `repository_kind`, `contributing_upstream`, or
+   `helper-failure`; see [Mathlib Review Layer](#mathlib-review-layer-layer-2)).
+2. Refuse to start on startup validation errors — including passing both
+   `--mathlib-review` and `--no-mathlib-review` (`--mathlib-review` with
+   `--no-mathlib-review` → startup validation error).
 
 ## Inputs
 
@@ -32,6 +58,8 @@ Read-only review of Lean proofs for quality, style, and optimization opportuniti
 | --hook | No | Run custom analysis script |
 | --json | No | Output structured JSON for external tools |
 | --mode | No | `batch` (default) or `stuck` (triage) |
+| --mathlib-review | No | Force the Layer-2 mathlib-review bar at full strictness, overriding project-context detection. Mutually exclusive with `--no-mathlib-review`. |
+| --no-mathlib-review | No | Force Layer-2 findings to advisory, overriding project-context detection. Mutually exclusive with `--mathlib-review`. |
 
 ## Scope Behavior
 
@@ -118,7 +146,7 @@ Example: `**Flag:** Statement may be false (decidable goal failed decide)`
 
 For strategy-level proof simplification (mathlib leverage, helper extraction, congr-lemma patterns), run `/lean4:refactor` or `/lean4:refactor --dry-run`.
 
-## Actions
+## Actions — Layer 1: core proof hygiene (always-on)
 
 The agent selects files based on scope, then runs these analyses (per file or directory):
 
@@ -130,6 +158,67 @@ The agent selects files based on scope, then runs these analyses (per file or di
 6. **Complexity Metrics** - Proof sizes, longest proofs, tactic patterns
 
 **Stuck mode:** Steps 5–6 are skipped; focus is on blockers (steps 1–4) for quick triage.
+
+Layer 1 findings are always blockers-or-hygiene for the current project. The
+second-pass **mathlib-review layer** below runs on top of them.
+
+## Mathlib Review Layer (Layer 2)
+
+A second pass surfaces what mathlib's own PR-review guide asks for, in four
+first-class sections mapped onto the shipped
+[mathlib-review taxonomy](../skills/lean4/references/mathlib-review-taxonomy.md)
+(#114) and the `category` values in
+[`lean4-review-schema.json`](../skills/lean4/references/lean4-review-schema.json)
+(#115). This layer **consumes** those references; it does not restate their
+vocabulary.
+
+1. **Documentation Review** — module + declaration docstrings on public API, proof sketches on intricate arguments, cross-references. *Categories:* `docstring`, `module-doc`.
+2. **Library Integration Review** — duplicate/more-general existing results, file placement, heavier-than-needed imports, lowest sensible module. *Categories:* `file-placement`, `import-hygiene`.
+3. **API / Generalization Review** — weakest reasonable assumptions, structure-vs-conjunction, blocked generalizations. *Categories:* `api`, `generalization` (settled rule `rule_id: vacuous-api`, `severity: advisory`).
+4. **Attributes & Instances Review** — `@[simp]` justification, new-instance diamond risk, `@[ext]`, `@[reducible]`. *Categories:* `attribute`, `simp`, `instance`.
+
+### Layer-2 activation
+
+Layer 2 runs at **full strictness** (findings alongside Layer-1) only when the
+work is plausibly aimed at upstream mathlib; otherwise its findings are
+**advisory**. Resolve the mode in this order — **conflict validation precedes
+precedence**:
+
+1. **Conflict first.** Only flags resolving to `true` participate; an explicit
+   `--mathlib-review=false` (or `--no-mathlib-review=false`) equals omission. If
+   **both** `--mathlib-review` and `--no-mathlib-review` resolve to `true`,
+   refuse to start (one startup validation error) — do not silently pick one.
+2. **Then precedence** (at most one flag is now `true`):
+
+| Condition (in order) | Layer-2 behavior | Source |
+|----------------------|------------------|--------|
+| `--no-mathlib-review` | advisory | `flag` |
+| `--mathlib-review` | full strictness | `flag` |
+| `repository_kind == mathlib` | full strictness | `repository_kind` |
+| `contributing_upstream == yes` | full strictness | `contributing_upstream` |
+| any other resolved context (`other-lean`/`not-lean`/`unknown`, `no`/`unknown` intent) | advisory | `repository_kind` |
+| project-context helper unavailable/failed | advisory | `helper-failure` |
+
+`repository_kind` (what the repo *is*) and `contributing_upstream` (intent) are
+distinct signals; either independently activates full strictness, and an
+explicit flag overrides both. The fail direction is toward **advisory** — the
+opposite of the checkpoint gate's fail-closed — because a review consumer must
+not impose mathlib blockers when the context is uncertain.
+
+### Output labeling (normative)
+
+Advisory Layer-2 findings must be **structurally separable** from Layer-1
+blockers: render them under a distinct heading (e.g. `### Advisory (mathlib-style)`)
+or carry an explicit `severity: advisory` tag (both available in
+`lean4-review-output/v2`). Intermixing advisory and blocking findings in one
+undifferentiated list is insufficient.
+
+**Mode × layer:**
+
+- `batch` × mathlib-targeted: all four Layer-2 sections emit as first-class findings alongside Layer-1.
+- `batch` × non-mathlib: Layer-2 emits under a separate "Advisory (mathlib-style)" section.
+- `stuck` × mathlib-targeted: bias toward blockers; allow one Layer-2 blocker when it is the main reason the patch won't survive mathlib review.
+- `stuck` × non-mathlib: Layer-1 blockers only; Layer-2 stays advisory and may be omitted.
 
 ## Output
 
@@ -161,6 +250,22 @@ The agent selects files based on scope, then runs these analyses (per file or di
 ## External Hooks
 
 Custom hooks receive structured JSON on stdin with file information, sorries, axioms, and build status. They return a complete `lean4-review-output/v2` object containing a `suggestions` array.
+
+**Validate before merging.** Every hook or Codex `output/v2` object is validated
+before its findings are incorporated — pipe it through
+`lean4-skills-validate-review-output` (reads the object on stdin):
+
+- exit `0` — valid; merge the findings.
+- exit `3` — validation failure (`error_code` `schema-invalid` or
+  `semantic-invalid` on stdout). **Exclude** these findings and report the
+  failure; never normalize or repair the output.
+- exit `2` — empty input or malformed JSON (treat as a hook that produced no
+  usable result); exit `4` — the shipped schema is unreadable (operational).
+
+The validator enforces the shipped schema plus the cross-field invariants JSON
+Schema cannot express: `total_suggestions == len(suggestions)`, the
+`by_severity` histogram agrees with the suggestions, and a non-null `error`
+implies empty `suggestions`.
 
 See [review-hook-schema.md](../skills/lean4/references/review-hook-schema.md) for full input/output schemas, examples, and performance tips for rate-limited APIs.
 

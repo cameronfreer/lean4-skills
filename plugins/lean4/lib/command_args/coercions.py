@@ -566,6 +566,38 @@ MATHLIB_MK_ALL_CONFLICT = CrossValidation(
 )
 
 
+# -- review_mathlib_review_conflict ----------------------------------------
+
+
+def review_mathlib_review_conflict(
+    options: Mapping[str, object],
+    ctx: ParseContext,
+) -> list[str]:
+    """review: --mathlib-review + --no-mathlib-review -> error.
+
+    Conflict validation precedes Layer-2 precedence: only flags resolving to
+    true participate, so a single error fires when both are true and an
+    explicit false behaves like omission.
+    """
+    if options.get("--mathlib-review") and options.get("--no-mathlib-review"):
+        return [
+            "--mathlib-review and --no-mathlib-review are mutually "
+            "exclusive; pass at most one."
+        ]
+    return []
+
+
+REVIEW_MATHLIB_REVIEW_CONFLICT = CrossValidation(
+    rule_id="review_mathlib_review_conflict",
+    fn=review_mathlib_review_conflict,
+    severity="error",
+    doc_phrases=(
+        "--mathlib-review` with `--no-mathlib-review` \u2192 startup validation error",
+    ),
+    summary="--mathlib-review and --no-mathlib-review are mutually exclusive",
+)
+
+
 # -- mathlib_template_requires_output_file ---------------------------------
 
 

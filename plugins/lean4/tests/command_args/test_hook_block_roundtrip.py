@@ -377,6 +377,51 @@ class TestDisproveRoundTrip(unittest.TestCase):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# /lean4:review
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestReviewRoundTrip(unittest.TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(prefix="hook_review_")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_review_target_defaults(self):
+        tail = "File.lean --line=89"
+        out = _run_hook(f"/lean4:review {tail}", self.tmpdir)
+        block = _extract_block(out)
+        from_hook = parse_validated_block(block)
+        direct = parse_invocation(COMMAND_SPECS["review"], tail, cwd=self.tmpdir)
+
+        self.assertEqual(from_hook.positionals["target"], "File.lean")
+        self.assertEqual(from_hook.options["--line"].value, 89)
+        _assert_parse_results_equal(self, from_hook, direct, "review defaults")
+
+        re_block = format_validated_block(direct)
+        self.assertEqual(parse_validated_block(re_block).command, "review")
+
+    def test_review_with_mathlib_review(self):
+        tail = "--scope=changed --mathlib-review"
+        out = _run_hook(f"/lean4:review {tail}", self.tmpdir)
+        block = _extract_block(out)
+        from_hook = parse_validated_block(block)
+        direct = parse_invocation(COMMAND_SPECS["review"], tail, cwd=self.tmpdir)
+
+        self.assertEqual(from_hook.options["--scope"].value, "changed")
+        self.assertEqual(from_hook.options["--mathlib-review"].value, True)
+        _assert_parse_results_equal(self, from_hook, direct, "review mathlib-review")
+
+    def test_review_blocked_conflicting_flags(self):
+        out = _run_hook(
+            "/lean4:review --mathlib-review --no-mathlib-review", self.tmpdir
+        )
+        self.assertEqual(out["decision"], "block")
+        self.assertIn("mutually exclusive", out["reason"])
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Fail-open tests
 # ═══════════════════════════════════════════════════════════════════════════
 

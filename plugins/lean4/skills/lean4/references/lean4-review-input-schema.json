@@ -147,6 +147,65 @@
       }
     }
   },
+  "allOf": [
+    {
+      "$comment": "sorry/deps scope requires a non-null file and line (required alone is insufficient — the then branch also pins the types).",
+      "if": {
+        "type": "object",
+        "required": ["focus"],
+        "properties": {
+          "focus": {
+            "type": "object",
+            "required": ["scope"],
+            "properties": {
+              "scope": {"type": "string", "enum": ["sorry", "deps"]}
+            }
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "focus": {
+            "type": "object",
+            "required": ["scope", "file", "line"],
+            "properties": {
+              "file": {"type": "string"},
+              "line": {"type": "integer", "minimum": 1}
+            }
+          }
+        }
+      }
+    },
+    {
+      "$comment": "file scope requires a non-null file.",
+      "if": {
+        "type": "object",
+        "required": ["focus"],
+        "properties": {
+          "focus": {
+            "type": "object",
+            "required": ["scope"],
+            "properties": {
+              "scope": {"type": "string", "const": "file"}
+            }
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "focus": {
+            "type": "object",
+            "required": ["scope", "file"],
+            "properties": {
+              "file": {"type": "string"}
+            }
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "file": {
       "type": "object",

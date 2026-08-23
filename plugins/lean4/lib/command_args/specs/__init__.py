@@ -13,6 +13,7 @@ from .draft import SPEC as _DRAFT
 from .formalize import SPEC as _FORMALIZE
 from .learn import SPEC as _LEARN
 from .prove import SPEC as _PROVE
+from .review import SPEC as _REVIEW
 
 COMMAND_SPECS: dict[str, CommandSpec] = {
     _AUTOFORMALIZE.name: _AUTOFORMALIZE,
@@ -23,4 +24,5 @@ COMMAND_SPECS: dict[str, CommandSpec] = {
     _FORMALIZE.name: _FORMALIZE,
     _LEARN.name: _LEARN,
     _PROVE.name: _PROVE,
+    _REVIEW.name: _REVIEW,
 }

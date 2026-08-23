@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# lean4-skills-validate-review-output — model-facing wrapper around
+# lib/scripts/review_validate.py. Reads one complete lean4-review-output/v2
+# object on stdin and validates it against the SHIPPED schema
+# (lean4-review-schema.json) plus the cross-field invariants JSON Schema
+# cannot express (total_suggestions == len; by_severity histogram agrees;
+# non-null error implies empty suggestions). /lean4:review runs every
+# hook/Codex output through this before merging findings; on failure it
+# excludes the invalid findings rather than repairing them.
+#
+# Exit codes:
+#   0  valid output
+#   2  usage error, empty input, or malformed JSON
+#   3  validation failure — structural or semantic (JSON error_code on stdout)
+#   4  operational failure (e.g. the shipped schema is unreadable)
+#
+# See lean4-skills-project-context for the bin/-wrapper rationale.
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+exec "${LEAN4_PYTHON_BIN:-python3}" "$PLUGIN_ROOT/lib/scripts/review_validate.py" "$@"
