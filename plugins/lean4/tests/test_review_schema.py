@@ -17,6 +17,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
 from collections.abc import Iterator
 from typing import Any
@@ -789,32 +790,76 @@ class OutputValidatorWrapperEndToEnd(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
         self.assertTrue(proc.stderr.strip())
 
-    def test_unreadable_shipped_schema_exits_4(self) -> None:
-        # LEAN4_REFS is consulted first; a malformed schema there is an
-        # operational failure (exit 4), distinct from a validation failure (3).
-        import tempfile
+    def _valid_empty(self) -> str:
+        return json.dumps(
+            {
+                "version": "2.0",
+                "suggestions": [],
+                "summary": {"total_suggestions": 0, "by_severity": self._by_sev()},
+                "error": None,
+            }
+        )
 
-        obj = {
-            "version": "2.0",
-            "suggestions": [],
-            "summary": {"total_suggestions": 0, "by_severity": self._by_sev()},
-            "error": None,
-        }
+    def _run_with_schema(self, schema_text: str) -> subprocess.CompletedProcess[str]:
+        """Run the wrapper with LEAN4_REFS pointing at a dir whose installed
+        review schema is `schema_text`, over a valid empty output object."""
         with tempfile.TemporaryDirectory() as refs:
             with open(
                 os.path.join(refs, "lean4-review-schema.json"), "w", encoding="utf-8"
             ) as f:
-                f.write("{ this is not valid json")
-            proc = subprocess.run(
+                f.write(schema_text)
+            return subprocess.run(
                 [_WRAPPER],
-                input=json.dumps(obj),
+                input=self._valid_empty(),
                 capture_output=True,
                 text=True,
                 timeout=30,
                 env={**os.environ, "LEAN4_REFS": refs},
             )
+
+    def test_malformed_or_unusable_schema_json_exits_4(self) -> None:
+        # LEAN4_REFS is consulted first; a malformed schema there is an
+        # operational failure (exit 4), distinct from a validation failure (3).
+        proc = self._run_with_schema("{ this is not valid json")
         self.assertEqual(proc.returncode, 4, proc.stderr)
         self.assertTrue(proc.stderr.strip())
+
+    def test_schema_array_root_exits_4_no_traceback(self) -> None:
+        # `[]` parses but would crash the validator — must be exit 4, not a
+        # traceback / undocumented exit.
+        proc = self._run_with_schema("[]")
+        self.assertEqual(proc.returncode, 4, proc.stderr)
+        self.assertNotIn("Traceback", proc.stderr)
+
+    def test_schema_empty_object_exits_4(self) -> None:
+        # `{}` parses and imposes no constraints — fail-open; reject as unusable.
+        proc = self._run_with_schema("{}")
+        self.assertEqual(proc.returncode, 4, proc.stderr)
+
+    def test_schema_wrong_title_exits_4(self) -> None:
+        bad = _load(_OUT)
+        bad["title"] = "something-else"
+        proc = self._run_with_schema(json.dumps(bad))
+        self.assertEqual(proc.returncode, 4, proc.stderr)
+
+    def test_schema_wrong_version_const_exits_4(self) -> None:
+        bad = _load(_OUT)
+        bad["properties"]["version"] = {"type": "string", "const": "9.9"}
+        proc = self._run_with_schema(json.dumps(bad))
+        self.assertEqual(proc.returncode, 4, proc.stderr)
+
+    def test_schema_unsupported_keyword_exits_4(self) -> None:
+        # A constraint the narrow validator would silently ignore = unusable.
+        bad = _load(_OUT)
+        bad["maxProperties"] = 4
+        proc = self._run_with_schema(json.dumps(bad))
+        self.assertEqual(proc.returncode, 4, proc.stderr)
+
+    def test_copied_valid_shipped_schema_exits_0(self) -> None:
+        with open(_OUT, encoding="utf-8") as f:
+            proc = self._run_with_schema(f.read())
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertTrue(json.loads(proc.stdout)["ok"])
 
 
 if __name__ == "__main__":

@@ -222,8 +222,107 @@ def _default_schema_path() -> str:
     )
 
 
+# A parsed-but-wrong schema (`[]`, `{}`, a different valid schema) would
+# fail-open: `[]` crashes validate_instance, `{}` imposes no constraints. Pin
+# the identity and load-bearing root shape — NOT the suggestion fields/enums,
+# which the schema itself owns — so an unusable installed contract is exit 4.
+_DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
+_EXPECTED_TITLE = "lean4-review-output/v2"
+_EXPECTED_ROOT_REQUIRED = {"version", "suggestions", "summary", "error"}
+_EXPECTED_DEFS = {"suggestion", "summary", "by_severity", "severity", "category"}
+
+# Keywords the narrow validator understands (validation) or safely ignores
+# (annotation). A schema keyword outside this set would be silently unenforced,
+# so its presence in the installed schema is treated as an unusable contract —
+# a future author cannot add a constraint the runtime would drop on the floor.
+_ANNOTATION_KEYWORDS = {
+    "$schema",
+    "$id",
+    "$comment",
+    "title",
+    "description",
+    "default",
+    "examples",
+}
+_SUPPORTED_VALIDATION_KEYWORDS = {
+    "$ref",
+    "$defs",
+    "type",
+    "const",
+    "enum",
+    "properties",
+    "required",
+    "additionalProperties",
+    "minimum",
+    "items",
+    "allOf",
+    "if",
+    "then",
+    "else",
+}
+_ALLOWED_SCHEMA_KEYWORDS = _ANNOTATION_KEYWORDS | _SUPPORTED_VALIDATION_KEYWORDS
+
+
+def _assert_expected_identity(schema: object) -> None:
+    """Fail (SchemaUnavailableError) unless the parsed schema is our contract."""
+    if not isinstance(schema, dict):
+        raise SchemaUnavailableError(
+            "installed review schema root is not a JSON object"
+        )
+    if schema.get("$schema") != _DRAFT_2020_12:
+        raise SchemaUnavailableError("installed review schema is not Draft 2020-12")
+    if schema.get("title") != _EXPECTED_TITLE:
+        raise SchemaUnavailableError(
+            f"installed review schema has unexpected identity: expected {_EXPECTED_TITLE}"
+        )
+    if schema.get("type") != "object":
+        raise SchemaUnavailableError("installed review schema root type is not object")
+    if set(schema.get("required", [])) != _EXPECTED_ROOT_REQUIRED:
+        raise SchemaUnavailableError(
+            "installed review schema root required is not "
+            "{version, suggestions, summary, error}"
+        )
+    version = schema.get("properties", {}).get("version", {})
+    if version.get("type") != "string" or version.get("const") != "2.0":
+        raise SchemaUnavailableError(
+            "installed review schema version is not type:string const:2.0"
+        )
+    missing = _EXPECTED_DEFS - set(schema.get("$defs", {}))
+    if missing:
+        raise SchemaUnavailableError(
+            f"installed review schema missing core $defs: {sorted(missing)}"
+        )
+
+
+def _assert_supported_keywords(node: object, path: str = "$") -> None:
+    """Reject any schema keyword the narrow validator would silently ignore."""
+    if not isinstance(node, dict):
+        return
+    for key in node:
+        if key not in _ALLOWED_SCHEMA_KEYWORDS:
+            raise SchemaUnavailableError(
+                f"installed review schema uses unsupported keyword {key!r} at {path} "
+                "that the runtime validator would silently ignore"
+            )
+    for key in ("items", "if", "then", "else", "additionalProperties"):
+        if isinstance(node.get(key), dict):
+            _assert_supported_keywords(node[key], f"{path}.{key}")
+    for sub in node.get("allOf", []):
+        _assert_supported_keywords(sub, f"{path}.allOf[]")
+    for map_key in ("properties", "$defs"):
+        mapping = node.get(map_key)
+        if isinstance(mapping, dict):
+            for name, sub in mapping.items():
+                _assert_supported_keywords(sub, f"{path}.{map_key}.{name}")
+
+
 def load_output_schema(path: str | None = None) -> dict[str, Any]:
-    """Load and parse the shipped output schema, or raise SchemaUnavailableError."""
+    """Load, parse, and identity-check the shipped output schema.
+
+    Raises SchemaUnavailableError (→ exit 4) on any unusable installed contract:
+    unreadable/malformed JSON, wrong identity/root shape, or a keyword the
+    runtime validator would silently ignore.
+    """
     resolved = path or _default_schema_path()
     try:
         with open(resolved, encoding="utf-8") as f:
@@ -232,6 +331,8 @@ def load_output_schema(path: str | None = None) -> dict[str, Any]:
         raise SchemaUnavailableError(
             f"cannot load shipped review schema at {resolved}: {exc}"
         ) from exc
+    _assert_expected_identity(schema)
+    _assert_supported_keywords(schema)
     return schema
 
 
