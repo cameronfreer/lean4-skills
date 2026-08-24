@@ -1426,6 +1426,12 @@ for _c37_field in 'project-context/v1' 'facts.repository_kind' 'intent.contribut
         check37_ok=0
     fi
 done
+# intent.source must be pinned to its actual project-context/v1 domain, not
+# merely required to be a non-empty string (else "flag"/"anything" would pass).
+if ! grep -Fq 'env-override | invalid-env-override | remote-heuristic | default' "$_c37_rev"; then
+    fail "Check 37: review.md does not pin the intent.source domain (env-override|invalid-env-override|remote-heuristic|default)"
+    check37_ok=0
+fi
 # review.md: the documented scope preconditions the parser now enforces.
 if ! grep -Fq 'requires target file + --line' "$_c37_rev"; then
     fail "Check 37: review.md missing the sorry/deps 'requires target file + --line' precondition"

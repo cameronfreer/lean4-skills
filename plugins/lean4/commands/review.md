@@ -196,7 +196,8 @@ precedence**:
    was given, else `$PWD`) and validate the record exactly as `/lean4:checkpoint`
    does: `schema` = `project-context/v1`; `facts.repository_kind` a string in
    `mathlib | other-lean | not-lean | unknown`; `intent.contributing_upstream` a
-   string in `yes | no | unknown`; `intent.source` a non-empty string. A nonzero
+   string in `yes | no | unknown`; `intent.source` a string in
+   `env-override | invalid-env-override | remote-heuristic | default`. A nonzero
    exit, unparseable output, or any missing / non-string / out-of-domain field is
    **malformed helper output**.
 4. **Then precedence** on the validated record:
