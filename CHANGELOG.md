@@ -1,5 +1,19 @@
 # Changelog
 
+## v4.8.0 (August 2026)
+
+Track 3 foundation: `run-contract/v1` — the versioned dispatch + handoff protocol for proving commands and proof-editing agents, plus the rerun guard (Refs #151; closes #73, closes #69, closes #190). Documentation contract, no runtime enforcement, no filesystem persistence (that stays #82).
+
+### Added
+
+- **`references/handoff-contract.md`** — the canonical `run-contract/v1`: a **dispatch** record (parent → worker: target, scope, mode, capabilities, `owned_files` with `file-baseline/v1` custody, `prior_blocker`, budget) and a **handoff** record (worker → parent/human: `status`, `blocker_class`, `blocker_signature`, attempted tools, best candidates, failed avenues, `evidence`, `files_owned` vs `files_changed`, `next_action`, `new_evidence_required_for_rerun`), each with required fields, enums, and nullability. It **reuses** existing vocabulary rather than forking it — the cycle engine's `(file, line, error)` blocker signature, the Blocked-Goal Triage `blocker_class`, and the shipped review stuck-mode `next_action` enum. The **rerun guard** is stated once here: don't relaunch the same `(target, scope, mode)` on the same `blocker_signature` without an auditable evidence delta (changed goal/diagnostic, advanced baseline, newly verified candidate, changed source, or new capability) — otherwise route to `review --mode=stuck`, `formalize`, or human handoff. "Durable" = serializable/transferable across subagent, inline, and human handoffs; filesystem persistence is deferred to #82.
+
+### Changed
+
+- **`cycle-engine.md`** gains a **Run Contract (`run-contract/v1`)** section: the parent/worker/human roles, delegation expectations, a **no-subagent fallback** (the contract binds the logical roles, so a host without subagents runs the same records inline), human-in-the-loop handoff, and a shared **Delegation Execution Policy** (generalized from golf's local policy). The existing Pre-flight Context block is now labeled as the concrete dispatch record.
+- **`prove.md`** / **`autoprove.md`** — the stop/stuck-boundary summary is the handoff record; both state the rerun guard. **`golf.md`** references the shared delegation policy instead of only its own. **`subagent-workflows.md`** / **`agent-workflows.md`** get a host-neutral core (they are the Claude Code instantiation of the contract). **`SKILL.md`** links the handoff contract and the rerun rule.
+- Contract Check 38 pins the two records, the reused vocabulary, `files_owned` ≠ `files_changed`, the rerun predicate, the #82 persistence deferral, and the cycle-engine + consumer wiring.
+
 ## v4.7.0 (August 2026)
 
 Broaden `/lean4:review` from proof hygiene to the mathlib-review bar — the final Track 2 item (Refs #151; closes #110). The command now consumes the shipped taxonomy (#114) and schema (#115) as a runtime consumer, closes its long-standing command-argument validation gap, and enforces hook/Codex output instead of trusting it.

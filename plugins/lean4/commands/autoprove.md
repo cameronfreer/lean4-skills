@@ -219,6 +219,14 @@ When autoprove stops (for any reason), emit:
 - [If claims remaining: "N claims remaining in queue. Re-run with same --source and --formalize-out to continue (existing claims detected via target file)."]
 ```
 
+This summary is the stop-boundary **handoff record** of
+[`run-contract/v1`](../skills/lean4/references/handoff-contract.md): report
+`status`, the `blocker_signature`, `next_action`, and
+`new_evidence_required_for_rerun`. **Rerun guard:** do not relaunch autoprove on
+the same `(target, scope, mode)` and the same `blocker_signature` without an
+auditable evidence delta — route to `review --mode=stuck`, `formalize`, or human
+handoff instead ([handoff-contract.md § Rerun guard](../skills/lean4/references/handoff-contract.md#rerun-guard)).
+
 ## Deep Mode
 
 Bounded subroutine for stubborn sorries. Default: `stuck` (auto-escalate when stuck).

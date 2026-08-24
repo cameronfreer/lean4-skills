@@ -404,6 +404,8 @@ lean4-skills-sorry-analyzer . --report-only
 
 **Cycle Engine:** [cycle-engine](references/cycle-engine.md) — shared prove/autoprove logic (stuck, deep mode, falsification, safety)
 
+**Handoff Contract:** [handoff-contract](references/handoff-contract.md) — `run-contract/v1` dispatch + handoff records and the rerun guard (don't relaunch the same mode on the same `blocker_signature` without new evidence; route to `review --mode=stuck`, `formalize`, or human handoff)
+
 **LSP Tools:** [lean-lsp-server](references/lean-lsp-server.md) (quick start), [lean-lsp-tools-api](references/lean-lsp-tools-api.md) (full API — grep `^##` for tool names)
 
 **Search:** [mathlib-guide](references/mathlib-guide.md) (read when searching for existing lemmas), [lean-phrasebook](references/lean-phrasebook.md) (math→Lean translations)

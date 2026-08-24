@@ -4,6 +4,11 @@
 
 **For Claude Code users:** See [subagent-workflows.md](subagent-workflows.md) for user-facing delegation patterns.
 
+These workflows realize the parent/worker roles of
+[`run-contract/v1`](handoff-contract.md): a dispatch record in, a handoff record
+out. The contract binds the logical roles, so a host without subagents runs the
+same records inline ([cycle-engine.md § Run Contract](cycle-engine.md#run-contract-run-contractv1)).
+
 **Review source** is chosen at prove/autoprove start. External review provides advice only—it cannot apply fixes directly.
 
 Extended workflow examples for Lean4 plugin internal workflows.

@@ -147,7 +147,11 @@ sed/bulk rewrites activate automatically when ≥4 whitelisted syntax-only patte
 
 ### Delegation Execution Policy
 
-When delegating to `proof-golfer` subagents:
+Golf follows the shared [Delegation Execution Policy](../skills/lean4/references/cycle-engine.md#delegation-execution-policy)
+of [`run-contract/v1`](../skills/lean4/references/handoff-contract.md) (preflight,
+permission gate, bounded concurrency, exclusive ownership, fallback contract),
+with these golf-specific batching rules layered on top. When delegating to
+`proof-golfer` subagents:
 
 1. **Preflight** — run one golfer task on a small target first
 2. **Permission gate** — if preflight hits Edit/Bash permission prompt → stop delegation immediately, switch to direct mode in main agent; never launch additional agents after first permission denial

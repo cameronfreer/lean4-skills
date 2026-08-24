@@ -1450,6 +1450,76 @@ if [[ "$check37_ok" -eq 1 ]]; then
     ok "Check 37: /lean4:review mathlib-review bar pinned (parser adoption, gate flags + conflict, output validator wiring, input conditionals, Layer-2 activation)"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 38: Track 3 run-contract/v1 (#190, unifies #73/#69). Pin the canonical
+# handoff-contract.md (both records, reused stuck vocabulary, files_owned vs
+# files_changed, the rerun predicate, and persistence deferred to #82), the
+# cycle-engine.md Run Contract section + no-subagent fallback + shared
+# delegation policy, and that the consuming docs reference it.
+# ---------------------------------------------------------------------------
+check38_ok=1
+_c38_hc="$PLUGIN_ROOT/skills/lean4/references/handoff-contract.md"
+_c38_ce="$PLUGIN_ROOT/skills/lean4/references/cycle-engine.md"
+
+if [[ ! -f "$_c38_hc" ]]; then
+    fail "Check 38: missing references/handoff-contract.md"
+    check38_ok=0
+else
+    # Versioned protocol + both records.
+    for _c38_s in 'run-contract/v1' '"dispatch"' '"handoff"'; do
+        if ! grep -Fq "$_c38_s" "$_c38_hc"; then
+            fail "Check 38: handoff-contract.md missing $_c38_s"
+            check38_ok=0
+        fi
+    done
+    # Reuse shipped vocabulary, not a parallel one.
+    if ! grep -Fq 'blocker_signature' "$_c38_hc" \
+        || ! grep -Fq 'blocker_class' "$_c38_hc" \
+        || ! grep -Fq 'next_action' "$_c38_hc"; then
+        fail "Check 38: handoff-contract.md does not reuse blocker_signature / blocker_class / next_action"
+        check38_ok=0
+    fi
+    # files_owned (custody) distinct from files_changed (effect).
+    if ! grep -Fq 'files_owned' "$_c38_hc" || ! grep -Fq 'files_changed' "$_c38_hc"; then
+        fail "Check 38: handoff-contract.md must separate files_owned from files_changed"
+        check38_ok=0
+    fi
+    # The rerun predicate + qualifying evidence delta.
+    if ! grep -Fq 'Rerun guard' "$_c38_hc" \
+        || ! grep -Fq 'evidence delta' "$_c38_hc" \
+        || ! grep -Fq 'new_evidence_required_for_rerun' "$_c38_hc"; then
+        fail "Check 38: handoff-contract.md missing the rerun predicate / evidence-delta rule"
+        check38_ok=0
+    fi
+    # Persistence explicitly deferred to #82; contract-only.
+    if ! grep -Fq '#82' "$_c38_hc"; then
+        fail "Check 38: handoff-contract.md must defer filesystem persistence to #82"
+        check38_ok=0
+    fi
+fi
+
+# cycle-engine.md: Run Contract section + no-subagent fallback + shared policy.
+if ! grep -Fq '## Run Contract (`run-contract/v1`)' "$_c38_ce" \
+    || ! grep -Fq 'No-subagent fallback' "$_c38_ce" \
+    || ! grep -Fq '### Delegation Execution Policy' "$_c38_ce"; then
+    fail "Check 38: cycle-engine.md missing Run Contract / no-subagent fallback / shared Delegation Execution Policy"
+    check38_ok=0
+fi
+
+# Consuming docs reference the contract.
+for _c38_doc in commands/prove.md commands/autoprove.md commands/golf.md \
+    skills/lean4/SKILL.md skills/lean4/references/subagent-workflows.md \
+    skills/lean4/references/agent-workflows.md; do
+    if ! grep -Fq 'run-contract/v1' "$PLUGIN_ROOT/$_c38_doc"; then
+        fail "Check 38: $_c38_doc does not reference run-contract/v1"
+        check38_ok=0
+    fi
+done
+
+if [[ "$check38_ok" -eq 1 ]]; then
+    ok "Check 38: run-contract/v1 handoff contract pinned (both records, reused vocab, files_owned≠files_changed, rerun guard, #82 deferral, cycle-engine + consumer wiring)"
+fi
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]

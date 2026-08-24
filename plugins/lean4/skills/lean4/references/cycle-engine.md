@@ -467,9 +467,58 @@ Stuck-mode review emits a `next_action` field. The outer loop dispatches:
 
 `next_action` is informational when the outer loop is inactive (`--formalize=never`). When active, it is the routing gate.
 
+## Run Contract (`run-contract/v1`)
+
+The parent/worker/human roles exchange two versioned records — a **dispatch**
+record (parent → worker) and a **handoff** record (worker → parent/human) — plus
+a **rerun guard**. The canonical field shapes, nullability, and the rerun
+predicate live in [handoff-contract.md](handoff-contract.md); this section
+defines the roles and expectations that produce them. It is a documentation
+contract, not runtime enforcement.
+
+**Delegation expectations.** When dispatching a proof worker, the parent
+provides a **dispatch record**: the target and scope, the mode, the worker's
+capabilities, the exclusive `owned_files` set with `file-baseline/v1` baselines,
+and the `prior_blocker` when this is a rerun. Its concrete instantiation is the
+[Pre-flight Context block](#pre-flight-context-for-subagent-dispatch) below. When
+the worker stops or gets stuck, it returns a **handoff record**: `status`, the
+`blocker_class` and `blocker_signature`, attempted tools, best candidates and
+failed avenues, the `evidence`, `files_owned` vs `files_changed`, the
+`next_action`, and `new_evidence_required_for_rerun`. These bind whether the
+worker is a subagent, an inline pass, or a human.
+
+**No-subagent fallback.** Hosts without subagent support stay sequential in the
+main thread: the parent and worker roles run inline, and the same dispatch and
+handoff records still apply — the contract governs the logical roles, not
+whether they run in separate processes. Collect the pre-flight context as your
+own starting state; produce the handoff record at each stop boundary as you
+would return it from a delegate.
+
+**Rerun guard.** Do not relaunch the same `(target, scope, mode)` on the same
+`blocker_signature` without an auditable evidence delta; the single definition
+of the rule is in [handoff-contract.md § Rerun guard](handoff-contract.md#rerun-guard).
+
+**Human-in-the-loop.** After a clear blocker in an interactive session, present
+options (continue with new evidence / switch to `formalize` / `review
+--mode=stuck` / stop and hand off) and never assume autonomous continuation. The
+handoff record is what the human reads to choose.
+
+### Delegation Execution Policy
+
+Shared rules for dispatching proof-editing agents (`prove`/`autoprove` deep
+workers, `golf` golfers) — the concrete discipline behind the expectations above:
+
+1. **Preflight** — run one worker task on a small target first.
+2. **Permission gate** — if preflight hits an Edit/Bash permission prompt, stop delegation immediately and switch to direct mode in the main agent; never launch additional agents after a permission denial.
+3. **Bounded concurrency** — at most the mode's delegate cap (e.g. golf's `--max-delegates`, default 2), and only after preflight succeeds.
+4. **Exclusive ownership** — never dispatch concurrent workers with overlapping `owned_files`; serialize or keep one in-thread.
+5. **Report each boundary** — after each batch/worker, a diagnostics summary, changed files, and a single plan message (no repeated "launching more agents" narration).
+6. **Fallback contract** — if any worker cannot obtain Edit/Bash permission, abort all delegation and continue direct; do not queue new delegates after a permission error.
+7. **Pre-collected context** — include the [Pre-flight Context block](#pre-flight-context-for-subagent-dispatch) in each dispatch prompt.
+
 ## Pre-flight Context for Subagent Dispatch
 
-MCP tools may not be available in subagents (anthropics/claude-code#39962). Before dispatching any proof-editing agent, collect relevant MCP results and include them in the agent prompt as the agent's starting state. Pass a summarized subset — not raw dumps.
+MCP tools may not be available in subagents (anthropics/claude-code#39962). Before dispatching any proof-editing agent, collect relevant MCP results and include them in the agent prompt as the agent's starting state. Pass a summarized subset — not raw dumps. This block is the concrete **dispatch record** of [run-contract/v1](#run-contract-run-contractv1).
 
 ### Canonical block shape
 
