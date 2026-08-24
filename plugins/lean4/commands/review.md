@@ -40,8 +40,9 @@ Startup requirements:
 
 1. Emit a **Resolved Inputs** block with explicit values, defaults, and any
    ignored flags — including the effective **Layer-2 activation** decision and
-   its source (`flag`, `repository_kind`, `contributing_upstream`, or
-   `helper-failure`; see [Mathlib Review Layer](#mathlib-review-layer-layer-2)).
+   its source (`flag`, `repository_kind`, `contributing_upstream`, the helper's
+   validated `intent.source`, or `helper-failure`; see
+   [Mathlib Review Layer](#mathlib-review-layer-layer-2)).
 2. Refuse to start on startup validation errors — including passing both
    `--mathlib-review` and `--no-mathlib-review` (`--mathlib-review` with
    `--no-mathlib-review` → startup validation error).
@@ -221,10 +222,11 @@ resolved mode **and its source** in the **Resolved Inputs** block.
 ### Output labeling (normative)
 
 Advisory Layer-2 findings must be **structurally separable** from Layer-1
-blockers: render them under a distinct heading (e.g. `### Advisory (mathlib-style)`)
-or carry an explicit `severity: advisory` tag (both available in
-`lean4-review-output/v2`). Intermixing advisory and blocking findings in one
-undifferentiated list is insufficient.
+blockers. In human-readable output, render them under a distinct heading
+(e.g. `### Advisory (mathlib-style)`) or label them explicitly as advisory. In
+`lean4-review-output/v2`, encode them with `severity: advisory` (the schema
+carries severity, not a section heading). Intermixing advisory and blocking
+findings in one undifferentiated list is insufficient.
 
 **Mode × layer:**
 

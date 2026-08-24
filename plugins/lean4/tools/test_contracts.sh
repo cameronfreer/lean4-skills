@@ -1432,6 +1432,14 @@ if ! grep -Fq 'env-override | invalid-env-override | remote-heuristic | default'
     fail "Check 37: review.md does not pin the intent.source domain (env-override|invalid-env-override|remote-heuristic|default)"
     check37_ok=0
 fi
+# The Resolved-Inputs source enumeration in the Invocation Contract must itself
+# list intent.source — a global grep passes even when the enumeration omits it
+# (intent.source also appears later in the activation section).
+_c37_invcontract=$(extract_section "$_c37_rev" "## Invocation Contract")
+if ! echo "$_c37_invcontract" | grep -Fq 'intent.source'; then
+    fail "Check 37: Invocation Contract's Layer-2 source enumeration omits intent.source"
+    check37_ok=0
+fi
 # review.md: the documented scope preconditions the parser now enforces.
 if ! grep -Fq 'requires target file + --line' "$_c37_rev"; then
     fail "Check 37: review.md missing the sorry/deps 'requires target file + --line' precondition"
