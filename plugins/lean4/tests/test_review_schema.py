@@ -15,15 +15,33 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
+import sys
+import tempfile
 import unittest
 from collections.abc import Iterator
 from typing import Any
+
+# The narrow subset validator + cross-field checks are PRODUCTION code
+# (lib/scripts/review_validate.py); this suite consumes that same module so the
+# schema, the validator, and /lean4:review behaviour cannot drift apart.
+_LIB_SCRIPTS = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib", "scripts"
+)
+sys.path.insert(0, _LIB_SCRIPTS)
+import review_validate  # noqa: E402
+from review_validate import validate_instance as _validate  # noqa: E402
 
 _REF_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     "skills",
     "lean4",
     "references",
+)
+_WRAPPER = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "bin",
+    "lean4-skills-validate-review-output",
 )
 _OUT = os.path.join(_REF_DIR, "lean4-review-schema.json")
 _IN = os.path.join(_REF_DIR, "lean4-review-input-schema.json")
@@ -300,73 +318,6 @@ class DocExamplesUseCanonicalEnums(unittest.TestCase):
         )
 
 
-def _type_ok(value: object, typ: str) -> bool:
-    if typ == "null":
-        return value is None
-    if typ == "boolean":
-        return isinstance(value, bool)
-    if typ == "integer":
-        return isinstance(value, int) and not isinstance(value, bool)
-    if typ == "number":
-        return isinstance(value, (int, float)) and not isinstance(value, bool)
-    if typ == "string":
-        return isinstance(value, str)
-    if typ == "array":
-        return isinstance(value, list)
-    if typ == "object":
-        return isinstance(value, dict)
-    raise AssertionError(f"unhandled type keyword: {typ}")
-
-
-def _validate(
-    instance: object, node: dict[str, Any], root: dict[str, Any], path: str
-) -> list[str]:
-    """Validate against the JSON-Schema *subset* this repo's schemas use:
-    $ref, const, enum, type (incl nullable via a type list), object with
-    properties/required/additionalProperties, and typed arrays. Deliberately
-    NOT a general Draft-2020-12 validator — see the module docstring.
-    """
-    errors: list[str] = []
-    if "$ref" in node:
-        ref = node["$ref"]
-        assert isinstance(ref, str) and ref.startswith("#/$defs/")
-        return _validate(instance, root["$defs"][ref.split("/")[-1]], root, path)
-    # const/enum do NOT early-return: Structured Outputs requires a type
-    # alongside them, so the type block below must still run and be checked.
-    if "const" in node and instance != node["const"]:
-        errors.append(f"{path}: {instance!r} != const {node['const']!r}")
-    if "enum" in node and instance not in node["enum"]:
-        errors.append(f"{path}: {instance!r} not in enum {node['enum']}")
-    if "type" in node:
-        types = node["type"] if isinstance(node["type"], list) else [node["type"]]
-        if not any(_type_ok(instance, t) for t in types):
-            errors.append(f"{path}: {type(instance).__name__} not in types {types}")
-            return errors
-        if isinstance(instance, dict) and "object" in types:
-            props = node.get("properties", {})
-            for req in node.get("required", []):
-                if req not in instance:
-                    errors.append(f"{path}: missing required '{req}'")
-            if node.get("additionalProperties") is False:
-                for key in instance:
-                    if key not in props:
-                        errors.append(f"{path}: unexpected property '{key}'")
-            for key, sub in instance.items():
-                if key in props:
-                    errors += _validate(sub, props[key], root, f"{path}.{key}")
-        if (
-            "minimum" in node
-            and isinstance(instance, (int, float))
-            and not isinstance(instance, bool)
-            and instance < node["minimum"]
-        ):
-            errors.append(f"{path}: {instance} < minimum {node['minimum']}")
-        if isinstance(instance, list) and "array" in types and "items" in node:
-            for i, item in enumerate(instance):
-                errors += _validate(item, node["items"], root, f"{path}[{i}]")
-    return errors
-
-
 class OutputSchemaInstanceValidation(unittest.TestCase):
     """Fixtures conform to the output schema under the narrow subset validator."""
 
@@ -616,6 +567,299 @@ class InputSchemaInstanceValidation(unittest.TestCase):
             ),
             [],
         )
+
+
+class InputSchemaScopeConstraints(unittest.TestCase):
+    """The input schema's if/then conditionals on focus.scope (#110).
+
+    sorry/deps require a non-null file AND line; file requires a non-null file;
+    changed/project are unconstrained. `required` alone is insufficient, so the
+    then-branches also pin the value types.
+    """
+
+    def setUp(self) -> None:
+        self.schema = _load(_IN)
+
+    def _with_focus(self, focus: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "version": "2.0",
+            "request_type": "review",
+            "focus": focus,
+            "files": [{"path": "C.lean"}],
+            "build_status": "passing",
+        }
+
+    def _errs(self, focus: dict[str, Any]) -> list[str]:
+        return _validate(self._with_focus(focus), self.schema, self.schema, "$")
+
+    def test_sorry_requires_file_and_line(self) -> None:
+        self.assertEqual(
+            self._errs({"scope": "sorry", "file": "C.lean", "line": 9}), []
+        )
+        self.assertTrue(self._errs({"scope": "sorry", "file": "C.lean"}))
+        self.assertTrue(self._errs({"scope": "sorry", "line": 9}))
+        self.assertTrue(self._errs({"scope": "sorry"}))
+
+    def test_deps_requires_file_and_line(self) -> None:
+        self.assertEqual(self._errs({"scope": "deps", "file": "C.lean", "line": 3}), [])
+        self.assertTrue(self._errs({"scope": "deps", "file": "C.lean"}))
+
+    def test_file_requires_file(self) -> None:
+        self.assertEqual(self._errs({"scope": "file", "file": "C.lean"}), [])
+        self.assertTrue(self._errs({"scope": "file"}))
+
+    def test_changed_and_project_unconstrained(self) -> None:
+        self.assertEqual(self._errs({"scope": "changed"}), [])
+        self.assertEqual(self._errs({"scope": "project"}), [])
+
+    def test_line_must_be_positive_under_sorry(self) -> None:
+        # then-branch pins line >= 1 (0 rejected), so a bad line is caught
+        # both by the base focus.line minimum and the conditional.
+        self.assertTrue(self._errs({"scope": "sorry", "file": "C.lean", "line": 0}))
+
+    def test_validator_actually_enforces_conditionals(self) -> None:
+        # Guard against a no-op: the missing-line error must mention the branch.
+        errs = self._errs({"scope": "sorry", "file": "C.lean"})
+        self.assertTrue(
+            any("line" in e for e in errs), f"expected a line requirement, got {errs}"
+        )
+
+
+class CrossFieldSemantics(unittest.TestCase):
+    """check_cross_field / validate_output enforce the invariants JSON Schema
+    cannot express, exercised on NON-EMPTY output (the #115 live smoke only
+    covered the empty-result path)."""
+
+    def setUp(self) -> None:
+        self.schema = _load(_OUT)
+
+    def _sug(self, severity: str = "hint") -> dict[str, Any]:
+        return {
+            "file": "C.lean",
+            "line": 1,
+            "column": None,
+            "severity": severity,
+            "category": "sorry",
+            "rule_id": None,
+            "message": "m",
+            "fix": None,
+        }
+
+    def _by_sev(self, **counts: int) -> dict[str, int]:
+        d = {"error": 0, "warning": 0, "advisory": 0, "hint": 0, "style": 0}
+        d.update(counts)
+        return d
+
+    def _out(self, suggestions, total, by_severity, error=None) -> dict[str, Any]:
+        return {
+            "version": "2.0",
+            "suggestions": suggestions,
+            "summary": {"total_suggestions": total, "by_severity": by_severity},
+            "error": error,
+        }
+
+    def test_nonempty_consistent_output_passes(self) -> None:
+        obj = self._out(
+            [self._sug("hint"), self._sug("advisory")],
+            2,
+            self._by_sev(hint=1, advisory=1),
+        )
+        self.assertEqual(review_validate.check_cross_field(obj), [])
+        result = review_validate.validate_output(obj, self.schema)
+        self.assertTrue(result.ok, result.errors)
+
+    def test_total_mismatch_is_semantic_invalid(self) -> None:
+        obj = self._out([self._sug("hint")], 2, self._by_sev(hint=1))
+        result = review_validate.validate_output(obj, self.schema)
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error_code, review_validate.SEMANTIC_INVALID)
+        self.assertTrue(any("total_suggestions" in e for e in result.errors))
+
+    def test_histogram_mismatch_is_semantic_invalid(self) -> None:
+        # Two hints, but the histogram claims one hint and one style.
+        obj = self._out(
+            [self._sug("hint"), self._sug("hint")], 2, self._by_sev(hint=1, style=1)
+        )
+        result = review_validate.validate_output(obj, self.schema)
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error_code, review_validate.SEMANTIC_INVALID)
+        self.assertTrue(any("by_severity" in e for e in result.errors))
+
+    def test_error_with_findings_is_semantic_invalid(self) -> None:
+        obj = self._out([self._sug("hint")], 1, self._by_sev(hint=1), error="boom")
+        result = review_validate.validate_output(obj, self.schema)
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error_code, review_validate.SEMANTIC_INVALID)
+        self.assertTrue(any("error is non-null" in e for e in result.errors))
+
+    def test_structural_failure_short_circuits_before_semantics(self) -> None:
+        # Bad severity is structural; error_code must be schema-invalid even
+        # though the histogram is also inconsistent.
+        obj = self._out([self._sug("nope")], 5, self._by_sev())
+        result = review_validate.validate_output(obj, self.schema)
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error_code, review_validate.SCHEMA_INVALID)
+
+    def test_load_output_schema_missing_raises(self) -> None:
+        with self.assertRaises(review_validate.SchemaUnavailableError):
+            review_validate.load_output_schema(path="/nonexistent/review-schema.json")
+
+
+class OutputValidatorWrapperEndToEnd(unittest.TestCase):
+    """End-to-end wrapper fixtures: exact exit codes for empty and NON-EMPTY
+    valid output plus each failure class."""
+
+    def _run(self, stdin: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [_WRAPPER],
+            input=stdin,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+    def _by_sev(self, **counts: int) -> dict[str, int]:
+        d = {"error": 0, "warning": 0, "advisory": 0, "hint": 0, "style": 0}
+        d.update(counts)
+        return d
+
+    def test_valid_empty_output_exits_0(self) -> None:
+        obj = {
+            "version": "2.0",
+            "suggestions": [],
+            "summary": {"total_suggestions": 0, "by_severity": self._by_sev()},
+            "error": None,
+        }
+        proc = self._run(json.dumps(obj))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertTrue(json.loads(proc.stdout)["ok"])
+
+    def test_valid_nonempty_output_exits_0(self) -> None:
+        obj = {
+            "version": "2.0",
+            "suggestions": [
+                {
+                    "file": "C.lean",
+                    "line": 10,
+                    "column": None,
+                    "severity": "advisory",
+                    "category": "api",
+                    "rule_id": "vacuous-api",
+                    "message": "Public API collapses to True.",
+                    "fix": None,
+                }
+            ],
+            "summary": {
+                "total_suggestions": 1,
+                "by_severity": self._by_sev(advisory=1),
+            },
+            "error": None,
+        }
+        proc = self._run(json.dumps(obj))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertTrue(json.loads(proc.stdout)["ok"])
+
+    def test_semantic_violation_exits_3(self) -> None:
+        obj = {
+            "version": "2.0",
+            "suggestions": [],
+            "summary": {"total_suggestions": 3, "by_severity": self._by_sev()},
+            "error": None,
+        }
+        proc = self._run(json.dumps(obj))
+        self.assertEqual(proc.returncode, 3, proc.stderr)
+        self.assertEqual(
+            json.loads(proc.stdout)["error_code"], review_validate.SEMANTIC_INVALID
+        )
+
+    def test_schema_violation_exits_3(self) -> None:
+        obj = {"version": "1.0", "suggestions": [], "summary": {}, "error": None}
+        proc = self._run(json.dumps(obj))
+        self.assertEqual(proc.returncode, 3, proc.stderr)
+        self.assertEqual(
+            json.loads(proc.stdout)["error_code"], review_validate.SCHEMA_INVALID
+        )
+
+    def test_malformed_json_exits_2(self) -> None:
+        proc = self._run("{not json")
+        self.assertEqual(proc.returncode, 2)
+        self.assertTrue(proc.stderr.strip())
+
+    def test_empty_stdin_exits_2(self) -> None:
+        proc = self._run("")
+        self.assertEqual(proc.returncode, 2)
+        self.assertTrue(proc.stderr.strip())
+
+    def _valid_empty(self) -> str:
+        return json.dumps(
+            {
+                "version": "2.0",
+                "suggestions": [],
+                "summary": {"total_suggestions": 0, "by_severity": self._by_sev()},
+                "error": None,
+            }
+        )
+
+    def _run_with_schema(self, schema_text: str) -> subprocess.CompletedProcess[str]:
+        """Run the wrapper with LEAN4_REFS pointing at a dir whose installed
+        review schema is `schema_text`, over a valid empty output object."""
+        with tempfile.TemporaryDirectory() as refs:
+            with open(
+                os.path.join(refs, "lean4-review-schema.json"), "w", encoding="utf-8"
+            ) as f:
+                f.write(schema_text)
+            return subprocess.run(
+                [_WRAPPER],
+                input=self._valid_empty(),
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env={**os.environ, "LEAN4_REFS": refs},
+            )
+
+    def test_malformed_or_unusable_schema_json_exits_4(self) -> None:
+        # LEAN4_REFS is consulted first; a malformed schema there is an
+        # operational failure (exit 4), distinct from a validation failure (3).
+        proc = self._run_with_schema("{ this is not valid json")
+        self.assertEqual(proc.returncode, 4, proc.stderr)
+        self.assertTrue(proc.stderr.strip())
+
+    def test_schema_array_root_exits_4_no_traceback(self) -> None:
+        # `[]` parses but would crash the validator — must be exit 4, not a
+        # traceback / undocumented exit.
+        proc = self._run_with_schema("[]")
+        self.assertEqual(proc.returncode, 4, proc.stderr)
+        self.assertNotIn("Traceback", proc.stderr)
+
+    def test_schema_empty_object_exits_4(self) -> None:
+        # `{}` parses and imposes no constraints — fail-open; reject as unusable.
+        proc = self._run_with_schema("{}")
+        self.assertEqual(proc.returncode, 4, proc.stderr)
+
+    def test_schema_wrong_title_exits_4(self) -> None:
+        bad = _load(_OUT)
+        bad["title"] = "something-else"
+        proc = self._run_with_schema(json.dumps(bad))
+        self.assertEqual(proc.returncode, 4, proc.stderr)
+
+    def test_schema_wrong_version_const_exits_4(self) -> None:
+        bad = _load(_OUT)
+        bad["properties"]["version"] = {"type": "string", "const": "9.9"}
+        proc = self._run_with_schema(json.dumps(bad))
+        self.assertEqual(proc.returncode, 4, proc.stderr)
+
+    def test_schema_unsupported_keyword_exits_4(self) -> None:
+        # A constraint the narrow validator would silently ignore = unusable.
+        bad = _load(_OUT)
+        bad["maxProperties"] = 4
+        proc = self._run_with_schema(json.dumps(bad))
+        self.assertEqual(proc.returncode, 4, proc.stderr)
+
+    def test_copied_valid_shipped_schema_exits_0(self) -> None:
+        with open(_OUT, encoding="utf-8") as f:
+            proc = self._run_with_schema(f.read())
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertTrue(json.loads(proc.stdout)["ok"])
 
 
 if __name__ == "__main__":

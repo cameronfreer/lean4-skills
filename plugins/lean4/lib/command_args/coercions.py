@@ -566,6 +566,85 @@ MATHLIB_MK_ALL_CONFLICT = CrossValidation(
 )
 
 
+# -- review_mathlib_review_conflict ----------------------------------------
+
+
+def review_mathlib_review_conflict(
+    options: Mapping[str, object],
+    ctx: ParseContext,
+) -> list[str]:
+    """review: --mathlib-review + --no-mathlib-review -> error.
+
+    Conflict validation precedes Layer-2 precedence: only flags resolving to
+    true participate, so a single error fires when both are true and an
+    explicit false behaves like omission.
+    """
+    if options.get("--mathlib-review") and options.get("--no-mathlib-review"):
+        return [
+            "--mathlib-review and --no-mathlib-review are mutually "
+            "exclusive; pass at most one."
+        ]
+    return []
+
+
+REVIEW_MATHLIB_REVIEW_CONFLICT = CrossValidation(
+    rule_id="review_mathlib_review_conflict",
+    fn=review_mathlib_review_conflict,
+    severity="error",
+    doc_phrases=(
+        "--mathlib-review` with `--no-mathlib-review` \u2192 startup validation error",
+    ),
+    summary="--mathlib-review and --no-mathlib-review are mutually exclusive",
+)
+
+
+# -- review_scope_requires_target_and_line ---------------------------------
+
+
+def review_scope_requires_target_and_line(
+    options: Mapping[str, object],
+    ctx: ParseContext,
+) -> list[str]:
+    """review: enforce the documented scope preconditions at startup.
+
+    review.md's Scope Behavior requires: `sorry`/`deps` need a target file AND
+    `--line`; `file` needs a target file. The input schema's if/then protects
+    the *hook payload*, but the validated-invocation block is already
+    authoritative for command startup, so the parser must reject these too. The
+    scope default is inferred at runtime, so these fire only when `--scope` is
+    given explicitly; `--line` without a target is meaningless in any case.
+    """
+    scope = options.get("--scope")
+    target = options.get("__positional_target")
+    line = options.get("--line")
+    if scope in ("sorry", "deps"):
+        errors = []
+        if not target:
+            errors.append(f"--scope={scope} requires a target file.")
+        if line is None:
+            errors.append(f"--scope={scope} requires --line.")
+        return errors
+    if scope == "file":
+        return [] if target else ["--scope=file requires a target file."]
+    # No explicit sorry/deps/file scope: a bare --line still needs a target
+    # to locate the single sorry.
+    if line is not None and not target:
+        return ["--line requires a target file."]
+    return []
+
+
+REVIEW_SCOPE_REQUIRES_TARGET_AND_LINE = CrossValidation(
+    rule_id="review_scope_requires_target_and_line",
+    fn=review_scope_requires_target_and_line,
+    severity="error",
+    doc_phrases=(
+        "requires target file + --line",
+        "--scope=file requires a target file",
+    ),
+    summary="review: sorry/deps need target+line, file needs target",
+)
+
+
 # -- mathlib_template_requires_output_file ---------------------------------
 
 

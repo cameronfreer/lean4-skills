@@ -83,6 +83,7 @@ lean4-skills-project-context:0
 lean4-skills-search-mathlib:1
 lean4-skills-smart-search:1
 lean4-skills-sorry-analyzer:1
+lean4-skills-validate-review-output:2
 "
 
 expected_for() {

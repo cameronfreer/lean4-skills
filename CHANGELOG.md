@@ -1,5 +1,21 @@
 # Changelog
 
+## v4.7.0 (August 2026)
+
+Broaden `/lean4:review` from proof hygiene to the mathlib-review bar — the final Track 2 item (Refs #151; closes #110). The command now consumes the shipped taxonomy (#114) and schema (#115) as a runtime consumer, closes its long-standing command-argument validation gap, and enforces hook/Codex output instead of trusting it.
+
+### Added
+
+- **`bin/lean4-skills-validate-review-output`** + **`lib/scripts/review_validate.py`** — a runtime validator `/lean4:review` runs over every hook/Codex `output/v2` object before merging its findings. It loads the **shipped** schema (never duplicates its fields) and enforces the cross-field invariants JSON Schema cannot express: `total_suggestions == len(suggestions)`, the `by_severity` histogram agrees with the suggestions, and a non-null `error` implies empty `suggestions`. It **never** normalizes or repairs — invalid output is reported and its findings excluded. Exit codes: `0` valid, `2` usage/empty/malformed-JSON, `3` validation failure (structured `error_code` `schema-invalid`/`semantic-invalid` on stdout), `4` operational (unreadable schema). The narrow subset validator is now production code imported by `tests/test_review_schema.py`, so the schema, the validator, and review behavior cannot drift apart.
+- **First `command_args` spec for `/lean4:review`** (`lib/command_args/specs/review.py`, registered in `_COVERED_COMMANDS`) — covers every previously-unvalidated flag (`--scope`/`--line`/`--codex`/`--llm`/`--hook`/`--json`/`--mode`) plus `--mathlib-review` / `--no-mathlib-review`. Unknown flags are rejected; every currently-documented invocation still parses. The two gate flags obey a conflict rule evaluated **before** Layer-2 precedence: only flags resolving to `true` participate (explicit `false` ≡ omission), and both `true` is a single startup error.
+
+### Changed
+
+- **`review.md`** splits into **Layer 1** (always-on proof hygiene, unchanged) and a new **Layer 2 mathlib-review bar** with four first-class sections (Documentation, Library Integration, API/Generalization, Attributes & Instances) mapped onto the shipped taxonomy/`category` vocabulary. Layer 2 runs at full strictness only when the work is mathlib-targeted — gated on `project-context/v1` (`repository_kind == mathlib` **or** `contributing_upstream == yes`), with `--mathlib-review`/`--no-mathlib-review` overriding and a **helper-failure → advisory** fail-safe. Advisory findings must be structurally separable from Layer-1 blockers (own heading or `severity: advisory`). Adds an Invocation Contract section + resolved-input reporting.
+- **`references/lean4-review-input-schema.json`** gains scope-dependent `if/then` conditionals: `sorry`/`deps` focus requires a non-null `file` and `line`; `file` focus requires a non-null `file` (the `then` branches pin the types, since `required` alone permits nulls).
+
+`/lean4:review`'s Layer-1 output is unchanged; Layer 2 is additive and, outside a mathlib-targeted context, advisory-only. Contract Check 37 pins the parser adoption, gate flags + conflict, output-validator wiring, input conditionals, and Layer-2 activation table.
+
 ## v4.6.9 (August 2026)
 
 Versioned review schema — third Track 2 item (Refs #151; closes #115). The review schema becomes genuinely machine-readable and stops disagreeing with itself across three sites.

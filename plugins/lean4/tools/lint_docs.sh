@@ -83,7 +83,7 @@ check_commands() {
             learn)      max_lines=210 ;;
             prove)      max_lines=235 ;;
             refactor)   max_lines=120 ;;
-            review)     max_lines=340 ;;
+            review)     max_lines=470 ;;
         esac
 
         if [[ $lines -gt $max_lines ]]; then
@@ -1906,7 +1906,7 @@ check_command_invocation_contract() {
         warn "command-invocation.md: Missing 'Adapter Implementations' section"
     fi
 
-    for cmd in draft formalize autoformalize prove autoprove learn checkpoint; do
+    for cmd in draft formalize autoformalize prove autoprove learn checkpoint review; do
         file="$PLUGIN_ROOT/commands/$cmd.md"
         base="$cmd.md"
         if [[ ! -f "$file" ]]; then
