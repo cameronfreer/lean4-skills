@@ -221,11 +221,13 @@ When autoprove stops (for any reason), emit:
 
 This summary is the stop-boundary **handoff record** of
 [`run-contract/v1`](../skills/lean4/references/handoff-contract.md): report
-`status`, the `blocker_signature`, `next_action`, and
-`new_evidence_required_for_rerun`. **Rerun guard:** do not relaunch autoprove on
-the same `(target, scope, mode)` and the same `blocker_signature` without an
-auditable evidence delta — route to `review --mode=stuck`, `formalize`, or human
-handoff instead ([handoff-contract.md § Rerun guard](../skills/lean4/references/handoff-contract.md#rerun-guard)).
+`status` and `stop_reason` (`max-stuck`/`max-cycles`/`max-runtime`/`user-stop`/`queue-empty`),
+the blocker fields (`blocker_class`, `blocker_signature`,
+`new_evidence_required_for_rerun`) only when the stop was blocker-driven
+(`stop_reason == max-stuck`), `files_owned`/`files_changed`/`file_baseline`, and
+`next_action`. A `queue-empty` stop with claims remaining carries no blocker, so
+it reruns freely. Before relaunching, obey the
+[rerun guard](../skills/lean4/references/handoff-contract.md#rerun-guard).
 
 ## Deep Mode
 

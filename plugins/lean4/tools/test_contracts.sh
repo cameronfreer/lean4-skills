@@ -1460,6 +1460,7 @@ fi
 check38_ok=1
 _c38_hc="$PLUGIN_ROOT/skills/lean4/references/handoff-contract.md"
 _c38_ce="$PLUGIN_ROOT/skills/lean4/references/cycle-engine.md"
+_c38_rev="$PLUGIN_ROOT/commands/review.md"
 
 if [[ ! -f "$_c38_hc" ]]; then
     fail "Check 38: missing references/handoff-contract.md"
@@ -1472,28 +1473,56 @@ else
             check38_ok=0
         fi
     done
-    # Reuse shipped vocabulary, not a parallel one.
-    if ! grep -Fq 'blocker_signature' "$_c38_hc" \
-        || ! grep -Fq 'blocker_class' "$_c38_hc" \
-        || ! grep -Fq 'next_action' "$_c38_hc"; then
-        fail "Check 38: handoff-contract.md does not reuse blocker_signature / blocker_class / next_action"
-        check38_ok=0
-    fi
-    # files_owned (custody) distinct from files_changed (effect).
-    if ! grep -Fq 'files_owned' "$_c38_hc" || ! grep -Fq 'files_changed' "$_c38_hc"; then
-        fail "Check 38: handoff-contract.md must separate files_owned from files_changed"
-        check38_ok=0
-    fi
-    # The rerun predicate + qualifying evidence delta.
-    if ! grep -Fq 'Rerun guard' "$_c38_hc" \
-        || ! grep -Fq 'evidence delta' "$_c38_hc" \
-        || ! grep -Fq 'new_evidence_required_for_rerun' "$_c38_hc"; then
-        fail "Check 38: handoff-contract.md missing the rerun predicate / evidence-delta rule"
-        check38_ok=0
-    fi
     # Persistence explicitly deferred to #82; contract-only.
     if ! grep -Fq '#82' "$_c38_hc"; then
         fail "Check 38: handoff-contract.md must defer filesystem persistence to #82"
+        check38_ok=0
+    fi
+
+    # -- Dispatch record: rerun inputs + correct baseline/custody shape --
+    _c38_disp=$(extract_section "$_c38_hc" "## Dispatch record (parent → worker)")
+    for _c38_f in 'prior_blocker' 'evidence_delta' 'file_baseline' 'owned_files'; do
+        if ! echo "$_c38_disp" | grep -Fq "$_c38_f"; then
+            fail "Check 38: dispatch record missing $_c38_f"
+            check38_ok=0
+        fi
+    done
+    # Negative: the baseline is ONE file-baseline/v1 object, never per-file
+    # "custody entries" (the primitive emits one object with a files array).
+    if grep -Fq 'custody entries' "$_c38_hc"; then
+        fail "Check 38: handoff-contract.md still types owned_files as 'custody entries' (no such per-file record exists)"
+        check38_ok=0
+    fi
+
+    # -- Handoff record: stop_reason + blocker-driven nullability --
+    _c38_hand=$(extract_section "$_c38_hc" "## Handoff record (worker → parent/human)")
+    for _c38_f in 'stop_reason' 'blocker-driven' 'queue-empty' 'files_owned' 'files_changed' 'file_baseline'; do
+        if ! echo "$_c38_hand" | grep -Fq "$_c38_f"; then
+            fail "Check 38: handoff record missing $_c38_f (normal stops must be representable)"
+            check38_ok=0
+        fi
+    done
+    # Reuse shipped vocabulary, not a parallel one.
+    if ! echo "$_c38_hand" | grep -Fq 'blocker_signature' \
+        || ! echo "$_c38_hand" | grep -Fq 'blocker_class' \
+        || ! echo "$_c38_hand" | grep -Fq 'next_action'; then
+        fail "Check 38: handoff record does not reuse blocker_signature / blocker_class / next_action"
+        check38_ok=0
+    fi
+
+    # -- Rerun guard: predicate evaluable from the two records --
+    _c38_rerun=$(extract_section "$_c38_hc" "## Rerun guard")
+    if ! echo "$_c38_rerun" | grep -Fq 'prior_blocker == prior_handoff.blocker_signature' \
+        || ! echo "$_c38_rerun" | grep -Fq 'evidence_delta' \
+        || ! echo "$_c38_rerun" | grep -Fq 'from the two records'; then
+        fail "Check 38: rerun guard predicate not evaluable from prior_blocker + evidence_delta"
+        check38_ok=0
+    fi
+
+    # -- Blocker-class human-phrase → enum mapping --
+    if ! grep -Fq 'missing library lemma' "$_c38_hc" \
+        || ! grep -Fq 'missing-library-lemma' "$_c38_hc"; then
+        fail "Check 38: handoff-contract.md missing the review-phrase → blocker_class enum mapping"
         check38_ok=0
     fi
 fi
@@ -1506,6 +1535,16 @@ if ! grep -Fq '## Run Contract (`run-contract/v1`)' "$_c38_ce" \
     check38_ok=0
 fi
 
+# review.md: reconciled — supplies vocab, is NOT itself a complete record.
+if ! grep -Fq 'handoff-contract.md' "$_c38_rev"; then
+    fail "Check 38: review.md does not reference the handoff contract"
+    check38_ok=0
+fi
+if grep -Fq 'valid handoff record on its own' "$_c38_rev"; then
+    fail "Check 38: review.md still claims its stuck block is a complete handoff record"
+    check38_ok=0
+fi
+
 # Consuming docs reference the contract.
 for _c38_doc in commands/prove.md commands/autoprove.md commands/golf.md \
     skills/lean4/SKILL.md skills/lean4/references/subagent-workflows.md \
@@ -1515,6 +1554,22 @@ for _c38_doc in commands/prove.md commands/autoprove.md commands/golf.md \
         check38_ok=0
     fi
 done
+
+# prove/autoprove state the required handoff fields + reference the rerun guard.
+for _c38_doc in commands/prove.md commands/autoprove.md; do
+    if ! grep -Fq 'handoff-contract.md#rerun-guard' "$PLUGIN_ROOT/$_c38_doc" \
+        || ! grep -Fq 'file_baseline' "$PLUGIN_ROOT/$_c38_doc"; then
+        fail "Check 38: $_c38_doc must list the handoff fields and reference the rerun guard"
+        check38_ok=0
+    fi
+done
+
+# golf.md: generic delegation rules live in the shared policy, not duplicated.
+_c38_golf=$(extract_section "$PLUGIN_ROOT/commands/golf.md" "### Delegation Execution Policy")
+if echo "$_c38_golf" | grep -Fq 'Fallback contract'; then
+    fail "Check 38: golf.md still duplicates the generic Fallback contract rule (use the shared policy)"
+    check38_ok=0
+fi
 
 if [[ "$check38_ok" -eq 1 ]]; then
     ok "Check 38: run-contract/v1 handoff contract pinned (both records, reused vocab, files_owned≠files_changed, rerun guard, #82 deferral, cycle-engine + consumer wiring)"

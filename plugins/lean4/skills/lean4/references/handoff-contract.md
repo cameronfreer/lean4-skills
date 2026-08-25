@@ -41,14 +41,16 @@ nullability is given.
 | `scope` | enum `sorry` \| `deps` \| `file` \| `changed` \| `project` | proving scope |
 | `mode` | enum `prove` \| `autoprove` \| `golf` | dispatching mode |
 | `capabilities` | array of string | tools available to the worker (e.g. `lean-lsp`, `search`); may be empty |
-| `owned_files` | array of `file-baseline/v1` custody entries | the exclusive-ownership set, each carrying the baseline the parent recorded immediately before dispatch — **ownership**, not changes |
-| `prior_blocker` | string \| null | the preceding handoff's `blocker_signature`; `null` on first dispatch |
+| `owned_files` | array of string | the exclusive-ownership **paths** — ownership, not changes |
+| `file_baseline` | `file-baseline/v1` | the **single** baseline record whose `files` array covers `owned_files`, computed by the parent immediately before dispatch (the primitive emits one object, not per-file entries) |
+| `prior_blocker` | string \| null | the preceding handoff's `blocker_signature`; `null` on a first dispatch |
+| `evidence_delta` | array of string | the auditable evidence justifying this (re)dispatch — **empty on a first dispatch**; each entry names what changed (see [Rerun guard](#rerun-guard)) |
 | `budget` | object `{max_cycles, max_stuck_cycles, runtime}` | each subfield nullable (no explicit bound) |
 
-**Ownership rule (unchanged):** never dispatch concurrent workers with
-overlapping `owned_files`; serialize or keep one in-thread. `owned_files`
-carries `file-baseline/v1` records so the worker can `check` before every
-mutation and `advance` only what it changed
+**Ownership rule:** never dispatch concurrent workers with overlapping
+`owned_files`; serialize or keep one in-thread. The single `file_baseline`
+covers the owned set so the worker can `check` before every mutation and
+`advance` only what it changed
 ([custody chain](cycle-engine.md#file-baselines-and-drift-issue-102)).
 
 ---
@@ -63,29 +65,50 @@ another agent to consume in one pass.
 | `schema` | const `"run-contract/v1"` | |
 | `record` | const `"handoff"` | |
 | `status` | enum `solved` \| `stuck` \| `stopped` | |
-| `blocker_class` | enum \| null | Blocked-Goal Triage class ([sorry-filling.md](sorry-filling.md)): `definitional-equality` \| `missing-intro-constructor-cases` \| `missing-rewrite` \| `arithmetic` \| `missing-library-lemma` \| `typeclass-coercion-elaboration` \| `needs-helper-lemma`. **`null` iff `status == solved`.** |
-| `blocker_signature` | string \| null | the cycle engine's `(file, line, primary_error_code_or_text_hash)` signature ([Stuck Definition](cycle-engine.md#stuck-definition)). **`null` iff `status == solved`.** |
+| `stop_reason` | enum \| null | **non-null iff `status == stopped`**: `max-stuck` \| `max-cycles` \| `max-runtime` \| `user-stop` \| `queue-empty`. `null` for `solved`/`stuck`. |
+| `blocker_class` | enum \| null | Blocked-Goal Triage class ([sorry-filling.md](sorry-filling.md)): `definitional-equality` \| `missing-intro-constructor-cases` \| `missing-rewrite` \| `arithmetic` \| `missing-library-lemma` \| `typeclass-coercion-elaboration` \| `needs-helper-lemma`. **Non-null iff the stop was blocker-driven** — see Blocker fields below. |
+| `blocker_signature` | string \| null | the cycle engine's `(file, line, primary_error_code_or_text_hash)` signature ([Stuck Definition](cycle-engine.md#stuck-definition)). Same nullability as `blocker_class`. |
 | `attempted_tools` | array of string | tools/queries tried |
 | `best_candidates` | array | candidate lemmas/tactics tried and their outcomes |
 | `failed_avenues` | array | approaches ruled out, so a rerun does not repeat them |
 | `evidence` | object | the stuck-handoff evidence: LSP queries attempted, top candidate lemmas returned, `lean_multi_attempt` outcomes |
-| `files_owned` | array of `file-baseline/v1` custody entries | the ownership set held — **distinct from** `files_changed` |
+| `files_owned` | array of string | the ownership set held (echoes the dispatch's `owned_files`) — **distinct from** `files_changed` |
 | `files_changed` | array of string | files the worker actually modified |
+| `file_baseline` | `file-baseline/v1` | the **final current baseline** (adopt/patch rules below) |
 | `next_action` | enum `continue` \| `deep` \| `repair` \| `redraft` \| `golf` \| `stop` | the **shipped** review stuck-mode vocabulary |
-| `new_evidence_required_for_rerun` | string \| null | what must change before a relaunch is justified. **`null` iff `status == solved`.** |
+| `new_evidence_required_for_rerun` | string \| null | what must change before a relaunch is justified. Same nullability as `blocker_class`. |
 
-`files_owned` reports **custody** (what the worker was authorized to edit, with
-baselines); `files_changed` reports **effect** (what it wrote). A worker may own
-files it never changes; the parent advances baselines only for `files_changed`.
+**Blocker fields** (`blocker_class`, `blocker_signature`,
+`new_evidence_required_for_rerun`) are **non-null iff the stop was
+blocker-driven** — `status == stuck`, or `status == stopped` with
+`stop_reason == max-stuck`. They are **`null`** for `status == solved` and for
+budget/user/queue stops (`max-cycles` / `max-runtime` / `user-stop` /
+`queue-empty`), which have no single blocker. A `queue-empty` stop with claims
+remaining therefore reruns freely — no `blocker_signature` for the guard to
+match.
+
+**Custody vs effect.** `files_owned` reports custody (echoing the dispatch's
+`owned_files`); `files_changed` reports effect (what the worker wrote). The
+`file_baseline` is the single `file-baseline/v1` record for the owned set: a
+direct-editing worker advances it after each mutation and returns the **final**
+one, which the parent **adopts** as-is — re-advancing at handoff would bless
+drift occurring after the worker's last `check`. A patch-only worker (e.g.
+proof-repair) returns `files_changed: []` and does not advance; the parent
+checks, applies, and advances the patch itself.
 
 ---
 
 ## Rerun guard
 
-A relaunch of the same `(target, scope, mode)` is **forbidden** when the new
-dispatch's blocker would match the prior handoff's `blocker_signature` **and**
-there is no auditable **evidence delta**. A qualifying evidence delta is any one
-of:
+The predicate is evaluated **from the two records** — no future blocker is
+guessed. A relaunch of the same `(target, scope, mode)` is **forbidden** when
+both hold:
+
+- `dispatch.prior_blocker == prior_handoff.blocker_signature` (the same blocker), **and**
+- `dispatch.evidence_delta` is empty (nothing new to try).
+
+A first dispatch carries `prior_blocker: null` and an empty `evidence_delta`, so
+it is never forbidden. A qualifying `evidence_delta` entry is any of:
 
 - a materially changed **goal or diagnostic**,
 - an **advanced `file-baseline/v1`** baseline (accepted new content),
@@ -93,9 +116,10 @@ of:
 - **changed source**, or
 - a **newly available capability/tool**.
 
-If none holds, do not relaunch — route to `review --mode=stuck`, `formalize`, or
-human handoff. This is the single definition of the rule; `prove.md`,
-`autoprove.md`, and `SKILL.md` reference it rather than restating it.
+When the predicate forbids a relaunch, route to `review --mode=stuck`,
+`formalize`, or human handoff instead. This is the single definition of the
+rule; `prove.md`, `autoprove.md`, and `SKILL.md` **reference** it rather than
+restating the predicate.
 
 ---
 
@@ -106,6 +130,26 @@ After a clear blocker in an interactive session, the parent presents options
 stop and hand off) and **never assumes autonomous continuation**. The handoff
 record is the artifact the human reads to choose — the same record a subagent or
 inline worker would return.
+
+## Blocker-class vocabulary and the stuck review
+
+`/lean4:review --mode=stuck` reports a **Primary blocker class** as human
+phrases; the handoff record's `blocker_class` is their kebab-case enum:
+
+| review phrase | `blocker_class` |
+|---------------|-----------------|
+| definitional equality | `definitional-equality` |
+| missing intro-constructor-cases | `missing-intro-constructor-cases` |
+| missing rewrite | `missing-rewrite` |
+| arithmetic | `arithmetic` |
+| missing library lemma | `missing-library-lemma` |
+| typeclass-coercion-elaboration | `typeclass-coercion-elaboration` |
+| needs helper lemma | `needs-helper-lemma` |
+
+The stuck review block is **not itself a complete handoff record** — it carries
+no `schema`/`record`/`status`, no `blocker_signature`, and no custody fields. It
+**supplies** the evidence and the blocker vocabulary; the **parent** wraps that
+into a `run-contract/v1` handoff record (mapping the phrase to the enum above).
 
 ## See Also
 

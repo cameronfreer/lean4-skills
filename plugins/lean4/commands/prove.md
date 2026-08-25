@@ -142,13 +142,12 @@ Cycle complete. Filled N/M sorries this cycle.
 Never auto-start the next cycle. Always ask.
 
 At a stop or stuck boundary, produce the **handoff record** of
-[`run-contract/v1`](../skills/lean4/references/handoff-contract.md) (`status`,
-`blocker_class`, `blocker_signature`, `next_action`,
-`new_evidence_required_for_rerun`) so a human or another agent can continue in
-one pass. Do not rerun prove on the same `(target, scope, mode)` and the same
-`blocker_signature` without an auditable evidence delta — offer
-`review --mode=stuck`, `formalize`, or handoff instead
-([rerun guard](../skills/lean4/references/handoff-contract.md#rerun-guard)).
+[`run-contract/v1`](../skills/lean4/references/handoff-contract.md): `status`,
+`stop_reason` (when stopped), the blocker fields (`blocker_class`,
+`blocker_signature`, `new_evidence_required_for_rerun`) when the stop was
+blocker-driven, `files_owned`/`files_changed`/`file_baseline`, and `next_action`
+— compact enough to continue in one pass. Before relaunching, obey the
+[rerun guard](../skills/lean4/references/handoff-contract.md#rerun-guard).
 
 ## Deep Mode
 

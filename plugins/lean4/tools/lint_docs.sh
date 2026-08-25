@@ -902,8 +902,6 @@ check_golf_policy() {
         "### Bulk Rewrite Safety" \
         "### Delegation Execution Policy" \
         "Auto-revert.*sorry count increases" \
-        "Permission gate.*stop delegation immediately" \
-        "never launch additional agents after first" \
         "\\| --max-delegates" \
         "never inside tactic blocks or calc blocks" \
         "context.*(uncertain|ambiguous).*skip|skip.*never force" \
@@ -915,6 +913,15 @@ check_golf_policy() {
     done
     if [[ $missing -eq 0 ]]; then
         ok "golf.md: All safety policy anchors present"
+    fi
+
+    # The generic permission-gate / never-launch-after-denial safety anchors
+    # moved from golf.md to the shared run-contract/v1 Delegation Execution
+    # Policy (cycle-engine.md); verify they survive at their new home.
+    local _dp="$PLUGIN_ROOT/skills/lean4/references/cycle-engine.md"
+    if ! grep -qE "stop delegation immediately" "$_dp" \
+        || ! grep -qE "never launch additional agents after a permission denial" "$_dp"; then
+        warn "cycle-engine.md: shared Delegation Execution Policy missing the permission-gate safety anchor"
     fi
 
     # proof-golfer.md: section heading + policy phrases
