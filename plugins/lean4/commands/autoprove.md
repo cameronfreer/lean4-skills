@@ -219,14 +219,14 @@ When autoprove stops (for any reason), emit:
 - [If claims remaining: "N claims remaining in queue. Re-run with same --source and --formalize-out to continue (existing claims detected via target file)."]
 ```
 
-This summary is the stop-boundary **handoff record** of
-[`run-contract/v1`](../skills/lean4/references/handoff-contract.md): report
-`status` and `stop_reason` (`max-stuck`/`max-cycles`/`max-runtime`/`user-stop`/`queue-empty`),
-the blocker fields (`blocker_class`, `blocker_signature`,
-`new_evidence_required_for_rerun`) only when the stop was blocker-driven
-(`stop_reason == max-stuck`), `files_owned`/`files_changed`/`file_baseline`, and
-`next_action`. A `queue-empty` stop with claims remaining carries no blocker, so
-it reruns freely. Before relaunching, obey the
+After the human-readable summary above, emit the **complete** `run-contract/v1`
+[handoff record](../skills/lean4/references/handoff-contract.md) — every required
+field, not just the ones in the Markdown table. Command-specific mapping:
+`completion → status: solved`; `max-stuck → status: stopped, stop_reason:
+max-stuck` (blocker-driven, so the blocker fields are non-null); `max-cycles` /
+`max-runtime` / `user-stop` / `queue-empty` → `status: stopped` with that
+`stop_reason` and null blocker fields (a `queue-empty` stop with claims remaining
+reruns freely). Before relaunching, obey the
 [rerun guard](../skills/lean4/references/handoff-contract.md#rerun-guard).
 
 ## Deep Mode

@@ -1510,12 +1510,18 @@ else
         check38_ok=0
     fi
 
-    # -- Rerun guard: predicate evaluable from the two records --
+    # -- Rerun guard: predicate evaluable from the two records, with the
+    #    load-bearing non-null precondition (else null==null forbids normal
+    #    queue-empty/budget/user reruns). --
     _c38_rerun=$(extract_section "$_c38_hc" "## Rerun guard")
     if ! echo "$_c38_rerun" | grep -Fq 'prior_blocker == prior_handoff.blocker_signature' \
         || ! echo "$_c38_rerun" | grep -Fq 'evidence_delta' \
         || ! echo "$_c38_rerun" | grep -Fq 'from the two records'; then
         fail "Check 38: rerun guard predicate not evaluable from prior_blocker + evidence_delta"
+        check38_ok=0
+    fi
+    if ! echo "$_c38_rerun" | grep -Fq 'is **non-null**'; then
+        fail "Check 38: rerun guard missing the non-null blocker_signature precondition (null==null must not forbid a rerun)"
         check38_ok=0
     fi
 
@@ -1555,11 +1561,12 @@ for _c38_doc in commands/prove.md commands/autoprove.md commands/golf.md \
     fi
 done
 
-# prove/autoprove state the required handoff fields + reference the rerun guard.
+# prove/autoprove emit the COMPLETE handoff record (not a partial field list)
+# and reference the rerun guard.
 for _c38_doc in commands/prove.md commands/autoprove.md; do
     if ! grep -Fq 'handoff-contract.md#rerun-guard' "$PLUGIN_ROOT/$_c38_doc" \
-        || ! grep -Fq 'file_baseline' "$PLUGIN_ROOT/$_c38_doc"; then
-        fail "Check 38: $_c38_doc must list the handoff fields and reference the rerun guard"
+        || ! grep -Fq 'complete** `run-contract/v1`' "$PLUGIN_ROOT/$_c38_doc"; then
+        fail "Check 38: $_c38_doc must emit the COMPLETE run-contract/v1 handoff record and reference the rerun guard"
         check38_ok=0
     fi
 done

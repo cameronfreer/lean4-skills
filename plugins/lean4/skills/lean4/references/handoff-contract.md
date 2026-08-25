@@ -45,7 +45,7 @@ nullability is given.
 | `file_baseline` | `file-baseline/v1` | the **single** baseline record whose `files` array covers `owned_files`, computed by the parent immediately before dispatch (the primitive emits one object, not per-file entries) |
 | `prior_blocker` | string \| null | the preceding handoff's `blocker_signature`; `null` on a first dispatch |
 | `evidence_delta` | array of string | the auditable evidence justifying this (re)dispatch — **empty on a first dispatch**; each entry names what changed (see [Rerun guard](#rerun-guard)) |
-| `budget` | object `{max_cycles, max_stuck_cycles, runtime}` | each subfield nullable (no explicit bound) |
+| `budget` | object `{max_cycles: integer\|null, max_stuck_cycles: integer\|null, runtime: duration-string\|null}` | `null` subfield = no explicit bound; `runtime` is a duration string (e.g. `"120m"`) |
 
 **Ownership rule:** never dispatch concurrent workers with overlapping
 `owned_files`; serialize or keep one in-thread. The single `file_baseline`
@@ -69,9 +69,9 @@ another agent to consume in one pass.
 | `blocker_class` | enum \| null | Blocked-Goal Triage class ([sorry-filling.md](sorry-filling.md)): `definitional-equality` \| `missing-intro-constructor-cases` \| `missing-rewrite` \| `arithmetic` \| `missing-library-lemma` \| `typeclass-coercion-elaboration` \| `needs-helper-lemma`. **Non-null iff the stop was blocker-driven** — see Blocker fields below. |
 | `blocker_signature` | string \| null | the cycle engine's `(file, line, primary_error_code_or_text_hash)` signature ([Stuck Definition](cycle-engine.md#stuck-definition)). Same nullability as `blocker_class`. |
 | `attempted_tools` | array of string | tools/queries tried |
-| `best_candidates` | array | candidate lemmas/tactics tried and their outcomes |
-| `failed_avenues` | array | approaches ruled out, so a rerun does not repeat them |
-| `evidence` | object | the stuck-handoff evidence: LSP queries attempted, top candidate lemmas returned, `lean_multi_attempt` outcomes |
+| `best_candidates` | array of `{candidate: string, outcome: string}` | lemmas/tactics tried and how each fared |
+| `failed_avenues` | array of string | approaches ruled out, so a rerun does not repeat them |
+| `evidence` | object `{queries: array of string, top_candidates: array of string, attempts: array of {snippet: string, result: string}}` | the stuck-handoff evidence: LSP queries attempted, top candidate lemmas returned, `lean_multi_attempt` outcomes |
 | `files_owned` | array of string | the ownership set held (echoes the dispatch's `owned_files`) — **distinct from** `files_changed` |
 | `files_changed` | array of string | files the worker actually modified |
 | `file_baseline` | `file-baseline/v1` | the **final current baseline** (adopt/patch rules below) |
@@ -102,12 +102,16 @@ checks, applies, and advances the patch itself.
 
 The predicate is evaluated **from the two records** — no future blocker is
 guessed. A relaunch of the same `(target, scope, mode)` is **forbidden** when
-both hold:
+all three hold:
 
+- `prior_handoff.blocker_signature` is **non-null** (the prior stop was blocker-driven), **and**
 - `dispatch.prior_blocker == prior_handoff.blocker_signature` (the same blocker), **and**
 - `dispatch.evidence_delta` is empty (nothing new to try).
 
-A first dispatch carries `prior_blocker: null` and an empty `evidence_delta`, so
+The non-null condition is load-bearing: a non-blocker stop
+(`queue-empty`/`max-cycles`/`max-runtime`/`user-stop`) has a `null` signature,
+and a `null == null` match must **not** forbid the rerun — those reruns are
+always allowed. A first dispatch carries `prior_blocker: null` and an empty `evidence_delta`, so
 it is never forbidden. A qualifying `evidence_delta` entry is any of:
 
 - a materially changed **goal or diagnostic**,
