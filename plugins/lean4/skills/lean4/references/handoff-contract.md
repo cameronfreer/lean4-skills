@@ -46,6 +46,20 @@ nullability is given.
 | `prior_blocker` | string \| null | the preceding handoff's `blocker_signature`; `null` on a first dispatch |
 | `evidence_delta` | array of string | the auditable evidence justifying this (re)dispatch — **empty on a first dispatch**; each entry names what changed (see [Rerun guard](#rerun-guard)) |
 | `budget` | object `{max_cycles: integer\|null, max_stuck_cycles: integer\|null, runtime: duration-string\|null}` | `null` subfield = no explicit bound; `runtime` is a duration string (e.g. `"120m"`) |
+| `context` | object (below) | the pre-collected LSP starting state (MCP may be unavailable in a worker) |
+
+`context` carries the pre-flight state — every member is **required**;
+unavailable values use `null` or `[]` rather than being omitted:
+
+| `context` member | Type | Notes |
+|------------------|------|-------|
+| `prior_failure` | string \| null | why the previous approach failed; `null` on a first dispatch |
+| `goal_state` | string \| null | `lean_goal` at the target |
+| `diagnostics` | array of string | `lean_diagnostic_messages`, summarized |
+| `search_results` | array of `{tool: string, query: string, top: array of string}` | prior planning-phase searches |
+| `candidates_tested` | array of `{snippet: string, result: string}` | `lean_multi_attempt` outcomes |
+| `code_actions` | array of string | `lean_code_actions` for relevant lines |
+| `scratch_location` | string | e.g. `/tmp` (never repo root) |
 
 **Ownership rule:** never dispatch concurrent workers with overlapping
 `owned_files`; serialize or keep one in-thread. The single `file_baseline`
@@ -65,13 +79,14 @@ another agent to consume in one pass.
 | `schema` | const `"run-contract/v1"` | |
 | `record` | const `"handoff"` | |
 | `status` | enum `solved` \| `stuck` \| `stopped` | |
-| `stop_reason` | enum \| null | **non-null iff `status == stopped`**: `max-stuck` \| `max-cycles` \| `max-runtime` \| `user-stop` \| `queue-empty`. `null` for `solved`/`stuck`. |
+| `stop_reason` | enum \| null | **non-null iff `status == stopped`**: `max-stuck` \| `max-cycles` \| `max-runtime` \| `user-stop` \| `queue-empty` \| `protocol-error` \| `operational-error`. `null` for `solved`/`stuck`. |
+| `stop_detail` | string \| null | **non-null iff `stop_reason ∈ {protocol-error, operational-error}`** (e.g. file-baseline drift, malformed dispatch, unavailable checker); `null` otherwise |
 | `blocker_class` | enum \| null | Blocked-Goal Triage class ([sorry-filling.md](sorry-filling.md)): `definitional-equality` \| `missing-intro-constructor-cases` \| `missing-rewrite` \| `arithmetic` \| `missing-library-lemma` \| `typeclass-coercion-elaboration` \| `needs-helper-lemma`. **Non-null iff the stop was blocker-driven** — see Blocker fields below. |
 | `blocker_signature` | string \| null | the cycle engine's `(file, line, primary_error_code_or_text_hash)` signature ([Stuck Definition](cycle-engine.md#stuck-definition)). Same nullability as `blocker_class`. |
 | `attempted_tools` | array of string | tools/queries tried |
 | `best_candidates` | array of `{candidate: string, outcome: string}` | lemmas/tactics tried and how each fared |
 | `failed_avenues` | array of string | approaches ruled out, so a rerun does not repeat them |
-| `evidence` | object `{queries: array of string, top_candidates: array of string, attempts: array of {snippet: string, result: string}}` | the stuck-handoff evidence: LSP queries attempted, top candidate lemmas returned, `lean_multi_attempt` outcomes |
+| `evidence` | object `{queries: array of string, top_candidates: array of string, attempts: array of {snippet: string, result: string}, goal_delta: string\|null, diagnostic_delta: string\|null}` | the stuck-handoff evidence: LSP queries attempted, top candidate lemmas returned, `lean_multi_attempt` outcomes, and the goal / diagnostic change since dispatch (#73 requires reporting goal change; both are qualifying rerun-evidence classes) |
 | `files_owned` | array of string | the ownership set held (echoes the dispatch's `owned_files`) — **distinct from** `files_changed` |
 | `files_changed` | array of string | files the worker actually modified |
 | `file_baseline` | `file-baseline/v1` | the **final current baseline** (adopt/patch rules below) |
@@ -82,10 +97,11 @@ another agent to consume in one pass.
 `new_evidence_required_for_rerun`) are **non-null iff the stop was
 blocker-driven** — `status == stuck`, or `status == stopped` with
 `stop_reason == max-stuck`. They are **`null`** for `status == solved` and for
-budget/user/queue stops (`max-cycles` / `max-runtime` / `user-stop` /
-`queue-empty`), which have no single blocker. A `queue-empty` stop with claims
-remaining therefore reruns freely — no `blocker_signature` for the guard to
-match.
+every non-blocker stop — budget/user/queue (`max-cycles` / `max-runtime` /
+`user-stop` / `queue-empty`) **and** operational aborts (`protocol-error` /
+`operational-error`), which carry their cause in `stop_detail`, not a proof
+blocker. A `queue-empty` stop with claims remaining therefore reruns freely — no
+`blocker_signature` for the guard to match.
 
 **Custody vs effect.** `files_owned` reports custody (echoing the dispatch's
 `owned_files`); `files_changed` reports effect (what the worker wrote). The

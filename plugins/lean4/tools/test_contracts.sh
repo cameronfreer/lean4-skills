@@ -1479,11 +1479,14 @@ else
         check38_ok=0
     fi
 
-    # -- Dispatch record: rerun inputs + correct baseline/custody shape --
+    # -- Dispatch record: EVERY required field + the typed context envelope --
     _c38_disp=$(extract_section "$_c38_hc" "## Dispatch record (parent → worker)")
-    for _c38_f in 'prior_blocker' 'evidence_delta' 'file_baseline' 'owned_files'; do
+    for _c38_f in 'schema' 'record' 'target' 'scope' 'mode' 'capabilities' \
+        'owned_files' 'file_baseline' 'prior_blocker' 'evidence_delta' 'budget' \
+        'context' 'prior_failure' 'goal_state' 'diagnostics' 'search_results' \
+        'candidates_tested' 'code_actions' 'scratch_location'; do
         if ! echo "$_c38_disp" | grep -Fq "$_c38_f"; then
-            fail "Check 38: dispatch record missing $_c38_f"
+            fail "Check 38: dispatch record missing required field/member $_c38_f"
             check38_ok=0
         fi
     done
@@ -1494,21 +1497,19 @@ else
         check38_ok=0
     fi
 
-    # -- Handoff record: stop_reason + blocker-driven nullability --
+    # -- Handoff record: EVERY required field, incl. operational stops + deltas --
     _c38_hand=$(extract_section "$_c38_hc" "## Handoff record (worker → parent/human)")
-    for _c38_f in 'stop_reason' 'blocker-driven' 'queue-empty' 'files_owned' 'files_changed' 'file_baseline'; do
+    for _c38_f in 'schema' 'record' 'status' 'stop_reason' 'stop_detail' \
+        'blocker_class' 'blocker_signature' 'attempted_tools' 'best_candidates' \
+        'failed_avenues' 'evidence' 'files_owned' 'files_changed' 'file_baseline' \
+        'next_action' 'new_evidence_required_for_rerun' \
+        'blocker-driven' 'queue-empty' 'protocol-error' 'operational-error' \
+        'goal_delta' 'diagnostic_delta'; do
         if ! echo "$_c38_hand" | grep -Fq "$_c38_f"; then
-            fail "Check 38: handoff record missing $_c38_f (normal stops must be representable)"
+            fail "Check 38: handoff record missing required field/value $_c38_f"
             check38_ok=0
         fi
     done
-    # Reuse shipped vocabulary, not a parallel one.
-    if ! echo "$_c38_hand" | grep -Fq 'blocker_signature' \
-        || ! echo "$_c38_hand" | grep -Fq 'blocker_class' \
-        || ! echo "$_c38_hand" | grep -Fq 'next_action'; then
-        fail "Check 38: handoff record does not reuse blocker_signature / blocker_class / next_action"
-        check38_ok=0
-    fi
 
     # -- Rerun guard: predicate evaluable from the two records, with the
     #    load-bearing non-null precondition (else null==null forbids normal
@@ -1540,6 +1541,19 @@ if ! grep -Fq '## Run Contract (`run-contract/v1`)' "$_c38_ce" \
     fail "Check 38: cycle-engine.md missing Run Contract / no-subagent fallback / shared Delegation Execution Policy"
     check38_ok=0
 fi
+# The pre-flight block must be the COMPLETE dispatch envelope (all required
+# fields present), not a "relevant subset" / "omit sections" prompt fragment.
+if grep -Fq 'relevant subset' "$_c38_ce" || grep -Fq 'Omit sections with no data' "$_c38_ce"; then
+    fail "Check 38: cycle-engine.md pre-flight block still uses subset/omit wording (must be the complete dispatch record)"
+    check38_ok=0
+fi
+_c38_env=$(extract_section "$_c38_ce" "## Pre-flight Context for Subagent Dispatch")
+for _c38_f in '"schema": "run-contract/v1"' '"record": "dispatch"' '"context"' '"evidence_delta"'; do
+    if ! echo "$_c38_env" | grep -Fq "$_c38_f"; then
+        fail "Check 38: cycle-engine.md pre-flight envelope missing $_c38_f"
+        check38_ok=0
+    fi
+done
 
 # review.md: reconciled — supplies vocab, is NOT itself a complete record.
 if ! grep -Fq 'handoff-contract.md' "$_c38_rev"; then
