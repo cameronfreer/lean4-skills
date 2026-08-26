@@ -534,11 +534,11 @@ Emit this complete `run-contract/v1` dispatch record in the agent dispatch promp
   "scope": "sorry",
   "mode": "prove",
   "capabilities": ["lean-lsp", "search"],
-  "owned_files": ["Mathlib/Foo.lean"],
+  "owned_files": ["/repo/Mathlib/Foo.lean"],
   "file_baseline": {
     "schema": "file-baseline/v1",
     "files": [
-      {"path": "Mathlib/Foo.lean", "realpath": "/repo/Mathlib/Foo.lean", "exists": true, "sha256": "9f2b…", "size": 1234}
+      {"path": "/repo/Mathlib/Foo.lean", "realpath": "/repo/Mathlib/Foo.lean", "exists": true, "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "size": 1234}
     ]
   },
   "prior_blocker": null,

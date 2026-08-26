@@ -1569,6 +1569,15 @@ if echo "$_c38_env" | grep -Fq 'sorry | deps'; then
     fail "Check 38: pre-flight dispatch example uses pipe-delimited pseudo-values (must be one valid instance)"
     check38_ok=0
 fi
+# The embedded file-baseline/v1 entry must satisfy the shipped primitive:
+# absolute path + realpath, and a 64-lowercase-hex sha256 for an existing file.
+# (file_baseline.py rejects a relative path or a non-64-hex digest as malformed.)
+if ! echo "$_c38_env" | grep -Eq '"owned_files": \["/' \
+    || ! echo "$_c38_env" | grep -Eq '"path": "/[^"]+", "realpath": "/' \
+    || ! echo "$_c38_env" | grep -Eq '"sha256": "[0-9a-f]{64}"'; then
+    fail "Check 38: pre-flight baseline example is not a valid file-baseline/v1 (needs absolute path/realpath + 64-hex sha256)"
+    check38_ok=0
+fi
 
 # review.md: reconciled — supplies vocab, is NOT itself a complete record.
 if ! grep -Fq 'handoff-contract.md' "$_c38_rev"; then
