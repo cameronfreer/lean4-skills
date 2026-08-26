@@ -1525,6 +1525,13 @@ else
         fail "Check 38: rerun guard missing the non-null blocker_signature precondition (null==null must not forbid a rerun)"
         check38_ok=0
     fi
+    # Operational/protocol stops need their own rerun branch, else the null
+    # blocker fields let a malformed dispatch/unavailable checker repeat forever.
+    if ! echo "$_c38_rerun" | grep -Fq 'operational-error' \
+        || ! echo "$_c38_rerun" | grep -Fq 'stop_detail'; then
+        fail "Check 38: rerun guard missing the operational/protocol-error branch (relaunch only with evidence_delta resolving stop_detail)"
+        check38_ok=0
+    fi
 
     # -- Blocker-class human-phrase → enum mapping --
     if ! grep -Fq 'missing library lemma' "$_c38_hc" \
@@ -1548,12 +1555,20 @@ if grep -Fq 'relevant subset' "$_c38_ce" || grep -Fq 'Omit sections with no data
     check38_ok=0
 fi
 _c38_env=$(extract_section "$_c38_ce" "## Pre-flight Context for Subagent Dispatch")
-for _c38_f in '"schema": "run-contract/v1"' '"record": "dispatch"' '"context"' '"evidence_delta"'; do
+for _c38_f in '"schema": "run-contract/v1"' '"record": "dispatch"' '"context"' \
+    '"scope": "sorry"' '"schema": "file-baseline/v1"' '"prior_blocker": null' \
+    '"evidence_delta": []'; do
     if ! echo "$_c38_env" | grep -Fq "$_c38_f"; then
-        fail "Check 38: cycle-engine.md pre-flight envelope missing $_c38_f"
+        fail "Check 38: cycle-engine.md pre-flight envelope missing valid-instance field $_c38_f"
         check38_ok=0
     fi
 done
+# Negative: the concrete record must be a VALID instance, not pipe-delimited
+# pseudo-values (which violate the contract's own enums/null types).
+if echo "$_c38_env" | grep -Fq 'sorry | deps'; then
+    fail "Check 38: pre-flight dispatch example uses pipe-delimited pseudo-values (must be one valid instance)"
+    check38_ok=0
+fi
 
 # review.md: reconciled — supplies vocab, is NOT itself a complete record.
 if ! grep -Fq 'handoff-contract.md' "$_c38_rev"; then

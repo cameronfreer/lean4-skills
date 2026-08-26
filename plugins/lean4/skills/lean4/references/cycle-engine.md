@@ -524,34 +524,39 @@ MCP tools may not be available in subagents (anthropics/claude-code#39962). Befo
 
 ### Canonical dispatch envelope
 
-Emit this complete `run-contract/v1` dispatch record in the agent dispatch prompt:
+Emit this complete `run-contract/v1` dispatch record in the agent dispatch prompt. This is a **valid first-dispatch instance** — real enum members, actual `null`s, an empty `evidence_delta`, and a structurally valid `file-baseline/v1`:
 
 ```json
 {
   "schema": "run-contract/v1",
   "record": "dispatch",
-  "target": "<file | file:line | Namespace.decl>",
-  "scope": "sorry | deps | file | changed | project",
-  "mode": "prove | autoprove | golf",
+  "target": "Mathlib/Foo.lean:42",
+  "scope": "sorry",
+  "mode": "prove",
   "capabilities": ["lean-lsp", "search"],
-  "owned_files": ["<path this worker may edit>"],
-  "file_baseline": { "...": "file-baseline/v1 JSON, computed immediately before dispatch" },
-  "prior_blocker": "<prior handoff blocker_signature> | null",
-  "evidence_delta": ["<what changed since the prior stop>"],
-  "budget": {"max_cycles": null, "max_stuck_cycles": null, "runtime": null},
+  "owned_files": ["Mathlib/Foo.lean"],
+  "file_baseline": {
+    "schema": "file-baseline/v1",
+    "files": [
+      {"path": "Mathlib/Foo.lean", "realpath": "/repo/Mathlib/Foo.lean", "exists": true, "sha256": "9f2b…", "size": 1234}
+    ]
+  },
+  "prior_blocker": null,
+  "evidence_delta": [],
+  "budget": {"max_cycles": 20, "max_stuck_cycles": 3, "runtime": "120m"},
   "context": {
-    "prior_failure": "<why the previous approach failed> | null",
-    "goal_state": "<lean_goal output> | null",
-    "diagnostics": ["<lean_diagnostic_messages, summarized>"],
-    "search_results": [{"tool": "...", "query": "...", "top": ["..."]}],
-    "candidates_tested": [{"snippet": "...", "result": "..."}],
-    "code_actions": ["<lean_code_actions for relevant lines>"],
+    "prior_failure": null,
+    "goal_state": "⊢ Continuous f",
+    "diagnostics": [],
+    "search_results": [{"tool": "lean_leansearch", "query": "continuous composition", "top": ["Continuous.comp"]}],
+    "candidates_tested": [],
+    "code_actions": [],
     "scratch_location": "/tmp"
   }
 }
 ```
 
-No field is omitted; empty context members are `null` or `[]`. The per-agent subsections below note which `context` members matter most for each agent.
+Alternative enum values (not shown in the instance): `scope` ∈ `sorry`/`deps`/`file`/`changed`/`project`; `mode` ∈ `prove`/`autoprove`/`golf`. A **rerun** sets `prior_blocker` to the prior handoff's `blocker_signature` and `evidence_delta` to a nonempty list. No field is omitted; empty `context` members are `null` or `[]` (never dropped). The per-agent subsections below note which `context` members matter most for each agent.
 
 **Exclusive file ownership:** If two candidate dispatches would edit any of the same files, serialize them or keep one in-thread. Never dispatch concurrent agents with overlapping owned-file sets.
 

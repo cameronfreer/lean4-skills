@@ -137,9 +137,19 @@ it is never forbidden. A qualifying `evidence_delta` entry is any of:
 - a **newly available capability/tool**.
 
 When the predicate forbids a relaunch, route to `review --mode=stuck`,
-`formalize`, or human handoff instead. This is the single definition of the
-rule; `prove.md`, `autoprove.md`, and `SKILL.md` **reference** it rather than
-restating the predicate.
+`formalize`, or human handoff instead.
+
+**Operational and protocol stops.** A `protocol-error` or `operational-error`
+handoff has **null** blocker fields, so the signature predicate above never
+applies — but it must not be relaunched blindly either (the same malformed
+dispatch, unavailable checker, or unreconciled drift would just repeat). Such a
+stop may be relaunched **only** when the new dispatch's `evidence_delta` is
+nonempty and describes how the prior `stop_detail` was resolved (e.g.
+baseline reconciled, checker restored, dispatch corrected). Normal
+queue/budget/user stops remain freely rerunnable.
+
+This is the single definition of the rule; `prove.md`, `autoprove.md`, and
+`SKILL.md` **reference** it rather than restating the predicate.
 
 ---
 
