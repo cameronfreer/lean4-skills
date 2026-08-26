@@ -34,7 +34,7 @@ Structured error context (JSON):
    - `lean_leanfinder("query")` or `lean_local_search("keyword")` first
    - Script fallback: `lean4-skills-search-mathlib` only after LSP exhausted
 4. **Generate minimal diff** (1-5 lines)
-5. **Output unified diff ONLY** - no explanations
+5. **Return the diff in a `run-contract/v1` handoff** — the unified diff in `artifacts` (`kind: unified-diff`), no prose in the diff `content` (see Output)
 
 ## Two-Stage Approach
 
@@ -57,19 +57,17 @@ Structured error context (JSON):
 
 ## Output
 
-**ONLY unified diff. Nothing else.**
+Return a complete `run-contract/v1` [handoff record](../skills/lean4/references/handoff-contract.md) with the unified diff carried in `artifacts` (proof-repair does **not** edit): `files_changed: []`, the parent's `file_baseline` echoed unchanged, and
 
-```diff
---- Foo.lean
-+++ Foo.lean
-@@ -42,1 +42,1 @@
--  exact h1
-+  convert continuous_of_measurable h1 using 2
+```json
+"artifacts": [{"kind": "unified-diff", "content": "--- Foo.lean\n+++ Foo.lean\n@@ -42,1 +42,1 @@\n-  exact h1\n+  convert continuous_of_measurable h1 using 2\n"}]
 ```
+
+The diff itself is line-number-anchored, nothing else in `content`. `status`/`blocker_kind`/`next_action` follow the outcome (a repaired goal → `next_action: continue`; an un-repairable one → `status: stuck`, `blocker_kind: proof`). The **parent** checks, applies, and advances the patch (§ File baselines and drift).
 
 ## Constraints
 
-- Output ONLY unified diff (no explanations)
+- The diff `content` is unified-diff ONLY (no explanations); it rides in the handoff's `artifacts`
 - Change ONLY 1-5 lines per call
 - Stay within stage budget
 - May NOT rewrite entire functions

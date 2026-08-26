@@ -40,6 +40,8 @@ nullability is given.
 | `target` | string | file, `file:line`, or fully-qualified declaration |
 | `scope` | enum `sorry` \| `deps` \| `file` \| `changed` \| `project` | proving scope |
 | `mode` | enum `prove` \| `autoprove` \| `golf` | dispatching mode |
+| `worker` | enum \| null | the dispatched agent: `sorry-filler-deep` \| `proof-repair` \| `proof-golfer` \| `axiom-eliminator`; `null` for an inline main-thread pass |
+| `parameters` | object | worker-specific typed inputs (`{}` when none) — e.g. proof-golfer's search mode + candidate patterns, axiom-eliminator's axiom list, deep-mode safety budgets, proof-repair's structured error |
 | `capabilities` | array of string | tools available to the worker (e.g. `lean-lsp`, `search`); may be empty |
 | `owned_files` | array of string | the exclusive-ownership **paths** — ownership, not changes |
 | `file_baseline` | `file-baseline/v1` | the **single** baseline record whose `files` array covers `owned_files`, computed by the parent immediately before dispatch (the primitive emits one object, not per-file entries) |
@@ -78,11 +80,15 @@ another agent to consume in one pass.
 |-------|------|-------|
 | `schema` | const `"run-contract/v1"` | |
 | `record` | const `"handoff"` | |
+| `target` | string | **echoes the dispatch `target`** — makes the handoff self-identifying (the rerun guard's `same_task` reads it) |
+| `scope` | enum `sorry` \| `deps` \| `file` \| `changed` \| `project` | echoes the dispatch `scope` |
+| `mode` | enum `prove` \| `autoprove` \| `golf` | echoes the dispatch `mode` |
 | `status` | enum `solved` \| `stuck` \| `stopped` | |
 | `stop_reason` | enum \| null | **non-null iff `status == stopped`**: `max-stuck` \| `max-cycles` \| `max-runtime` \| `user-stop` \| `queue-empty` \| `protocol-error` \| `operational-error`. `null` for `solved`/`stuck`. |
 | `stop_detail` | string \| null | **non-null iff `stop_reason ∈ {protocol-error, operational-error}`** (e.g. file-baseline drift, malformed dispatch, unavailable checker); `null` otherwise |
-| `blocker_class` | enum \| null | Blocked-Goal Triage class ([sorry-filling.md](sorry-filling.md)): `definitional-equality` \| `missing-intro-constructor-cases` \| `missing-rewrite` \| `arithmetic` \| `missing-library-lemma` \| `typeclass-coercion-elaboration` \| `needs-helper-lemma`. **Non-null iff the stop was blocker-driven** — see Blocker fields below. |
-| `blocker_signature` | string \| null | the cycle engine's `(file, line, primary_error_code_or_text_hash)` signature ([Stuck Definition](cycle-engine.md#stuck-definition)). Same nullability as `blocker_class`. |
+| `blocker_kind` | enum \| null | why a blocker-driven stop happened: `proof` \| `false-statement` \| `safety-guard` \| `capability` \| `protocol` \| `operational`. **Non-null iff the stop was blocker-driven** — see Blocker fields below. |
+| `blocker_class` | enum \| null | the proof-triage class, **non-null iff `blocker_kind == proof`** ([sorry-filling.md](sorry-filling.md)): `definitional-equality` \| `missing-intro-constructor-cases` \| `missing-rewrite` \| `arithmetic` \| `missing-library-lemma` \| `typeclass-coercion-elaboration` \| `needs-helper-lemma`. `null` for a `safety-guard`/`false-statement`/etc. blocker (e.g. deep regression, scope exceeded, header-fence, rollback failure). |
+| `blocker_signature` | string \| null | the cycle engine's `(file, line, primary_error_code_or_text_hash)` signature ([Stuck Definition](cycle-engine.md#stuck-definition)). Same nullability as `blocker_kind`. |
 | `attempted_tools` | array of string | tools/queries tried |
 | `best_candidates` | array of `{candidate: string, outcome: string}` | lemmas/tactics tried and how each fared |
 | `failed_avenues` | array of string | approaches ruled out, so a rerun does not repeat them |
@@ -90,18 +96,23 @@ another agent to consume in one pass.
 | `files_owned` | array of string | the ownership set held (echoes the dispatch's `owned_files`) — **distinct from** `files_changed` |
 | `files_changed` | array of string | files the worker actually modified |
 | `file_baseline` | `file-baseline/v1` | the **final current baseline** (adopt/patch rules below) |
+| `artifacts` | array of `{kind: string, content: string}` | worker products the parent consumes — a **patch-only** worker returns `[{"kind": "unified-diff", "content": "..."}]` (with `files_changed: []`); `[]` when there is no product |
 | `next_action` | enum `continue` \| `deep` \| `repair` \| `redraft` \| `golf` \| `stop` | the **shipped** review stuck-mode vocabulary |
-| `new_evidence_required_for_rerun` | string \| null | what must change before a relaunch is justified. Same nullability as `blocker_class`. |
+| `new_evidence_required_for_rerun` | string \| null | what must change before a relaunch is justified. Same nullability as `blocker_kind`. |
 
-**Blocker fields** (`blocker_class`, `blocker_signature`,
+**Blocker fields** (`blocker_kind`, `blocker_signature`,
 `new_evidence_required_for_rerun`) are **non-null iff the stop was
 blocker-driven** — `status == stuck`, or `status == stopped` with
-`stop_reason == max-stuck`. They are **`null`** for `status == solved` and for
-every non-blocker stop — budget/user/queue (`max-cycles` / `max-runtime` /
-`user-stop` / `queue-empty`) **and** operational aborts (`protocol-error` /
-`operational-error`), which carry their cause in `stop_detail`, not a proof
-blocker. A `queue-empty` stop with claims remaining therefore reruns freely — no
-`blocker_signature` for the guard to match.
+`stop_reason == max-stuck`. `blocker_class` is non-null only when
+`blocker_kind == proof` (the seven proof-triage classes); a **`safety-guard`**
+stop (deep regression, deep scope exceeded, header-fence violation, rollback
+failure) or a `false-statement`/`capability` blocker sets `blocker_kind`
+accordingly and leaves `blocker_class` `null`. All blocker fields are **`null`**
+for `status == solved` and for every non-blocker stop — budget/user/queue
+(`max-cycles` / `max-runtime` / `user-stop` / `queue-empty`) **and** operational
+aborts (`protocol-error` / `operational-error`), which carry their cause in
+`stop_detail`. A `queue-empty` stop with claims remaining therefore reruns freely
+— no `blocker_signature` for the guard to match.
 
 **Custody vs effect.** `files_owned` reports custody (echoing the dispatch's
 `owned_files`); `files_changed` reports effect (what the worker wrote). The
@@ -109,20 +120,32 @@ blocker. A `queue-empty` stop with claims remaining therefore reruns freely — 
 direct-editing worker advances it after each mutation and returns the **final**
 one, which the parent **adopts** as-is — re-advancing at handoff would bless
 drift occurring after the worker's last `check`. A patch-only worker (e.g.
-proof-repair) returns `files_changed: []` and does not advance; the parent
-checks, applies, and advances the patch itself.
+proof-repair) does not edit: it returns `files_changed: []`, the parent's own
+`file_baseline` unchanged, and its diff in `artifacts` as
+`{"kind": "unified-diff", "content": "..."}`; the **parent** then checks,
+applies, and advances the patch itself.
 
 ---
 
 ## Rerun guard
 
 The predicate is evaluated **from the two records** — no future blocker is
-guessed. A relaunch of the same `(target, scope, mode)` is **forbidden** when
-all three hold:
+guessed. The handoff echoes `target`/`scope`/`mode`, so the task triple is
+self-identifying:
 
+```text
+same_task =
+     new_dispatch.target == prior_handoff.target
+  && new_dispatch.scope  == prior_handoff.scope
+  && new_dispatch.mode   == prior_handoff.mode
+```
+
+A relaunch is **forbidden** when all four hold:
+
+- `same_task`, **and**
 - `prior_handoff.blocker_signature` is **non-null** (the prior stop was blocker-driven), **and**
-- `dispatch.prior_blocker == prior_handoff.blocker_signature` (the same blocker), **and**
-- `dispatch.evidence_delta` is empty (nothing new to try).
+- `new_dispatch.prior_blocker == prior_handoff.blocker_signature` (the same blocker), **and**
+- `new_dispatch.evidence_delta` is empty (nothing new to try).
 
 The non-null condition is load-bearing: a non-blocker stop
 (`queue-empty`/`max-cycles`/`max-runtime`/`user-stop`) has a `null` signature,

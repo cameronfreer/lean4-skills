@@ -533,6 +533,8 @@ Emit this complete `run-contract/v1` dispatch record in the agent dispatch promp
   "target": "Mathlib/Foo.lean:42",
   "scope": "sorry",
   "mode": "prove",
+  "worker": "sorry-filler-deep",
+  "parameters": {},
   "capabilities": ["lean-lsp", "search"],
   "owned_files": ["/repo/Mathlib/Foo.lean"],
   "file_baseline": {
@@ -574,9 +576,11 @@ The `### File baseline` field carries a versioned record (`file-baseline/v1`, fr
 
 This is prompt-contract orchestration with a tested runtime primitive: the check→edit window is check-to-write, not compare-and-swap — it narrows the race from "since dispatch" to "since last check" but cannot close it. Exclusive file ownership and `isolation: "worktree"` remain the primary concurrency defenses; the baseline check is the tripwire for when they are violated.
 
+Each worker's inputs map onto the dispatch record: the LSP-state items below populate `context`; the worker-specific items (proof-repair's structured error, proof-golfer's search mode + patterns, axiom-eliminator's axiom list, deep-mode safety budgets) populate `parameters`, with `worker` naming the agent. Every worker returns a complete `run-contract/v1` [handoff record](handoff-contract.md#handoff-record-worker--parenthuman) at its stop boundary — a patch-only worker (proof-repair) carries its diff in `artifacts`.
+
 ### sorry-filler-deep
 
-Include alongside file:line and failure reason:
+`context` populated with, alongside file:line and failure reason:
 - Goal state: `lean_goal(file, line)` output
 - Diagnostics: `lean_diagnostic_messages(file)` summary
 - Search results: tool + query + top results from prior planning phase
@@ -588,7 +592,7 @@ Extend the existing structured error JSON with:
 - `searchResults`: top results from any LSP searches already performed
 - `multiAttemptResults`: snippets tested and their outcomes
 
-proof-repair returns a line-number-anchored diff and does not edit; the **parent** runs the file-baseline check immediately before applying the diff and advances the applied file's entry after success (§ File baselines and drift).
+proof-repair returns a line-number-anchored diff **in the handoff's `artifacts`** (`kind: "unified-diff"`) with `files_changed: []`, and does not edit; the **parent** runs the file-baseline check immediately before applying the diff and advances the applied file's entry after success (§ File baselines and drift).
 
 ### proof-golfer
 

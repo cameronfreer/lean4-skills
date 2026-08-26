@@ -1481,9 +1481,9 @@ else
 
     # -- Dispatch record: EVERY required field + the typed context envelope --
     _c38_disp=$(extract_section "$_c38_hc" "## Dispatch record (parent → worker)")
-    for _c38_f in 'schema' 'record' 'target' 'scope' 'mode' 'capabilities' \
-        'owned_files' 'file_baseline' 'prior_blocker' 'evidence_delta' 'budget' \
-        'context' 'prior_failure' 'goal_state' 'diagnostics' 'search_results' \
+    for _c38_f in 'schema' 'record' 'target' 'scope' 'mode' 'worker' 'parameters' \
+        'capabilities' 'owned_files' 'file_baseline' 'prior_blocker' 'evidence_delta' \
+        'budget' 'context' 'prior_failure' 'goal_state' 'diagnostics' 'search_results' \
         'candidates_tested' 'code_actions' 'scratch_location'; do
         if ! echo "$_c38_disp" | grep -Fq "$_c38_f"; then
             fail "Check 38: dispatch record missing required field/member $_c38_f"
@@ -1499,17 +1499,23 @@ else
 
     # -- Handoff record: EVERY required field, incl. operational stops + deltas --
     _c38_hand=$(extract_section "$_c38_hc" "## Handoff record (worker → parent/human)")
-    for _c38_f in 'schema' 'record' 'status' 'stop_reason' 'stop_detail' \
-        'blocker_class' 'blocker_signature' 'attempted_tools' 'best_candidates' \
-        'failed_avenues' 'evidence' 'files_owned' 'files_changed' 'file_baseline' \
-        'next_action' 'new_evidence_required_for_rerun' \
+    for _c38_f in 'schema' 'record' 'target' 'scope' 'mode' 'status' 'stop_reason' \
+        'stop_detail' 'blocker_kind' 'blocker_class' 'blocker_signature' \
+        'attempted_tools' 'best_candidates' 'failed_avenues' 'evidence' 'files_owned' \
+        'files_changed' 'file_baseline' 'artifacts' 'next_action' \
+        'new_evidence_required_for_rerun' \
         'blocker-driven' 'queue-empty' 'protocol-error' 'operational-error' \
-        'goal_delta' 'diagnostic_delta'; do
+        'safety-guard' 'goal_delta' 'diagnostic_delta' 'unified-diff'; do
         if ! echo "$_c38_hand" | grep -Fq "$_c38_f"; then
             fail "Check 38: handoff record missing required field/value $_c38_f"
             check38_ok=0
         fi
     done
+    # The handoff must echo the task triple so the rerun guard is self-contained.
+    if ! echo "$_c38_hand" | grep -Fq 'self-identifying'; then
+        fail "Check 38: handoff record does not echo target/scope/mode (not self-identifying)"
+        check38_ok=0
+    fi
 
     # -- Rerun guard: predicate evaluable from the two records, with the
     #    load-bearing non-null precondition (else null==null forbids normal
@@ -1517,8 +1523,9 @@ else
     _c38_rerun=$(extract_section "$_c38_hc" "## Rerun guard")
     if ! echo "$_c38_rerun" | grep -Fq 'prior_blocker == prior_handoff.blocker_signature' \
         || ! echo "$_c38_rerun" | grep -Fq 'evidence_delta' \
-        || ! echo "$_c38_rerun" | grep -Fq 'from the two records'; then
-        fail "Check 38: rerun guard predicate not evaluable from prior_blocker + evidence_delta"
+        || ! echo "$_c38_rerun" | grep -Fq 'from the two records' \
+        || ! echo "$_c38_rerun" | grep -Fq 'same_task'; then
+        fail "Check 38: rerun guard predicate not evaluable (needs same_task + prior_blocker + evidence_delta)"
         check38_ok=0
     fi
     if ! echo "$_c38_rerun" | grep -Fq 'is **non-null**'; then
@@ -1613,6 +1620,44 @@ done
 _c38_golf=$(extract_section "$PLUGIN_ROOT/commands/golf.md" "### Delegation Execution Policy")
 if echo "$_c38_golf" | grep -Fq 'Fallback contract'; then
     fail "Check 38: golf.md still duplicates the generic Fallback contract rule (use the shared policy)"
+    check38_ok=0
+fi
+
+# The ACTUAL proof-editing agents must consume the JSON dispatch and emit the
+# handoff — the safety linkage broke while CI passed because Check 38 only
+# looked at commands/. Each agent: references run-contract/v1 + owned_files,
+# emits a handoff record, and must NOT gate custody on the old `### Owned
+# files` heading (a JSON dispatch has no such heading → custody check skipped).
+for _c38_ag in sorry-filler-deep proof-repair proof-golfer axiom-eliminator; do
+    _c38_af="$PLUGIN_ROOT/agents/$_c38_ag.md"
+    # No agent may gate custody on the old heading — a JSON dispatch has no such
+    # heading, so the fail-closed branch would silently not activate.
+    if grep -Fq '### Owned files' "$_c38_af"; then
+        fail "Check 38: agents/$_c38_ag.md still gates custody on the '### Owned files' heading (must key off owned_files JSON)"
+        check38_ok=0
+    fi
+    # Every agent consumes the dispatch and emits a handoff record.
+    if ! grep -Fq 'run-contract/v1' "$_c38_af" || ! grep -Fq 'handoff record' "$_c38_af"; then
+        fail "Check 38: agents/$_c38_ag.md does not consume the run-contract/v1 dispatch / emit a handoff"
+        check38_ok=0
+    fi
+done
+# The three EDITING agents additionally key custody off the owned_files field.
+for _c38_ag in sorry-filler-deep proof-golfer axiom-eliminator; do
+    if ! grep -Fq 'owned_files' "$PLUGIN_ROOT/agents/$_c38_ag.md"; then
+        fail "Check 38: editing agent agents/$_c38_ag.md does not fail-closed on the owned_files field"
+        check38_ok=0
+    fi
+done
+# proof-repair returns its diff in the handoff artifacts, not a bare diff.
+if ! grep -Fq 'unified-diff' "$PLUGIN_ROOT/agents/proof-repair.md"; then
+    fail "Check 38: proof-repair.md must carry its diff in the handoff artifacts (kind unified-diff)"
+    check38_ok=0
+fi
+
+# A real structural fixture validator exists (grep alone can't prove semantics).
+if [[ ! -f "$PLUGIN_ROOT/tests/test_run_contract.py" ]]; then
+    fail "Check 38: missing tests/test_run_contract.py (structural dispatch/handoff fixtures)"
     check38_ok=0
 fi
 
