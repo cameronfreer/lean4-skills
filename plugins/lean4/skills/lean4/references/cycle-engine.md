@@ -534,7 +534,11 @@ Emit this complete `run-contract/v1` dispatch record in the agent dispatch promp
   "scope": "sorry",
   "mode": "prove",
   "worker": "sorry-filler-deep",
-  "parameters": {},
+  "parameters": {
+    "fast_pass_error": "unsolved goals: ⊢ Continuous f",
+    "permission_level": "edit",
+    "deep_budget": {"scope": "file", "max_files": 1, "max_lines": 40}
+  },
   "capabilities": ["lean-lsp", "search"],
   "owned_files": ["/repo/Mathlib/Foo.lean"],
   "file_baseline": {

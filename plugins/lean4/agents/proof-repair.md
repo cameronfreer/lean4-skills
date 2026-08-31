@@ -7,7 +7,7 @@ model: sonnet
 
 ## Inputs
 
-Consume the `run-contract/v1` [dispatch record](../skills/lean4/references/handoff-contract.md#dispatch-record-parent--worker) (`record == "dispatch"`): read `target`, the `context` envelope, and `parameters.error` (the structured error to repair). proof-repair is **patch-only** — it does not edit, so it takes no `owned_files`/`file_baseline` custody; the parent applies and advances the returned diff.
+Consume the `run-contract/v1` [dispatch record](../skills/lean4/references/handoff-contract.md#dispatch-record-parent--worker) (`record == "dispatch"`): read `target`, the `context` envelope, and `parameters.error` (the structured error to repair). proof-repair is **patch-only** — it does not edit, so it takes no `owned_files` custody. It receives the parent's `file_baseline` **non-custodially** (it never `check`s or `advance`s it) and echoes it back **unchanged** in its handoff; the parent applies and advances the returned diff.
 
 `parameters.error` shape:
 ```json

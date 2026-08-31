@@ -112,6 +112,52 @@ def _dicts_with_keys(seq: Any, keys: set[str]) -> bool:
     )
 
 
+def _str_list(x: Any) -> bool:
+    return isinstance(x, list) and all(isinstance(s, str) for s in x)
+
+
+# Required members of each worker's typed `parameters` payload.
+WORKER_PARAMS: dict[str, set[str]] = {
+    "sorry-filler-deep": {"fast_pass_error", "permission_level", "deep_budget"},
+    "proof-repair": {"error"},
+    "proof-golfer": {"search_mode", "golfable_patterns", "candidate_targets"},
+    "axiom-eliminator": {"axioms", "permission_level"},
+}
+
+
+def validate_parameters(worker: Any, params: Any) -> list[str]:
+    """worker==null → parameters=={}; each named worker → its exact shape."""
+    if worker is None:
+        return (
+            []
+            if params == {}
+            else ["inline dispatch (worker null) must have parameters {}"]
+        )
+    if worker not in WORKER_PARAMS:
+        return ["unknown worker"]
+    if not isinstance(params, dict):
+        return [f"{worker} parameters must be an object"]
+    missing = WORKER_PARAMS[worker] - set(params)
+    if missing:
+        return [f"{worker} parameters missing {sorted(missing)}"]
+    if worker == "sorry-filler-deep":
+        db = params.get("deep_budget")
+        if not (
+            isinstance(db, dict) and {"scope", "max_files", "max_lines"} <= set(db)
+        ):
+            return [
+                "sorry-filler-deep deep_budget must be {scope, max_files, max_lines}"
+            ]
+    if worker == "proof-repair":
+        err = params.get("error")
+        if not (
+            isinstance(err, dict)
+            and {"errorType", "message", "file", "line"} <= set(err)
+        ):
+            return ["proof-repair parameters.error missing required members"]
+    return []
+
+
 def validate_dispatch(obj: dict[str, Any]) -> list[str]:
     e: list[str] = []
     missing = DISPATCH_FIELDS - set(obj)
@@ -127,21 +173,28 @@ def validate_dispatch(obj: dict[str, Any]) -> list[str]:
         e.append("dispatch mode not in enum")
     if obj.get("worker") is not None and obj.get("worker") not in WORKERS:
         e.append("dispatch worker must be a known agent or null")
-    if not isinstance(obj.get("owned_files"), list) or not isinstance(
-        obj.get("evidence_delta"), list
+    if not _str_list(obj.get("owned_files")) or not _str_list(
+        obj.get("evidence_delta")
     ):
-        e.append("owned_files / evidence_delta must be arrays")
-    # nested context member types (not just presence).
+        e.append("owned_files / evidence_delta must be arrays of strings")
+    # worker/parameters correlation (the "typed parameters" contract).
+    e += validate_parameters(obj.get("worker"), obj.get("parameters"))
+    # nested context member types + item shapes.
     ctx = obj.get("context")
     if not isinstance(ctx, dict) or (CONTEXT_FIELDS - set(ctx)):
         e.append("dispatch context missing required members")
     else:
-        for m in ("diagnostics", "search_results", "candidates_tested", "code_actions"):
-            if not isinstance(ctx.get(m), list):
-                e.append(f"context.{m} must be an array")
+        if not isinstance(ctx.get("diagnostics"), list) or not isinstance(
+            ctx.get("code_actions"), list
+        ):
+            e.append("context.diagnostics / code_actions must be arrays")
+        if not _dicts_with_keys(ctx.get("search_results"), {"tool", "query", "top"}):
+            e.append("context.search_results items must be {tool, query, top}")
+        if not _dicts_with_keys(ctx.get("candidates_tested"), {"snippet", "result"}):
+            e.append("context.candidates_tested items must be {snippet, result}")
         if not isinstance(ctx.get("scratch_location"), str):
             e.append("context.scratch_location must be a non-null string")
-    # budget subfields are exactly the three documented keys.
+    # budget subfields: exact keys AND value types.
     b = obj.get("budget")
     if not isinstance(b, dict) or set(b) != {
         "max_cycles",
@@ -149,6 +202,14 @@ def validate_dispatch(obj: dict[str, Any]) -> list[str]:
         "runtime",
     }:
         e.append("budget must be {max_cycles, max_stuck_cycles, runtime}")
+    else:
+        for k in ("max_cycles", "max_stuck_cycles"):
+            if not (
+                b[k] is None or (isinstance(b[k], int) and not isinstance(b[k], bool))
+            ):
+                e.append(f"budget.{k} must be integer|null")
+        if not (b["runtime"] is None or isinstance(b["runtime"], str)):
+            e.append("budget.runtime must be duration-string|null")
     # file_baseline must cover every owned_files path.
     if not _baseline_covers(obj.get("file_baseline"), obj.get("owned_files")):
         e.append("file_baseline.files must cover every owned_files path")
@@ -185,8 +246,10 @@ def validate_handoff(obj: dict[str, Any]) -> list[str]:
     else:
         if not isinstance(t, str) or sc not in SCOPES or md not in MODES:
             e.append("handoff must echo a valid target/scope/mode")
-        if not isinstance(fb, dict):
-            e.append("handoff must carry a file_baseline object")
+        if not _baseline_covers(fb, obj.get("files_owned")):
+            e.append(
+                "handoff file_baseline must be a file-baseline/v1 covering files_owned"
+            )
     if obj.get("status") not in STATUSES:
         e.append("handoff status not in enum")
     # stop_reason non-null iff stopped.
@@ -219,25 +282,37 @@ def validate_handoff(obj: dict[str, Any]) -> list[str]:
         e.append("blocker_class must be null unless blocker_kind == proof")
     if obj.get("next_action") not in NEXT_ACTIONS:
         e.append("next_action not in enum")
-    # nested evidence shape.
+    # string-list fields.
+    for f in ("files_owned", "files_changed", "attempted_tools", "failed_avenues"):
+        if not _str_list(obj.get(f)):
+            e.append(f"{f} must be an array of strings")
+    # nested evidence shape incl. item + delta types.
     ev = obj.get("evidence")
     if not isinstance(ev, dict) or not (
-        isinstance(ev.get("queries"), list)
-        and isinstance(ev.get("top_candidates"), list)
-        and isinstance(ev.get("attempts"), list)
+        _str_list(ev.get("queries"))
+        and _str_list(ev.get("top_candidates"))
+        and _dicts_with_keys(ev.get("attempts"), {"snippet", "result"})
         and {"goal_delta", "diagnostic_delta"} <= set(ev)
+        and (ev.get("goal_delta") is None or isinstance(ev.get("goal_delta"), str))
+        and (
+            ev.get("diagnostic_delta") is None
+            or isinstance(ev.get("diagnostic_delta"), str)
+        )
     ):
         e.append(
-            "evidence must be {queries, top_candidates, attempts, goal_delta, diagnostic_delta}"
+            "evidence shape invalid (str-list queries/top_candidates, {snippet,result} attempts, str|null deltas)"
         )
-    # best_candidates items and artifact contents are typed.
+    # best_candidates items and artifact kind/content are typed.
     if not _dicts_with_keys(obj.get("best_candidates"), {"candidate", "outcome"}):
         e.append("best_candidates items must be {candidate, outcome}")
     arts = obj.get("artifacts")
     if not _dicts_with_keys(arts, {"kind", "content"}):
         e.append("artifacts items must be {kind, content}")
-    elif any(not isinstance(a["content"], str) for a in arts):
-        e.append("artifact content must be a string")
+    elif any(
+        not isinstance(a["kind"], str) or not isinstance(a["content"], str)
+        for a in arts
+    ):
+        e.append("artifact kind and content must both be strings")
     return e
 
 
@@ -250,7 +325,13 @@ def same_task(new_dispatch: dict[str, Any], prior_handoff: dict[str, Any]) -> bo
 def rerun_forbidden(
     new_dispatch: dict[str, Any], prior_handoff: dict[str, Any]
 ) -> bool:
-    """The rerun guard, evaluated from the two records (blocker branch)."""
+    """The rerun guard, evaluated from the two records — both branches."""
+    # Operational/protocol branch: relaunch only with a nonempty evidence_delta
+    # resolving stop_detail; the null blocker signature makes the blocker branch
+    # inapplicable, so without this branch these would always be allowed.
+    if prior_handoff.get("stop_reason") in OPERATIONAL_STOPS:
+        return not new_dispatch.get("evidence_delta")
+    # Blocker branch.
     return (
         same_task(new_dispatch, prior_handoff)
         and prior_handoff.get("blocker_signature") is not None
@@ -297,7 +378,11 @@ def valid_dispatch(**over: Any) -> dict[str, Any]:
         "scope": "sorry",
         "mode": "prove",
         "worker": "sorry-filler-deep",
-        "parameters": {},
+        "parameters": {
+            "fast_pass_error": "unsolved goals",
+            "permission_level": "edit",
+            "deep_budget": {"scope": "file", "max_files": 1, "max_lines": 40},
+        },
         "capabilities": ["lean-lsp"],
         "owned_files": ["/repo/Foo.lean"],
         "file_baseline": _baseline(),
@@ -583,6 +668,124 @@ class RerunPredicate(unittest.TestCase):
         prior = self._prior()
         d = valid_dispatch()  # echoes the same /repo/Foo.lean:42, sorry, prove
         self.assertTrue(same_task(d, prior))
+
+    def test_operational_stop_empty_delta_forbidden(self) -> None:
+        prior = valid_handoff(
+            target=None,
+            scope=None,
+            mode=None,
+            file_baseline=None,
+            status="stopped",
+            stop_reason="operational-error",
+            stop_detail="checker unavailable",
+            next_action="stop",
+        )
+        d = valid_dispatch(prior_blocker=None, evidence_delta=[])
+        self.assertTrue(rerun_forbidden(d, prior))
+
+    def test_operational_stop_resolving_delta_allowed(self) -> None:
+        prior = valid_handoff(
+            status="stopped",
+            stop_reason="operational-error",
+            stop_detail="baseline drift",
+            next_action="stop",
+        )
+        d = valid_dispatch(prior_blocker=None, evidence_delta=["baseline reconciled"])
+        self.assertFalse(rerun_forbidden(d, prior))
+
+    def test_queue_empty_empty_delta_allowed(self) -> None:
+        prior = valid_handoff(
+            status="stopped", stop_reason="queue-empty", next_action="stop"
+        )
+        d = valid_dispatch(prior_blocker=None, evidence_delta=[])
+        self.assertFalse(rerun_forbidden(d, prior))
+
+
+class WorkerParameters(unittest.TestCase):
+    def test_named_worker_requires_its_shape(self) -> None:
+        # sorry-filler-deep with {} parameters is rejected (the r7 canonical bug).
+        self.assertTrue(validate_dispatch(valid_dispatch(parameters={})))
+
+    def test_inline_worker_requires_empty_params(self) -> None:
+        self.assertEqual(validate_parameters(None, {}), [])
+        self.assertTrue(validate_parameters(None, {"x": 1}))
+
+    def test_each_worker_shape(self) -> None:
+        self.assertEqual(
+            validate_parameters(
+                "proof-golfer",
+                {
+                    "search_mode": "quick",
+                    "golfable_patterns": [],
+                    "candidate_targets": [],
+                },
+            ),
+            [],
+        )
+        self.assertEqual(
+            validate_parameters(
+                "axiom-eliminator", {"axioms": ["myAxiom"], "permission_level": "edit"}
+            ),
+            [],
+        )
+        self.assertEqual(
+            validate_parameters(
+                "proof-repair",
+                {
+                    "error": {
+                        "errorType": "unsolved_goals",
+                        "message": "m",
+                        "file": "F.lean",
+                        "line": 4,
+                    }
+                },
+            ),
+            [],
+        )
+
+    def test_wrong_or_missing_payload_rejected(self) -> None:
+        self.assertTrue(
+            validate_parameters("proof-golfer", {"axioms": []})
+        )  # wrong worker's shape
+        self.assertTrue(
+            validate_parameters(
+                "sorry-filler-deep",
+                {"fast_pass_error": "e", "permission_level": "edit"},
+            )
+        )  # missing deep_budget
+        self.assertTrue(
+            validate_parameters("proof-repair", {"error": {"errorType": "x"}})
+        )
+
+
+class DeeperRejections(unittest.TestCase):
+    def test_budget_value_type(self) -> None:
+        d = valid_dispatch()
+        d["budget"]["max_cycles"] = "20"
+        self.assertTrue(validate_dispatch(d))
+
+    def test_context_search_result_item_shape(self) -> None:
+        d = valid_dispatch()
+        d["context"]["search_results"] = [{"tool": "x"}]  # missing query/top
+        self.assertTrue(validate_dispatch(d))
+
+    def test_handoff_string_lists(self) -> None:
+        self.assertTrue(validate_handoff(valid_handoff(attempted_tools=[1, 2])))
+
+    def test_evidence_attempt_item_shape(self) -> None:
+        h = valid_handoff()
+        h["evidence"]["attempts"] = [{"snippet": "s"}]  # missing result
+        self.assertTrue(validate_handoff(h))
+
+    def test_artifact_kind_must_be_string(self) -> None:
+        self.assertTrue(
+            validate_handoff(valid_handoff(artifacts=[{"kind": 1, "content": "x"}]))
+        )
+
+    def test_handoff_baseline_must_cover_files_owned(self) -> None:
+        self.assertTrue(
+            validate_handoff(valid_handoff(files_owned=["/repo/Other.lean"]))
+        )
 
 
 if __name__ == "__main__":
