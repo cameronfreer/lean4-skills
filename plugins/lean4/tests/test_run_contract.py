@@ -96,6 +96,22 @@ HANDOFF_FIELDS = {
 }
 
 
+def _baseline_covers(baseline: Any, owned_files: Any) -> bool:
+    if not isinstance(baseline, dict) or not isinstance(owned_files, list):
+        return False
+    files = baseline.get("files")
+    if not isinstance(files, list):
+        return False
+    covered = {f.get("path") for f in files if isinstance(f, dict)}
+    return set(owned_files) <= covered
+
+
+def _dicts_with_keys(seq: Any, keys: set[str]) -> bool:
+    return isinstance(seq, list) and all(
+        isinstance(x, dict) and keys <= set(x) for x in seq
+    )
+
+
 def validate_dispatch(obj: dict[str, Any]) -> list[str]:
     e: list[str] = []
     missing = DISPATCH_FIELDS - set(obj)
@@ -115,9 +131,27 @@ def validate_dispatch(obj: dict[str, Any]) -> list[str]:
         obj.get("evidence_delta"), list
     ):
         e.append("owned_files / evidence_delta must be arrays")
+    # nested context member types (not just presence).
     ctx = obj.get("context")
     if not isinstance(ctx, dict) or (CONTEXT_FIELDS - set(ctx)):
         e.append("dispatch context missing required members")
+    else:
+        for m in ("diagnostics", "search_results", "candidates_tested", "code_actions"):
+            if not isinstance(ctx.get(m), list):
+                e.append(f"context.{m} must be an array")
+        if not isinstance(ctx.get("scratch_location"), str):
+            e.append("context.scratch_location must be a non-null string")
+    # budget subfields are exactly the three documented keys.
+    b = obj.get("budget")
+    if not isinstance(b, dict) or set(b) != {
+        "max_cycles",
+        "max_stuck_cycles",
+        "runtime",
+    }:
+        e.append("budget must be {max_cycles, max_stuck_cycles, runtime}")
+    # file_baseline must cover every owned_files path.
+    if not _baseline_covers(obj.get("file_baseline"), obj.get("owned_files")):
+        e.append("file_baseline.files must cover every owned_files path")
     return e
 
 
@@ -134,17 +168,28 @@ def validate_handoff(obj: dict[str, Any]) -> list[str]:
         e.append(f"handoff missing {sorted(missing)}")
     if obj.get("schema") != "run-contract/v1" or obj.get("record") != "handoff":
         e.append("handoff schema/record wrong")
-    # Self-identifying task triple (the rerun guard's same_task).
-    if (
-        not isinstance(obj.get("target"), str)
-        or obj.get("scope") not in SCOPES
-        or obj.get("mode") not in MODES
-    ):
-        e.append("handoff must echo a valid target/scope/mode")
+    sr = obj.get("stop_reason")
+    # Self-identifying task triple + baseline: non-null EXCEPT a protocol-error
+    # handoff reporting a malformed dispatch (nothing valid to echo).
+    malformed_ok = sr == "protocol-error"
+    t, sc, md, fb = (obj.get(k) for k in ("target", "scope", "mode", "file_baseline"))
+    if malformed_ok:
+        if t is not None and not isinstance(t, str):
+            e.append("target, when present, must be a string")
+        if sc is not None and sc not in SCOPES:
+            e.append("scope, when present, must be in enum")
+        if md is not None and md not in MODES:
+            e.append("mode, when present, must be in enum")
+        if fb is not None and not isinstance(fb, dict):
+            e.append("file_baseline, when present, must be an object")
+    else:
+        if not isinstance(t, str) or sc not in SCOPES or md not in MODES:
+            e.append("handoff must echo a valid target/scope/mode")
+        if not isinstance(fb, dict):
+            e.append("handoff must carry a file_baseline object")
     if obj.get("status") not in STATUSES:
         e.append("handoff status not in enum")
     # stop_reason non-null iff stopped.
-    sr = obj.get("stop_reason")
     if obj.get("status") == "stopped":
         if sr not in STOP_REASONS:
             e.append("stopped handoff needs a valid stop_reason")
@@ -174,9 +219,44 @@ def validate_handoff(obj: dict[str, Any]) -> list[str]:
         e.append("blocker_class must be null unless blocker_kind == proof")
     if obj.get("next_action") not in NEXT_ACTIONS:
         e.append("next_action not in enum")
-    if not isinstance(obj.get("artifacts"), list):
-        e.append("artifacts must be an array")
+    # nested evidence shape.
+    ev = obj.get("evidence")
+    if not isinstance(ev, dict) or not (
+        isinstance(ev.get("queries"), list)
+        and isinstance(ev.get("top_candidates"), list)
+        and isinstance(ev.get("attempts"), list)
+        and {"goal_delta", "diagnostic_delta"} <= set(ev)
+    ):
+        e.append(
+            "evidence must be {queries, top_candidates, attempts, goal_delta, diagnostic_delta}"
+        )
+    # best_candidates items and artifact contents are typed.
+    if not _dicts_with_keys(obj.get("best_candidates"), {"candidate", "outcome"}):
+        e.append("best_candidates items must be {candidate, outcome}")
+    arts = obj.get("artifacts")
+    if not _dicts_with_keys(arts, {"kind", "content"}):
+        e.append("artifacts items must be {kind, content}")
+    elif any(not isinstance(a["content"], str) for a in arts):
+        e.append("artifact content must be a string")
     return e
+
+
+def same_task(new_dispatch: dict[str, Any], prior_handoff: dict[str, Any]) -> bool:
+    return all(
+        new_dispatch.get(k) == prior_handoff.get(k) for k in ("target", "scope", "mode")
+    )
+
+
+def rerun_forbidden(
+    new_dispatch: dict[str, Any], prior_handoff: dict[str, Any]
+) -> bool:
+    """The rerun guard, evaluated from the two records (blocker branch)."""
+    return (
+        same_task(new_dispatch, prior_handoff)
+        and prior_handoff.get("blocker_signature") is not None
+        and new_dispatch.get("prior_blocker") == prior_handoff.get("blocker_signature")
+        and not new_dispatch.get("evidence_delta")
+    )
 
 
 # --- fixtures ---
@@ -402,6 +482,107 @@ class HandoffRejections(unittest.TestCase):
 
     def test_solved_with_stray_blocker(self) -> None:
         self.assertTrue(validate_handoff(valid_handoff(blocker_signature="x")))
+
+
+class MalformedDispatchHandoff(unittest.TestCase):
+    def test_protocol_error_may_null_task_and_baseline(self) -> None:
+        # An unparseable dispatch still yields a VALID handoff.
+        self.assertEqual(
+            validate_handoff(
+                valid_handoff(
+                    target=None,
+                    scope=None,
+                    mode=None,
+                    file_baseline=None,
+                    status="stopped",
+                    stop_reason="protocol-error",
+                    stop_detail="dispatch missing owned_files",
+                    next_action="stop",
+                )
+            ),
+            [],
+        )
+
+    def test_non_protocol_stop_may_not_null_task(self) -> None:
+        self.assertTrue(
+            validate_handoff(
+                valid_handoff(
+                    target=None,
+                    status="stopped",
+                    stop_reason="queue-empty",
+                    next_action="stop",
+                )
+            )
+        )
+
+
+class NestedShapeRejections(unittest.TestCase):
+    def test_baseline_must_cover_owned_files(self) -> None:
+        d = valid_dispatch(
+            owned_files=["/repo/Other.lean"]
+        )  # baseline covers /repo/Foo.lean
+        self.assertTrue(any("cover" in x for x in validate_dispatch(d)))
+
+    def test_context_member_wrong_type(self) -> None:
+        d = valid_dispatch()
+        d["context"]["diagnostics"] = "oops"
+        self.assertTrue(validate_dispatch(d))
+
+    def test_evidence_missing_subkey(self) -> None:
+        h = valid_handoff()
+        del h["evidence"]["goal_delta"]
+        self.assertTrue(validate_handoff(h))
+
+    def test_artifact_missing_content(self) -> None:
+        self.assertTrue(
+            validate_handoff(valid_handoff(artifacts=[{"kind": "unified-diff"}]))
+        )
+
+    def test_best_candidate_item_shape(self) -> None:
+        self.assertTrue(
+            validate_handoff(valid_handoff(best_candidates=["not-an-object"]))
+        )
+
+
+class RerunPredicate(unittest.TestCase):
+    def _prior(self, **over: Any) -> dict[str, Any]:
+        return valid_handoff(
+            status="stuck",
+            blocker_kind="proof",
+            blocker_class="arithmetic",
+            blocker_signature="Foo.lean:42:e",
+            new_evidence_required_for_rerun="x",
+            next_action="deep",
+            **over,
+        )
+
+    def test_forbidden_same_blocker_no_evidence(self) -> None:
+        prior = self._prior()
+        d = valid_dispatch(prior_blocker="Foo.lean:42:e", evidence_delta=[])
+        self.assertTrue(rerun_forbidden(d, prior))
+
+    def test_allowed_different_task(self) -> None:
+        prior = self._prior(target="/repo/Bar.lean:9")
+        d = valid_dispatch(prior_blocker="Foo.lean:42:e", evidence_delta=[])
+        self.assertFalse(rerun_forbidden(d, prior))  # same_task false
+
+    def test_allowed_with_evidence_delta(self) -> None:
+        prior = self._prior()
+        d = valid_dispatch(prior_blocker="Foo.lean:42:e", evidence_delta=["new lemma"])
+        self.assertFalse(rerun_forbidden(d, prior))
+
+    def test_allowed_null_signature_stop(self) -> None:
+        # queue-empty prior (null signature): null==null must NOT forbid.
+        prior = valid_handoff(
+            status="stopped", stop_reason="queue-empty", next_action="stop"
+        )
+        d = valid_dispatch(prior_blocker=None, evidence_delta=[])
+        self.assertFalse(rerun_forbidden(d, prior))
+
+    def test_task_echo_equality_drives_same_task(self) -> None:
+        prior = self._prior()
+        d = valid_dispatch()  # echoes the same /repo/Foo.lean:42, sorry, prove
+        self.assertTrue(same_task(d, prior))
 
 
 if __name__ == "__main__":

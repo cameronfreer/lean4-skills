@@ -50,8 +50,10 @@ nullability is given.
 | `budget` | object `{max_cycles: integer\|null, max_stuck_cycles: integer\|null, runtime: duration-string\|null}` | `null` subfield = no explicit bound; `runtime` is a duration string (e.g. `"120m"`) |
 | `context` | object (below) | the pre-collected LSP starting state (MCP may be unavailable in a worker) |
 
-`context` carries the pre-flight state — every member is **required**;
-unavailable values use `null` or `[]` rather than being omitted:
+`context` carries the pre-flight state — every member is **required** (never
+omitted). Its two nullable members (`prior_failure`, `goal_state`) use `null`
+when there is no data, the array members use `[]`, and `scratch_location` is
+**always a non-null string** (there is always a scratch dir):
 
 | `context` member | Type | Notes |
 |------------------|------|-------|
@@ -69,6 +71,17 @@ covers the owned set so the worker can `check` before every mutation and
 `advance` only what it changed
 ([custody chain](cycle-engine.md#file-baselines-and-drift-issue-102)).
 
+### Worker parameters
+
+`parameters` is a typed object keyed by `worker` (`{}` for an inline pass):
+
+| `worker` | `parameters` shape |
+|----------|--------------------|
+| `sorry-filler-deep` | `{fast_pass_error: string, permission_level: string, deep_budget: {scope: string, max_files: integer, max_lines: integer}}` |
+| `proof-repair` | `{error: {errorType: string, message: string, file: string, line: integer, goal: string, localContext: array of string}}` (the structured error the repair targets) |
+| `proof-golfer` | `{search_mode: "off" \| "quick" \| "full", golfable_patterns: array of string, candidate_targets: array of string}` |
+| `axiom-eliminator` | `{axioms: array of string, permission_level: string}` |
+
 ---
 
 ## Handoff record (worker → parent/human)
@@ -80,9 +93,9 @@ another agent to consume in one pass.
 |-------|------|-------|
 | `schema` | const `"run-contract/v1"` | |
 | `record` | const `"handoff"` | |
-| `target` | string | **echoes the dispatch `target`** — makes the handoff self-identifying (the rerun guard's `same_task` reads it) |
-| `scope` | enum `sorry` \| `deps` \| `file` \| `changed` \| `project` | echoes the dispatch `scope` |
-| `mode` | enum `prove` \| `autoprove` \| `golf` | echoes the dispatch `mode` |
+| `target` | string \| null | **echoes the dispatch `target`** — makes the handoff self-identifying (the rerun guard's `same_task` reads it). **`null` only in a `protocol-error` handoff reporting a malformed dispatch** (nothing valid to echo). |
+| `scope` | enum \| null | echoes the dispatch `scope` (`sorry`/`deps`/`file`/`changed`/`project`); same malformed-dispatch nullability as `target` |
+| `mode` | enum \| null | echoes the dispatch `mode` (`prove`/`autoprove`/`golf`); same malformed-dispatch nullability as `target` |
 | `status` | enum `solved` \| `stuck` \| `stopped` | |
 | `stop_reason` | enum \| null | **non-null iff `status == stopped`**: `max-stuck` \| `max-cycles` \| `max-runtime` \| `user-stop` \| `queue-empty` \| `protocol-error` \| `operational-error`. `null` for `solved`/`stuck`. |
 | `stop_detail` | string \| null | **non-null iff `stop_reason ∈ {protocol-error, operational-error}`** (e.g. file-baseline drift, malformed dispatch, unavailable checker); `null` otherwise |
@@ -95,10 +108,18 @@ another agent to consume in one pass.
 | `evidence` | object `{queries: array of string, top_candidates: array of string, attempts: array of {snippet: string, result: string}, goal_delta: string\|null, diagnostic_delta: string\|null}` | the stuck-handoff evidence: LSP queries attempted, top candidate lemmas returned, `lean_multi_attempt` outcomes, and the goal / diagnostic change since dispatch (#73 requires reporting goal change; both are qualifying rerun-evidence classes) |
 | `files_owned` | array of string | the ownership set held (echoes the dispatch's `owned_files`) — **distinct from** `files_changed` |
 | `files_changed` | array of string | files the worker actually modified |
-| `file_baseline` | `file-baseline/v1` | the **final current baseline** (adopt/patch rules below) |
+| `file_baseline` | `file-baseline/v1` \| null | the **final current baseline** (adopt/patch rules below); **`null` only in a `protocol-error` handoff** about a malformed dispatch or unusable baseline |
 | `artifacts` | array of `{kind: string, content: string}` | worker products the parent consumes — a **patch-only** worker returns `[{"kind": "unified-diff", "content": "..."}]` (with `files_changed: []`); `[]` when there is no product |
 | `next_action` | enum `continue` \| `deep` \| `repair` \| `redraft` \| `golf` \| `stop` | the **shipped** review stuck-mode vocabulary |
 | `new_evidence_required_for_rerun` | string \| null | what must change before a relaunch is justified. Same nullability as `blocker_kind`. |
+
+**Malformed dispatch.** So that even an unparseable dispatch yields a valid
+handoff, a `protocol-error` handoff reporting a malformed dispatch echoes
+whatever it could parse and sets the rest (`target`/`scope`/`mode`,
+`file_baseline`) to `null`; `stop_detail` names the defect. `same_task` is then
+unevaluable, so the **operational rerun branch** governs the relaunch (a nonempty
+`evidence_delta` resolving `stop_detail`). In every other handoff these fields
+are non-null.
 
 **Blocker fields** (`blocker_kind`, `blocker_signature`,
 `new_evidence_required_for_rerun`) are **non-null iff the stop was

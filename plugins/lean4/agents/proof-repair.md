@@ -7,7 +7,9 @@ model: sonnet
 
 ## Inputs
 
-Structured error context (JSON):
+Consume the `run-contract/v1` [dispatch record](../skills/lean4/references/handoff-contract.md#dispatch-record-parent--worker) (`record == "dispatch"`): read `target`, the `context` envelope, and `parameters.error` (the structured error to repair). proof-repair is **patch-only** — it does not edit, so it takes no `owned_files`/`file_baseline` custody; the parent applies and advances the returned diff.
+
+`parameters.error` shape:
 ```json
 {
   "errorType": "type_mismatch|unsolved_goals|unknown_ident|synth_instance|timeout",

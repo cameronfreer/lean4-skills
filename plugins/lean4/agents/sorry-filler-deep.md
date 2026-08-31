@@ -7,9 +7,9 @@ model: opus
 
 ## Inputs
 
-- Sorry location (file:line)
-- Why fast pass failed (error context)
-- Permission level for refactoring
+Consume the `run-contract/v1` [dispatch record](../skills/lean4/references/handoff-contract.md#dispatch-record-parent--worker) (`record == "dispatch"`): read `target`/`scope`, the `context` envelope (pre-collected LSP state — use it as the starting state when MCP is unavailable), and `owned_files` + `file_baseline` (fail closed on these — see below). Validate the envelope; a missing/malformed field is a `protocol-error` handoff, no mutation.
+
+`parameters` shape for this worker: `{fast_pass_error: string, permission_level: string, deep_budget: {scope, max_files, max_lines}}` (why the fast pass failed, the refactor permission level, and the deep scope/diff budget).
 
 ## Actions
 

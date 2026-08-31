@@ -7,9 +7,9 @@ model: opus
 
 ## Inputs
 
-- File path to optimize
-- Passing build required (will verify before starting)
-- Search mode: `off`, `quick` (default), or `full`
+Consume the `run-contract/v1` [dispatch record](../skills/lean4/references/handoff-contract.md#dispatch-record-parent--worker) (`record == "dispatch"`): read `target`, the `context` envelope, and `owned_files` + `file_baseline` (fail closed — see below). Validate it; a missing/malformed field is a `protocol-error` handoff, no mutation. A passing build is required (verify before starting).
+
+`parameters` shape for this worker: `{search_mode: "off" | "quick" | "full", golfable_patterns: [...], candidate_targets: [...]}` (default `search_mode` `quick`).
 
 ## Actions
 

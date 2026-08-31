@@ -7,9 +7,9 @@ model: opus
 
 ## Inputs
 
-- File or project to audit
-- List of custom axioms to eliminate
-- Permission level for refactoring
+Consume the `run-contract/v1` [dispatch record](../skills/lean4/references/handoff-contract.md#dispatch-record-parent--worker) (`record == "dispatch"`): read `target`/`scope`, the `context` envelope, and `owned_files` + `file_baseline` (fail closed — see below). Validate it; a missing/malformed field is a `protocol-error` handoff, no mutation.
+
+`parameters` shape for this worker: `{axioms: [...], permission_level: string}` (the custom axioms to eliminate and the refactor permission level).
 
 ## Actions
 

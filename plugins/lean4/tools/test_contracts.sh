@@ -1546,6 +1546,18 @@ else
         fail "Check 38: handoff-contract.md missing the review-phrase → blocker_class enum mapping"
         check38_ok=0
     fi
+    # -- 'typed parameters' is actually typed: per-worker shapes defined --
+    if ! grep -Fq '### Worker parameters' "$_c38_hc" \
+        || ! grep -Fq 'sorry-filler-deep' "$_c38_hc" \
+        || ! grep -Fq 'search_mode' "$_c38_hc"; then
+        fail "Check 38: handoff-contract.md does not define per-worker parameters shapes"
+        check38_ok=0
+    fi
+    # -- malformed dispatch still yields a valid handoff (nullable task/baseline) --
+    if ! grep -Fq 'Malformed dispatch' "$_c38_hc"; then
+        fail "Check 38: handoff-contract.md does not cover the malformed-dispatch handoff (nullable task echo/baseline)"
+        check38_ok=0
+    fi
 fi
 
 # cycle-engine.md: Run Contract section + no-subagent fallback + shared policy.
@@ -1636,9 +1648,13 @@ for _c38_ag in sorry-filler-deep proof-repair proof-golfer axiom-eliminator; do
         fail "Check 38: agents/$_c38_ag.md still gates custody on the '### Owned files' heading (must key off owned_files JSON)"
         check38_ok=0
     fi
-    # Every agent consumes the dispatch and emits a handoff record.
-    if ! grep -Fq 'run-contract/v1' "$_c38_af" || ! grep -Fq 'handoff record' "$_c38_af"; then
-        fail "Check 38: agents/$_c38_ag.md does not consume the run-contract/v1 dispatch / emit a handoff"
+    # Every agent consumes the dispatch (envelope + typed parameters) and emits
+    # a handoff record — its ## Inputs must describe the dispatch, not legacy.
+    if ! grep -Fq 'run-contract/v1' "$_c38_af" \
+        || ! grep -Fq 'handoff record' "$_c38_af" \
+        || ! grep -Fq 'dispatch record' "$_c38_af" \
+        || ! grep -Fq 'parameters' "$_c38_af"; then
+        fail "Check 38: agents/$_c38_ag.md does not consume the dispatch envelope + parameters / emit a handoff"
         check38_ok=0
     fi
 done
