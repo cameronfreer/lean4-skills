@@ -1,6 +1,12 @@
 # Subagent Workflows for Lean 4 Development
 
-**For Claude Code users:** This guide shows how to leverage subagents to automate mechanical tasks while keeping your main conversation focused on proof strategy.
+This guide shows how to leverage subagents to automate mechanical tasks while keeping your main conversation focused on proof strategy.
+
+**Host-neutral core.** The parent/worker contract these patterns implement is
+[`run-contract/v1`](handoff-contract.md), which binds the **logical roles**, not
+processes. On Claude Code the worker is a subagent; on a host without subagent
+support the same dispatch and handoff records apply **inline** in the main thread
+(see [cycle-engine.md § Run Contract — No-subagent fallback](cycle-engine.md#run-contract-run-contractv1)). The subagent-specific mechanics below are the Claude Code instantiation of that contract.
 
 ## Overview
 

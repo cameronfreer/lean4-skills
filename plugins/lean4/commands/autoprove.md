@@ -219,6 +219,16 @@ When autoprove stops (for any reason), emit:
 - [If claims remaining: "N claims remaining in queue. Re-run with same --source and --formalize-out to continue (existing claims detected via target file)."]
 ```
 
+After the human-readable summary above, emit the **complete** `run-contract/v1`
+[handoff record](../skills/lean4/references/handoff-contract.md) — every required
+field, not just the ones in the Markdown table. Command-specific mapping:
+`completion → status: solved`; `max-stuck → status: stopped, stop_reason:
+max-stuck` (blocker-driven, so the blocker fields are non-null); `max-cycles` /
+`max-runtime` / `user-stop` / `queue-empty` → `status: stopped` with that
+`stop_reason` and null blocker fields (a `queue-empty` stop with claims remaining
+reruns freely). Before relaunching, obey the
+[rerun guard](../skills/lean4/references/handoff-contract.md#rerun-guard).
+
 ## Deep Mode
 
 Bounded subroutine for stubborn sorries. Default: `stuck` (auto-escalate when stuck).

@@ -1450,6 +1450,237 @@ if [[ "$check37_ok" -eq 1 ]]; then
     ok "Check 37: /lean4:review mathlib-review bar pinned (parser adoption, gate flags + conflict, output validator wiring, input conditionals, Layer-2 activation)"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 38: Track 3 run-contract/v1 (#190, unifies #73/#69). Pin the canonical
+# handoff-contract.md (both records, reused stuck vocabulary, files_owned vs
+# files_changed, the rerun predicate, and persistence deferred to #82), the
+# cycle-engine.md Run Contract section + no-subagent fallback + shared
+# delegation policy, and that the consuming docs reference it.
+# ---------------------------------------------------------------------------
+check38_ok=1
+_c38_hc="$PLUGIN_ROOT/skills/lean4/references/handoff-contract.md"
+_c38_ce="$PLUGIN_ROOT/skills/lean4/references/cycle-engine.md"
+_c38_rev="$PLUGIN_ROOT/commands/review.md"
+
+if [[ ! -f "$_c38_hc" ]]; then
+    fail "Check 38: missing references/handoff-contract.md"
+    check38_ok=0
+else
+    # Versioned protocol + both records.
+    for _c38_s in 'run-contract/v1' '"dispatch"' '"handoff"'; do
+        if ! grep -Fq "$_c38_s" "$_c38_hc"; then
+            fail "Check 38: handoff-contract.md missing $_c38_s"
+            check38_ok=0
+        fi
+    done
+    # Persistence explicitly deferred to #82; contract-only.
+    if ! grep -Fq '#82' "$_c38_hc"; then
+        fail "Check 38: handoff-contract.md must defer filesystem persistence to #82"
+        check38_ok=0
+    fi
+
+    # -- Dispatch record: EVERY required field + the typed context envelope --
+    _c38_disp=$(extract_section "$_c38_hc" "## Dispatch record (parent → worker)")
+    for _c38_f in 'schema' 'record' 'target' 'scope' 'mode' 'worker' 'parameters' \
+        'capabilities' 'owned_files' 'file_baseline' 'prior_blocker' 'evidence_delta' \
+        'budget' 'context' 'prior_failure' 'goal_state' 'diagnostics' 'search_results' \
+        'candidates_tested' 'code_actions' 'scratch_location'; do
+        if ! echo "$_c38_disp" | grep -Fq "$_c38_f"; then
+            fail "Check 38: dispatch record missing required field/member $_c38_f"
+            check38_ok=0
+        fi
+    done
+    # Negative: the baseline is ONE file-baseline/v1 object, never per-file
+    # "custody entries" (the primitive emits one object with a files array).
+    if grep -Fq 'custody entries' "$_c38_hc"; then
+        fail "Check 38: handoff-contract.md still types owned_files as 'custody entries' (no such per-file record exists)"
+        check38_ok=0
+    fi
+
+    # -- Handoff record: EVERY required field, incl. operational stops + deltas --
+    _c38_hand=$(extract_section "$_c38_hc" "## Handoff record (worker → parent/human)")
+    for _c38_f in 'schema' 'record' 'target' 'scope' 'mode' 'status' 'stop_reason' \
+        'stop_detail' 'blocker_kind' 'blocker_class' 'blocker_signature' \
+        'attempted_tools' 'best_candidates' 'failed_avenues' 'evidence' 'files_owned' \
+        'files_changed' 'file_baseline' 'artifacts' 'next_action' \
+        'new_evidence_required_for_rerun' \
+        'blocker-driven' 'queue-empty' 'protocol-error' 'operational-error' \
+        'safety-guard' 'goal_delta' 'diagnostic_delta' 'unified-diff'; do
+        if ! echo "$_c38_hand" | grep -Fq "$_c38_f"; then
+            fail "Check 38: handoff record missing required field/value $_c38_f"
+            check38_ok=0
+        fi
+    done
+    # The handoff must echo the task triple so the rerun guard is self-contained.
+    if ! echo "$_c38_hand" | grep -Fq 'self-identifying'; then
+        fail "Check 38: handoff record does not echo target/scope/mode (not self-identifying)"
+        check38_ok=0
+    fi
+
+    # -- Rerun guard: predicate evaluable from the two records, with the
+    #    load-bearing non-null precondition (else null==null forbids normal
+    #    queue-empty/budget/user reruns). --
+    _c38_rerun=$(extract_section "$_c38_hc" "## Rerun guard")
+    if ! echo "$_c38_rerun" | grep -Fq 'prior_blocker == prior_handoff.blocker_signature' \
+        || ! echo "$_c38_rerun" | grep -Fq 'evidence_delta' \
+        || ! echo "$_c38_rerun" | grep -Fq 'from the two records' \
+        || ! echo "$_c38_rerun" | grep -Fq 'same_task'; then
+        fail "Check 38: rerun guard predicate not evaluable (needs same_task + prior_blocker + evidence_delta)"
+        check38_ok=0
+    fi
+    if ! echo "$_c38_rerun" | grep -Fq 'is **non-null**'; then
+        fail "Check 38: rerun guard missing the non-null blocker_signature precondition (null==null must not forbid a rerun)"
+        check38_ok=0
+    fi
+    # Operational/protocol stops need their own rerun branch, else the null
+    # blocker fields let a malformed dispatch/unavailable checker repeat forever.
+    if ! echo "$_c38_rerun" | grep -Fq 'operational-error' \
+        || ! echo "$_c38_rerun" | grep -Fq 'stop_detail'; then
+        fail "Check 38: rerun guard missing the operational/protocol-error branch (relaunch only with evidence_delta resolving stop_detail)"
+        check38_ok=0
+    fi
+
+    # -- Blocker-class human-phrase → enum mapping --
+    if ! grep -Fq 'missing library lemma' "$_c38_hc" \
+        || ! grep -Fq 'missing-library-lemma' "$_c38_hc"; then
+        fail "Check 38: handoff-contract.md missing the review-phrase → blocker_class enum mapping"
+        check38_ok=0
+    fi
+    # -- 'typed parameters' is actually typed: per-worker shapes defined --
+    if ! grep -Fq '### Worker parameters' "$_c38_hc" \
+        || ! grep -Fq 'sorry-filler-deep' "$_c38_hc" \
+        || ! grep -Fq 'search_mode' "$_c38_hc"; then
+        fail "Check 38: handoff-contract.md does not define per-worker parameters shapes"
+        check38_ok=0
+    fi
+    # -- malformed dispatch still yields a valid handoff (nullable task/baseline) --
+    if ! grep -Fq 'Malformed dispatch' "$_c38_hc"; then
+        fail "Check 38: handoff-contract.md does not cover the malformed-dispatch handoff (nullable task echo/baseline)"
+        check38_ok=0
+    fi
+fi
+
+# cycle-engine.md: Run Contract section + no-subagent fallback + shared policy.
+if ! grep -Fq '## Run Contract (`run-contract/v1`)' "$_c38_ce" \
+    || ! grep -Fq 'No-subagent fallback' "$_c38_ce" \
+    || ! grep -Fq '### Delegation Execution Policy' "$_c38_ce"; then
+    fail "Check 38: cycle-engine.md missing Run Contract / no-subagent fallback / shared Delegation Execution Policy"
+    check38_ok=0
+fi
+# The pre-flight block must be the COMPLETE dispatch envelope (all required
+# fields present), not a "relevant subset" / "omit sections" prompt fragment.
+if grep -Fq 'relevant subset' "$_c38_ce" || grep -Fq 'Omit sections with no data' "$_c38_ce"; then
+    fail "Check 38: cycle-engine.md pre-flight block still uses subset/omit wording (must be the complete dispatch record)"
+    check38_ok=0
+fi
+_c38_env=$(extract_section "$_c38_ce" "## Pre-flight Context for Subagent Dispatch")
+for _c38_f in '"schema": "run-contract/v1"' '"record": "dispatch"' '"context"' \
+    '"scope": "sorry"' '"schema": "file-baseline/v1"' '"prior_blocker": null' \
+    '"evidence_delta": []'; do
+    if ! echo "$_c38_env" | grep -Fq "$_c38_f"; then
+        fail "Check 38: cycle-engine.md pre-flight envelope missing valid-instance field $_c38_f"
+        check38_ok=0
+    fi
+done
+# Negative: the concrete record must be a VALID instance, not pipe-delimited
+# pseudo-values (which violate the contract's own enums/null types).
+if echo "$_c38_env" | grep -Fq 'sorry | deps'; then
+    fail "Check 38: pre-flight dispatch example uses pipe-delimited pseudo-values (must be one valid instance)"
+    check38_ok=0
+fi
+# The embedded file-baseline/v1 entry must satisfy the shipped primitive:
+# absolute path + realpath, and a 64-lowercase-hex sha256 for an existing file.
+# (file_baseline.py rejects a relative path or a non-64-hex digest as malformed.)
+if ! echo "$_c38_env" | grep -Eq '"owned_files": \["/' \
+    || ! echo "$_c38_env" | grep -Eq '"path": "/[^"]+", "realpath": "/' \
+    || ! echo "$_c38_env" | grep -Eq '"sha256": "[0-9a-f]{64}"'; then
+    fail "Check 38: pre-flight baseline example is not a valid file-baseline/v1 (needs absolute path/realpath + 64-hex sha256)"
+    check38_ok=0
+fi
+
+# review.md: reconciled — supplies vocab, is NOT itself a complete record.
+if ! grep -Fq 'handoff-contract.md' "$_c38_rev"; then
+    fail "Check 38: review.md does not reference the handoff contract"
+    check38_ok=0
+fi
+if grep -Fq 'valid handoff record on its own' "$_c38_rev"; then
+    fail "Check 38: review.md still claims its stuck block is a complete handoff record"
+    check38_ok=0
+fi
+
+# Consuming docs reference the contract.
+for _c38_doc in commands/prove.md commands/autoprove.md commands/golf.md \
+    skills/lean4/SKILL.md skills/lean4/references/subagent-workflows.md \
+    skills/lean4/references/agent-workflows.md; do
+    if ! grep -Fq 'run-contract/v1' "$PLUGIN_ROOT/$_c38_doc"; then
+        fail "Check 38: $_c38_doc does not reference run-contract/v1"
+        check38_ok=0
+    fi
+done
+
+# prove/autoprove emit the COMPLETE handoff record (not a partial field list)
+# and reference the rerun guard.
+for _c38_doc in commands/prove.md commands/autoprove.md; do
+    if ! grep -Fq 'handoff-contract.md#rerun-guard' "$PLUGIN_ROOT/$_c38_doc" \
+        || ! grep -Fq 'complete** `run-contract/v1`' "$PLUGIN_ROOT/$_c38_doc"; then
+        fail "Check 38: $_c38_doc must emit the COMPLETE run-contract/v1 handoff record and reference the rerun guard"
+        check38_ok=0
+    fi
+done
+
+# golf.md: generic delegation rules live in the shared policy, not duplicated.
+_c38_golf=$(extract_section "$PLUGIN_ROOT/commands/golf.md" "### Delegation Execution Policy")
+if echo "$_c38_golf" | grep -Fq 'Fallback contract'; then
+    fail "Check 38: golf.md still duplicates the generic Fallback contract rule (use the shared policy)"
+    check38_ok=0
+fi
+
+# The ACTUAL proof-editing agents must consume the JSON dispatch and emit the
+# handoff — the safety linkage broke while CI passed because Check 38 only
+# looked at commands/. Each agent: references run-contract/v1 + owned_files,
+# emits a handoff record, and must NOT gate custody on the old `### Owned
+# files` heading (a JSON dispatch has no such heading → custody check skipped).
+for _c38_ag in sorry-filler-deep proof-repair proof-golfer axiom-eliminator; do
+    _c38_af="$PLUGIN_ROOT/agents/$_c38_ag.md"
+    # No agent may gate custody on the old heading — a JSON dispatch has no such
+    # heading, so the fail-closed branch would silently not activate.
+    if grep -Fq '### Owned files' "$_c38_af"; then
+        fail "Check 38: agents/$_c38_ag.md still gates custody on the '### Owned files' heading (must key off owned_files JSON)"
+        check38_ok=0
+    fi
+    # Every agent consumes the dispatch (envelope + typed parameters) and emits
+    # a handoff record — its ## Inputs must describe the dispatch, not legacy.
+    if ! grep -Fq 'run-contract/v1' "$_c38_af" \
+        || ! grep -Fq 'handoff record' "$_c38_af" \
+        || ! grep -Fq 'dispatch record' "$_c38_af" \
+        || ! grep -Fq 'parameters' "$_c38_af"; then
+        fail "Check 38: agents/$_c38_ag.md does not consume the dispatch envelope + parameters / emit a handoff"
+        check38_ok=0
+    fi
+done
+# The three EDITING agents additionally key custody off the owned_files field.
+for _c38_ag in sorry-filler-deep proof-golfer axiom-eliminator; do
+    if ! grep -Fq 'owned_files' "$PLUGIN_ROOT/agents/$_c38_ag.md"; then
+        fail "Check 38: editing agent agents/$_c38_ag.md does not fail-closed on the owned_files field"
+        check38_ok=0
+    fi
+done
+# proof-repair returns its diff in the handoff artifacts, not a bare diff.
+if ! grep -Fq 'unified-diff' "$PLUGIN_ROOT/agents/proof-repair.md"; then
+    fail "Check 38: proof-repair.md must carry its diff in the handoff artifacts (kind unified-diff)"
+    check38_ok=0
+fi
+
+# A real structural fixture validator exists (grep alone can't prove semantics).
+if [[ ! -f "$PLUGIN_ROOT/tests/test_run_contract.py" ]]; then
+    fail "Check 38: missing tests/test_run_contract.py (structural dispatch/handoff fixtures)"
+    check38_ok=0
+fi
+
+if [[ "$check38_ok" -eq 1 ]]; then
+    ok "Check 38: run-contract/v1 handoff contract pinned (both records, reused vocab, files_owned≠files_changed, rerun guard, #82 deferral, cycle-engine + consumer wiring)"
+fi
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]

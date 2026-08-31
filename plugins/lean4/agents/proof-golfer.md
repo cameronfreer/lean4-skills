@@ -7,9 +7,9 @@ model: opus
 
 ## Inputs
 
-- File path to optimize
-- Passing build required (will verify before starting)
-- Search mode: `off`, `quick` (default), or `full`
+Consume the `run-contract/v1` [dispatch record](../skills/lean4/references/handoff-contract.md#dispatch-record-parent--worker) (`record == "dispatch"`): read `target`, the `context` envelope, and `owned_files` + `file_baseline` (fail closed — see below). Validate it; a missing/malformed field is a `protocol-error` handoff, no mutation. A passing build is required (verify before starting).
+
+`parameters` shape for this worker: `{search_mode: "off" | "quick" | "full", golfable_patterns: [...], candidate_targets: [...]}` (default `search_mode` `quick`).
 
 ## Actions
 
@@ -48,7 +48,7 @@ model: opus
    - If replacement needs statement changes or multi-file refactor → stop, hand off to axiom-eliminator
 
 5. **Apply optimizations** (max 3 hunks × 60 lines each):
-   - Fail closed on file baselines: whenever the dispatch context contains `### Owned files`, a valid nonempty `### File baseline` is required before any mutation (absent/malformed record or unavailable checker → dispatch-protocol error, no mutation; standalone work outside a structured dispatch is governed by the direct caller). `lean4-skills-file-baseline check --baseline -` before every mutating tool operation (all intended targets first) — only exit 0 authorizes the mutation; on any nonzero exit, apply nothing, report the structured stale-baseline result, and stop — never re-record and retry. Advance only intentionally changed entries after success (shell-quote each path operand, `--` before positionals) — advance's output replaces the current baseline for subsequent checks; if advance fails, stop (cycle-engine.md § File baselines and drift)
+   - Fail closed on file baselines: whenever a `run-contract/v1` dispatch carries `owned_files`, its `file_baseline` is required before any mutation (absent/malformed record or unavailable checker → dispatch-protocol error, no mutation; standalone work outside a structured dispatch is governed by the direct caller). `lean4-skills-file-baseline check --baseline -` before every mutating tool operation (all intended targets first) — only exit 0 authorizes the mutation; on any nonzero exit, apply nothing, report the structured stale-baseline result, and stop — never re-record and retry. Advance only intentionally changed entries after success (shell-quote each path operand, `--` before positionals) — advance's output replaces the current baseline for subsequent checks; if advance fails, stop (cycle-engine.md § File baselines and drift)
    - Priority: directness wins first (`by exact`→`t`, `apply+exact`→`exact`, `ext+rfl`→`rfl`), then perf (linter simp cleanup, `simp only` narrowing), then verified inlines
    - `lean_diagnostic_messages(file)` after each change; `lake build` only for final verification
    - Revert immediately on failure
@@ -56,6 +56,8 @@ model: opus
 6. **Report results** with savings and saturation status
 
 ## Output
+
+At the return boundary, emit a complete `run-contract/v1` [handoff record](../skills/lean4/references/handoff-contract.md) — echo `target`/`scope`/`mode`; report `files_owned`/`files_changed` + the final adopted `file_baseline`; set `blocker_kind`/`blocker_class` only when blocker-driven; and `next_action` (`golf` at saturation). The human-readable summary below is in addition to that record.
 
 ```
 Proof Golfing Results:

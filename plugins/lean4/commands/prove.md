@@ -141,6 +141,14 @@ Cycle complete. Filled N/M sorries this cycle.
 ```
 Never auto-start the next cycle. Always ask.
 
+At a stop or stuck boundary, emit the **complete** `run-contract/v1`
+[handoff record](../skills/lean4/references/handoff-contract.md) — every required
+field, so a human or another agent can continue in one pass. Command-specific
+mapping: a filled sorry → contributes to `status: solved`; a stuck sorry →
+`status: stuck` with the blocker fields; a user/budget stop → `status: stopped`
+with the matching `stop_reason` and null blocker fields. Before relaunching, obey
+the [rerun guard](../skills/lean4/references/handoff-contract.md#rerun-guard).
+
 ## Deep Mode
 
 Bounded subroutine for stubborn sorries. Enabled via `--deep`. Default: `never`.

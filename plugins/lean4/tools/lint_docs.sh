@@ -73,15 +73,15 @@ check_commands() {
         local max_lines=120
         case "$cmd" in
             autoformalize) max_lines=180 ;;
-            autoprove)  max_lines=290 ;;
+            autoprove)  max_lines=300 ;;
             checkpoint) max_lines=155 ;;
             diagnose)   max_lines=290 ;;
             disprove)   max_lines=300 ;;
             draft)      max_lines=170 ;;
             formalize)  max_lines=210 ;;
-            golf)       max_lines=170 ;;
+            golf)       max_lines=178 ;;
             learn)      max_lines=210 ;;
-            prove)      max_lines=235 ;;
+            prove)      max_lines=245 ;;
             refactor)   max_lines=120 ;;
             review)     max_lines=470 ;;
         esac
@@ -318,7 +318,7 @@ check_cross_refs() {
     local agent_anchors="sorry-filler-deep proof-repair proof-golfer axiom-eliminator"
 
     # Valid anchors for cycle-engine.md
-    local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic session-tracking claim-boundary-protocol-autoformalize enforcement-levels falsification-artifacts repair-mode safety synthesis-outer-loop algorithm draft-commit-boundary header-fence session-generated-provenance statement-safety claim-queue file-assembly-contract review-router pre-flight-context-for-subagent-dispatch"
+    local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic session-tracking claim-boundary-protocol-autoformalize enforcement-levels falsification-artifacts repair-mode safety synthesis-outer-loop algorithm draft-commit-boundary header-fence session-generated-provenance statement-safety claim-queue file-assembly-contract review-router pre-flight-context-for-subagent-dispatch run-contract-run-contractv1 delegation-execution-policy file-baselines-and-drift-issue-102"
 
     while IFS= read -r file; do
         # Check links to command-examples.md
@@ -346,7 +346,7 @@ check_cross_refs() {
         # Check links to cycle-engine.md
         if grep -q "cycle-engine.md#" "$file" 2>/dev/null; then
             local anchors
-            anchors=$(grep -oE "cycle-engine\.md#[a-z-]+" "$file" | sed 's/.*#//' | sort -u)
+            anchors=$(grep -oE "cycle-engine\.md#[a-z0-9-]+" "$file" | sed 's/.*#//' | sort -u)
             for anchor in $anchors; do
                 if ! echo "$engine_anchors" | grep -qw "$anchor"; then
                     warn "$(basename "$file"): Invalid anchor #$anchor in cycle-engine.md link"
@@ -902,8 +902,6 @@ check_golf_policy() {
         "### Bulk Rewrite Safety" \
         "### Delegation Execution Policy" \
         "Auto-revert.*sorry count increases" \
-        "Permission gate.*stop delegation immediately" \
-        "never launch additional agents after first" \
         "\\| --max-delegates" \
         "never inside tactic blocks or calc blocks" \
         "context.*(uncertain|ambiguous).*skip|skip.*never force" \
@@ -915,6 +913,15 @@ check_golf_policy() {
     done
     if [[ $missing -eq 0 ]]; then
         ok "golf.md: All safety policy anchors present"
+    fi
+
+    # The generic permission-gate / never-launch-after-denial safety anchors
+    # moved from golf.md to the shared run-contract/v1 Delegation Execution
+    # Policy (cycle-engine.md); verify they survive at their new home.
+    local _dp="$PLUGIN_ROOT/skills/lean4/references/cycle-engine.md"
+    if ! grep -qE "stop delegation immediately" "$_dp" \
+        || ! grep -qE "never launch additional agents after a permission denial" "$_dp"; then
+        warn "cycle-engine.md: shared Delegation Execution Policy missing the permission-gate safety anchor"
     fi
 
     # proof-golfer.md: section heading + policy phrases

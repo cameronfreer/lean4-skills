@@ -467,36 +467,102 @@ Stuck-mode review emits a `next_action` field. The outer loop dispatches:
 
 `next_action` is informational when the outer loop is inactive (`--formalize=never`). When active, it is the routing gate.
 
+## Run Contract (`run-contract/v1`)
+
+The parent/worker/human roles exchange two versioned records — a **dispatch**
+record (parent → worker) and a **handoff** record (worker → parent/human) — plus
+a **rerun guard**. The canonical field shapes, nullability, and the rerun
+predicate live in [handoff-contract.md](handoff-contract.md); this section
+defines the roles and expectations that produce them. It is a documentation
+contract, not runtime enforcement.
+
+**Delegation expectations.** When dispatching a proof worker, the parent
+provides a complete **dispatch record** (target, scope, mode, capabilities,
+`owned_files` + a single `file_baseline`, `prior_blocker`, `evidence_delta`,
+`budget`, and the typed `context` envelope); its concrete instantiation is the
+[Pre-flight Context block](#pre-flight-context-for-subagent-dispatch) below. When
+the worker stops or gets stuck, it returns a complete **handoff record**
+(`status`, `stop_reason`/`stop_detail`, the blocker fields when blocker-driven,
+`evidence`, `files_owned` vs `files_changed` + the final `file_baseline`,
+`next_action`, `new_evidence_required_for_rerun`). The canonical field lists,
+enums, and nullability — for both records — live in
+[handoff-contract.md](handoff-contract.md); these bind whether the worker is a
+subagent, an inline pass, or a human.
+
+**No-subagent fallback.** Hosts without subagent support stay sequential in the
+main thread: the parent and worker roles run inline, and the same dispatch and
+handoff records still apply — the contract governs the logical roles, not
+whether they run in separate processes. Collect the pre-flight context as your
+own starting state; produce the handoff record at each stop boundary as you
+would return it from a delegate.
+
+**Rerun guard.** Do not relaunch the same `(target, scope, mode)` on the same
+`blocker_signature` without an auditable evidence delta; the single definition
+of the rule is in [handoff-contract.md § Rerun guard](handoff-contract.md#rerun-guard).
+
+**Human-in-the-loop.** After a clear blocker in an interactive session, present
+options (continue with new evidence / switch to `formalize` / `review
+--mode=stuck` / stop and hand off) and never assume autonomous continuation. The
+handoff record is what the human reads to choose.
+
+### Delegation Execution Policy
+
+Shared rules for dispatching proof-editing agents (`prove`/`autoprove` deep
+workers, `golf` golfers) — the concrete discipline behind the expectations above:
+
+1. **Preflight** — run one worker task on a small target first.
+2. **Permission gate** — if preflight hits an Edit/Bash permission prompt, stop delegation immediately and switch to direct mode in the main agent; never launch additional agents after a permission denial.
+3. **Bounded concurrency** — at most the mode's delegate cap (e.g. golf's `--max-delegates`, default 2), and only after preflight succeeds.
+4. **Exclusive ownership** — never dispatch concurrent workers with overlapping `owned_files`; serialize or keep one in-thread.
+5. **Report each boundary** — after each batch/worker, a diagnostics summary, changed files, and a single plan message (no repeated "launching more agents" narration).
+6. **Fallback contract** — if any worker cannot obtain Edit/Bash permission, abort all delegation and continue direct; do not queue new delegates after a permission error.
+7. **Pre-collected context** — include the [Pre-flight Context block](#pre-flight-context-for-subagent-dispatch) in each dispatch prompt.
+
 ## Pre-flight Context for Subagent Dispatch
 
-MCP tools may not be available in subagents (anthropics/claude-code#39962). Before dispatching any proof-editing agent, collect relevant MCP results and include them in the agent prompt as the agent's starting state. Pass a summarized subset — not raw dumps.
+MCP tools may not be available in subagents (anthropics/claude-code#39962). Before dispatching any proof-editing agent, collect relevant MCP results and pass them (summarized, not raw dumps) as the worker's starting state. This block is the concrete **dispatch record** of [run-contract/v1](#run-contract-run-contractv1): every field is present, and unavailable context uses `null` / `[]` rather than being omitted.
 
-### Canonical block shape
+### Canonical dispatch envelope
 
-Include this block (or the relevant subset) in the agent dispatch prompt:
+Emit this complete `run-contract/v1` dispatch record in the agent dispatch prompt. This is a **valid first-dispatch instance** — real enum members, actual `null`s, an empty `evidence_delta`, and a structurally valid `file-baseline/v1`:
 
+```json
+{
+  "schema": "run-contract/v1",
+  "record": "dispatch",
+  "target": "Mathlib/Foo.lean:42",
+  "scope": "sorry",
+  "mode": "prove",
+  "worker": "sorry-filler-deep",
+  "parameters": {
+    "fast_pass_error": "unsolved goals: ⊢ Continuous f",
+    "permission_level": "edit",
+    "deep_budget": {"scope": "file", "max_files": 1, "max_lines": 40}
+  },
+  "capabilities": ["lean-lsp", "search"],
+  "owned_files": ["/repo/Mathlib/Foo.lean"],
+  "file_baseline": {
+    "schema": "file-baseline/v1",
+    "files": [
+      {"path": "/repo/Mathlib/Foo.lean", "realpath": "/repo/Mathlib/Foo.lean", "exists": true, "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "size": 1234}
+    ]
+  },
+  "prior_blocker": null,
+  "evidence_delta": [],
+  "budget": {"max_cycles": 20, "max_stuck_cycles": 3, "runtime": "120m"},
+  "context": {
+    "prior_failure": null,
+    "goal_state": "⊢ Continuous f",
+    "diagnostics": [],
+    "search_results": [{"tool": "lean_leansearch", "query": "continuous composition", "top": ["Continuous.comp"]}],
+    "candidates_tested": [],
+    "code_actions": [],
+    "scratch_location": "/tmp"
+  }
+}
 ```
-## Pre-collected LSP context
-(MCP tools may be unavailable — use this as your starting state.)
-### Goal state (file:line)
-<lean_goal output>
-### Diagnostics
-<lean_diagnostic_messages output, summarized>
-### Search results
-<tool + query>: <top results>
-### Candidates tested
-<lean_multi_attempt snippets + results, if any>
-### Code actions (if collected)
-<lean_code_actions output for relevant lines, if any>
-### Owned files
-<list of files this agent is authorized to edit>
-### File baseline
-<`lean4-skills-file-baseline record <owned files...>` JSON, computed immediately before dispatch>
-### Allowed scratch location
-/tmp (never repo root)
-```
 
-Omit sections with no data. The per-agent subsections below specify which parts to include.
+Alternative enum values (not shown in the instance): `scope` ∈ `sorry`/`deps`/`file`/`changed`/`project`; `mode` ∈ `prove`/`autoprove`/`golf`. A **rerun** sets `prior_blocker` to the prior handoff's `blocker_signature` and `evidence_delta` to a nonempty list. No field is omitted; empty `context` members are `null` or `[]` (never dropped). The per-agent subsections below note which `context` members matter most for each agent.
 
 **Exclusive file ownership:** If two candidate dispatches would edit any of the same files, serialize them or keep one in-thread. Never dispatch concurrent agents with overlapping owned-file sets.
 
@@ -509,14 +575,16 @@ The `### File baseline` field carries a versioned record (`file-baseline/v1`, fr
 - A direct-editing agent runs `lean4-skills-file-baseline check --baseline - <<'EOF' ... EOF` (the baseline JSON over stdin; the heredoc delimiter MUST be quoted — an unquoted heredoc performs `$`/backtick/`$(...)` expansion on the payload, corrupting repository-controlled filenames and potentially executing embedded commands — with the quoted form the transport is byte-exact and identical on both hosts) immediately before **every mutating tool operation**; for a multi-file operation, every intended target is checked first.
 - After a successful mutation, the writer advances **only the entries it intentionally changed** (`advance --baseline - -- "$changed_file" ... <<'EOF' ... EOF`); untouched-file entries are carried forward unchanged, so external drift on them is never blessed. **The JSON emitted by `advance` replaces the previous current baseline** and must be used for the next `check` or `advance` — checking against a superseded baseline mistakes your own accepted edit for external drift.
 - A parent applying a returned patch (e.g. a proof-repair diff, which is line-number-anchored) owns the same check-and-advance responsibility on the apply side.
-- **Fail closed.** Whenever a dispatch context contains `### Owned files`, it must also contain a valid, nonempty `### File baseline` — if the baseline is absent, malformed, or the checker is unavailable, the agent reports a dispatch-protocol error and performs no mutation. **Any nonzero check exit prevents mutation; only exit 0 authorizes the next mutating operation.** Standalone work outside a structured dispatch remains governed by the direct caller. (The primitive enforces its side: empty records and malformed entries are rejected as input errors, never treated as a match.)
+- **Fail closed.** Whenever a dispatch carries `owned_files`, it must also carry a valid, nonempty `file_baseline` — if the baseline is absent, malformed, or the checker is unavailable, the agent returns a handoff with `stop_reason: protocol-error` (or `operational-error`) and performs no mutation. **Any nonzero check exit prevents mutation; only exit 0 authorizes the next mutating operation.** Standalone work outside a structured dispatch remains governed by the direct caller. (The primitive enforces its side: empty records and malformed entries are rejected as input errors, never treated as a match.)
 - On drift (`modified` / `deleted` / `created` / `retargeted` — exit 3): **no mutation occurs after detected pre-application drift**. Emit the structured stale-baseline result (affected paths + classification) and recommend `rerun`, `serialize`, or `isolation: "worktree"`. Neither parent nor agent recomputes the baseline and retries — that would legitimize the external change. Operational failures (unreadable target, exit 4) abort the same way but are reported as errors, not drift. If `advance` itself fails after a successful write, stop before any further mutation — the chain is no longer trustworthy.
 
 This is prompt-contract orchestration with a tested runtime primitive: the check→edit window is check-to-write, not compare-and-swap — it narrows the race from "since dispatch" to "since last check" but cannot close it. Exclusive file ownership and `isolation: "worktree"` remain the primary concurrency defenses; the baseline check is the tripwire for when they are violated.
 
+Each worker's inputs map onto the dispatch record: the LSP-state items below populate `context`; the worker-specific items (proof-repair's structured error, proof-golfer's search mode + patterns, axiom-eliminator's axiom list, deep-mode safety budgets) populate `parameters`, with `worker` naming the agent. Every worker returns a complete `run-contract/v1` [handoff record](handoff-contract.md#handoff-record-worker--parenthuman) at its stop boundary — a patch-only worker (proof-repair) carries its diff in `artifacts`.
+
 ### sorry-filler-deep
 
-Include alongside file:line and failure reason:
+`context` populated with, alongside file:line and failure reason:
 - Goal state: `lean_goal(file, line)` output
 - Diagnostics: `lean_diagnostic_messages(file)` summary
 - Search results: tool + query + top results from prior planning phase
@@ -528,7 +596,7 @@ Extend the existing structured error JSON with:
 - `searchResults`: top results from any LSP searches already performed
 - `multiAttemptResults`: snippets tested and their outcomes
 
-proof-repair returns a line-number-anchored diff and does not edit; the **parent** runs the file-baseline check immediately before applying the diff and advances the applied file's entry after success (§ File baselines and drift).
+proof-repair returns a line-number-anchored diff **in the handoff's `artifacts`** (`kind: "unified-diff"`) with `files_changed: []`, and does not edit; the **parent** runs the file-baseline check immediately before applying the diff and advances the applied file's entry after success (§ File baselines and drift).
 
 ### proof-golfer
 

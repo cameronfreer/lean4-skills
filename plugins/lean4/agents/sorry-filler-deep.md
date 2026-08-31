@@ -7,9 +7,9 @@ model: opus
 
 ## Inputs
 
-- Sorry location (file:line)
-- Why fast pass failed (error context)
-- Permission level for refactoring
+Consume the `run-contract/v1` [dispatch record](../skills/lean4/references/handoff-contract.md#dispatch-record-parent--worker) (`record == "dispatch"`): read `target`/`scope`, the `context` envelope (pre-collected LSP state — use it as the starting state when MCP is unavailable), and `owned_files` + `file_baseline` (fail closed on these — see below). Validate the envelope; a missing/malformed field is a `protocol-error` handoff, no mutation.
+
+`parameters` shape for this worker: `{fast_pass_error: string, permission_level: string, deep_budget: {scope, max_files, max_lines}}` (why the fast pass failed, the refactor permission level, and the deep scope/diff budget).
 
 ## Actions
 
@@ -45,6 +45,8 @@ model: opus
 
 ## Output
 
+At the return boundary, emit a complete `run-contract/v1` [handoff record](../skills/lean4/references/handoff-contract.md) — echo `target`/`scope`/`mode`; report `files_owned`/`files_changed` + the final adopted `file_baseline`; set `blocker_kind`/`blocker_class` only when blocker-driven (a deep-safety abort is `blocker_kind: safety-guard`, `blocker_class: null`); and `next_action`. The human-readable phase reports below are in addition to that record.
+
 Phase reports (~300-500 tokens each):
 ```markdown
 ## Phase N Complete
@@ -77,7 +79,7 @@ Final summary (~200-300 tokens):
 - Engine enforces `--deep-scope`, `--deep-max-files`, `--deep-max-lines` — do not bypass
 - Agent must not run git snapshot/rollback commands directly; on rollback, sorry is marked stuck and agent must stop
 - **One concurrent editor per file.** Never dispatch multiple agents targeting the same file in parallel — the last agent to Edit overwrites earlier agents' completed proofs with no error. For N sorrys in one file, either use one agent or dispatch sequentially with commits between each.
-- **File-baseline drift check (issue #102) — fail closed.** Whenever the dispatch context contains `### Owned files`, a valid nonempty `### File baseline` is required before any mutation; if it is absent, malformed, or the checker is unavailable, report a dispatch-protocol error and apply no mutation (standalone work outside a structured dispatch is governed by the direct caller). Run `lean4-skills-file-baseline check --baseline -` (record over stdin) immediately before every mutating tool operation, checking every intended target first for multi-file operations — **only exit 0 authorizes the next mutation**. On any nonzero exit (drift or operational error): apply no mutation, report the structured stale-baseline result (affected paths + classification + recommend `rerun`, `serialize`, or `isolation: "worktree"`), and stop — never re-record and retry. After each successful mutation, advance only the entries you intentionally changed (`advance --baseline - -- "<changed path>" ...` — shell-quote each path operand, `--` before positionals) — its output JSON replaces your current baseline for every subsequent check; if advance fails, stop before any further mutation. Full custody rule: cycle-engine.md § File baselines and drift.
+- **File-baseline drift check (issue #102) — fail closed.** Whenever a `run-contract/v1` dispatch carries `owned_files`, its `file_baseline` is required before any mutation; if it is absent, malformed, or the checker is unavailable, report a dispatch-protocol error and apply no mutation (standalone work outside a structured dispatch is governed by the direct caller). Run `lean4-skills-file-baseline check --baseline -` (record over stdin) immediately before every mutating tool operation, checking every intended target first for multi-file operations — **only exit 0 authorizes the next mutation**. On any nonzero exit (drift or operational error): apply no mutation, report the structured stale-baseline result (affected paths + classification + recommend `rerun`, `serialize`, or `isolation: "worktree"`), and stop — never re-record and retry. After each successful mutation, advance only the entries you intentionally changed (`advance --baseline - -- "<changed path>" ...` — shell-quote each path operand, `--` before positionals) — its output JSON replaces your current baseline for every subsequent check; if advance fails, stop before any further mutation. Full custody rule: cycle-engine.md § File baselines and drift.
 
 ## Example (Happy Path)
 

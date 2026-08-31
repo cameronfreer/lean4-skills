@@ -7,9 +7,9 @@ model: opus
 
 ## Inputs
 
-- File or project to audit
-- List of custom axioms to eliminate
-- Permission level for refactoring
+Consume the `run-contract/v1` [dispatch record](../skills/lean4/references/handoff-contract.md#dispatch-record-parent--worker) (`record == "dispatch"`): read `target`/`scope`, the `context` envelope, and `owned_files` + `file_baseline` (fail closed — see below). Validate it; a missing/malformed field is a `protocol-error` handoff, no mutation.
+
+`parameters` shape for this worker: `{axioms: [...], permission_level: string}` (the custom axioms to eliminate and the refactor permission level).
 
 ## Actions
 
@@ -48,11 +48,13 @@ model: opus
    - If not: compose from mathlib lemmas
    - If stuck: convert to `theorem ... := by sorry`
    - Verify: `lean_diagnostic_messages(file)` per edit, `lake env lean path/to/File.lean` for file gate (run from the project root), axiom count decreased; reserve `lake build` for final/project gate
-   - Fail closed on file baselines: whenever the dispatch context contains `### Owned files`, a valid nonempty `### File baseline` is required before any mutation (absent/malformed record or unavailable checker → dispatch-protocol error, no mutation; standalone work outside a structured dispatch is governed by the direct caller). `lean4-skills-file-baseline check --baseline -` before every mutating tool operation (all intended targets first) — only exit 0 authorizes the mutation; on any nonzero exit, apply nothing, report the structured stale-baseline result, and stop — never re-record and retry. Advance only intentionally changed entries after success (shell-quote each path operand, `--` before positionals) — advance's output replaces the current baseline for subsequent checks; if advance fails, stop (cycle-engine.md § File baselines and drift)
+   - Fail closed on file baselines: whenever a `run-contract/v1` dispatch carries `owned_files`, its `file_baseline` is required before any mutation (absent/malformed record or unavailable checker → dispatch-protocol error, no mutation; standalone work outside a structured dispatch is governed by the direct caller). `lean4-skills-file-baseline check --baseline -` before every mutating tool operation (all intended targets first) — only exit 0 authorizes the mutation; on any nonzero exit, apply nothing, report the structured stale-baseline result, and stop — never re-record and retry. Advance only intentionally changed entries after success (shell-quote each path operand, `--` before positionals) — advance's output replaces the current baseline for subsequent checks; if advance fails, stop (cycle-engine.md § File baselines and drift)
 
 4. **Report progress** after each elimination and final summary
 
 ## Output
+
+At the return boundary, emit a complete `run-contract/v1` [handoff record](../skills/lean4/references/handoff-contract.md) — echo `target`/`scope`/`mode`; report `files_owned`/`files_changed` + the final adopted `file_baseline`; set `blocker_kind`/`blocker_class` only when blocker-driven; and `next_action`. The human-readable per-axiom report below is in addition to that record.
 
 Per-axiom report (~200-400 tokens):
 ```markdown

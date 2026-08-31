@@ -147,16 +147,15 @@ sed/bulk rewrites activate automatically when ≥4 whitelisted syntax-only patte
 
 ### Delegation Execution Policy
 
-When delegating to `proof-golfer` subagents:
+Golf follows the shared [Delegation Execution Policy](../skills/lean4/references/cycle-engine.md#delegation-execution-policy)
+of [`run-contract/v1`](../skills/lean4/references/handoff-contract.md) — preflight,
+permission gate, bounded concurrency (`--max-delegates`, default 2), exclusive
+ownership, fallback contract, and pre-collected context. These golf-specific
+batching rules layer on top when delegating to `proof-golfer` subagents:
 
-1. **Preflight** — run one golfer task on a small target first
-2. **Permission gate** — if preflight hits Edit/Bash permission prompt → stop delegation immediately, switch to direct mode in main agent; never launch additional agents after first permission denial
-3. **Max `--max-delegates` concurrent** (default 2; only after preflight succeeds)
-4. **Batch by value** — Batch 1: high-priority instant wins, then prompt user for checkpoint; Batch 2: medium-priority; ask before continuing
-5. **After each batch** — diagnostics summary, changed files, `Continue? [yes/no]`
-6. **One plan message** per batch — no repeated "launching more agents" narration
-7. **Fallback contract** — if ANY subagent cannot obtain Edit/Bash permission → abort all delegation, continue direct; do NOT queue new delegates after a permission error
-8. **Pre-collected context** — include pre-collected MCP context per [cycle-engine.md § Pre-flight Context](../skills/lean4/references/cycle-engine.md#pre-flight-context-for-subagent-dispatch) in each golfer dispatch prompt
+1. **Batch by value** — Batch 1: high-priority instant wins, then prompt user for checkpoint; Batch 2: medium-priority; ask before continuing
+2. **After each batch** — diagnostics summary, changed files, `Continue? [yes/no]`
+3. **One plan message** per batch — no repeated "launching more agents" narration
 
 ## See Also
 
