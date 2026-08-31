@@ -140,8 +140,9 @@ def _valid_baseline(fb: Any) -> bool:
     if not isinstance(fb, dict) or fb.get("schema") != "file-baseline/v1":
         return False
     files = fb.get("files")
-    if not isinstance(files, list):
+    if not isinstance(files, list) or not files:  # the primitive rejects empty
         return False
+    seen: set[str] = set()
     for f in files:
         if not isinstance(f, dict):
             return False
@@ -149,13 +150,16 @@ def _valid_baseline(fb: Any) -> bool:
             return False
         if not (isinstance(f.get("realpath"), str) and os.path.isabs(f["realpath"])):
             return False
+        if f["path"] in seen:  # duplicate identity
+            return False
+        seen.add(f["path"])
         if not isinstance(f.get("exists"), bool):
             return False
         sha, size = f.get("sha256"), f.get("size")
         if f["exists"]:
             if not (isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{64}", sha)):
                 return False
-            if not _is_int(size):
+            if not _is_int(size) or size < 0:  # negative size is invalid
                 return False
         elif sha is not None or size is not None:
             return False
@@ -398,9 +402,13 @@ def rerun_forbidden(
     # available; a malformed-dispatch handoff (null identity) has no task to
     # compare, so the paired-retry fallback applies to any dispatch.
     if prior_handoff.get("stop_reason") in OPERATIONAL_STOPS:
-        if prior_handoff.get("target") is not None and not same_task(
-            new_dispatch, prior_handoff
-        ):
+        # same_task is only evaluable with a COMPLETE identity; a partial
+        # malformed identity (e.g. target parsed, scope/mode null) must fall
+        # through to the paired-retry rule, not be treated as unrelated.
+        identity_complete = all(
+            prior_handoff.get(k) is not None for k in ("target", "scope", "mode")
+        )
+        if identity_complete and not same_task(new_dispatch, prior_handoff):
             return False  # an unrelated task is not a rerun of this stop
         return not new_dispatch.get("evidence_delta")
     # Blocker branch.
@@ -780,6 +788,29 @@ class RerunPredicate(unittest.TestCase):
         d = valid_dispatch(prior_blocker=None, evidence_delta=[])
         self.assertTrue(rerun_forbidden(d, prior))
 
+    def _partial(self, **over: Any) -> dict[str, Any]:
+        # target parsed, scope/mode null → same_task unevaluable (partial malformed).
+        return valid_handoff(
+            target="/repo/Foo.lean:42",
+            scope=None,
+            mode=None,
+            file_baseline=None,
+            status="stopped",
+            stop_reason="protocol-error",
+            stop_detail="scope unparseable",
+            next_action="stop",
+            **over,
+        )
+
+    def test_partial_identity_empty_delta_forbidden(self) -> None:
+        # A non-null target must NOT be mistaken for a complete identity.
+        d = valid_dispatch(prior_blocker=None, evidence_delta=[])
+        self.assertTrue(rerun_forbidden(d, self._partial()))
+
+    def test_partial_identity_resolving_delta_allowed(self) -> None:
+        d = valid_dispatch(prior_blocker=None, evidence_delta=["dispatch corrected"])
+        self.assertFalse(rerun_forbidden(d, self._partial()))
+
     def test_queue_empty_empty_delta_allowed(self) -> None:
         prior = valid_handoff(
             status="stopped", stop_reason="queue-empty", next_action="stop"
@@ -892,6 +923,30 @@ class DeeperRejections(unittest.TestCase):
     def test_handoff_baseline_must_cover_files_owned(self) -> None:
         self.assertTrue(
             validate_handoff(valid_handoff(files_owned=["/repo/Other.lean"]))
+        )
+
+    def test_baseline_parity_with_primitive(self) -> None:
+        entry = {
+            "path": "/a",
+            "realpath": "/a",
+            "exists": True,
+            "sha256": "0" * 64,
+            "size": 1,
+        }
+        self.assertTrue(
+            _valid_baseline({"schema": "file-baseline/v1", "files": [entry]})
+        )
+        # empty files, duplicate path, and negative size are all rejected.
+        self.assertFalse(_valid_baseline({"schema": "file-baseline/v1", "files": []}))
+        self.assertFalse(
+            _valid_baseline(
+                {"schema": "file-baseline/v1", "files": [entry, dict(entry)]}
+            )
+        )
+        self.assertFalse(
+            _valid_baseline(
+                {"schema": "file-baseline/v1", "files": [{**entry, "size": -1}]}
+            )
         )
 
 
