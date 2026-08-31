@@ -9,8 +9,20 @@ fixtures (including a proof-repair handoff carrying a unified-diff artifact), so
 
 from __future__ import annotations
 
+import os
+import re
 import unittest
+from collections.abc import Callable
 from typing import Any
+
+
+def _is_str(x: Any) -> bool:
+    return isinstance(x, str)
+
+
+def _is_int(x: Any) -> bool:
+    return isinstance(x, int) and not isinstance(x, bool)
+
 
 # --- enums (mirrors handoff-contract.md) ---
 SCOPES = {"sorry", "deps", "file", "changed", "project"}
@@ -106,55 +118,97 @@ def _baseline_covers(baseline: Any, owned_files: Any) -> bool:
     return set(owned_files) <= covered
 
 
-def _dicts_with_keys(seq: Any, keys: set[str]) -> bool:
-    return isinstance(seq, list) and all(
-        isinstance(x, dict) and keys <= set(x) for x in seq
-    )
-
-
 def _str_list(x: Any) -> bool:
     return isinstance(x, list) and all(isinstance(s, str) for s in x)
 
 
-# Required members of each worker's typed `parameters` payload.
-WORKER_PARAMS: dict[str, set[str]] = {
-    "sorry-filler-deep": {"fast_pass_error", "permission_level", "deep_budget"},
-    "proof-repair": {"error"},
-    "proof-golfer": {"search_mode", "golfable_patterns", "candidate_targets"},
-    "axiom-eliminator": {"axioms", "permission_level"},
+def _exact(obj: Any, spec: dict[str, Callable[[Any], bool]]) -> bool:
+    """obj is a dict with EXACTLY the keys in spec, each value passing its predicate."""
+    return (
+        isinstance(obj, dict)
+        and set(obj) == set(spec)
+        and all(pred(obj[k]) for k, pred in spec.items())
+    )
+
+
+def _typed_dicts(seq: Any, spec: dict[str, Callable[[Any], bool]]) -> bool:
+    return isinstance(seq, list) and all(_exact(x, spec) for x in seq)
+
+
+def _valid_baseline(fb: Any) -> bool:
+    """A structurally valid file-baseline/v1 record (as the primitive requires)."""
+    if not isinstance(fb, dict) or fb.get("schema") != "file-baseline/v1":
+        return False
+    files = fb.get("files")
+    if not isinstance(files, list):
+        return False
+    for f in files:
+        if not isinstance(f, dict):
+            return False
+        if not (isinstance(f.get("path"), str) and os.path.isabs(f["path"])):
+            return False
+        if not (isinstance(f.get("realpath"), str) and os.path.isabs(f["realpath"])):
+            return False
+        if not isinstance(f.get("exists"), bool):
+            return False
+        sha, size = f.get("sha256"), f.get("size")
+        if f["exists"]:
+            if not (isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{64}", sha)):
+                return False
+            if not _is_int(size):
+                return False
+        elif sha is not None or size is not None:
+            return False
+    return True
+
+
+# Fully-typed shape of each worker's `parameters` payload (exact keys + types).
+def _deep_budget_ok(x: Any) -> bool:
+    return _exact(x, {"scope": _is_str, "max_files": _is_int, "max_lines": _is_int})
+
+
+def _repair_error_ok(x: Any) -> bool:
+    return _exact(
+        x,
+        {
+            "errorType": _is_str,
+            "message": _is_str,
+            "file": _is_str,
+            "line": _is_int,
+            "goal": _is_str,
+            "localContext": _str_list,
+        },
+    )
+
+
+WORKER_PARAM_SHAPES: dict[str, dict[str, Callable[[Any], bool]]] = {
+    "sorry-filler-deep": {
+        "fast_pass_error": _is_str,
+        "permission_level": _is_str,
+        "deep_budget": _deep_budget_ok,
+    },
+    "proof-repair": {"error": _repair_error_ok},
+    "proof-golfer": {
+        "search_mode": lambda x: x in {"off", "quick", "full"},
+        "golfable_patterns": _str_list,
+        "candidate_targets": _str_list,
+    },
+    "axiom-eliminator": {"axioms": _str_list, "permission_level": _is_str},
 }
 
 
 def validate_parameters(worker: Any, params: Any) -> list[str]:
-    """worker==null → parameters=={}; each named worker → its exact shape."""
+    """worker==null → parameters=={}; each named worker → its EXACT typed shape."""
     if worker is None:
         return (
             []
             if params == {}
             else ["inline dispatch (worker null) must have parameters {}"]
         )
-    if worker not in WORKER_PARAMS:
+    if worker not in WORKER_PARAM_SHAPES:
         return ["unknown worker"]
-    if not isinstance(params, dict):
-        return [f"{worker} parameters must be an object"]
-    missing = WORKER_PARAMS[worker] - set(params)
-    if missing:
-        return [f"{worker} parameters missing {sorted(missing)}"]
-    if worker == "sorry-filler-deep":
-        db = params.get("deep_budget")
-        if not (
-            isinstance(db, dict) and {"scope", "max_files", "max_lines"} <= set(db)
-        ):
-            return [
-                "sorry-filler-deep deep_budget must be {scope, max_files, max_lines}"
-            ]
-    if worker == "proof-repair":
-        err = params.get("error")
-        if not (
-            isinstance(err, dict)
-            and {"errorType", "message", "file", "line"} <= set(err)
-        ):
-            return ["proof-repair parameters.error missing required members"]
+    if not _exact(params, WORKER_PARAM_SHAPES[worker]):
+        return [f"{worker} parameters must match its exact typed shape"]
     return []
 
 
@@ -173,27 +227,44 @@ def validate_dispatch(obj: dict[str, Any]) -> list[str]:
         e.append("dispatch mode not in enum")
     if obj.get("worker") is not None and obj.get("worker") not in WORKERS:
         e.append("dispatch worker must be a known agent or null")
-    if not _str_list(obj.get("owned_files")) or not _str_list(
-        obj.get("evidence_delta")
+    if (
+        not _str_list(obj.get("owned_files"))
+        or not _str_list(obj.get("evidence_delta"))
+        or not _str_list(obj.get("capabilities"))
     ):
-        e.append("owned_files / evidence_delta must be arrays of strings")
+        e.append(
+            "owned_files / evidence_delta / capabilities must be arrays of strings"
+        )
     # worker/parameters correlation (the "typed parameters" contract).
     e += validate_parameters(obj.get("worker"), obj.get("parameters"))
-    # nested context member types + item shapes.
+    # nested context member types + typed item shapes.
     ctx = obj.get("context")
     if not isinstance(ctx, dict) or (CONTEXT_FIELDS - set(ctx)):
         e.append("dispatch context missing required members")
     else:
-        if not isinstance(ctx.get("diagnostics"), list) or not isinstance(
-            ctx.get("code_actions"), list
+        if not _str_list(ctx.get("diagnostics")) or not _str_list(
+            ctx.get("code_actions")
         ):
-            e.append("context.diagnostics / code_actions must be arrays")
-        if not _dicts_with_keys(ctx.get("search_results"), {"tool", "query", "top"}):
-            e.append("context.search_results items must be {tool, query, top}")
-        if not _dicts_with_keys(ctx.get("candidates_tested"), {"snippet", "result"}):
-            e.append("context.candidates_tested items must be {snippet, result}")
+            e.append("context.diagnostics / code_actions must be string arrays")
+        if not _typed_dicts(
+            ctx.get("search_results"),
+            {"tool": _is_str, "query": _is_str, "top": _str_list},
+        ):
+            e.append(
+                "context.search_results items must be {tool:str, query:str, top:[str]}"
+            )
+        if not _typed_dicts(
+            ctx.get("candidates_tested"), {"snippet": _is_str, "result": _is_str}
+        ):
+            e.append(
+                "context.candidates_tested items must be {snippet:str, result:str}"
+            )
         if not isinstance(ctx.get("scratch_location"), str):
             e.append("context.scratch_location must be a non-null string")
+        if not (ctx.get("prior_failure") is None or _is_str(ctx.get("prior_failure"))):
+            e.append("context.prior_failure must be str|null")
+        if not (ctx.get("goal_state") is None or _is_str(ctx.get("goal_state"))):
+            e.append("context.goal_state must be str|null")
     # budget subfields: exact keys AND value types.
     b = obj.get("budget")
     if not isinstance(b, dict) or set(b) != {
@@ -210,8 +281,11 @@ def validate_dispatch(obj: dict[str, Any]) -> list[str]:
                 e.append(f"budget.{k} must be integer|null")
         if not (b["runtime"] is None or isinstance(b["runtime"], str)):
             e.append("budget.runtime must be duration-string|null")
-    # file_baseline must cover every owned_files path.
-    if not _baseline_covers(obj.get("file_baseline"), obj.get("owned_files")):
+    # file_baseline is a valid file-baseline/v1 covering every owned_files path.
+    fb = obj.get("file_baseline")
+    if not _valid_baseline(fb):
+        e.append("file_baseline must be a valid file-baseline/v1 record")
+    elif not _baseline_covers(fb, obj.get("owned_files")):
         e.append("file_baseline.files must cover every owned_files path")
     return e
 
@@ -241,14 +315,14 @@ def validate_handoff(obj: dict[str, Any]) -> list[str]:
             e.append("scope, when present, must be in enum")
         if md is not None and md not in MODES:
             e.append("mode, when present, must be in enum")
-        if fb is not None and not isinstance(fb, dict):
-            e.append("file_baseline, when present, must be an object")
+        if fb is not None and not _valid_baseline(fb):
+            e.append("file_baseline, when present, must be a valid file-baseline/v1")
     else:
         if not isinstance(t, str) or sc not in SCOPES or md not in MODES:
             e.append("handoff must echo a valid target/scope/mode")
-        if not _baseline_covers(fb, obj.get("files_owned")):
+        if not _valid_baseline(fb) or not _baseline_covers(fb, obj.get("files_owned")):
             e.append(
-                "handoff file_baseline must be a file-baseline/v1 covering files_owned"
+                "handoff file_baseline must be a valid file-baseline/v1 covering files_owned"
             )
     if obj.get("status") not in STATUSES:
         e.append("handoff status not in enum")
@@ -291,28 +365,21 @@ def validate_handoff(obj: dict[str, Any]) -> list[str]:
     if not isinstance(ev, dict) or not (
         _str_list(ev.get("queries"))
         and _str_list(ev.get("top_candidates"))
-        and _dicts_with_keys(ev.get("attempts"), {"snippet", "result"})
+        and _typed_dicts(ev.get("attempts"), {"snippet": _is_str, "result": _is_str})
         and {"goal_delta", "diagnostic_delta"} <= set(ev)
-        and (ev.get("goal_delta") is None or isinstance(ev.get("goal_delta"), str))
-        and (
-            ev.get("diagnostic_delta") is None
-            or isinstance(ev.get("diagnostic_delta"), str)
-        )
+        and (ev.get("goal_delta") is None or _is_str(ev.get("goal_delta")))
+        and (ev.get("diagnostic_delta") is None or _is_str(ev.get("diagnostic_delta")))
     ):
         e.append(
-            "evidence shape invalid (str-list queries/top_candidates, {snippet,result} attempts, str|null deltas)"
+            "evidence shape invalid (str-list queries/top_candidates, {snippet:str,result:str} attempts, str|null deltas)"
         )
-    # best_candidates items and artifact kind/content are typed.
-    if not _dicts_with_keys(obj.get("best_candidates"), {"candidate", "outcome"}):
-        e.append("best_candidates items must be {candidate, outcome}")
-    arts = obj.get("artifacts")
-    if not _dicts_with_keys(arts, {"kind", "content"}):
-        e.append("artifacts items must be {kind, content}")
-    elif any(
-        not isinstance(a["kind"], str) or not isinstance(a["content"], str)
-        for a in arts
+    # best_candidates and artifacts are fully-typed item lists.
+    if not _typed_dicts(
+        obj.get("best_candidates"), {"candidate": _is_str, "outcome": _is_str}
     ):
-        e.append("artifact kind and content must both be strings")
+        e.append("best_candidates items must be {candidate:str, outcome:str}")
+    if not _typed_dicts(obj.get("artifacts"), {"kind": _is_str, "content": _is_str}):
+        e.append("artifacts items must be {kind:str, content:str}")
     return e
 
 
@@ -327,9 +394,14 @@ def rerun_forbidden(
 ) -> bool:
     """The rerun guard, evaluated from the two records — both branches."""
     # Operational/protocol branch: relaunch only with a nonempty evidence_delta
-    # resolving stop_detail; the null blocker signature makes the blocker branch
-    # inapplicable, so without this branch these would always be allowed.
+    # resolving stop_detail. Scope to same_task when the prior task identity is
+    # available; a malformed-dispatch handoff (null identity) has no task to
+    # compare, so the paired-retry fallback applies to any dispatch.
     if prior_handoff.get("stop_reason") in OPERATIONAL_STOPS:
+        if prior_handoff.get("target") is not None and not same_task(
+            new_dispatch, prior_handoff
+        ):
+            return False  # an unrelated task is not a rerun of this stop
         return not new_dispatch.get("evidence_delta")
     # Blocker branch.
     return (
@@ -669,29 +741,44 @@ class RerunPredicate(unittest.TestCase):
         d = valid_dispatch()  # echoes the same /repo/Foo.lean:42, sorry, prove
         self.assertTrue(same_task(d, prior))
 
-    def test_operational_stop_empty_delta_forbidden(self) -> None:
+    def _op(self, **over: Any) -> dict[str, Any]:
+        # A VALID operational handoff has non-null identity/baseline (nullability
+        # is only for a malformed-dispatch protocol-error).
+        return valid_handoff(
+            status="stopped",
+            stop_reason="operational-error",
+            stop_detail="baseline drift",
+            next_action="stop",
+            **over,
+        )
+
+    def test_operational_same_task_empty_delta_forbidden(self) -> None:
+        self.assertEqual(validate_handoff(self._op()), [])  # fixture itself is valid
+        d = valid_dispatch(prior_blocker=None, evidence_delta=[])
+        self.assertTrue(rerun_forbidden(d, self._op()))
+
+    def test_operational_same_task_resolving_delta_allowed(self) -> None:
+        d = valid_dispatch(prior_blocker=None, evidence_delta=["baseline reconciled"])
+        self.assertFalse(rerun_forbidden(d, self._op()))
+
+    def test_operational_different_task_allowed(self) -> None:
+        prior = self._op(target="/repo/Bar.lean:9")
+        d = valid_dispatch(prior_blocker=None, evidence_delta=[])  # /repo/Foo.lean:42
+        self.assertFalse(rerun_forbidden(d, prior))
+
+    def test_malformed_protocol_empty_delta_forbidden(self) -> None:
         prior = valid_handoff(
             target=None,
             scope=None,
             mode=None,
             file_baseline=None,
             status="stopped",
-            stop_reason="operational-error",
-            stop_detail="checker unavailable",
+            stop_reason="protocol-error",
+            stop_detail="dispatch missing owned_files",
             next_action="stop",
         )
         d = valid_dispatch(prior_blocker=None, evidence_delta=[])
         self.assertTrue(rerun_forbidden(d, prior))
-
-    def test_operational_stop_resolving_delta_allowed(self) -> None:
-        prior = valid_handoff(
-            status="stopped",
-            stop_reason="operational-error",
-            stop_detail="baseline drift",
-            next_action="stop",
-        )
-        d = valid_dispatch(prior_blocker=None, evidence_delta=["baseline reconciled"])
-        self.assertFalse(rerun_forbidden(d, prior))
 
     def test_queue_empty_empty_delta_allowed(self) -> None:
         prior = valid_handoff(
@@ -737,6 +824,8 @@ class WorkerParameters(unittest.TestCase):
                         "message": "m",
                         "file": "F.lean",
                         "line": 4,
+                        "goal": "⊢ P",
+                        "localContext": ["h : Q"],
                     }
                 },
             ),
@@ -753,8 +842,26 @@ class WorkerParameters(unittest.TestCase):
                 {"fast_pass_error": "e", "permission_level": "edit"},
             )
         )  # missing deep_budget
+        # error missing goal/localContext, and a bad search_mode enum.
         self.assertTrue(
             validate_parameters("proof-repair", {"error": {"errorType": "x"}})
+        )
+        self.assertTrue(
+            validate_parameters(
+                "proof-golfer",
+                {
+                    "search_mode": "turbo",
+                    "golfable_patterns": [],
+                    "candidate_targets": [],
+                },
+            )
+        )
+        # extra key rejected (exact shape).
+        self.assertTrue(
+            validate_parameters(
+                "axiom-eliminator",
+                {"axioms": [], "permission_level": "edit", "extra": 1},
+            )
         )
 
 

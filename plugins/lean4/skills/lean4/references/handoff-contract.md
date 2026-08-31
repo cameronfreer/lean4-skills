@@ -186,11 +186,14 @@ When the predicate forbids a relaunch, route to `review --mode=stuck`,
 **Operational and protocol stops.** A `protocol-error` or `operational-error`
 handoff has **null** blocker fields, so the signature predicate above never
 applies — but it must not be relaunched blindly either (the same malformed
-dispatch, unavailable checker, or unreconciled drift would just repeat). Such a
-stop may be relaunched **only** when the new dispatch's `evidence_delta` is
-nonempty and describes how the prior `stop_detail` was resolved (e.g.
-baseline reconciled, checker restored, dispatch corrected). Normal
-queue/budget/user stops remain freely rerunnable.
+dispatch, unavailable checker, or unreconciled drift would just repeat). When the
+prior handoff carries a task identity (`target`/`scope`/`mode` non-null), this
+rule is scoped to `same_task`; a malformed-dispatch handoff with a **null**
+identity has no task to compare, so it applies to any paired retry of that stop.
+Such a stop may be relaunched **only** when the new dispatch's `evidence_delta` is
+nonempty and describes how the prior `stop_detail` was resolved (e.g. baseline
+reconciled, checker restored, dispatch corrected). An unrelated task is not a
+relaunch. Normal queue/budget/user stops remain freely rerunnable.
 
 This is the single definition of the rule; `prove.md`, `autoprove.md`, and
 `SKILL.md` **reference** it rather than restating the predicate.
