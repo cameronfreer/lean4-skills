@@ -5,20 +5,30 @@ set -euo pipefail
 [[ "${LEAN4_GUARDRAILS_DISABLE:-}" == "1" ]] && exit 0
 
 # Lean project detection: walk ancestors for lakefile.lean, lean-toolchain, lakefile.toml
-# No depth cap — deep monorepos are common. Terminates at filesystem root.
+# No depth cap — deep monorepos are common. Terminates at the filesystem root by
+# fixed point (dirname of any root returns itself): "$dir" == "/" alone never
+# fires on a Windows/Git-Bash drive root like "C:/" (dirname "C:/" == "C:/"),
+# which wedged the walk in an infinite loop (issue #164).
 is_lean_project() {
-  local dir="$1"
+  local dir="$1" parent
   [[ -d "$dir" ]] || return 1
   while true; do
     [[ -f "$dir/lakefile.lean" || -f "$dir/lean-toolchain" || -f "$dir/lakefile.toml" ]] && return 0
-    [[ "$dir" == "/" ]] && break
-    dir=$(dirname "$dir")
+    parent=$(dirname "$dir")
+    [[ "$parent" == "$dir" ]] && break   # reached a root (/, C:/, //server, .)
+    dir="$parent"
   done
   return 1
 }
 
-# Read JSON input from stdin
-INPUT=$(cat)
+# Read JSON input from stdin. Fail open on an interactive stdin — a hook invoked
+# without a piped payload has nothing to guard, and reading a TTY wedges the
+# whole Bash call on some hosts (issue #164: the upstream TTY bug adds ~5s to
+# every command). A held-open pipe is bounded by `read -t` (a Bash builtin — no
+# GNU `timeout` dependency, portable to Bash 3.2), not the unbounded `cat`.
+[[ -t 0 ]] && exit 0
+INPUT=""
+IFS= read -r -d '' -t 5 INPUT || true
 
 # Parse command with jq, fall back to python3; default empty on parse failure
 if command -v jq >/dev/null 2>&1; then
