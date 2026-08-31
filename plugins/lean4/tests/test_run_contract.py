@@ -142,7 +142,8 @@ def _valid_baseline(fb: Any) -> bool:
     files = fb.get("files")
     if not isinstance(files, list) or not files:  # the primitive rejects empty
         return False
-    seen: set[str] = set()
+    seen_paths: set[str] = set()
+    seen_reals: set[str] = set()
     for f in files:
         if not isinstance(f, dict):
             return False
@@ -150,9 +151,11 @@ def _valid_baseline(fb: Any) -> bool:
             return False
         if not (isinstance(f.get("realpath"), str) and os.path.isabs(f["realpath"])):
             return False
-        if f["path"] in seen:  # duplicate identity
+        # The primitive rejects a duplicate path OR a duplicate realpath.
+        if f["path"] in seen_paths or f["realpath"] in seen_reals:
             return False
-        seen.add(f["path"])
+        seen_paths.add(f["path"])
+        seen_reals.add(f["realpath"])
         if not isinstance(f.get("exists"), bool):
             return False
         sha, size = f.get("sha256"), f.get("size")
@@ -946,6 +949,15 @@ class DeeperRejections(unittest.TestCase):
         self.assertFalse(
             _valid_baseline(
                 {"schema": "file-baseline/v1", "files": [{**entry, "size": -1}]}
+            )
+        )
+        # two DISTINCT paths sharing one realpath are rejected too (as file_baseline.py does).
+        self.assertFalse(
+            _valid_baseline(
+                {
+                    "schema": "file-baseline/v1",
+                    "files": [entry, {**entry, "path": "/b"}],
+                }
             )
         )
 
