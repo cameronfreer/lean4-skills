@@ -25,10 +25,14 @@ is_lean_project() {
 # without a piped payload has nothing to guard, and reading a TTY wedges the
 # whole Bash call on some hosts (issue #164: the upstream TTY bug adds ~5s to
 # every command). A held-open pipe is bounded by `read -t` (a Bash builtin — no
-# GNU `timeout` dependency, portable to Bash 3.2), not the unbounded `cat`.
+# GNU `timeout` dependency, portable to Bash 3.2), not the unbounded `cat`. The
+# timeout is 1s — comfortably under Claude Code's 5s hook deadline, so the host
+# never kills the hook mid-read (a payload already in the pipe is still captured
+# and enforced). `read -r -d ''` returns nonzero on the EOF/timeout that always
+# ends a non-NUL stream; `|| true` keeps that off `set -e` while INPUT is set.
 [[ -t 0 ]] && exit 0
 INPUT=""
-IFS= read -r -d '' -t 5 INPUT || true
+IFS= read -r -d '' -t 1 INPUT || true
 
 # Parse command with jq, fall back to python3; default empty on parse failure
 if command -v jq >/dev/null 2>&1; then

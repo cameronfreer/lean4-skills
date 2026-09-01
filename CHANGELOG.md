@@ -1,8 +1,8 @@
 # Changelog
 
-## v4.8.1 (August 2026)
+## v4.8.1 (September 2026)
 
-Reliability fix for the Bash guardrail hook on Windows/Git-Bash (closes #164).
+Reliability fix for the Bash guardrail hook on Windows/Git-Bash (the #164 wedge; the latency optimization #164 also requested is tracked as follow-up #193).
 
 ### Fixed
 

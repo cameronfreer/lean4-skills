@@ -672,7 +672,8 @@ else
   echo "  SKIP: idle PTY test (no python3)"
 fi
 
-# (2) Held-open pipe (no EOF) → bounded by read -t, must return within ~5s.
+# (2) Held-open empty pipe (no EOF) → bounded by read -t 1, must return well
+#     inside Claude Code's 5s hook deadline (<= 3s here, not the old <= 9).
 _fifo=$(mktemp -u)
 mkfifo "$_fifo"
 ( exec 3>"$_fifo"; sleep 15 ) &  # writer holds the pipe open, sends nothing
@@ -681,10 +682,30 @@ _start=$SECONDS
 LEAN4_GUARDRAILS_FORCE=1 bash "$HOOK" <"$_fifo" >/dev/null 2>&1 || true
 _elapsed=$(( SECONDS - _start ))
 kill "$_w" 2>/dev/null || true; wait "$_w" 2>/dev/null || true; rm -f "$_fifo"
-if (( _elapsed <= 9 )); then
-  p164 "held-open pipe bounded (${_elapsed}s)"
+if (( _elapsed <= 3 )); then
+  p164 "held-open empty pipe bounded (${_elapsed}s, well under 5s deadline)"
 else
-  f164 "held-open pipe wedged (${_elapsed}s)"
+  f164 "held-open empty pipe too slow (${_elapsed}s — near/over the 5s host deadline)"
+fi
+
+# (2b) Held-open pipe CONTAINING a complete blocked command (no EOF) → the
+#      payload is captured within the timeout and still ENFORCED (exit 2),
+#      well inside the deadline. This is the explicitly-requested #164 case.
+_fifo2=$(mktemp -u)
+mkfifo "$_fifo2"
+_payload='{"tool_input":{"command":"lean4-skills-cycle-tracker tick 2>/dev/null"}}'
+( exec 3>"$_fifo2"; printf '%s' "$_payload" >&3; sleep 15 ) &  # write, then hold open
+_w2=$!
+_start=$SECONDS
+_rc2=0
+LEAN4_GUARDRAILS_FORCE=1 LEAN4_GUARDRAILS_COLLAB_POLICY=ask \
+  bash "$HOOK" <"$_fifo2" >/dev/null 2>&1 || _rc2=$?
+_elapsed=$(( SECONDS - _start ))
+kill "$_w2" 2>/dev/null || true; wait "$_w2" 2>/dev/null || true; rm -f "$_fifo2"
+if (( _rc2 == 2 && _elapsed <= 3 )); then
+  p164 "held-open pipe w/ complete blocked command → enforced (exit 2, ${_elapsed}s)"
+else
+  f164 "held-open blocked command rc=$_rc2 elapsed=${_elapsed}s (want exit 2 <=3s)"
 fi
 
 # (3) Ordinary closed/empty stdin → instant clean exit (no wedge).
