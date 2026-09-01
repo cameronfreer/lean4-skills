@@ -721,8 +721,9 @@ fi
 
 # (4) Ancestor walk terminates at a non-'/' fixpoint root (Windows drive).
 #     Extract the real function; mock dirname so a mid-tree dir is its own
-#     parent (as `dirname "C:/"` == "C:/" on Git-Bash). The old `== "/"` guard
-#     would loop forever here; the fixed-point break terminates.
+#     parent (as a Git-Bash drive-letter path reaches `C:`, where
+#     `dirname "C:"` == "C:"). The old `== "/"` guard would loop forever here;
+#     the fixed-point break terminates.
 _deep=$(mktemp -d)/deep/nest
 mkdir -p "$_deep"
 _root="${_deep%/deep/nest}"
