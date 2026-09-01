@@ -21,18 +21,26 @@ is_lean_project() {
   return 1
 }
 
-# Read JSON input from stdin. Fail open on an interactive stdin — a hook invoked
-# without a piped payload has nothing to guard, and reading a TTY wedges the
-# whole Bash call on some hosts (issue #164: the upstream TTY bug adds ~5s to
-# every command). A held-open pipe is bounded by `read -t` (a Bash builtin — no
-# GNU `timeout` dependency, portable to Bash 3.2), not the unbounded `cat`. The
-# timeout is 1s — comfortably under Claude Code's 5s hook deadline, so the host
-# never kills the hook mid-read (a payload already in the pipe is still captured
-# and enforced). `read -r -d ''` returns nonzero on the EOF/timeout that always
-# ends a non-NUL stream; `|| true` keeps that off `set -e` while INPUT is set.
+# Read JSON input from stdin under a hard ~1s bound (issue #164). Fail open on
+# an interactive stdin — a hook invoked without a piped payload has nothing to
+# guard, and reading a TTY wedged the whole Bash call (the upstream TTY bug adds
+# ~5s to every command). For a pipe, a backgrounded `cat` streams whatever is
+# available; a killer ends it after 1s if the writer never sends EOF. 1s is
+# comfortably under Claude Code's 5s hook deadline, so the host never kills the
+# hook mid-read, and a payload already in the pipe is captured and enforced.
+# Notes: `read -t` is not used — Bash 3.2 does not save partial input on its
+# timeout, so a held-open pipe would lose the payload there. `cat <&3` is
+# required because an async command in a non-interactive shell otherwise gets
+# stdin from /dev/null. No GNU `timeout` (Bash-3.2 portability).
 [[ -t 0 ]] && exit 0
-INPUT=""
-IFS= read -r -d '' -t 1 INPUT || true
+INPUT="$(
+  exec 3<&0
+  cat <&3 & _gr_cat=$!
+  ( sleep 1; kill "$_gr_cat" 2>/dev/null ) >/dev/null 2>&1 & _gr_killer=$!
+  wait "$_gr_cat" 2>/dev/null || true
+  kill "$_gr_killer" 2>/dev/null || true
+  wait "$_gr_killer" 2>/dev/null || true
+)"
 
 # Parse command with jq, fall back to python3; default empty on parse failure
 if command -v jq >/dev/null 2>&1; then
