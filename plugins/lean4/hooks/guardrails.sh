@@ -7,15 +7,16 @@ set -euo pipefail
 # Lean project detection: walk ancestors for lakefile.lean, lean-toolchain, lakefile.toml
 # No depth cap — deep monorepos are common. Terminates at the filesystem root by
 # fixed point (dirname of any root returns itself): "$dir" == "/" alone never
-# fires on a Windows/Git-Bash drive root like "C:/" (dirname "C:/" == "C:/"),
-# which wedged the walk in an infinite loop (issue #164).
+# fires on a Windows/Git-Bash drive-letter path, which reaches a non-"/" fixed
+# point such as "C:" (Git-Bash reduces "C:/" to "C:", then dirname "C:" == "C:")
+# and wedged the walk in an infinite loop (issue #164).
 is_lean_project() {
   local dir="$1" parent
   [[ -d "$dir" ]] || return 1
   while true; do
     [[ -f "$dir/lakefile.lean" || -f "$dir/lean-toolchain" || -f "$dir/lakefile.toml" ]] && return 0
     parent=$(dirname "$dir")
-    [[ "$parent" == "$dir" ]] && break   # reached a root (/, C:/, //server, .)
+    [[ "$parent" == "$dir" ]] && break   # reached a fixed point (/, C:, //server, .)
     dir="$parent"
   done
   return 1
@@ -25,9 +26,9 @@ is_lean_project() {
 # an interactive stdin — a hook invoked without a piped payload has nothing to
 # guard, and reading a TTY wedged the whole Bash call (the upstream TTY bug adds
 # ~5s to every command). For a pipe, a backgrounded `cat` streams whatever is
-# available; a killer ends it after 1s if the writer never sends EOF. 1s is
-# comfortably under Claude Code's 5s hook deadline, so the host never kills the
-# hook mid-read, and a payload already in the pipe is captured and enforced.
+# available; a killer ends it after 1s if the writer never sends EOF. 1s keeps
+# the read comfortably within Claude Code's 5s hook deadline, and a payload
+# already in the pipe is captured and enforced.
 # Notes: `read -t` is not used — Bash 3.2 does not save partial input on its
 # timeout, so a held-open pipe would lose the payload there. `cat <&3` is
 # required because an async command in a non-interactive shell otherwise gets
