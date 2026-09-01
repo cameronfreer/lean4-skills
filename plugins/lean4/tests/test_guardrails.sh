@@ -672,8 +672,9 @@ else
   echo "  SKIP: idle PTY test (no python3)"
 fi
 
-# (2) Held-open empty pipe (no EOF) → bounded by read -t 1, must return well
-#     inside Claude Code's 5s hook deadline (<= 3s here, not the old <= 9).
+# (2) Held-open empty pipe (no EOF) → bounded by the backgrounded `cat` plus a
+#     one-second kill-watchdog, must return well inside Claude Code's 5s hook
+#     deadline (<= 3s here, not the old <= 9).
 _fifo=$(mktemp -u)
 mkfifo "$_fifo"
 ( exec 3>"$_fifo"; sleep 15 ) &  # writer holds the pipe open, sends nothing
