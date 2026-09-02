@@ -1,5 +1,13 @@
 # Changelog
 
+## v4.8.2 (September 2026)
+
+Latency follow-up for the Bash guardrail hook on hosts without `jq` (#193, the third item requested in #164; #164 itself stays open pending the reporter's Windows check of v4.8.1).
+
+### Changed
+
+- **`guardrails.sh` starts `python3` once per guarded call when `jq` is absent, not twice.** The no-`jq` fallback (common on Windows/Git-Bash) previously ran one interpreter to extract `.tool_input.command` and a second for the working directory (`.cwd` → `.tool_input.cwd` → `.tool_input.workdir`), doubling interpreter-startup latency on every guarded Bash call. It now parses both in a single `python3` invocation (cwd on the first line, the possibly multi-line command on the rest) and splits in the shell. Behavior is otherwise identical: multi-line commands still enforce, an empty command still allows, malformed JSON still fails safe, and the `jq` fast path is unchanged. Bash 3.2-safe; no new dependencies. New regression tests exercise the fallback with `jq` scrubbed from `PATH` and a counting `python3` shim that pins the startup count at one.
+
 ## v4.8.1 (September 2026)
 
 Reliability fix for the Bash guardrail hook on Windows/Git-Bash (the #164 wedge; the latency optimization #164 also requested is tracked as follow-up #193).

@@ -43,38 +43,44 @@ INPUT="$(
   wait "$_gr_killer" 2>/dev/null || true
 )"
 
-# Parse command with jq, fall back to python3; default empty on parse failure
+# Parse command with jq, fall back to python3; default empty on parse failure.
+# Working directory: .cwd → .tool_input.cwd → .tool_input.workdir → $PWD
+# (fail-safe: parse failure → empty → falls through to the $PWD default).
+#
+# jq path: two cheap jq calls (unchanged). No-jq path (common on Windows/
+# Git-Bash): ONE python3 startup emits both fields — the cwd on the first
+# line, the command (which may itself span lines) on the rest — so each
+# guarded call pays interpreter startup once, not twice (#193).
 if command -v jq >/dev/null 2>&1; then
   COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // .command // empty' 2>/dev/null) || COMMAND=""
 else
-  COMMAND=$(echo "$INPUT" | python3 -c '
+  _parsed=$(echo "$INPUT" | python3 -c '
 import json, sys
 try:
     data = json.load(sys.stdin)
     ti = data.get("tool_input") or {}
-    print(ti.get("command") or data.get("command") or "")
+    cwd = data.get("cwd") or ti.get("cwd") or ti.get("workdir") or ""
+    cmd = ti.get("command") or data.get("command") or ""
 except Exception:
-    print("")
-' 2>/dev/null) || COMMAND=""
+    cwd, cmd = "", ""
+sys.stdout.write(str(cwd).replace("\n", "") + "\n" + str(cmd))
+' 2>/dev/null) || _parsed=""
+  # Command substitution strips trailing newlines, so an empty command leaves
+  # no separator at all — that case is "cwd only, no command" (→ allow below).
+  if [[ "$_parsed" == *$'\n'* ]]; then
+    TOOL_CWD="${_parsed%%$'\n'*}"
+    COMMAND="${_parsed#*$'\n'}"
+  else
+    TOOL_CWD="$_parsed"
+    COMMAND=""
+  fi
 fi
 
 # If no command, allow
 [ -z "$COMMAND" ] && exit 0
 
-# Determine working directory: .cwd → .tool_input.cwd → .tool_input.workdir → $PWD
-# Fail-safe: parse failure → empty → falls through to $PWD default
 if command -v jq >/dev/null 2>&1; then
   TOOL_CWD=$(echo "$INPUT" | jq -r '(.cwd // .tool_input.cwd // .tool_input.workdir) // empty' 2>/dev/null) || TOOL_CWD=""
-else
-  TOOL_CWD=$(echo "$INPUT" | python3 -c '
-import json, sys
-try:
-    data = json.load(sys.stdin)
-    ti = data.get("tool_input") or {}
-    print(data.get("cwd") or ti.get("cwd") or ti.get("workdir") or "")
-except Exception:
-    print("")
-' 2>/dev/null) || TOOL_CWD=""
 fi
 TOOL_CWD="${TOOL_CWD:-$PWD}"
 
