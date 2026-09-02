@@ -761,10 +761,10 @@ for _d in $PATH; do
   IFS=$_ifs_save
   [[ -n "$_d" && -d "$_d" ]] || continue
   if [[ -x "$_d/jq" ]]; then
-    for _f in "$_d"/*; do
-      [[ "${_f##*/}" == jq ]] && continue
-      ln -s "$_f" "$_j/bin/${_f##*/}" 2>/dev/null || true
-    done
+    # One ln per directory (thousands of per-file forks cost ~40s on a slow box);
+    # name collisions across shadowed dirs are harmless (first one wins).
+    ln -s "$_d"/* "$_j/bin/" 2>/dev/null || true
+    rm -f "$_j/bin/jq"
   else
     _jpath="${_jpath:+$_jpath:}$_d"
   fi
