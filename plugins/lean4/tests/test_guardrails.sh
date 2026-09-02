@@ -812,6 +812,20 @@ else
   # (5) malformed JSON → fail-safe allow (exit 0).
   run193 "not json" "LEAN4_GUARDRAILS_COLLAB_POLICY=ask"
   if (( _rc == 0 )); then p193 "jq-absent: malformed payload allowed"; else f193 "jq-absent: malformed payload not allowed (rc=$_rc)"; fi
+
+  # (6) a Lean project whose path contains a newline (legal on Unix) must be
+  #     detected on BOTH paths — the single-call framing has to round-trip the
+  #     cwd exactly, not flatten it (review of PR #194).
+  _nl_dir="$_j/lean
+project"
+  mkdir -p "$_nl_dir"
+  touch "$_nl_dir/lean-toolchain"
+  _nl_payload=$(printf '%s' "$_nl_dir" | jq -Rs '{cwd: ., tool_input: {command: "git push origin main"}}')
+  _rc=0
+  printf '%s' "$_nl_payload" | LEAN4_GUARDRAILS_COLLAB_POLICY=ask bash "$HOOK" >/dev/null 2>&1 || _rc=$?
+  if (( _rc == 2 )); then p193 "jq path: newline-in-cwd Lean project enforced"; else f193 "jq path: newline-in-cwd Lean project not enforced (rc=$_rc)"; fi
+  run193 "$_nl_payload" "LEAN4_GUARDRAILS_COLLAB_POLICY=ask"
+  if (( _rc == 2 )); then p193 "jq-absent: newline-in-cwd Lean project enforced"; else f193 "jq-absent: newline-in-cwd Lean project not enforced (rc=$_rc)"; fi
 fi
 rm -rf "$_j"
 echo ""

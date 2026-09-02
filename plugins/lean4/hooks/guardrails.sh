@@ -48,9 +48,12 @@ INPUT="$(
 # (fail-safe: parse failure → empty → falls through to the $PWD default).
 #
 # jq path: two cheap jq calls (unchanged). No-jq path (common on Windows/
-# Git-Bash): ONE python3 startup emits both fields — the cwd on the first
-# line, the command (which may itself span lines) on the rest — so each
-# guarded call pays interpreter startup once, not twice (#193).
+# Git-Bash): ONE python3 startup emits both fields so each guarded call pays
+# interpreter startup once, not twice (#193). Framing is line-count prefixed
+# so a cwd containing newlines (legal on Unix) round-trips exactly:
+#   <N>\n<cwd, spanning N lines>\n<command, the rest>
+# Both fields have trailing newlines stripped, matching what the old
+# two-call path's command substitutions did.
 if command -v jq >/dev/null 2>&1; then
   COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // .command // empty' 2>/dev/null) || COMMAND=""
 else
@@ -59,20 +62,38 @@ import json, sys
 try:
     data = json.load(sys.stdin)
     ti = data.get("tool_input") or {}
-    cwd = data.get("cwd") or ti.get("cwd") or ti.get("workdir") or ""
-    cmd = ti.get("command") or data.get("command") or ""
+    cwd = str(data.get("cwd") or ti.get("cwd") or ti.get("workdir") or "")
+    cmd = str(ti.get("command") or data.get("command") or "")
 except Exception:
     cwd, cmd = "", ""
-sys.stdout.write(str(cwd).replace("\n", "") + "\n" + str(cmd))
+cwd = cwd.rstrip("\n")
+cmd = cmd.rstrip("\n")
+sys.stdout.write("%d\n%s\n%s" % (cwd.count("\n") + 1, cwd, cmd))
 ' 2>/dev/null) || _parsed=""
-  # Command substitution strips trailing newlines, so an empty command leaves
-  # no separator at all — that case is "cwd only, no command" (→ allow below).
-  if [[ "$_parsed" == *$'\n'* ]]; then
-    TOOL_CWD="${_parsed%%$'\n'*}"
-    COMMAND="${_parsed#*$'\n'}"
-  else
-    TOOL_CWD="$_parsed"
-    COMMAND=""
+  TOOL_CWD=""
+  COMMAND=""
+  _n="${_parsed%%$'\n'*}"
+  if [[ "$_parsed" == *$'\n'* && "$_n" =~ ^[0-9]+$ ]]; then
+    _rest="${_parsed#*$'\n'}"
+    # Peel N lines off as the cwd; whatever remains is the command. (An empty
+    # command leaves no trailing separator — command substitution strips it —
+    # so the last cwd line may be the whole remainder.)
+    while [[ "$_n" -gt 0 ]]; do
+      if [[ "$_rest" == *$'\n'* ]]; then
+        _line="${_rest%%$'\n'*}"
+        _rest="${_rest#*$'\n'}"
+      else
+        _line="$_rest"
+        _rest=""
+      fi
+      if [[ "$_n" -eq 1 ]]; then
+        TOOL_CWD="${TOOL_CWD}${_line}"
+      else
+        TOOL_CWD="${TOOL_CWD}${_line}"$'\n'
+      fi
+      _n=$((_n - 1))
+    done
+    COMMAND="$_rest"
   fi
 fi
 
