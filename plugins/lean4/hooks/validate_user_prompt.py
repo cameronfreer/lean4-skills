@@ -66,8 +66,12 @@ def _emit_warning(message: str) -> None:
 
 
 def main() -> None:
-    # 1. Read stdin JSON
+    # 1. Read stdin JSON. Fail open on an interactive stdin — there is no hook
+    #    payload to validate, and reading a TTY can wedge the call on some hosts
+    #    (issue #164).
     try:
+        if sys.stdin.isatty():
+            return _passthrough()
         raw = sys.stdin.read()
         if not raw.strip():
             return _passthrough()

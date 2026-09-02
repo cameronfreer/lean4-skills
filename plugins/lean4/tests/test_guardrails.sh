@@ -638,6 +638,110 @@ run_test "lean4-skills-sorry-analyzer . --format=json (allow)" "lean4-skills-sor
 # Token boundary — only the exact prefix counts; "leaning4-skills" or "lean4-skillsfoo" are non-tokens
 run_test "leaning4-skills-cycle 2>/dev/null (allow — not a real token)" "leaning4-skills-cycle 2>/dev/null" 0
 
+# ---------------------------------------------------------------------------
+# Issue #164: stdin acquisition must not wedge the Bash call, and the ancestor
+# walk must terminate at a non-'/' root (Windows drive). These bypass run_test
+# (they craft stdin directly), using the same PASS/FAIL counters.
+# ---------------------------------------------------------------------------
+p164() { echo "  PASS: $1"; (( ++PASS )); }
+f164() { echo "  FAIL: $1"; (( ++FAIL )); }
+
+# (1) Idle PTY as stdin → the hook must fail open immediately, never read the
+#     terminal (the upstream TTY bug that added ~5s to every command).
+if command -v python3 >/dev/null 2>&1; then
+  _pty_rc=$(python3 - "$HOOK" <<'PY'
+import os, pty, subprocess, sys
+hook = sys.argv[1]
+_master, slave = pty.openpty()
+p = subprocess.Popen(["bash", hook], stdin=slave,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     env={**os.environ, "LEAN4_GUARDRAILS_FORCE": "1"})
+os.close(slave)
+try:
+    print(p.wait(timeout=8))
+except subprocess.TimeoutExpired:
+    p.kill(); print("WEDGED")
+PY
+)
+  if [[ "$_pty_rc" == "0" ]]; then
+    p164 "idle PTY stdin → exit 0 (no TTY read)"
+  else
+    f164 "idle PTY stdin wedged/errored (got $_pty_rc)"
+  fi
+else
+  echo "  SKIP: idle PTY test (no python3)"
+fi
+
+# (2) Held-open empty pipe (no EOF) → bounded by the backgrounded `cat` plus a
+#     one-second kill-watchdog, must return well inside Claude Code's 5s hook
+#     deadline (<= 3s here, not the old <= 9).
+_fifo=$(mktemp -u)
+mkfifo "$_fifo"
+( exec 3>"$_fifo"; sleep 15 ) &  # writer holds the pipe open, sends nothing
+_w=$!
+_start=$SECONDS
+LEAN4_GUARDRAILS_FORCE=1 bash "$HOOK" <"$_fifo" >/dev/null 2>&1 || true
+_elapsed=$(( SECONDS - _start ))
+kill "$_w" 2>/dev/null || true; wait "$_w" 2>/dev/null || true; rm -f "$_fifo"
+if (( _elapsed <= 3 )); then
+  p164 "held-open empty pipe bounded (${_elapsed}s, well under 5s deadline)"
+else
+  f164 "held-open empty pipe too slow (${_elapsed}s — near/over the 5s host deadline)"
+fi
+
+# (2b) Held-open pipe CONTAINING a complete blocked command (no EOF) → the
+#      payload is captured within the timeout and still ENFORCED (exit 2),
+#      well inside the deadline. This is the explicitly-requested #164 case.
+_fifo2=$(mktemp -u)
+mkfifo "$_fifo2"
+_payload='{"tool_input":{"command":"lean4-skills-cycle-tracker tick 2>/dev/null"}}'
+( exec 3>"$_fifo2"; printf '%s' "$_payload" >&3; sleep 15 ) &  # write, then hold open
+_w2=$!
+_start=$SECONDS
+_rc2=0
+LEAN4_GUARDRAILS_FORCE=1 LEAN4_GUARDRAILS_COLLAB_POLICY=ask \
+  bash "$HOOK" <"$_fifo2" >/dev/null 2>&1 || _rc2=$?
+_elapsed=$(( SECONDS - _start ))
+kill "$_w2" 2>/dev/null || true; wait "$_w2" 2>/dev/null || true; rm -f "$_fifo2"
+if (( _rc2 == 2 && _elapsed <= 3 )); then
+  p164 "held-open pipe w/ complete blocked command → enforced (exit 2, ${_elapsed}s)"
+else
+  f164 "held-open blocked command rc=$_rc2 elapsed=${_elapsed}s (want exit 2 <=3s)"
+fi
+
+# (3) Ordinary closed/empty stdin → instant clean exit (no wedge).
+_start=$SECONDS
+LEAN4_GUARDRAILS_FORCE=1 bash "$HOOK" </dev/null >/dev/null 2>&1; _rc=$?
+_elapsed=$(( SECONDS - _start ))
+if (( _rc == 0 && _elapsed <= 3 )); then
+  p164 "closed stdin → exit 0, instant"
+else
+  f164 "closed stdin rc=$_rc elapsed=${_elapsed}s"
+fi
+
+# (4) Ancestor walk terminates at a non-'/' fixpoint root (Windows drive).
+#     Extract the real function; mock dirname so a mid-tree dir is its own
+#     parent (as a Git-Bash drive-letter path reaches `C:`, where
+#     `dirname "C:"` == "C:"). The old `== "/"` guard would loop forever here;
+#     the fixed-point break terminates.
+_deep=$(mktemp -d)/deep/nest
+mkdir -p "$_deep"
+_root="${_deep%/deep/nest}"
+_rc=0
+# `|| _rc=$?` keeps the expected return 1 from tripping the suite's `set -e`.
+(
+  eval "$(sed -n '/^is_lean_project() {/,/^}/p' "$HOOK")"
+  # shellcheck disable=SC2317  # the mock is invoked indirectly via the eval'd is_lean_project
+  dirname() { if [[ "$1" == "$_root" ]]; then printf '%s\n' "$_root"; else command dirname "$1"; fi; }
+  is_lean_project "$_deep"  # no lakefile anywhere → must return 1, not hang
+) || _rc=$?
+rm -rf "${_root}"
+if (( _rc == 1 )); then
+  p164 "ancestor walk terminates at a non-/ fixpoint root"
+else
+  f164 "ancestor walk did not terminate correctly (rc=$_rc)"
+fi
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]

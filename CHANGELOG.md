@@ -1,5 +1,13 @@
 # Changelog
 
+## v4.8.1 (September 2026)
+
+Reliability fix for the Bash guardrail hook on Windows/Git-Bash (the #164 wedge; the latency optimization #164 also requested is tracked as follow-up #193).
+
+### Fixed
+
+- **`guardrails.sh` no longer wedges every Bash call.** Two defects on the reported Windows/Git-Bash configuration: (1) `INPUT=$(cat)` read stdin unboundedly — with the upstream TTY bug this blocked (~5s) on every command and prevented the guardrail from running. It now **fails open on an interactive stdin** (`[[ -t 0 ]]`) and bounds a held-open pipe with a backgrounded `cat` + a 1s kill-watchdog — **1s keeps the read comfortably within Claude Code's 5s hook deadline**, and a payload already in the pipe is still captured and enforced. (No GNU `timeout`, Bash 3.2-safe; `read -t` is avoided because Bash 3.2 does not save partial input on its timeout.) (2) The Lean-project ancestor walk terminated only at `"/"`, so a Windows drive-letter path looped forever — Git-Bash reduces `C:/` to `C:`, a non-`/` fixed point (`dirname "C:" == "C:"`) that `"$dir" == "/"` never catches. It now terminates at any root by **fixed point** (`dirname` returns itself). `validate_user_prompt.py` gains the same interactive-stdin guard. New regression tests: idle PTY, held-open empty pipe (bounded), held-open pipe with a complete blocked command (still enforced), closed stdin, and non-`/` fixpoint termination.
+
 ## v4.8.0 (August 2026)
 
 Track 3 foundation: `run-contract/v1` — the versioned dispatch + handoff protocol for proving commands and proof-editing agents, plus the rerun guard (Refs #151; closes #73, closes #69, closes #190). Documentation contract, no runtime enforcement, no filesystem persistence (that stays #82).
