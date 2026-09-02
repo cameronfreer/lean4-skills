@@ -773,14 +773,21 @@ IFS=$_ifs_save
 printf '#!/bin/sh\necho x >> "%s/count"\nexec "%s" "$@"\n' "$_j" "$_real_py" > "$_j/shim/python3"
 chmod +x "$_j/shim/python3"
 _jqless_path="$_j/shim:$_j/bin${_jpath:+:$_jpath}"
+# Second shim simulating native Windows CPython, whose text-mode sys.stdout
+# translates every "\n" to "\r\n". It counts like the first shim, then runs
+# the hook's -c program under that translation (argv: -c <wrapper> -c <code>).
+mkdir -p "$_j/shimcrlf"
+printf '#!/bin/sh\necho x >> "%s/count"\nexec "%s" -c '"'"'import sys; sys.stdout.reconfigure(newline="\\r\\n"); exec(sys.argv[2])'"'"' "$@"\n' "$_j" "$_real_py" > "$_j/shimcrlf/python3"
+chmod +x "$_j/shimcrlf/python3"
+_jqless_path_crlf="$_j/shimcrlf:$_j/bin${_jpath:+:$_jpath}"
 
-# $1=json payload  $2=env assignments  → sets _rc and _pycount
+# $1=json payload  $2=env assignments  [$3=PATH override]  → sets _rc and _pycount
 run193() {
-  local payload="$1" extra="$2"
+  local payload="$1" extra="$2" path="${3:-$_jqless_path}"
   : > "$_j/count"
   _rc=0
   # shellcheck disable=SC2086  # $extra is deliberately word-split into env assignments
-  printf '%s' "$payload" | env PATH="$_jqless_path" $extra bash "$HOOK" >/dev/null 2>&1 || _rc=$?
+  printf '%s' "$payload" | env PATH="$path" $extra bash "$HOOK" >/dev/null 2>&1 || _rc=$?
   _pycount=$(wc -l < "$_j/count" | tr -d ' ')
 }
 
@@ -809,9 +816,16 @@ else
   run193 "{\"cwd\":\"$_j/lean\",\"tool_input\":{}}" "LEAN4_GUARDRAILS_COLLAB_POLICY=ask"
   if (( _rc == 0 )); then p193 "jq-absent: empty command allowed"; else f193 "jq-absent: empty command not allowed (rc=$_rc)"; fi
 
-  # (5) malformed JSON → fail-safe allow (exit 0).
+  # (5) malformed JSON → fails open (exit 0).
   run193 "not json" "LEAN4_GUARDRAILS_COLLAB_POLICY=ask"
   if (( _rc == 0 )); then p193 "jq-absent: malformed payload allowed"; else f193 "jq-absent: malformed payload not allowed (rc=$_rc)"; fi
+
+  # (7) native-Windows-Python stdout (LF → CRLF translation) must not break the
+  #     framing: blocked command still exits 2, still one startup. The framing
+  #     writes bytes, so the text wrapper's newline mode is irrelevant.
+  run193 "{\"cwd\":\"$_j/lean\",\"tool_input\":{\"command\":\"git push origin main\"}}" "LEAN4_GUARDRAILS_COLLAB_POLICY=ask" "$_jqless_path_crlf"
+  if (( _rc == 2 )); then p193 "jq-absent (CRLF stdout): blocked command enforced"; else f193 "jq-absent (CRLF stdout): blocked command not enforced (rc=$_rc)"; fi
+  if (( _pycount == 1 )); then p193 "jq-absent (CRLF stdout): exactly one python3 startup"; else f193 "jq-absent (CRLF stdout): expected 1 python3 startup, saw $_pycount"; fi
 
   # (6) a Lean project whose path contains a newline (legal on Unix) must be
   #     detected on BOTH paths — the single-call framing has to round-trip the

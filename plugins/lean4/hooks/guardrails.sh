@@ -45,7 +45,7 @@ INPUT="$(
 
 # Parse command with jq, fall back to python3; default empty on parse failure.
 # Working directory: .cwd → .tool_input.cwd → .tool_input.workdir → $PWD
-# (fail-safe: parse failure → empty → falls through to the $PWD default).
+# (fails open: parse failure → empty → falls through to the $PWD default).
 #
 # jq path: two cheap jq calls (unchanged). No-jq path (common on Windows/
 # Git-Bash): ONE python3 startup emits both fields so each guarded call pays
@@ -53,14 +53,17 @@ INPUT="$(
 # so a cwd containing newlines (legal on Unix) round-trips exactly:
 #   <N>\n<cwd, spanning N lines>\n<command, the rest>
 # Both fields have trailing newlines stripped, matching what the old
-# two-call path's command substitutions did.
+# two-call path's command substitutions did. The frame is read and written
+# as raw UTF-8 bytes (stdin.buffer / stdout.buffer): a native Windows
+# CPython's text-mode stdout would otherwise turn the LF separators into
+# CRLF and the shell would reject the framing (and fail open).
 if command -v jq >/dev/null 2>&1; then
   COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // .command // empty' 2>/dev/null) || COMMAND=""
 else
   _parsed=$(echo "$INPUT" | python3 -c '
 import json, sys
 try:
-    data = json.load(sys.stdin)
+    data = json.loads(sys.stdin.buffer.read())
     ti = data.get("tool_input") or {}
     cwd = str(data.get("cwd") or ti.get("cwd") or ti.get("workdir") or "")
     cmd = str(ti.get("command") or data.get("command") or "")
@@ -68,7 +71,8 @@ except Exception:
     cwd, cmd = "", ""
 cwd = cwd.rstrip("\n")
 cmd = cmd.rstrip("\n")
-sys.stdout.write("%d\n%s\n%s" % (cwd.count("\n") + 1, cwd, cmd))
+frame = "%d\n%s\n%s" % (cwd.count("\n") + 1, cwd, cmd)
+sys.stdout.buffer.write(frame.encode("utf-8"))
 ' 2>/dev/null) || _parsed=""
   TOOL_CWD=""
   COMMAND=""
