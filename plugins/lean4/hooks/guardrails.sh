@@ -43,38 +43,69 @@ INPUT="$(
   wait "$_gr_killer" 2>/dev/null || true
 )"
 
-# Parse command with jq, fall back to python3; default empty on parse failure
+# Parse command with jq, fall back to python3; default empty on parse failure.
+# Working directory: .cwd → .tool_input.cwd → .tool_input.workdir → $PWD
+# (fails open: parse failure → empty → falls through to the $PWD default).
+#
+# jq path: two cheap jq calls (unchanged). No-jq path (common on Windows/
+# Git-Bash): ONE python3 startup emits both fields so each guarded call pays
+# interpreter startup once, not twice (#193). Framing is line-count prefixed
+# so a cwd containing newlines (legal on Unix) round-trips exactly:
+#   <N>\n<cwd, spanning N lines>\n<command, the rest>
+# Both fields have trailing newlines stripped, matching what the old
+# two-call path's command substitutions did. The frame is read and written
+# as raw UTF-8 bytes (stdin.buffer / stdout.buffer): a native Windows
+# CPython's text-mode stdout would otherwise turn the LF separators into
+# CRLF and the shell would reject the framing (and fail open).
 if command -v jq >/dev/null 2>&1; then
   COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // .command // empty' 2>/dev/null) || COMMAND=""
 else
-  COMMAND=$(echo "$INPUT" | python3 -c '
+  _parsed=$(echo "$INPUT" | python3 -c '
 import json, sys
 try:
-    data = json.load(sys.stdin)
+    data = json.loads(sys.stdin.buffer.read())
     ti = data.get("tool_input") or {}
-    print(ti.get("command") or data.get("command") or "")
+    cwd = str(data.get("cwd") or ti.get("cwd") or ti.get("workdir") or "")
+    cmd = str(ti.get("command") or data.get("command") or "")
 except Exception:
-    print("")
-' 2>/dev/null) || COMMAND=""
+    cwd, cmd = "", ""
+cwd = cwd.rstrip("\n")
+cmd = cmd.rstrip("\n")
+frame = "%d\n%s\n%s" % (cwd.count("\n") + 1, cwd, cmd)
+sys.stdout.buffer.write(frame.encode("utf-8"))
+' 2>/dev/null) || _parsed=""
+  TOOL_CWD=""
+  COMMAND=""
+  _n="${_parsed%%$'\n'*}"
+  if [[ "$_parsed" == *$'\n'* && "$_n" =~ ^[0-9]+$ ]]; then
+    _rest="${_parsed#*$'\n'}"
+    # Peel N lines off as the cwd; whatever remains is the command. (An empty
+    # command leaves no trailing separator — command substitution strips it —
+    # so the last cwd line may be the whole remainder.)
+    while [[ "$_n" -gt 0 ]]; do
+      if [[ "$_rest" == *$'\n'* ]]; then
+        _line="${_rest%%$'\n'*}"
+        _rest="${_rest#*$'\n'}"
+      else
+        _line="$_rest"
+        _rest=""
+      fi
+      if [[ "$_n" -eq 1 ]]; then
+        TOOL_CWD="${TOOL_CWD}${_line}"
+      else
+        TOOL_CWD="${TOOL_CWD}${_line}"$'\n'
+      fi
+      _n=$((_n - 1))
+    done
+    COMMAND="$_rest"
+  fi
 fi
 
 # If no command, allow
 [ -z "$COMMAND" ] && exit 0
 
-# Determine working directory: .cwd → .tool_input.cwd → .tool_input.workdir → $PWD
-# Fail-safe: parse failure → empty → falls through to $PWD default
 if command -v jq >/dev/null 2>&1; then
   TOOL_CWD=$(echo "$INPUT" | jq -r '(.cwd // .tool_input.cwd // .tool_input.workdir) // empty' 2>/dev/null) || TOOL_CWD=""
-else
-  TOOL_CWD=$(echo "$INPUT" | python3 -c '
-import json, sys
-try:
-    data = json.load(sys.stdin)
-    ti = data.get("tool_input") or {}
-    print(data.get("cwd") or ti.get("cwd") or ti.get("workdir") or "")
-except Exception:
-    print("")
-' 2>/dev/null) || TOOL_CWD=""
 fi
 TOOL_CWD="${TOOL_CWD:-$PWD}"
 

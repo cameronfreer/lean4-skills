@@ -1,5 +1,13 @@
 # Changelog
 
+## v4.8.2 (September 2026)
+
+Latency follow-up for the Bash guardrail hook on hosts without `jq` (#193, the third item requested in #164; #164 itself stays open pending the reporter's Windows check of the v4.8.1 correctness fix).
+
+### Changed
+
+- **`guardrails.sh` starts `python3` once per guarded call when `jq` is absent, not twice.** The no-`jq` fallback (common on Windows/Git-Bash) previously ran one interpreter to extract `.tool_input.command` and a second for the working directory (`.cwd` → `.tool_input.cwd` → `.tool_input.workdir`), doubling interpreter-startup latency on every guarded Bash call. It now parses both in a single `python3` invocation using line-count-prefixed framing (`<N>`, then the cwd spanning N lines, then the possibly multi-line command) and splits in the shell, so even a cwd containing newlines round-trips exactly. The frame is read and written as raw UTF-8 bytes, so a native Windows CPython (whose text-mode stdout turns LF into CRLF) can no longer corrupt the fields; the old two-call path also left a trailing CR on the cwd on such hosts, which silently defeated Lean-project detection. Behavior is otherwise identical: multi-line commands still enforce, an empty command still allows, malformed JSON still fails open (allows), and the `jq` fast path is unchanged. Bash 3.2-safe; no new dependencies. New regression tests exercise the fallback with `jq` scrubbed from `PATH` and a counting `python3` shim that pins the startup count at one, plus a newline-in-path Lean project enforced on both the `jq` and no-`jq` paths, and a CRLF-translating `python3` shim (simulated native Windows stdout) that must still enforce with one startup.
+
 ## v4.8.1 (September 2026)
 
 Reliability fix for the Bash guardrail hook on Windows/Git-Bash (the #164 wedge; the latency optimization #164 also requested is tracked as follow-up #193).

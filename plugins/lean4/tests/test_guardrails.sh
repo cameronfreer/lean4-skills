@@ -742,6 +742,106 @@ else
   f164 "ancestor walk did not terminate correctly (rc=$_rc)"
 fi
 
+
+# --- #193: jq-absent fallback parses command AND cwd with ONE python3 startup ---
+# Scrub jq from PATH (shadow every PATH dir that holds a jq with a symlink
+# farm minus jq) and front a counting python3 shim, so the hook's fallback
+# branch is exercised for real and the number of interpreter startups per
+# guarded call is pinned.
+p193() { echo "  PASS: $1"; (( ++PASS )); }
+f193() { echo "  FAIL: $1"; (( ++FAIL )); }
+
+_j=$(mktemp -d)
+mkdir -p "$_j/bin" "$_j/shim" "$_j/lean" "$_j/plain"
+touch "$_j/lean/lean-toolchain"
+_real_py=$(command -v python3 || true)
+_jpath=""
+_ifs_save=$IFS; IFS=:
+for _d in $PATH; do
+  IFS=$_ifs_save
+  [[ -n "$_d" && -d "$_d" ]] || continue
+  if [[ -x "$_d/jq" ]]; then
+    # One ln per directory (thousands of per-file forks cost ~40s on a slow box);
+    # name collisions across shadowed dirs are harmless (first one wins).
+    ln -s "$_d"/* "$_j/bin/" 2>/dev/null || true
+    rm -f "$_j/bin/jq"
+  else
+    _jpath="${_jpath:+$_jpath:}$_d"
+  fi
+done
+IFS=$_ifs_save
+printf '#!/bin/sh\necho x >> "%s/count"\nexec "%s" "$@"\n' "$_j" "$_real_py" > "$_j/shim/python3"
+chmod +x "$_j/shim/python3"
+_jqless_path="$_j/shim:$_j/bin${_jpath:+:$_jpath}"
+# Second shim simulating native Windows CPython, whose text-mode sys.stdout
+# translates every "\n" to "\r\n". It counts like the first shim, then runs
+# the hook's -c program under that translation (argv: -c <wrapper> -c <code>).
+mkdir -p "$_j/shimcrlf"
+printf '#!/bin/sh\necho x >> "%s/count"\nexec "%s" -c '"'"'import sys; sys.stdout.reconfigure(newline="\\r\\n"); exec(sys.argv[2])'"'"' "$@"\n' "$_j" "$_real_py" > "$_j/shimcrlf/python3"
+chmod +x "$_j/shimcrlf/python3"
+_jqless_path_crlf="$_j/shimcrlf:$_j/bin${_jpath:+:$_jpath}"
+
+# $1=json payload  $2=env assignments  [$3=PATH override]  → sets _rc and _pycount
+run193() {
+  local payload="$1" extra="$2" path="${3:-$_jqless_path}"
+  : > "$_j/count"
+  _rc=0
+  # shellcheck disable=SC2086  # $extra is deliberately word-split into env assignments
+  printf '%s' "$payload" | env PATH="$path" $extra bash "$HOOK" >/dev/null 2>&1 || _rc=$?
+  _pycount=$(wc -l < "$_j/count" | tr -d ' ')
+}
+
+if [[ -z "$_real_py" ]]; then
+  echo "  SKIP: jq-absent tests (no python3)"
+elif env PATH="$_jqless_path" bash -c 'command -v jq' >/dev/null 2>&1; then
+  echo "  SKIP: jq-absent tests (could not scrub jq from PATH)"
+else
+  # (1) blocked command + payload cwd inside a Lean project → enforced (exit 2),
+  #     and exactly one python3 startup for the whole call.
+  run193 "{\"cwd\":\"$_j/lean\",\"tool_input\":{\"command\":\"git push origin main\"}}" "LEAN4_GUARDRAILS_COLLAB_POLICY=ask"
+  if (( _rc == 2 )); then p193 "jq-absent: blocked command enforced via payload cwd"; else f193 "jq-absent: blocked command not enforced (rc=$_rc)"; fi
+  if (( _pycount == 1 )); then p193 "jq-absent: exactly one python3 startup per call"; else f193 "jq-absent: expected 1 python3 startup, saw $_pycount"; fi
+
+  # (2) payload cwd outside any Lean project wins over $PWD (run from inside
+  #     the Lean dir) → guardrails skipped (exit 0). Proves cwd was parsed.
+  _rc=0
+  ( cd "$_j/lean" && run193 "{\"cwd\":\"$_j/plain\",\"tool_input\":{\"command\":\"git push origin main\"}}" "LEAN4_GUARDRAILS_COLLAB_POLICY=ask" && exit "$_rc" ) || _rc=$?
+  if (( _rc == 0 )); then p193 "jq-absent: payload cwd overrides \$PWD"; else f193 "jq-absent: payload cwd ignored (rc=$_rc)"; fi
+
+  # (3) multi-line command survives the single-call split (newlines kept).
+  run193 "{\"cwd\":\"$_j/lean\",\"tool_input\":{\"command\":\"echo hi\\ngit push origin main\"}}" "LEAN4_GUARDRAILS_COLLAB_POLICY=ask"
+  if (( _rc == 2 )); then p193 "jq-absent: multi-line command still enforced"; else f193 "jq-absent: multi-line command not enforced (rc=$_rc)"; fi
+
+  # (4) no command in payload → allow (exit 0), even with a Lean cwd.
+  run193 "{\"cwd\":\"$_j/lean\",\"tool_input\":{}}" "LEAN4_GUARDRAILS_COLLAB_POLICY=ask"
+  if (( _rc == 0 )); then p193 "jq-absent: empty command allowed"; else f193 "jq-absent: empty command not allowed (rc=$_rc)"; fi
+
+  # (5) malformed JSON → fails open (exit 0).
+  run193 "not json" "LEAN4_GUARDRAILS_COLLAB_POLICY=ask"
+  if (( _rc == 0 )); then p193 "jq-absent: malformed payload allowed"; else f193 "jq-absent: malformed payload not allowed (rc=$_rc)"; fi
+
+  # (6) native-Windows-Python stdout (LF → CRLF translation) must not break the
+  #     framing: blocked command still exits 2, still one startup. The framing
+  #     writes bytes, so the text wrapper's newline mode is irrelevant.
+  run193 "{\"cwd\":\"$_j/lean\",\"tool_input\":{\"command\":\"git push origin main\"}}" "LEAN4_GUARDRAILS_COLLAB_POLICY=ask" "$_jqless_path_crlf"
+  if (( _rc == 2 )); then p193 "jq-absent (CRLF stdout): blocked command enforced"; else f193 "jq-absent (CRLF stdout): blocked command not enforced (rc=$_rc)"; fi
+  if (( _pycount == 1 )); then p193 "jq-absent (CRLF stdout): exactly one python3 startup"; else f193 "jq-absent (CRLF stdout): expected 1 python3 startup, saw $_pycount"; fi
+
+  # (7) a Lean project whose path contains a newline (legal on Unix) must be
+  #     detected on BOTH paths — the single-call framing has to round-trip the
+  #     cwd exactly, not flatten it (review of PR #194).
+  _nl_dir="$_j/lean
+project"
+  mkdir -p "$_nl_dir"
+  touch "$_nl_dir/lean-toolchain"
+  _nl_payload=$(printf '%s' "$_nl_dir" | jq -Rs '{cwd: ., tool_input: {command: "git push origin main"}}')
+  _rc=0
+  printf '%s' "$_nl_payload" | LEAN4_GUARDRAILS_COLLAB_POLICY=ask bash "$HOOK" >/dev/null 2>&1 || _rc=$?
+  if (( _rc == 2 )); then p193 "jq path: newline-in-cwd Lean project enforced"; else f193 "jq path: newline-in-cwd Lean project not enforced (rc=$_rc)"; fi
+  run193 "$_nl_payload" "LEAN4_GUARDRAILS_COLLAB_POLICY=ask"
+  if (( _rc == 2 )); then p193 "jq-absent: newline-in-cwd Lean project enforced"; else f193 "jq-absent: newline-in-cwd Lean project not enforced (rc=$_rc)"; fi
+fi
+rm -rf "$_j"
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]
