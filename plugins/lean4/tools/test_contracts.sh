@@ -1681,6 +1681,89 @@ if [[ "$check38_ok" -eq 1 ]]; then
     ok "Check 38: run-contract/v1 handoff contract pinned (both records, reused vocab, files_owned≠files_changed, rerun guard, #82 deferral, cycle-engine + consumer wiring)"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 39: file-gate scope (#166). `lake env lean File.lean` checks against
+# the built .oleans of the file's imports and does not rebuild them, so it can
+# false-pass (or false-fail) after an imported module changes. Pin the
+# canonical cycle-engine.md section (both failure directions, both recovery
+# paths, no universal "sound check" claim), the two originally misleading
+# sites, and the highest-risk cross-file editors. Deliberately NOT every
+# `lake env lean` mention — fast file-local checks stay legitimate.
+# ---------------------------------------------------------------------------
+check39_ok=1
+_c39_ce="$PLUGIN_ROOT/skills/lean4/references/cycle-engine.md"
+_c39_sf="$PLUGIN_ROOT/skills/lean4/references/sorry-filling.md"
+_c39_lsp="$PLUGIN_ROOT/skills/lean4/references/lean-lsp-server.md"
+
+# Canonical section, scoped to its heading.
+_c39_sec=$(extract_section "$_c39_ce" "### File Gate Scope")
+if [[ -z "$_c39_sec" ]]; then
+    fail "Check 39: cycle-engine.md missing '### File Gate Scope' section"
+    check39_ok=0
+else
+    for _c39_s in 'does not rebuild imported modules' 'false pass' 'false failure' \
+                  'Rebuild every changed imported module' 'for the importing target directly' \
+                  'dependency-consistent check' 'final verification may still require'; do
+        if ! grep -qF -- "$_c39_s" <<<"$_c39_sec"; then
+            fail "Check 39: File Gate Scope section missing '$_c39_s'"
+            check39_ok=0
+        fi
+    done
+    # Negative: no universal soundness claim for lake build.
+    if grep -qiE 'lake build[^.]*\bis the sound check\b' <<<"$_c39_sec"; then
+        fail "Check 39: File Gate Scope must not call lake build 'the sound check' universally"
+        check39_ok=0
+    fi
+fi
+
+# The two sites #166 cited must carry the caveat + link, and the old
+# unqualified formulations must not return.
+_c39_step3=$(extract_section "$_c39_sf" "## Todo-Based Workflow (For Multiple Sorries)" | sed -n '/^\*\*Step 3: Verify compilation\*\*/,/^\*\*Step 4/p')
+if [[ -z "$_c39_step3" ]]; then
+    fail "Check 39: sorry-filling.md Todo-Based Workflow has no 'Step 3: Verify compilation' block"
+    check39_ok=0
+fi
+if ! grep -qF 'cycle-engine.md#file-gate-scope' <<<"$_c39_step3"; then
+    fail "Check 39: sorry-filling.md Step 3 must link cycle-engine.md#file-gate-scope"
+    check39_ok=0
+fi
+if ! grep -qF 'does not rebuild' <<<"$_c39_step3"; then
+    fail "Check 39: sorry-filling.md Step 3 must say the gate does not rebuild imports"
+    check39_ok=0
+fi
+if grep -qE '^lake env lean path/to/File\.lean +# run from project root$' "$_c39_sf"; then
+    fail "Check 39: sorry-filling.md still presents a bare, unqualified 'lake env lean' verification step"
+    check39_ok=0
+fi
+if grep -qE 'Reserve `lake env lean[^`]*` \(run from project root\) for file-level gates and' "$_c39_lsp"; then
+    fail "Check 39: lean-lsp-server.md still presents lake env lean as an unqualified file-level gate"
+    check39_ok=0
+fi
+if ! grep -qF 'cycle-engine.md#file-gate-scope' "$_c39_lsp"; then
+    fail "Check 39: lean-lsp-server.md must link cycle-engine.md#file-gate-scope"
+    check39_ok=0
+fi
+
+# Highest-risk cross-file editors must route to lake build <Pkg.Module> and link
+# the canonical section. (Not every mention — see header comment.)
+for _c39_f in agents/sorry-filler-deep.md agents/axiom-eliminator.md \
+              skills/lean4/references/proof-refactoring.md skills/lean4/SKILL.md; do
+    if ! grep -qF 'cycle-engine.md#file-gate-scope' "$PLUGIN_ROOT/$_c39_f"; then
+        fail "Check 39: $_c39_f must link cycle-engine.md#file-gate-scope"
+        check39_ok=0
+    fi
+done
+for _c39_f in agents/sorry-filler-deep.md agents/axiom-eliminator.md; do
+    if ! grep -qF 'lake build <Pkg.Module>' "$PLUGIN_ROOT/$_c39_f"; then
+        fail "Check 39: $_c39_f must route post-cross-file-edit gating to lake build <Pkg.Module>"
+        check39_ok=0
+    fi
+done
+
+if [[ "$check39_ok" -eq 1 ]]; then
+    ok "Check 39: file-gate scope pinned (#166: canonical section w/ both failure directions + both recovery paths, cited sites corrected, cross-file editors routed)"
+fi
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]

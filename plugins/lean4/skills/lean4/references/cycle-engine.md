@@ -60,7 +60,18 @@ Three-tier verification ladder — use the lightest tool that answers the questi
 
 Run `lake env lean` from the Lean project root; pass repo-relative file paths.
 
-**Never use `lake build <file basename>`** — `lake build` does not accept file path arguments. Use `lake env lean <path/to/File.lean>` for single-file compilation.
+**Never use `lake build <file basename>`** — `lake build` does not accept file path arguments. Use `lake env lean <path/to/File.lean>` for single-file compilation, or `lake build <Pkg.Module>` (the module name, e.g. `lake build Staleolean.B`) to build one module and its dependencies under Lake's build graph.
+
+### File Gate Scope
+
+`lake env lean File.lean` (run from the project root) elaborates that source file against the currently built import environment; it does not rebuild imported modules. If an imported source differs from its `.olean`, the file gate can produce either a **false pass** (the import's old `.olean` still satisfies the file) or a **false failure** (the import was fixed in source but its `.olean` is stale). This is Lake behaving as designed, not a defect — the file gate is a fast file-local check, valid while the imports it reads are up to date.
+
+After editing any imported module, take one of two recovery paths before trusting the file gate:
+
+1. Rebuild every changed imported module (`lake build <Pkg.ChangedModule>`), then rerun the file gate on the importing file.
+2. Run `lake build <Pkg.Module>` for the importing target directly. That is the dependency-consistent check for that module under Lake's build graph.
+
+Neither replaces the project gate: final verification may still require the appropriate project or checkpoint target (`lake build`, `/lean4:checkpoint`). Workflows that edit across files — deep mode, refactoring, axiom elimination — are exactly where an import goes stale mid-session, so they should prefer path 2 at each file gate that follows a cross-file edit.
 
 **`lake build` progress counter:** Lake's `[N/M]` denominator grows as dependencies are discovered mid-build (e.g., 129 → 7808 in one observed run). The `[N/M]` counter and fraction are not reliable progress estimates. Set timeouts based on wall-clock experience for the current project, not step counts.
 

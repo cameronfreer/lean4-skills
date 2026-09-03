@@ -39,7 +39,7 @@ Consume the `run-contract/v1` [dispatch record](../skills/lean4/references/hando
    - Phase 1: Prepare infrastructure (helpers, imports)
    - Phase 2: Fill the sorry
    - Phase 3: Clean up
-   - After each edit batch: `lean_diagnostic_messages(file)` first; use `lake env lean path/to/File.lean` only as a file gate when LSP is unavailable or a file-level import/environment check is needed (run from the project root)
+   - After each edit batch: `lean_diagnostic_messages(file)` first; use `lake env lean path/to/File.lean` only as a file gate when LSP is unavailable or a file-level import/environment check is needed (run from the project root). Once this run has edited an imported module (deep mode permits that within the header fence), gate with `lake build <Pkg.Module>` for the importing target instead — the file gate checks against built `.olean`s and does not rebuild changed imports ([File Gate Scope](../skills/lean4/references/cycle-engine.md#file-gate-scope))
 
 4. **Report progress** after each phase and final summary
 

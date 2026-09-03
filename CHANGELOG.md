@@ -1,5 +1,13 @@
 # Changelog
 
+## v4.8.3 (September 2026)
+
+Verification-soundness correction for the per-file compile gate (#166). Documentation and contract check only; no runtime code.
+
+### Fixed
+
+- **`lake env lean File.lean` is documented as a built-imports-only check, not an unconditional verification gate.** It elaborates the file against the `.olean`s already built for its imports and never rebuilds an import, so after editing an imported module it can report a **false pass** (old `.olean` still satisfies the file) or a **false failure** (import fixed in source, `.olean` stale). Reproduced both directions on Lean 4.33.1 / Lake 5.0.0 with the two-module example from #166. New canonical **File Gate Scope** section under cycle-engine.md's Build Target Policy states the rule and the two recovery paths: rebuild every changed imported module then rerun the file gate, or run `lake build <Pkg.Module>` for the importing target (the dependency-consistent check for that module under Lake's build graph; final verification may still need the project/checkpoint target). The two sites #166 cited (`sorry-filling.md` Step 3, `lean-lsp-server.md`) now carry the caveat; the verification-ladder mirrors (SKILL.md, command-examples.md) gain a clause; the cross-file editors (sorry-filler-deep, axiom-eliminator, proof-refactoring, sorry-filling deep mode, disprove certification) link to it and route post-cross-file-edit gating to `lake build <Pkg.Module>`. Fast file-local uses are unchanged. The `lake build <file basename>` anti-pattern note now also shows the valid module-name form. Check 39 pins the canonical section (both directions, both paths, no universal "sound check" claim), rejects the two old unqualified formulations, and requires the links on the highest-risk editors — deliberately not on every mention.
+
 ## v4.8.2 (September 2026)
 
 Latency follow-up for the Bash guardrail hook on hosts without `jq` (#193, the third item requested in #164; #164 itself stays open pending the reporter's Windows check of the v4.8.1 correctness fix).

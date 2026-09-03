@@ -1127,7 +1127,7 @@ Use the lightest tool that answers the question:
 | File compile | `lake env lean <path/to/File.lean>` | File-level gate, import checks | Seconds |
 | Project gate | `lake build` | Checkpoint, final gate, `/lean4:checkpoint` | Minutes |
 
-Run `lake env lean` from the Lean project root; pass repo-relative file paths.
+Run `lake env lean` from the Lean project root; pass repo-relative file paths. The file gate checks against the built `.olean`s of the file's imports and does not rebuild them — after editing an imported module, run `lake build <Pkg.Module>` before trusting it ([cycle-engine: File Gate Scope](cycle-engine.md#file-gate-scope)).
 
 ### Anti-Pattern: `lake build` with File Arguments
 
@@ -1138,7 +1138,11 @@ lake build InfinitaryLogic/Scott/Sentence.lean
 
 # ✓ Correct — use lake env lean for single-file compilation
 lake env lean InfinitaryLogic/Scott/Sentence.lean
-→ (compiles single file with lake environment)
+→ (compiles single file against the already-built imports)
+
+# ✓ Also correct — module name builds that module AND its changed imports
+lake build InfinitaryLogic.Scott.Sentence
+→ (dependency-consistent check for one module under Lake's build graph)
 ```
 
 ### Typical Verification Flow
@@ -1147,7 +1151,7 @@ lake env lean InfinitaryLogic/Scott/Sentence.lean
 1. Edit proof
 2. lean_diagnostic_messages(file)    # immediate feedback
 3. Fix any issues
-4. lake env lean path/to/File.lean   # file-level gate (from project root)
+4. lake env lean path/to/File.lean   # file-level gate (from project root; built imports only)
 5. Continue editing...
 6. lake build                        # project gate at checkpoint only
 ```

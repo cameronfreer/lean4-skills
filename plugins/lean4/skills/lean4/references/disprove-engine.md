@@ -672,7 +672,7 @@ the qualified-name target resolved to in Phase 1):
    `-- lean4:disprove-begin/-end txn=… role=…` markers and refuses to clobber a decl
    already declared outside the txn. (The standalone collision-safe writer
    `lean4-skills-disprove-emit-artifact` remains for non-transactional appends.)
-3. Run `lake env lean <target-file>` from the project root (typecheck gate).
+3. Run `lake env lean <target-file>` from the project root (typecheck gate). This checks against the built `.olean`s of the file's imports; if any imported module was edited since its last build, run `lake build <Pkg.Module>` for the target's module first, or the certification can rest on a stale import ([File Gate Scope](cycle-engine.md#file-gate-scope)).
 4. **Axiom gate.** Inspect the axioms via `lean_verify` (or `#print axioms`) of the
    declaration that carries the `¬ TARGET` type — `T_counterexample` for direct
    shapes, or `T_counterexample_negates_target` for witness shapes. The allowed set
