@@ -76,7 +76,7 @@ check_commands() {
             autoprove)  max_lines=300 ;;
             checkpoint) max_lines=155 ;;
             diagnose)   max_lines=290 ;;
-            disprove)   max_lines=300 ;;
+            disprove)   max_lines=310 ;;  # +10 (#166): Prime Directive names lake build <Pkg.Module> as the license
             draft)      max_lines=170 ;;
             formalize)  max_lines=210 ;;
             golf)       max_lines=178 ;;

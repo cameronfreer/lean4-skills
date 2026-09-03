@@ -120,8 +120,9 @@ lean4-skills-sorry-analyzer       # Context analysis
 lean4-skills-check-axioms-inline  # Verify no axioms
 lean4-skills-find-usages          # Dependency analysis
 lean4-skills-smart-search         # Search fallback (after bounded LSP pass)
-lake env lean path/to/File.lean         # File gate (project root, after LSP checks)
-lake build                              # Project gate / final verification only
+lake env lean path/to/File.lean         # File gate (project root, after LSP checks; built imports only)
+lake build Pkg.Module                   # Dependency-consistent gate once an imported module was edited
+lake build                              # Project / checkpoint / final gate only
 ```
 
 ## See Also

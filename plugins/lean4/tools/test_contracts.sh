@@ -1759,9 +1759,72 @@ for _c39_f in agents/sorry-filler-deep.md agents/axiom-eliminator.md; do
         check39_ok=0
     fi
 done
+# Quick references must distinguish the targeted build from the project build.
+if ! grep -qE '^lake build Pkg\.Module +#' "$PLUGIN_ROOT/agents/sorry-filler-deep.md"; then
+    fail "Check 39: sorry-filler-deep.md quick reference must list the targeted 'lake build Pkg.Module' line beside plain 'lake build'"
+    check39_ok=0
+fi
+
+# /disprove certification: the REFUTED license is the dependency-consistent build,
+# never the file gate (a pre-existing source/.olean mismatch would otherwise certify).
+_c39_dcmd="$PLUGIN_ROOT/commands/disprove.md"
+_c39_deng="$PLUGIN_ROOT/skills/lean4/references/disprove-engine.md"
+_c39_dfix="$PLUGIN_ROOT/tests/pressure/disprove_prime_directive.md"
+_c39_pd_cmd=$(extract_section "$_c39_dcmd" "## Prime Directive")
+_c39_pd_eng=$(extract_section "$_c39_deng" "## Prime Directive — Epistemological Strictness")
+for _c39_pair in "disprove.md Prime Directive|$_c39_pd_cmd" "disprove-engine.md Prime Directive|$_c39_pd_eng"; do
+    _c39_name="${_c39_pair%%|*}"; _c39_text="${_c39_pair#*|}"
+    if [[ -z "$_c39_text" ]]; then
+        fail "Check 39: $_c39_name section not found"
+        check39_ok=0
+        continue
+    fi
+    if ! grep -qF 'lake build <Pkg.Module>' <<<"$_c39_text"; then
+        fail "Check 39: $_c39_name must license REFUTED via lake build <Pkg.Module>"
+        check39_ok=0
+    fi
+    if ! grep -qE 'lake env lean.*(pre-screen|never the license)' <<<"$_c39_text"; then
+        fail "Check 39: $_c39_name must demote lake env lean to a pre-screen"
+        check39_ok=0
+    fi
+done
+_c39_p3=$(extract_section "$_c39_deng" "## Phase 3 — Checkpoint")
+if [[ -z "$_c39_p3" ]]; then
+    fail "Check 39: disprove-engine.md '## Phase 3 — Checkpoint' section not found"
+    check39_ok=0
+else
+    if ! grep -qE 'Compile gate.*lake build <Pkg\.Module>' <<<"$_c39_p3" || ! grep -qF 'This is unconditional' <<<"$_c39_p3"; then
+        fail "Check 39: disprove-engine.md Phase 3 compile gate must be an unconditional lake build <Pkg.Module>"
+        check39_ok=0
+    fi
+    if ! grep -qE 're-run[[:space:]]*$' <<<"$_c39_p3" || ! grep -qF '`lake build <Pkg.Module>` on the wrapper-free file' <<<"$_c39_p3"; then
+        fail "Check 39: disprove-engine.md Phase 3 must rebuild the module again after dropping the gate wrapper"
+        check39_ok=0
+    fi
+fi
+for _c39_f in "$_c39_dcmd" "$_c39_deng"; do
+    if grep -qE 'REFUTED. requires (\*\*both\*\* )?`lake env lean' "$_c39_f"; then
+        fail "Check 39: $(basename "$_c39_f") still says REFUTED requires lake env lean"
+        check39_ok=0
+    fi
+done
+# Pressure fixture: must teach the corrected rule; the old sentence must not return.
+if [[ ! -f "$_c39_dfix" ]]; then
+    fail "Check 39: missing tests/pressure/disprove_prime_directive.md"
+    check39_ok=0
+else
+    if grep -qF 'only `lake env lean <path>`' "$_c39_dfix"; then
+        fail "Check 39: pressure fixture still teaches that only lake env lean licenses the disproved claim (#166 proved that unsound)"
+        check39_ok=0
+    fi
+    if ! grep -qF 'lake build <Pkg.Module>' "$_c39_dfix"; then
+        fail "Check 39: pressure fixture must name lake build <Pkg.Module> as the license"
+        check39_ok=0
+    fi
+fi
 
 if [[ "$check39_ok" -eq 1 ]]; then
-    ok "Check 39: file-gate scope pinned (#166: canonical section w/ both failure directions + both recovery paths, cited sites corrected, cross-file editors routed)"
+    ok "Check 39: file-gate scope pinned (#166: canonical section w/ both failure directions + both recovery paths, cited sites corrected, cross-file editors routed, disprove REFUTED licensed by lake build <Pkg.Module>)"
 fi
 
 echo ""
