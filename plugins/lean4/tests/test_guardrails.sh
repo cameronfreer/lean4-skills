@@ -820,14 +820,14 @@ else
   run193 "not json" "LEAN4_GUARDRAILS_COLLAB_POLICY=ask"
   if (( _rc == 0 )); then p193 "jq-absent: malformed payload allowed"; else f193 "jq-absent: malformed payload not allowed (rc=$_rc)"; fi
 
-  # (7) native-Windows-Python stdout (LF → CRLF translation) must not break the
+  # (6) native-Windows-Python stdout (LF → CRLF translation) must not break the
   #     framing: blocked command still exits 2, still one startup. The framing
   #     writes bytes, so the text wrapper's newline mode is irrelevant.
   run193 "{\"cwd\":\"$_j/lean\",\"tool_input\":{\"command\":\"git push origin main\"}}" "LEAN4_GUARDRAILS_COLLAB_POLICY=ask" "$_jqless_path_crlf"
   if (( _rc == 2 )); then p193 "jq-absent (CRLF stdout): blocked command enforced"; else f193 "jq-absent (CRLF stdout): blocked command not enforced (rc=$_rc)"; fi
   if (( _pycount == 1 )); then p193 "jq-absent (CRLF stdout): exactly one python3 startup"; else f193 "jq-absent (CRLF stdout): expected 1 python3 startup, saw $_pycount"; fi
 
-  # (6) a Lean project whose path contains a newline (legal on Unix) must be
+  # (7) a Lean project whose path contains a newline (legal on Unix) must be
   #     detected on BOTH paths — the single-call framing has to round-trip the
   #     cwd exactly, not flatten it (review of PR #194).
   _nl_dir="$_j/lean
