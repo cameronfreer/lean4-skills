@@ -60,7 +60,7 @@ Three-tier verification ladder — use the lightest tool that answers the questi
 
 Run `lake env lean` from the Lean project root; pass repo-relative file paths.
 
-**Never use `lake build <file basename>`** — `lake build` does not accept file path arguments. Use `lake env lean <path/to/File.lean>` for single-file compilation, or `lake build <Pkg.Module>` (the module name, e.g. `lake build Staleolean.B`) to build one module and its dependencies under Lake's build graph.
+**Target spellings.** `lake build <path/to/File.lean>` (a source path under a `lean_lib` `srcDir`, from the project root) builds that one module and its changed dependencies under Lake's build graph — Lake resolves the module through the workspace configuration. `lake build +Pkg.Module` does the same when the module name is known from Lake config; **never derive a module name by textually turning `/` into `.`** — that breaks on any custom `srcDir` (`src/Foo/Bar.lean` is `Foo.Bar`, not `src.Foo.Bar`). What Lake rejects is a path that does not resolve under a lib's `srcDir` — e.g. the bare basename of a nested file (`lake build B.lean` for `Pkg/B.lean` → `unknown target`) — or a path without `.lean` (parsed as `package/module`). `lake env lean <path/to/File.lean>` compiles the single file against already-built imports; `lake lean <path/to/File.lean>` builds the file's imports first and then runs Lean on it.
 
 ### File Gate Scope
 
@@ -68,8 +68,8 @@ Run `lake env lean` from the Lean project root; pass repo-relative file paths.
 
 After editing any imported module, take one of two recovery paths before trusting the file gate:
 
-1. Rebuild every changed imported module (`lake build <Pkg.ChangedModule>`), then rerun the file gate on the importing file.
-2. Run `lake build <Pkg.Module>` for the importing target directly. That is the dependency-consistent check for that module under Lake's build graph.
+1. Rebuild every changed imported module (`lake build <path/to/ChangedImport.lean>`), then rerun the file gate on the importing file.
+2. Run `lake build <path/to/File.lean>` for the importing target directly (or `lake lean <path/to/File.lean>`, which builds the imports and then runs Lean on the file). That is the dependency-consistent check for that module under Lake's build graph.
 
 Neither replaces the project gate: final verification may still require the appropriate project or checkpoint target (`lake build`, `/lean4:checkpoint`). Workflows that edit across files — deep mode, refactoring, axiom elimination — are exactly where an import goes stale mid-session, so they should prefer path 2 at each file gate that follows a cross-file edit.
 

@@ -1126,7 +1126,11 @@ check_build_patterns() {
             checkpoint.md|lean-lsp-server.md|MIGRATION.md) continue ;;
         esac
 
-        # Warn on lake build with .lean file arguments
+        # Warn on `lake build <bare basename>.lean`. Lake 5 accepts SOURCE PATHS as
+        # build targets (resolving the module via the workspace config; #166), so a
+        # path like `lake build Foo/Bar.lean` is correct. A bare basename only
+        # resolves for a module sitting at the lib's srcDir root and is otherwise
+        # `unknown target`, so docs should show the full source path.
         # Skip lines that teach anti-patterns (Never, Do not, Wrong, Incorrect, ✗)
         # Also check preceding line for anti-pattern context (e.g., "# ✗ Wrong" comment above code)
         while IFS=: read -r _bp_line _bp_content; do
@@ -1141,8 +1145,8 @@ check_build_patterns() {
                     continue
                 fi
             fi
-            warn "$_bp_base:$_bp_line: 'lake build' with .lean file arg (use 'lake env lean <file>')"
-        done < <(grep -nE 'lake build [A-Za-z0-9_./-]+\.lean' "$file" 2>/dev/null || true)
+            warn "$_bp_base:$_bp_line: 'lake build' with a bare .lean basename (only resolves at the lib's srcDir root; pass the source path, e.g. 'lake build Foo/Bar.lean')"
+        done < <(grep -nE 'lake build [A-Za-z0-9_-]+\.lean' "$file" 2>/dev/null || true)
 
         # Warn on lake build <file placeholder pattern
         while IFS=: read -r _bp_line _bp_content; do

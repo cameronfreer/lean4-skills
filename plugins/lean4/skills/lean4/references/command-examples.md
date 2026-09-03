@@ -1127,22 +1127,32 @@ Use the lightest tool that answers the question:
 | File compile | `lake env lean <path/to/File.lean>` | File-level gate, import checks | Seconds |
 | Project gate | `lake build` | Checkpoint, final gate, `/lean4:checkpoint` | Minutes |
 
-Run `lake env lean` from the Lean project root; pass repo-relative file paths. The file gate checks against the built `.olean`s of the file's imports and does not rebuild them — after editing an imported module, run `lake build <Pkg.Module>` before trusting it ([cycle-engine: File Gate Scope](cycle-engine.md#file-gate-scope)).
+Run `lake env lean` from the Lean project root; pass repo-relative file paths. The file gate checks against the built `.olean`s of the file's imports and does not rebuild them — after editing an imported module, run `lake build <path/to/File.lean>` before trusting it ([cycle-engine: File Gate Scope](cycle-engine.md#file-gate-scope)).
 
-### Anti-Pattern: `lake build` with File Arguments
+### Target Spellings: `lake build`, `lake lean`, `lake env lean`
 
 ```
-# ✗ Wrong — lake build does not accept file path arguments
+# ✗ Wrong — the bare basename of a nested file does not resolve under the lib's srcDir
+lake build Sentence.lean
+→ error: unknown target `Sentence.lean`
+
+# ✗ Wrong — never derive a module name by turning / into . (breaks on custom srcDir)
+lake build src.InfinitaryLogic.Scott.Sentence
+→ error: unknown target `src.InfinitaryLogic.Scott.Sentence`
+
+# ✓ Source path (under the lib's srcDir, from project root) builds that module
+#   AND its changed imports — Lake resolves the module via the workspace config
 lake build InfinitaryLogic/Scott/Sentence.lean
-→ error: unknown target 'InfinitaryLogic/Scott/Sentence.lean'
-
-# ✓ Correct — use lake env lean for single-file compilation
-lake env lean InfinitaryLogic/Scott/Sentence.lean
-→ (compiles single file against the already-built imports)
-
-# ✓ Also correct — module name builds that module AND its changed imports
-lake build InfinitaryLogic.Scott.Sentence
 → (dependency-consistent check for one module under Lake's build graph)
+
+# ✓ Same, with the module name — only when known from Lake config
+lake build +InfinitaryLogic.Scott.Sentence
+
+# ✓ Builds the file's imports, then runs Lean on it (dependency-aware fast check)
+lake lean InfinitaryLogic/Scott/Sentence.lean
+
+# ✓ Single-file compile against the already-built imports (fast; built imports only)
+lake env lean InfinitaryLogic/Scott/Sentence.lean
 ```
 
 ### Typical Verification Flow

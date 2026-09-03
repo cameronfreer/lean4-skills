@@ -331,7 +331,7 @@ A proof is complete when:
 - Only standard axioms (`propext`, `Classical.choice`, `Quot.sound`)
 - No statement changes without permission
 
-Verification ladder: `lean_diagnostic_messages(file)` per-edit → `lake env lean <path/to/File.lean>` file gate (run from project root; checks against built imports only — after a cross-file edit use `lake build <Pkg.Module>`, see [File Gate Scope](references/cycle-engine.md#file-gate-scope)) → `lake build` project gate only. See [cycle-engine: Build Target Policy](references/cycle-engine.md#build-target-policy).
+Verification ladder: `lean_diagnostic_messages(file)` per-edit → `lake env lean <path/to/File.lean>` file gate (run from project root; checks against built imports only — after a cross-file edit use `lake build <path/to/File.lean>`, see [File Gate Scope](references/cycle-engine.md#file-gate-scope)) → `lake build` project gate only. See [cycle-engine: Build Target Policy](references/cycle-engine.md#build-target-policy).
 
 ## Common Fixes
 
