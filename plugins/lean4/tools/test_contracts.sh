@@ -1831,6 +1831,21 @@ for _c39_f in "$_c39_dcmd" "$_c39_deng"; do
         check39_ok=0
     fi
 done
+# /disprove worked examples (command-examples.md): the compile gate shown before
+# REFUTED must be the targeted lake build, never lake env lean.
+_c39_cex="$PLUGIN_ROOT/skills/lean4/references/command-examples.md"
+if grep -qE 'Compile gate.*lake env lean' "$_c39_cex"; then
+    fail "Check 39: command-examples.md still shows lake env lean as the /disprove compile gate before REFUTED"
+    check39_ok=0
+fi
+if [[ "$(grep -cE '^Compile gate \(lake build [^)]*\): passed' "$_c39_cex")" -lt 2 ]]; then
+    fail "Check 39: command-examples.md /disprove examples must show an explicit 'Compile gate (lake build <target-file> ...): passed' (both worked examples)"
+    check39_ok=0
+fi
+if grep -qE '^Compile gate: passed' "$_c39_cex"; then
+    fail "Check 39: command-examples.md has a generic 'Compile gate: passed' line — name the targeted lake build"
+    check39_ok=0
+fi
 # Pressure fixture: must teach the corrected rule; the old sentence must not return.
 if [[ ! -f "$_c39_dfix" ]]; then
     fail "Check 39: missing tests/pressure/disprove_prime_directive.md"

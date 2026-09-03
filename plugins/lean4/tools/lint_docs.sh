@@ -76,7 +76,7 @@ check_commands() {
             autoprove)  max_lines=300 ;;
             checkpoint) max_lines=155 ;;
             diagnose)   max_lines=290 ;;
-            disprove)   max_lines=310 ;;  # +10 (#166): Prime Directive names lake build <Pkg.Module> as the license
+            disprove)   max_lines=310 ;;  # +10 (#166): Prime Directive names the source-path lake build as the license
             draft)      max_lines=170 ;;
             formalize)  max_lines=210 ;;
             golf)       max_lines=178 ;;
@@ -1126,27 +1126,11 @@ check_build_patterns() {
             checkpoint.md|lean-lsp-server.md|MIGRATION.md) continue ;;
         esac
 
-        # Warn on `lake build <bare basename>.lean`. Lake 5 accepts SOURCE PATHS as
-        # build targets (resolving the module via the workspace config; #166), so a
-        # path like `lake build Foo/Bar.lean` is correct. A bare basename only
-        # resolves for a module sitting at the lib's srcDir root and is otherwise
-        # `unknown target`, so docs should show the full source path.
-        # Skip lines that teach anti-patterns (Never, Do not, Wrong, Incorrect, ✗)
-        # Also check preceding line for anti-pattern context (e.g., "# ✗ Wrong" comment above code)
-        while IFS=: read -r _bp_line _bp_content; do
-            [[ -z "$_bp_line" ]] && continue
-            if echo "$_bp_content" | grep -qiE '(Never|Do not|Wrong|Incorrect|✗|anti.?pattern)'; then
-                continue
-            fi
-            _bp_prev_line=$(( _bp_line - 1 ))
-            if [[ $_bp_prev_line -gt 0 ]]; then
-                _bp_prev=$(sed -n "${_bp_prev_line}p" "$file")
-                if echo "$_bp_prev" | grep -qiE '(Never|Do not|Wrong|Incorrect|✗|anti.?pattern)'; then
-                    continue
-                fi
-            fi
-            warn "$_bp_base:$_bp_line: 'lake build' with a bare .lean basename (only resolves at the lib's srcDir root; pass the source path, e.g. 'lake build Foo/Bar.lean')"
-        done < <(grep -nE 'lake build [A-Za-z0-9_-]+\.lean' "$file" 2>/dev/null || true)
+        # No `lake build <file>` heuristic here (removed in #166): Lake 5 accepts
+        # source paths as build targets, and whether a bare basename resolves
+        # depends on the lib's srcDir, which a regex cannot know. The genuinely
+        # false claims ("does not accept file path arguments", textual / -> .
+        # module derivation) are pinned by test_contracts Check 39 instead.
 
         # Warn on lake build <file placeholder pattern
         while IFS=: read -r _bp_line _bp_content; do

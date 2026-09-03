@@ -513,9 +513,9 @@ Constructing T_counterexample : ∃ n : Nat, ¬ (n < 10) := ⟨10, by decide⟩
 Gate-only T_counterexample_negates_target : ¬ (∀ n : Nat, n < 10) :=
   not_forall.mpr T_counterexample
 Appended to Bad.lean.
-Compile gate (lake env lean Bad.lean): passed.
+Compile gate (lake build Bad.lean — dependency-consistent; imports rebuilt): passed.
 Axiom gate (T_counterexample_negates_target): ⊆ {propext, Classical.choice, Quot.sound} — passed.
-Dropped gate-only wrapper; committing T_counterexample (re-checked: passed).
+Dropped gate-only wrapper; committing T_counterexample (re-checked with lake build Bad.lean: passed).
 
 Commit this change? [yes / no]
 > yes
@@ -711,9 +711,9 @@ Constructing T_counterexample : ∃ n : Nat, ¬ Nat.Prime (n^2 + n + 41) :=
 Gate-only T_counterexample_negates_target : ¬ (∀ n : Nat, Nat.Prime (n^2 + n + 41)) :=
   not_forall.mpr T_counterexample
 Appended to Conjecture.lean.
-Compile gate: passed.
+Compile gate (lake build Conjecture.lean — dependency-consistent; imports rebuilt): passed.
 Axiom gate (T_counterexample_negates_target): ⊆ {propext, Classical.choice, Quot.sound} — passed.
-Dropped gate-only wrapper; committing T_counterexample (re-checked: passed).
+Dropped gate-only wrapper; committing T_counterexample (re-checked with lake build Conjecture.lean: passed).
 
 Commit this change? [yes / no]
 > yes
