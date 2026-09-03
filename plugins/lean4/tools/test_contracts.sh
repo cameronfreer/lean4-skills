@@ -1703,8 +1703,8 @@ if [[ -z "$_c39_sec" ]]; then
 else
     for _c39_s in 'does not rebuild imported modules' 'false pass' 'false failure' \
                   'Rebuild every changed imported module' 'for the importing target directly' \
-                  'dependency-consistent check' 'final verification may still require' \
-                  'lake build <path/to/File.lean>'; do
+                  'dependency-aware' 'final verification may still require' \
+                  'lake lean <path/to/File.lean>'; do
         if ! grep -qF -- "$_c39_s" <<<"$_c39_sec"; then
             fail "Check 39: File Gate Scope section missing '$_c39_s'"
             check39_ok=0
@@ -1716,7 +1716,7 @@ else
         check39_ok=0
     fi
 fi
-# Target spellings (Build Target Policy): Lake 5 accepts source paths; the
+# Target spellings (Build Target Policy): current Lake accepts source paths; the
 # naive '/' -> '.' module-name derivation is wrong under a custom srcDir.
 _c39_btp=$(extract_section "$_c39_ce" "## Build Target Policy")
 if ! grep -qF 'never derive a module name by textually turning' <<<"$_c39_btp"; then
@@ -1730,7 +1730,7 @@ fi
 for _c39_f in skills/lean4/references/cycle-engine.md skills/lean4/references/command-examples.md \
               skills/lean4/references/disprove-engine.md; do
     if grep -qiE 'lake build.{0,40}does not accept file path' "$PLUGIN_ROOT/$_c39_f"; then
-        fail "Check 39: $_c39_f still claims lake build does not accept file-path targets (false on Lake 5)"
+        fail "Check 39: $_c39_f still claims lake build does not accept file-path targets (false on current Lake)"
         check39_ok=0
     fi
     if grep -qE '`/` (→|->) `\.`|replac(e|ing) `/` with `\.`|with `/` (→|->) `\.` and `\.lean` dropped' "$PLUGIN_ROOT/$_c39_f"; then
@@ -1767,7 +1767,7 @@ if ! grep -qF 'cycle-engine.md#file-gate-scope' "$_c39_lsp"; then
     check39_ok=0
 fi
 
-# Highest-risk cross-file editors must route to lake build <path/to/File.lean> and link
+# Highest-risk cross-file editors must route to lake lean <path/to/File.lean> and link
 # the canonical section. (Not every mention — see header comment.)
 for _c39_f in agents/sorry-filler-deep.md agents/axiom-eliminator.md \
               skills/lean4/references/proof-refactoring.md skills/lean4/SKILL.md; do
@@ -1777,14 +1777,14 @@ for _c39_f in agents/sorry-filler-deep.md agents/axiom-eliminator.md \
     fi
 done
 for _c39_f in agents/sorry-filler-deep.md agents/axiom-eliminator.md; do
-    if ! grep -qF 'lake build <path/to/File.lean>' "$PLUGIN_ROOT/$_c39_f"; then
-        fail "Check 39: $_c39_f must route post-cross-file-edit gating to lake build <path/to/File.lean>"
+    if ! grep -qF 'lake lean <path/to/File.lean>' "$PLUGIN_ROOT/$_c39_f"; then
+        fail "Check 39: $_c39_f must route post-cross-file-edit gating to lake lean <path/to/File.lean>"
         check39_ok=0
     fi
 done
 # Quick references must distinguish the targeted build from the project build.
-if ! grep -qE '^lake build path/to/File\.lean +#' "$PLUGIN_ROOT/agents/sorry-filler-deep.md"; then
-    fail "Check 39: sorry-filler-deep.md quick reference must list the targeted 'lake build path/to/File.lean' line beside plain 'lake build'"
+if ! grep -qE '^lake lean path/to/File\.lean +#' "$PLUGIN_ROOT/agents/sorry-filler-deep.md"; then
+    fail "Check 39: sorry-filler-deep.md quick reference must list the dependency-aware 'lake lean path/to/File.lean' line beside plain 'lake build'"
     check39_ok=0
 fi
 
@@ -1802,8 +1802,8 @@ for _c39_pair in "disprove.md Prime Directive|$_c39_pd_cmd" "disprove-engine.md 
         check39_ok=0
         continue
     fi
-    if ! grep -qF 'lake build <target-file>' <<<"$_c39_text"; then
-        fail "Check 39: $_c39_name must license REFUTED via lake build <target-file>"
+    if ! grep -qF 'lake lean <target-file>' <<<"$_c39_text"; then
+        fail "Check 39: $_c39_name must license REFUTED via lake lean <target-file>"
         check39_ok=0
     fi
     if ! grep -qE 'lake env lean.*(pre-screen|never the license)' <<<"$_c39_text"; then
@@ -1816,11 +1816,11 @@ if [[ -z "$_c39_p3" ]]; then
     fail "Check 39: disprove-engine.md '## Phase 3 — Checkpoint' section not found"
     check39_ok=0
 else
-    if ! grep -qE 'Compile gate.*lake build <target-file>' <<<"$_c39_p3" || ! grep -qF 'This is unconditional' <<<"$_c39_p3"; then
-        fail "Check 39: disprove-engine.md Phase 3 compile gate must be an unconditional lake build <target-file>"
+    if ! grep -qE 'Compile gate.*lake lean <target-file>' <<<"$_c39_p3" || ! grep -qF 'This is unconditional' <<<"$_c39_p3"; then
+        fail "Check 39: disprove-engine.md Phase 3 compile gate must be an unconditional lake lean <target-file>"
         check39_ok=0
     fi
-    if ! grep -qE 're-run[[:space:]]*$' <<<"$_c39_p3" || ! grep -qF '`lake build <target-file>` on the wrapper-free file' <<<"$_c39_p3"; then
+    if ! grep -qE 're-run[[:space:]]*$' <<<"$_c39_p3" || ! grep -qF '`lake lean <target-file>` on the wrapper-free file' <<<"$_c39_p3"; then
         fail "Check 39: disprove-engine.md Phase 3 must rebuild the module again after dropping the gate wrapper"
         check39_ok=0
     fi
@@ -1832,7 +1832,7 @@ for _c39_f in "$_c39_dcmd" "$_c39_deng"; do
     fi
 done
 # /disprove worked examples (command-examples.md): the compile gate shown before
-# REFUTED must be the targeted lake build, never lake env lean.
+# REFUTED must be the dependency-aware lake lean, never lake env lean (and never a targeted lake build, which writes the target .olean and cannot build a non-module file).
 # Section-scoped to the two worked examples so unrelated future examples can
 # neither satisfy nor trip these assertions.
 _c39_cex="$PLUGIN_ROOT/skills/lean4/references/command-examples.md"
@@ -1848,19 +1848,46 @@ for _c39_h in '### Cycle 1 — decide-cascade Win Example' \
         fail "Check 39: '$_c39_h' still shows lake env lean as the compile gate before REFUTED"
         check39_ok=0
     fi
-    if ! grep -qE '^Compile gate \(lake build [^)]*\): passed' <<<"$_c39_ex"; then
-        fail "Check 39: '$_c39_h' must show an explicit 'Compile gate (lake build <target-file> ...): passed'"
+    if ! grep -qE '^Compile gate \(lake lean [^)]*\): passed' <<<"$_c39_ex"; then
+        fail "Check 39: '$_c39_h' must show an explicit 'Compile gate (lake lean <target-file> ...): passed'"
         check39_ok=0
     fi
-    if ! grep -qE 'Dropped gate-only wrapper.*re-checked with lake build [^:]*: passed' <<<"$_c39_ex"; then
-        fail "Check 39: '$_c39_h' must show the post-wrapper re-check as a lake build"
+    if ! grep -qE 'Dropped gate-only wrapper.*re-checked with lake lean [^:]*: passed' <<<"$_c39_ex"; then
+        fail "Check 39: '$_c39_h' must show the post-wrapper re-check as a lake lean"
         check39_ok=0
     fi
     if grep -qE '^Compile gate: passed' <<<"$_c39_ex"; then
-        fail "Check 39: '$_c39_h' has a generic 'Compile gate: passed' line — name the targeted lake build"
+        fail "Check 39: '$_c39_h' has a generic 'Compile gate: passed' line — name the lake lean gate"
         check39_ok=0
     fi
 done
+# The license must not drift back to a targeted `lake build <target-file>`:
+# it is `unknown target` for an accepted non-module File.lean:LINE target, and
+# it writes the target .olean, so a source rollback after a failed axiom gate
+# would leave the rejected declarations in the artifact (#195 review round 5).
+for _c39_pair in "disprove.md Prime Directive|$_c39_pd_cmd" "disprove-engine.md Prime Directive|$_c39_pd_eng"; do
+    _c39_name="${_c39_pair%%|*}"; _c39_text="${_c39_pair#*|}"
+    if grep -qF 'lake build <target-file>' <<<"$_c39_text" || grep -qE 'REFUTED.*requires.*`lake build' <<<"$_c39_text"; then
+        fail "Check 39: $_c39_name licenses REFUTED via a targeted lake build again — the gate is lake lean <target-file>"
+        check39_ok=0
+    fi
+done
+if [[ -n "$_c39_p3" ]]; then
+    for _c39_s in 'outside any `lean_lib`' 'does **not** write the target'; do
+        if ! grep -qF -- "$_c39_s" <<<"$_c39_p3"; then
+            fail "Check 39: disprove-engine.md Phase 3 must state why lake lean is the gate ($_c39_s)"
+            check39_ok=0
+        fi
+    done
+    if grep -qE 'Compile gate.*`lake build <target-file>`' <<<"$_c39_p3"; then
+        fail "Check 39: disprove-engine.md Phase 3 compile gate is a targeted lake build again"
+        check39_ok=0
+    fi
+fi
+if grep -qF 'Lake 5 accepts' "$_c39_ce" "$_c39_cex" "$_c39_deng"; then
+    fail "Check 39: 'Lake 5 accepts source paths' is not a valid version boundary (Lean 4.19's Lake also reports 5.0.0 and did not)"
+    check39_ok=0
+fi
 # Pressure fixture: must teach the corrected rule; the old sentence must not return.
 if [[ ! -f "$_c39_dfix" ]]; then
     fail "Check 39: missing tests/pressure/disprove_prime_directive.md"
@@ -1870,14 +1897,14 @@ else
         fail "Check 39: pressure fixture still teaches that only lake env lean licenses the disproved claim (#166 proved that unsound)"
         check39_ok=0
     fi
-    if ! grep -qF 'lake build <target-file>' "$_c39_dfix"; then
-        fail "Check 39: pressure fixture must name lake build <target-file> as the license"
+    if ! grep -qF 'lake lean <target-file>' "$_c39_dfix"; then
+        fail "Check 39: pressure fixture must name lake lean <target-file> as the license"
         check39_ok=0
     fi
 fi
 
 if [[ "$check39_ok" -eq 1 ]]; then
-    ok "Check 39: file-gate scope pinned (#166: canonical section w/ both failure directions + both recovery paths, cited sites corrected, cross-file editors routed, disprove REFUTED licensed by lake build <target-file>, no naive module-name derivation)"
+    ok "Check 39: file-gate scope pinned (#166: canonical section w/ both failure directions + both recovery paths, cited sites corrected, cross-file editors routed, disprove REFUTED licensed by lake lean <target-file>, no naive module-name derivation)"
 fi
 
 echo ""

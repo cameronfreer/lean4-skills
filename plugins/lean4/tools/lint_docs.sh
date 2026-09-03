@@ -1126,7 +1126,7 @@ check_build_patterns() {
             checkpoint.md|lean-lsp-server.md|MIGRATION.md) continue ;;
         esac
 
-        # No `lake build <file>` heuristic here (removed in #166): Lake 5 accepts
+        # No `lake build <file>` heuristic here (removed in #166): current Lake accepts
         # source paths as build targets, and whether a bare basename resolves
         # depends on the lib's srcDir, which a regex cannot know. The genuinely
         # false claims ("does not accept file path arguments", textual / -> .

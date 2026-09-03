@@ -513,9 +513,9 @@ Constructing T_counterexample : ∃ n : Nat, ¬ (n < 10) := ⟨10, by decide⟩
 Gate-only T_counterexample_negates_target : ¬ (∀ n : Nat, n < 10) :=
   not_forall.mpr T_counterexample
 Appended to Bad.lean.
-Compile gate (lake build Bad.lean — dependency-consistent; imports rebuilt): passed.
+Compile gate (lake lean Bad.lean — imports built, then this file elaborated): passed.
 Axiom gate (T_counterexample_negates_target): ⊆ {propext, Classical.choice, Quot.sound} — passed.
-Dropped gate-only wrapper; committing T_counterexample (re-checked with lake build Bad.lean: passed).
+Dropped gate-only wrapper; committing T_counterexample (re-checked with lake lean Bad.lean: passed).
 
 Commit this change? [yes / no]
 > yes
@@ -711,9 +711,9 @@ Constructing T_counterexample : ∃ n : Nat, ¬ Nat.Prime (n^2 + n + 41) :=
 Gate-only T_counterexample_negates_target : ¬ (∀ n : Nat, Nat.Prime (n^2 + n + 41)) :=
   not_forall.mpr T_counterexample
 Appended to Conjecture.lean.
-Compile gate (lake build Conjecture.lean — dependency-consistent; imports rebuilt): passed.
+Compile gate (lake lean Conjecture.lean — imports built, then this file elaborated): passed.
 Axiom gate (T_counterexample_negates_target): ⊆ {propext, Classical.choice, Quot.sound} — passed.
-Dropped gate-only wrapper; committing T_counterexample (re-checked with lake build Conjecture.lean: passed).
+Dropped gate-only wrapper; committing T_counterexample (re-checked with lake lean Conjecture.lean: passed).
 
 Commit this change? [yes / no]
 > yes
@@ -1140,18 +1140,18 @@ lake build Sentence.lean
 lake build src.InfinitaryLogic.Scott.Sentence
 → error: unknown target `src.InfinitaryLogic.Scott.Sentence`
 
-# ✓ Source path (under the lib's srcDir, from project root) builds that module
-#   AND its changed imports — Lake resolves the module via the workspace config
+# ✓ Dependency-aware file gate: builds the file's imports, then runs Lean on this
+#   exact file. Works for any .lean file in the workspace, module or scratch.
+lake lean InfinitaryLogic/Scott/Sentence.lean
+
+# ✓ Optional module build: source path under the lib's srcDir (current Lake resolves
+#   the module via the workspace config; writes the module's artifacts)
 lake build InfinitaryLogic/Scott/Sentence.lean
-→ (dependency-consistent check for one module under Lake's build graph)
 
 # ✓ Same, with the module name — only when known from Lake config
 lake build +InfinitaryLogic.Scott.Sentence
 
-# ✓ Builds the file's imports, then runs Lean on it (dependency-aware fast check)
-lake lean InfinitaryLogic/Scott/Sentence.lean
-
-# ✓ Single-file compile against the already-built imports (fast; built imports only)
+# ✓ Fast pre-screen against the already-built imports only
 lake env lean InfinitaryLogic/Scott/Sentence.lean
 ```
 

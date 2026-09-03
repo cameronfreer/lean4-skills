@@ -60,7 +60,7 @@ Three-tier verification ladder — use the lightest tool that answers the questi
 
 Run `lake env lean` from the Lean project root; pass repo-relative file paths.
 
-**Target spellings.** `lake build <path/to/File.lean>` (a source path under a `lean_lib` `srcDir`, from the project root) builds that one module and its changed dependencies under Lake's build graph — Lake resolves the module through the workspace configuration. `lake build +Pkg.Module` does the same when the module name is known from Lake config; **never derive a module name by textually turning `/` into `.`** — that breaks on any custom `srcDir` (`src/Foo/Bar.lean` is `Foo.Bar`, not `src.Foo.Bar`). What Lake rejects is a path that does not resolve under a lib's `srcDir` — e.g. the bare basename of a nested file (`lake build B.lean` for `Pkg/B.lean` → `unknown target`) — or a path without `.lean` (parsed as `package/module`). `lake env lean <path/to/File.lean>` compiles the single file against already-built imports; `lake lean <path/to/File.lean>` builds the file's imports first and then runs Lean on it.
+**Target spellings.** `lake lean <path/to/File.lean>` (from the project root) builds the file's imports and then runs Lean on that exact file; it accepts any `.lean` file in the workspace, module or not. `lake build <path/to/File.lean>` (a source path under a `lean_lib` `srcDir`) builds that one module and its changed dependencies under Lake's build graph — current Lake resolves the module through the workspace configuration (verified with Lean 4.33.1; older Lake releases that also print `5.0.0`, e.g. Lean 4.19's, did not accept source paths, so the displayed version cannot tell you). `lake build +Pkg.Module` does the same when the module name is known from Lake config; **never derive a module name by textually turning `/` into `.`** — that breaks on any custom `srcDir` (`src/Foo/Bar.lean` is `Foo.Bar`, not `src.Foo.Bar`). `lake build` rejects a path that does not resolve to a workspace module — a scratch file outside every `lean_lib`, or the bare basename of a nested file (`lake build B.lean` for `Pkg/B.lean` → `unknown target`) — and a path without `.lean` (parsed as `package/module`); `lake lean` accepts those files. `lake env lean <path/to/File.lean>` compiles the single file against already-built imports only.
 
 ### File Gate Scope
 
@@ -68,10 +68,19 @@ Run `lake env lean` from the Lean project root; pass repo-relative file paths.
 
 After editing any imported module, take one of two recovery paths before trusting the file gate:
 
-1. Rebuild every changed imported module (`lake build <path/to/ChangedImport.lean>`), then rerun the file gate on the importing file.
-2. Run `lake build <path/to/File.lean>` for the importing target directly (or `lake lean <path/to/File.lean>`, which builds the imports and then runs Lean on the file). That is the dependency-consistent check for that module under Lake's build graph.
+1. Rebuild every changed imported module (`lake build <path/to/ChangedImport.lean>`, or plain `lake build`), then rerun the file gate on the importing file.
+2. Run `lake lean <path/to/File.lean>` for the importing target directly. `lake lean` builds the file's imports and then runs Lean on that exact file: it is dependency-aware, it works for any `.lean` file in the workspace (including a scratch file outside every `lean_lib`), and it does not write the target's own `.olean`. `lake build <path/to/File.lean>` is the optional actual module build — use it when the path is a recognized workspace module and the installed Lake accepts source-path targets; it also writes the target's artifacts, so a later source rollback without a rebuild leaves them stale.
 
 Neither replaces the project gate: final verification may still require the appropriate project or checkpoint target (`lake build`, `/lean4:checkpoint`). Workflows that edit across files — deep mode, refactoring, axiom elimination — are exactly where an import goes stale mid-session, so they should prefer path 2 at each file gate that follows a cross-file edit.
+
+The resulting hierarchy, lightest first (all run from the project root):
+
+```
+lake env lean path/to/File.lean   # fast pre-screen; uses already-built imports only
+lake lean     path/to/File.lean   # dependency-aware file gate: builds imports, then elaborates this exact file
+lake build    path/to/File.lean   # optional module build (recognized workspace module; writes its artifacts)
+lake build                        # project / checkpoint / final integration gate
+```
 
 **`lake build` progress counter:** Lake's `[N/M]` denominator grows as dependencies are discovered mid-build (e.g., 129 → 7808 in one observed run). The `[N/M]` counter and fraction are not reliable progress estimates. Set timeouts based on wall-clock experience for the current project, not step counts.
 

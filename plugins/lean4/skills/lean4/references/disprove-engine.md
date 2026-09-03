@@ -44,9 +44,11 @@
 ## Prime Directive — Epistemological Strictness
 
 `/lean4:disprove` reports `REFUTED` **only** when it produces a Lean term of
-the negation that typechecks under `lake build <target-file>` for the target's
-module — the dependency-consistent build; `lake env lean` is a pre-screen, never
-the license, because it reads built `.olean`s and cannot see a stale import
+the negation that typechecks under `lake lean <target-file>` — the
+dependency-aware file gate: it builds the file's imports, then elaborates this
+exact file, also for a target outside any `lean_lib`;
+`lake env lean` is a pre-screen, never the license, because it reads built
+`.olean`s and cannot see a stale import
 ([File Gate Scope](cycle-engine.md#file-gate-scope)) — without `sorry` or
 `admit` **and** whose axiom set is within the allowed whitelist
 (`propext`, `Classical.choice`, `Quot.sound`; plus `Lean.ofReduceBool`
@@ -78,7 +80,7 @@ What in this reference is a deterministic script vs. performed by the cycling LL
 | Knowledge search + WebFetch verification | **model-mediated (LLM)** | advisory; never bypasses the kernel gate |
 | Collision-safe artifact writer | **implemented (deterministic)** | `disprove_emit_artifact.py` |
 | Transactional append / drop-gate / rollback | **implemented (deterministic)** | `disprove_artifact_txn.py` (txn-id markers) |
-| Compile gate (`lake build <target-file>`) + axiom-whitelist gate | **model-mediated (tool calls)** | Checkpoint runs `lake build <target-file>` (dependency-consistent; `lake env lean` is only a pre-screen) + `#print axioms` / `lean_verify` |
+| Compile gate (`lake lean <target-file>`) + axiom-whitelist gate | **model-mediated (tool calls)** | Checkpoint runs `lake lean <target-file>` (dependency-aware; `lake env lean` is only a pre-screen) + `#print axioms` / `lean_verify` |
 | Cycle tracker / stop budgets | **implemented (deterministic)** | `lib/scripts/cycle_tracker.sh` |
 | Artifact naming `T_counterexample` | **implemented (fixed, v1)** | schematic, one artifact per file (see note) |
 | Target-derived artifact names | **deferred (future)** | collision gate already makes the fixed name safe |
@@ -104,7 +106,7 @@ session evidence so the next cycle's menus can re-rank.
 |-------|----------------------------|
 | 1. Plan | Cycle 1 resolves TARGET, normalizes shape, builds the Target Profile, runs Step 0 (Knowledge Search) once. Every cycle: Step 1 menu + Step 2 menu. Later cycles re-enter Step 0 only if Step 1 picks `knowledge search`. |
 | 2. Work | Run the chosen method with the chosen config. Pre-screen candidates via `lean_multi_attempt`. |
-| 3. Checkpoint | If Work produced a **pre-screen-passing candidate**: append `T_counterexample`, run `lake build <target-file>` + axiom check (⊆ whitelist) → `certified` (`REFUTED`) only if both pass, else revert hunk → `near-miss`/`WITNESS_UNCERTIFIED`; stage + commit per `--commit`. If no candidate: no artifact. |
+| 3. Checkpoint | If Work produced a **pre-screen-passing candidate**: append `T_counterexample`, run `lake lean <target-file>` + axiom check (⊆ whitelist) → `certified` (`REFUTED`) only if both pass, else revert hunk → `near-miss`/`WITNESS_UNCERTIFIED`; stage + commit per `--commit`. If no candidate: no artifact. |
 | 4. Review | Classify the cycle's outcome (certified / near-miss / exhausted / no-candidate). Capture error signatures. |
 | 5. Accumulate | Append `(family, config, outcome, near-miss_signature)` to session evidence. No hardcoded recommendation table — the next cycle's menus absorb the logic. |
 | 6. Continue/Stop | Always prompt the user: `continue / stop`. |
@@ -160,7 +162,7 @@ tools (~30s)" planning-phase budget; see `commands/prove.md:93`.)
 For a `Namespace.name` target, resolution must yield not just the inferred
 type but the declaration's **source file + line** (via `lean_declaration_file`,
 or the `lean_local_search` hit's location). That resolved file is the
-`<target-file>` Phase 3 appends `T_counterexample` to and builds (`lake build <target-file>`)
+`<target-file>` Phase 3 appends `T_counterexample` to and gates (`lake lean <target-file>`)
 — the artifact is checked in the target's real source context. If the
 declaration resolves only to a **read-only dependency** (e.g. under `.lake/` or
 mathlib) or no source file can be located, **refuse before Phase 2** with:
@@ -560,7 +562,7 @@ Post-gate cycle outcomes (assigned after the Phase 3 typecheck + axiom gate, con
 | Outcome | Meaning |
 |---------|---------|
 | `certified` | A candidate passed pre-screen, the file typecheck gate, AND the axiom gate (axioms ⊆ whitelist — see Phase 3). |
-| `near-miss` | A candidate passed pre-screen but the Phase 3 gate rejected it — `lake build <target-file>` failed, OR a non-whitelisted axiom appeared / axiom inspection was inconclusive (→ `WITNESS_UNCERTIFIED`). The error signature is captured. |
+| `near-miss` | A candidate passed pre-screen but the Phase 3 gate rejected it — `lake lean <target-file>` failed, OR a non-whitelisted axiom appeared / axiom inspection was inconclusive (→ `WITNESS_UNCERTIFIED`). The error signature is captured. |
 | `exhausted-no-witness` | The method's budget was spent; no candidate was produced. |
 | `no-candidate` | The method produced zero candidates (e.g., enumerate hit no `DecidablePred`, or an external script timed out / failed to parse). |
 
@@ -675,15 +677,19 @@ the qualified-name target resolved to in Phase 1):
    `-- lean4:disprove-begin/-end txn=… role=…` markers and refuses to clobber a decl
    already declared outside the txn. (The standalone collision-safe writer
    `lean4-skills-disprove-emit-artifact` remains for non-transactional appends.)
-3. **Compile gate.** Run `lake build <target-file>` from the project root, passing
-   the resolved target's source path exactly as Phase 1 resolved it — Lake accepts a
-   source path as a build target and resolves the module through the workspace
-   config (never convert the path to a module name by hand; that breaks on custom
-   `srcDir` layouts). This is unconditional: it rebuilds any stale import, so
-   certification cannot rest on a source/`.olean` mismatch that predates the run.
-   `lake env lean <target-file>` (also from the project root) may be used as a
-   faster pre-screen before it, but it checks only the built `.olean`s and never
-   licenses `REFUTED` ([File Gate Scope](cycle-engine.md#file-gate-scope)).
+3. **Compile gate.** Run `lake lean <target-file>` from the project root, passing
+   the resolved target's source path exactly as Phase 1 resolved it (never convert
+   it to a module name by hand). `lake lean` builds the file's imports and then runs
+   Lean on that exact file, so it is dependency-aware; it works for a target
+   outside any `lean_lib` (a scratch file, where `lake build <path>` is
+   `unknown target`); and it does **not** write the target's `.olean`, so a source
+   rollback after a failed axiom gate leaves no stale artifact behind (a targeted
+   `lake build` would). This is unconditional: certification cannot rest on a
+   source/`.olean` mismatch that predates the run. `lake env lean <target-file>`
+   (also from the project root) may be used as a faster pre-screen before it, but
+   it checks only the built `.olean`s and never licenses `REFUTED`
+   ([File Gate Scope](cycle-engine.md#file-gate-scope)). A project or module build
+   may still be required at the final checkpoint.
 4. **Axiom gate.** Inspect the axioms via `lean_verify` (or `#print axioms`) of the
    declaration that carries the `¬ TARGET` type — `T_counterexample` for direct
    shapes, or `T_counterexample_negates_target` for witness shapes. The allowed set
@@ -695,9 +701,9 @@ the qualified-name target resolved to in Phase 1):
      typechecked (no `sorry`/`admit`) **and** its axiom set ⊆ the allowed whitelist.
      For witness shapes, `lean4-skills-disprove-artifact-txn drop-role --scope-file=<target-file> --txn=$txn --role=gate`
      **before** the commit, then from the project root re-run
-     `lake build <target-file>` on the wrapper-free file, so the committed state
+     `lake lean <target-file>` on the wrapper-free file, so the committed state
      (`T_counterexample` alone, which still typechecks) is itself gate-verified by
-     the same dependency-consistent build — the committed file equals the
+     the same dependency-aware gate — the committed file equals the
      gate-checked file. Commit only `T_counterexample`;
      proceed to Review.
    - **Typecheck fails** → `lean4-skills-disprove-artifact-txn rollback --scope-file=<target-file> --txn=$txn`
@@ -1018,8 +1024,8 @@ finding). For all other cycles the column is `—`.
   (see Phase 3).
 - **No claim of `REFUTED` without compile gate + axiom gate.** Pre-screen via
   `lean_multi_attempt` (or `lake env lean`) is necessary but not sufficient.
-  `REFUTED` requires **both** `lake build <target-file>`
-  from the project root (the dependency-consistent build; no `sorry`/`admit`) **and** an
+  `REFUTED` requires **both** `lake lean <target-file>`
+  from the project root (the dependency-aware file gate; no `sorry`/`admit`) **and** an
   axiom set ⊆ `{propext, Classical.choice, Quot.sound}` (plus `Lean.ofReduceBool`
   only under an explicit `native_decide` opt-in this cycle). A term that
   typechecks but pulls a non-whitelisted axiom — or any cycle where axiom
