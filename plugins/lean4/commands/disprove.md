@@ -252,7 +252,7 @@ of the originating Step 0 finding); all other cycles show `—`. See
   through `lean4-skills-disprove-artifact-txn` (over the collision-safe
   `lean4-skills-disprove-emit-artifact`): each append is wrapped in txn-id markers and
   refuses to modify or clobber an existing declaration; the cycle's writes are
-  reverted as a unit via `rollback` / `drop-role` on failure or wrapper drop.
+  reverted as a unit via `rollback` / `drop-role` on failure or gate-block drop.
 - **No `native_decide` without opt-in (any method).** `native_decide`
   defaults off and is not in the `tactics` method's default list. Anywhere
   it can appear — `decide-cascade`'s `native_decide=on`, a custom `tactics`

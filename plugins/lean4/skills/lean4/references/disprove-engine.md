@@ -1028,8 +1028,9 @@ finding). For all other cycles the column is `—`.
   written through `lean4-skills-disprove-artifact-txn` (over the collision-safe
   `lean4-skills-disprove-emit-artifact`): each append is wrapped in txn-id markers and
   refuses to modify or duplicate an existing declaration; the cycle's writes
-  are reverted as a unit via `rollback` (failure) or `drop-role` (gate-only
-  wrapper before commit), never touching pre-existing or other-txn declarations.
+  are reverted as a unit via `rollback` (failure) or `drop-role` (the gate-only
+  blocks — the axiom probe and, for witness shapes, the wrapper — before commit),
+  never touching pre-existing or other-txn declarations.
 - **No `native_decide` without opt-in (any method).** `native_decide`
   defaults off and is excluded from the `tactics` method's default list.
   Wherever it can appear — the `decide-cascade` family's

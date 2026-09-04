@@ -1902,7 +1902,8 @@ fi
 # same lake lean run as the compile gate. lean_verify goes through the LSP's
 # persistent scratch pool, whose import snapshot can lag the rebuilt imports.
 if [[ -n "$_c39_p3" ]]; then
-    for _c39_s in '#print axioms _root_.T_counterexample' '--role=gate --decl=T_counterexample_axioms' \
+    for _c39_s in '`#print axioms _root_.T_counterexample`' '`#print axioms _root_.T_counterexample_negates_target`' \
+                  '--role=gate --decl=T_counterexample_axioms' \
                   'same `lake lean` run' 'advisory cross-check only'; do
         if ! grep -qF -- "$_c39_s" <<<"$_c39_p3"; then
             fail "Check 39: disprove-engine.md Phase 3 axiom gate must be the same-run #print axioms probe ($_c39_s)"
