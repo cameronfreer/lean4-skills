@@ -514,8 +514,8 @@ Gate-only T_counterexample_negates_target : ¬ (∀ n : Nat, n < 10) :=
   not_forall.mpr T_counterexample
 Appended to Bad.lean.
 Compile gate (lake lean Bad.lean — imports built, then this file elaborated): passed.
-Axiom gate (T_counterexample_negates_target): ⊆ {propext, Classical.choice, Quot.sound} — passed.
-Dropped gate-only wrapper; committing T_counterexample (re-checked with lake lean Bad.lean: passed).
+Axiom gate (#print axioms T_counterexample_negates_target, read from the same lake lean run): ⊆ {propext, Classical.choice, Quot.sound} — passed.
+Dropped gate-only blocks (axiom probe + wrapper); committing T_counterexample (re-checked with lake lean Bad.lean: passed).
 
 Commit this change? [yes / no]
 > yes
@@ -712,8 +712,8 @@ Gate-only T_counterexample_negates_target : ¬ (∀ n : Nat, Nat.Prime (n^2 + n 
   not_forall.mpr T_counterexample
 Appended to Conjecture.lean.
 Compile gate (lake lean Conjecture.lean — imports built, then this file elaborated): passed.
-Axiom gate (T_counterexample_negates_target): ⊆ {propext, Classical.choice, Quot.sound} — passed.
-Dropped gate-only wrapper; committing T_counterexample (re-checked with lake lean Conjecture.lean: passed).
+Axiom gate (#print axioms T_counterexample_negates_target, read from the same lake lean run): ⊆ {propext, Classical.choice, Quot.sound} — passed.
+Dropped gate-only blocks (axiom probe + wrapper); committing T_counterexample (re-checked with lake lean Conjecture.lean: passed).
 
 Commit this change? [yes / no]
 > yes

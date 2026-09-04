@@ -1820,8 +1820,8 @@ else
         fail "Check 39: disprove-engine.md Phase 3 compile gate must be an unconditional lake lean <target-file>"
         check39_ok=0
     fi
-    if ! grep -qE 're-run[[:space:]]*$' <<<"$_c39_p3" || ! grep -qF '`lake lean <target-file>` on the wrapper-free file' <<<"$_c39_p3"; then
-        fail "Check 39: disprove-engine.md Phase 3 must rerun lake lean on the wrapper-free file after dropping the gate wrapper"
+    if ! grep -qE 're-run[[:space:]]*$' <<<"$_c39_p3" || ! grep -qF '`lake lean <target-file>` on the gate-free file' <<<"$_c39_p3"; then
+        fail "Check 39: disprove-engine.md Phase 3 must rerun lake lean on the gate-free file after dropping the gate blocks"
         check39_ok=0
     fi
 fi
@@ -1862,7 +1862,11 @@ for _c39_h in '### Cycle 1 — decide-cascade Win Example' \
         fail "Check 39: '$_c39_h' must show an explicit 'Compile gate (lake lean <target-file> ...): passed'"
         check39_ok=0
     fi
-    if ! grep -qE 'Dropped gate-only wrapper.*re-checked with lake lean [^:]*: passed' <<<"$_c39_ex"; then
+    if ! grep -qE '^Axiom gate \(#print axioms [A-Za-z_]+, read from the same lake lean run\)' <<<"$_c39_ex"; then
+        fail "Check 39: '$_c39_h' must show the axiom gate as #print axioms read from the same lake lean run"
+        check39_ok=0
+    fi
+    if ! grep -qE 'Dropped gate-only.*re-checked with lake lean [^:]*: passed' <<<"$_c39_ex"; then
         fail "Check 39: '$_c39_h' must show the post-wrapper re-check as a lake lean"
         check39_ok=0
     fi
@@ -1893,6 +1897,30 @@ if [[ -n "$_c39_p3" ]]; then
         fail "Check 39: disprove-engine.md Phase 3 compile gate is a targeted lake build again"
         check39_ok=0
     fi
+fi
+# Axiom gate freshness: the licensing #print axioms must be elaborated by the
+# same lake lean run as the compile gate. lean_verify goes through the LSP's
+# persistent scratch pool, whose import snapshot can lag the rebuilt imports.
+if [[ -n "$_c39_p3" ]]; then
+    for _c39_s in '#print axioms _root_.T_counterexample' '--role=gate --decl=T_counterexample_axioms' \
+                  'same `lake lean` run' 'advisory cross-check only'; do
+        if ! grep -qF -- "$_c39_s" <<<"$_c39_p3"; then
+            fail "Check 39: disprove-engine.md Phase 3 axiom gate must be the same-run #print axioms probe ($_c39_s)"
+            check39_ok=0
+        fi
+    done
+    if grep -qE 'via `lean_verify` \(or `#print axioms`\)|`lean_verify` / `#print axioms`' <<<"$_c39_p3"; then
+        fail "Check 39: disprove-engine.md Phase 3 presents lean_verify and #print axioms as interchangeable licensing routes"
+        check39_ok=0
+    fi
+fi
+if grep -qE 'via `lean_verify` / `#print axioms`|via `lean_verify` \(or `#print axioms`\)' "$_c39_dcmd"; then
+    fail "Check 39: disprove.md presents lean_verify and #print axioms as interchangeable licensing routes"
+    check39_ok=0
+fi
+if ! grep -qF "from that same run's" "$_c39_dcmd"; then
+    fail "Check 39: disprove.md Phase 3 summary must read the axiom set from the same lake lean run"
+    check39_ok=0
 fi
 if grep -qF 'Lake 5 accepts' "$_c39_ce" "$_c39_cex" "$_c39_deng"; then
     fail "Check 39: 'Lake 5 accepts source paths' is not a valid version boundary (Lean 4.19's Lake also reports 5.0.0 and did not)"
