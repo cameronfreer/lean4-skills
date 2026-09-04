@@ -1782,14 +1782,14 @@ for _c39_f in agents/sorry-filler-deep.md agents/axiom-eliminator.md; do
         check39_ok=0
     fi
 done
-# Quick references must distinguish the targeted build from the project build.
+# Quick references must distinguish the dependency-aware file gate (lake lean) from the project build.
 if ! grep -qE '^lake lean path/to/File\.lean +#' "$PLUGIN_ROOT/agents/sorry-filler-deep.md"; then
     fail "Check 39: sorry-filler-deep.md quick reference must list the dependency-aware 'lake lean path/to/File.lean' line beside plain 'lake build'"
     check39_ok=0
 fi
 
-# /disprove certification: the REFUTED license is the dependency-consistent build,
-# never the file gate (a pre-existing source/.olean mismatch would otherwise certify).
+# /disprove certification: the REFUTED license is lake lean on the resolved target file
+# (dependency-aware; accepts non-module files; writes no target .olean), never lake env lean.
 _c39_dcmd="$PLUGIN_ROOT/commands/disprove.md"
 _c39_deng="$PLUGIN_ROOT/skills/lean4/references/disprove-engine.md"
 _c39_dfix="$PLUGIN_ROOT/tests/pressure/disprove_prime_directive.md"
@@ -1821,7 +1821,7 @@ else
         check39_ok=0
     fi
     if ! grep -qE 're-run[[:space:]]*$' <<<"$_c39_p3" || ! grep -qF '`lake lean <target-file>` on the wrapper-free file' <<<"$_c39_p3"; then
-        fail "Check 39: disprove-engine.md Phase 3 must rebuild the module again after dropping the gate wrapper"
+        fail "Check 39: disprove-engine.md Phase 3 must rerun lake lean on the wrapper-free file after dropping the gate wrapper"
         check39_ok=0
     fi
 fi
@@ -1836,6 +1836,16 @@ done
 # Section-scoped to the two worked examples so unrelated future examples can
 # neither satisfy nor trip these assertions.
 _c39_cex="$PLUGIN_ROOT/skills/lean4/references/command-examples.md"
+# The verification-ladder mirror must recommend the dependency-aware file gate,
+# not the version-dependent, module-only targeted build, after a cross-file edit.
+if ! grep -qF 'after editing an imported module, run `lake lean <path/to/File.lean>`' "$_c39_cex"; then
+    fail "Check 39: command-examples.md ladder note must route post-import-edit gating to lake lean <path/to/File.lean>"
+    check39_ok=0
+fi
+if grep -qE 'after editing an imported module, run `lake build <path' "$_c39_cex"; then
+    fail "Check 39: command-examples.md ladder note recommends a targeted lake build after an import edit again"
+    check39_ok=0
+fi
 for _c39_h in '### Cycle 1 — decide-cascade Win Example' \
               '### Cycle 1 mine miss → cycle 2 enumerate widen + certify'; do
     _c39_ex=$(extract_section "$_c39_cex" "$_c39_h")

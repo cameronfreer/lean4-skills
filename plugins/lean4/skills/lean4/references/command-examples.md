@@ -1127,7 +1127,7 @@ Use the lightest tool that answers the question:
 | File compile | `lake env lean <path/to/File.lean>` | File-level gate, import checks | Seconds |
 | Project gate | `lake build` | Checkpoint, final gate, `/lean4:checkpoint` | Minutes |
 
-Run `lake env lean` from the Lean project root; pass repo-relative file paths. The file gate checks against the built `.olean`s of the file's imports and does not rebuild them — after editing an imported module, run `lake build <path/to/File.lean>` before trusting it ([cycle-engine: File Gate Scope](cycle-engine.md#file-gate-scope)).
+Run `lake env lean` from the Lean project root; pass repo-relative file paths. The file gate checks against the built `.olean`s of the file's imports and does not rebuild them — after editing an imported module, run `lake lean <path/to/File.lean>` (dependency-aware: builds the imports, then elaborates the file) before trusting it ([cycle-engine: File Gate Scope](cycle-engine.md#file-gate-scope)).
 
 ### Target Spellings: `lake build`, `lake lean`, `lake env lean`
 
