@@ -63,8 +63,9 @@ Fill in Sorry #01. DO NOT MOVE ON TO OTHER SORRY'S BEFORE THIS ONE IS FILLED.
 
 **Step 3: Verify compilation**
 ```bash
-lake env lean path/to/File.lean   # run from project root
+lake env lean path/to/File.lean   # run from project root; checks against built imports only
 ```
+This gate elaborates the file against the `.olean`s already built for its imports and does not rebuild them. If you edited an imported module in this session, first run `lake build <path/to/ChangedImport.lean>` (or `lake lean <path/to/File.lean>` for this file's module) — otherwise the gate can pass code that fails to build. See [cycle-engine: File Gate Scope](cycle-engine.md#file-gate-scope).
 
 **Step 4: Repeat**
 Continue with the next sorry in the TODO list.
@@ -205,7 +206,7 @@ Do this in the current worktree. Do not symlink another worktree's `.lake/build`
 - Search mathlib exhaustively before proving
 - Test all candidates if possible
 - Use shortest working proof
-- Verify: `lean_diagnostic_messages(file)` per-edit; `lake env lean <path/to/File.lean>` for file gate (from project root)
+- Verify: `lean_diagnostic_messages(file)` per-edit; `lake env lean <path/to/File.lean>` for file gate (from project root; after a cross-file edit, `lake lean <path/to/File.lean>` instead — see [File Gate Scope](cycle-engine.md#file-gate-scope))
 - Add necessary imports
 
 ❌ **Don't:**

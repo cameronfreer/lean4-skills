@@ -30,8 +30,11 @@ accumulated evidence and the Target Profile.
 ## Prime Directive
 
 Report `REFUTED` **only** when a Lean term of the negation typechecks under
-`lake env lean` with no `sorry` or `admit` **and** its axiom set is within the
-allowed whitelist (`propext`, `Classical.choice`, `Quot.sound`; plus
+`lake lean <target-file>` (the dependency-aware file gate: it builds the file's
+imports, then elaborates this exact file — also for a target outside any
+`lean_lib`; `lake env lean` is a pre-screen, never the license — it reads built
+`.olean`s and cannot see a stale import) with no `sorry` or `admit` **and** its
+axiom set is within the allowed whitelist (`propext`, `Classical.choice`, `Quot.sound`; plus
 `Lean.ofReduceBool` only under an explicit `native_decide` opt-in this cycle).
 Fast witnesses and informal heuristics are *hypotheses* until Lean certifies
 them. See
@@ -126,7 +129,7 @@ See [disprove-engine.md § Phase 2 — Work](../skills/lean4/references/disprove
 
 ### Phase 3: Checkpoint
 
-See [disprove-engine.md § Phase 3 — Checkpoint](../skills/lean4/references/disprove-engine.md#phase-3--checkpoint). On a **pre-screen-passing candidate**, open a transaction (`txn=$(lean4-skills-disprove-artifact-txn begin)`) and append `T_counterexample` via its `append --txn=$txn --role=artifact` subcommand (witness shapes also append the gate-only `*_negates_target` with `--role=gate`), run `lake env lean <target-file>` from the project root, then **inspect the axioms of the declaration carrying `¬ TARGET`** (`T_counterexample` for direct shapes, `T_counterexample_negates_target` for witness shapes) via `lean_verify` / `#print axioms`. Report `REFUTED` only if it typechecks **and** that declaration's axioms ⊆ `{propext, Classical.choice, Quot.sound}` (plus `Lean.ofReduceBool` only under an explicit `native_decide` opt-in this cycle): on `REFUTED`, `drop-role --txn=$txn --role=gate` (witness shapes) and commit only `T_counterexample`. Otherwise `rollback --txn=$txn` (reverts every declaration appended this cycle), distinguishing the non-REFUTED outcomes: a **typecheck failure** is a `near-miss` cycle outcome (capture the error signature for the next cycle), while a **non-whitelisted axiom or inconclusive axiom inspection** is `WITNESS_UNCERTIFIED`. `<target-file>` is the resolved source file — for a qualified-name target, the declaration's **writable** source file from Phase 1 (disprove refuses if it resolves only to a read-only dependency).
+See [disprove-engine.md § Phase 3 — Checkpoint](../skills/lean4/references/disprove-engine.md#phase-3--checkpoint). On a **pre-screen-passing candidate**, open a transaction (`txn=$(lean4-skills-disprove-artifact-txn begin)`) and append `T_counterexample` via its `append --txn=$txn --role=artifact` subcommand (witness shapes also append the gate-only `*_negates_target` with `--role=gate`; every shape then appends the gate-only `#print axioms <¬TARGET decl>` (unqualified, so it resolves to the just-appended declaration even inside a namespace left open to end-of-file) probe with `--role=gate`), run `lake lean <target-file>` **once** from the project root (the dependency-aware file gate: imports built, then this exact file elaborated; not `lake env lean`, which cannot see a stale import) and **read the axiom set of the declaration carrying `¬ TARGET`** (`T_counterexample` for direct shapes, `T_counterexample_negates_target` for witness shapes) from that same run's `#print axioms` output — `lean_verify` is advisory only, since its LSP import snapshot can lag the rebuilt imports. Report `REFUTED` only if it typechecks **and** that declaration's axioms ⊆ `{propext, Classical.choice, Quot.sound}` (plus `Lean.ofReduceBool` only under an explicit `native_decide` opt-in this cycle): on `REFUTED`, `drop-role --txn=$txn --role=gate` (every shape: removes the probe and any wrapper), re-run `lake lean <target-file>` on the gate-free file, and commit only `T_counterexample`. Otherwise `rollback --txn=$txn` (reverts every declaration appended this cycle), distinguishing the non-REFUTED outcomes: a **typecheck failure** is a `near-miss` cycle outcome (capture the error signature for the next cycle), while a **non-whitelisted axiom or inconclusive axiom inspection** is `WITNESS_UNCERTIFIED`. `<target-file>` is the resolved source file — for a qualified-name target, the declaration's **writable** source file from Phase 1 (disprove refuses if it resolves only to a read-only dependency).
 
 **Commit prompt** (when `--commit=ask`):
 
@@ -249,7 +252,7 @@ of the originating Step 0 finding); all other cycles show `—`. See
   through `lean4-skills-disprove-artifact-txn` (over the collision-safe
   `lean4-skills-disprove-emit-artifact`): each append is wrapped in txn-id markers and
   refuses to modify or clobber an existing declaration; the cycle's writes are
-  reverted as a unit via `rollback` / `drop-role` on failure or wrapper drop.
+  reverted as a unit via `rollback` / `drop-role` on failure or gate-block drop.
 - **No `native_decide` without opt-in (any method).** `native_decide`
   defaults off and is not in the `tactics` method's default list. Anywhere
   it can appear — `decide-cascade`'s `native_decide=on`, a custom `tactics`
@@ -257,9 +260,10 @@ of the originating Step 0 finding); all other cycles show `—`. See
   the cycling LLM surfaces it as such in Step 2 and records it in the
   cycle's evidence. Enabling admits the `Lean.ofReduceBool` axiom, which the
   compile/axiom gate then permits only for that cycle.
-- **No `REFUTED` without compile gate + axiom gate.** `lean_multi_attempt` is the
-  cheap pre-screen; `REFUTED` requires `lake env lean <path>` from the project root
-  to typecheck (no `sorry`/`admit`) **and** the `¬ TARGET` declaration's axioms
+- **No `REFUTED` without compile gate + axiom gate.** `lean_multi_attempt` and
+  `lake env lean` are pre-screens; `REFUTED` requires `lake lean <target-file>`
+  (from the project root, on the resolved source path; builds the file's imports
+  first, so the check is dependency-aware) to succeed (no `sorry`/`admit`) **and** the `¬ TARGET` declaration's axioms
   (`T_counterexample`, or `T_counterexample_negates_target` for witness shapes) ⊆
   `{propext, Classical.choice, Quot.sound}` (plus `Lean.ofReduceBool` only under
   an explicit `native_decide` opt-in). A non-whitelisted axiom, or inconclusive

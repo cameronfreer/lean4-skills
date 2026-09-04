@@ -91,6 +91,33 @@ assert_count "8c. txn2 artifact survives rollback of txn1" "$F" "^theorem bar_co
 assert_count "8d. pre-existing decl untouched" "$F" "^theorem pre" 1
 assert_count "8e. no txn1 markers remain" "$F" "txn=$TXN1" 0
 
+echo "-- 9. a gate block may hold a COMMAND (the #166 same-run axiom probe), not only a declaration --"
+# The fixture leaves a namespace open to end-of-file (legal Lean): the appended
+# theorem is then ProbeNs.T_counterexample, so the probe must be UNQUALIFIED —
+# `_root_.T_counterexample` would inspect an imported root decl of that name.
+G="$WORK/G.lean"
+printf 'import Mathlib\nnamespace ProbeNs\ntheorem pre : True := trivial\n' > "$G"
+TXN9=$(python3 "$TXN" begin)
+run 'theorem T_counterexample : ¬ (1 = 2) := by decide' append --scope-file "$G" --txn "$TXN9" --role artifact --decl T_counterexample
+assert_exit "9a. artifact appended" 0
+run '#print axioms T_counterexample' append --scope-file "$G" --txn "$TXN9" --role gate --decl T_counterexample_axioms
+assert_exit "9b. #print axioms command appended as a gate block" 0
+assert_count "9c. probe present once, unqualified" "$G" "^#print axioms T_counterexample$" 1
+assert_count "9c'. probe is not root-qualified" "$G" "_root_" 0
+assert_count "9d. probe carries the gate-role marker" "$G" "role=gate decl=T_counterexample_axioms" 1
+run '' drop-role --scope-file "$G" --txn "$TXN9" --role gate
+assert_exit "9e. drop-role gate" 0
+assert_count "9f. probe removed" "$G" "#print axioms" 0
+assert_count "9g. artifact preserved after dropping the probe" "$G" "^theorem T_counterexample" 1
+assert_count "9h. pre-existing decl untouched" "$G" "^theorem pre" 1
+run '#print axioms T_counterexample' append --scope-file "$G" --txn "$TXN9" --role gate --decl T_counterexample_axioms
+assert_exit "9i. probe re-appended after drop" 0
+run '' rollback --scope-file "$G" --txn "$TXN9"
+assert_exit "9j. rollback" 0
+assert_count "9k. rollback removed the probe" "$G" "#print axioms" 0
+assert_count "9l. rollback removed the artifact" "$G" "T_counterexample" 0
+assert_count "9m. pre-existing decl untouched" "$G" "^theorem pre" 1
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ]

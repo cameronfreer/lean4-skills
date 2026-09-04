@@ -1,27 +1,34 @@
 #!/usr/bin/env python3
 """Transactional artifact append/drop/rollback for /lean4:disprove.
 
-A disprove cycle may append more than one declaration to the target file (the
-committed `T_counterexample`, and for witness shapes a gate-only
-`*_negates_target` wrapper used only to license the kernel gate). The wrapper is
-dropped before commit, and on a gate failure *all* declarations appended this
-cycle must be reverted. This script makes that enforceable instead of leaving it
-to the model: each appended declaration is wrapped in comment markers carrying a
-unique transaction id, and drop/rollback operate on that id.
+A disprove cycle appends more than one block to the target file: the committed
+`T_counterexample` declaration (role=artifact), and gate-only blocks
+(role=gate) that exist only to license the kernel gate — for witness shapes a
+`*_negates_target` wrapper declaration, and for every shape a `#print axioms`
+command so the axiom set is read from the same `lake lean` run as the compile
+gate (issue #166). A block's body is any Lean source: a declaration or a
+command. `--decl NAME` is the block's label; for a declaration it is the
+declared name (collision-checked), for a command it is a label such as
+`T_counterexample_axioms`. All gate blocks are dropped before commit, and on a
+gate failure *all* blocks appended this cycle are reverted. This script makes
+that enforceable instead of leaving it to the model: each block is wrapped in
+comment markers carrying a unique transaction id, and drop/rollback operate on
+that id.
 
 Markers (Lean line comments, inert):
     -- lean4:disprove-begin txn=<id> cycle=<n> role=artifact|gate decl=<name>
-    <declaration>
+    <block body: a declaration or a command such as `#print axioms X` (unqualified — see disprove-engine.md Phase 3)>
     -- lean4:disprove-end txn=<id>
 
 Subcommands:
     begin                                   -> print a fresh txn id
-    append  --scope-file F --txn ID --role R --decl NAME [--cycle N]  (stdin=decl)
+    append  --scope-file F --txn ID --role R --decl NAME [--cycle N]  (stdin=block body)
     drop-role --scope-file F --txn ID --role R
     rollback  --scope-file F --txn ID
 
 Append refuses (exit 2) if NAME is already declared outside this txn's blocks
-(don't clobber a pre-existing or other-txn declaration). Re-appending the same
+(don't clobber a pre-existing or other-txn declaration; a command block's label
+is checked the same way, so pick one that no declaration uses). Re-appending the same
 txn+role+decl is idempotent (exit 0) only when the normalized body is identical;
 a different body under the same txn+role+decl is a collision (exit 2) — roll back
 or drop the block, then re-append. drop/rollback only excise this txn's marker

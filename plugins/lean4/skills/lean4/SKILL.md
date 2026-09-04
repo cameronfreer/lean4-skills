@@ -331,7 +331,7 @@ A proof is complete when:
 - Only standard axioms (`propext`, `Classical.choice`, `Quot.sound`)
 - No statement changes without permission
 
-Verification ladder: `lean_diagnostic_messages(file)` per-edit → `lake env lean <path/to/File.lean>` file gate (run from project root) → `lake build` project gate only. See [cycle-engine: Build Target Policy](references/cycle-engine.md#build-target-policy).
+Verification ladder: `lean_diagnostic_messages(file)` per-edit → `lake env lean <path/to/File.lean>` file gate (run from project root; checks against built imports only — after a cross-file edit use `lake lean <path/to/File.lean>`, see [File Gate Scope](references/cycle-engine.md#file-gate-scope)) → `lake build` project gate only. See [cycle-engine: Build Target Policy](references/cycle-engine.md#build-target-policy).
 
 ## Common Fixes
 
@@ -397,7 +397,7 @@ lean4-skills-sorry-analyzer . --report-only
 - Use the project's cache command: `lake cache get` on newer Lake, or `lake exe cache get` where the project still uses the mathlib cache executable.
 - If Lean LSP is cold or timing out on first use, run one `lake build` to bootstrap the workspace.
 - After bootstrap, return to the normal verification ladder:
-  `lean_diagnostic_messages(file)` → `lake env lean <path/to/File.lean>` (from project root) → `lake build` only at checkpoint/final gate.
+  `lean_diagnostic_messages(file)` → `lake env lean <path/to/File.lean>` (from project root; built imports only, see [File Gate Scope](references/cycle-engine.md#file-gate-scope)) → `lake build` only at checkpoint/final gate.
 - Do **not** symlink another worktree's `.lake/build`; use Lake cache/artifact mechanisms instead.
 
 ## References

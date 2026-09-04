@@ -76,7 +76,7 @@ check_commands() {
             autoprove)  max_lines=300 ;;
             checkpoint) max_lines=155 ;;
             diagnose)   max_lines=290 ;;
-            disprove)   max_lines=300 ;;
+            disprove)   max_lines=310 ;;  # +10 (#166): expanded dependency-aware certification wording
             draft)      max_lines=170 ;;
             formalize)  max_lines=210 ;;
             golf)       max_lines=178 ;;
@@ -318,7 +318,7 @@ check_cross_refs() {
     local agent_anchors="sorry-filler-deep proof-repair proof-golfer axiom-eliminator"
 
     # Valid anchors for cycle-engine.md
-    local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic session-tracking claim-boundary-protocol-autoformalize enforcement-levels falsification-artifacts repair-mode safety synthesis-outer-loop algorithm draft-commit-boundary header-fence session-generated-provenance statement-safety claim-queue file-assembly-contract review-router pre-flight-context-for-subagent-dispatch run-contract-run-contractv1 delegation-execution-policy file-baselines-and-drift-issue-102"
+    local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic session-tracking claim-boundary-protocol-autoformalize enforcement-levels falsification-artifacts repair-mode safety synthesis-outer-loop algorithm draft-commit-boundary header-fence session-generated-provenance statement-safety claim-queue file-assembly-contract review-router pre-flight-context-for-subagent-dispatch run-contract-run-contractv1 delegation-execution-policy file-baselines-and-drift-issue-102 file-gate-scope"
 
     while IFS= read -r file; do
         # Check links to command-examples.md
@@ -1126,23 +1126,11 @@ check_build_patterns() {
             checkpoint.md|lean-lsp-server.md|MIGRATION.md) continue ;;
         esac
 
-        # Warn on lake build with .lean file arguments
-        # Skip lines that teach anti-patterns (Never, Do not, Wrong, Incorrect, ✗)
-        # Also check preceding line for anti-pattern context (e.g., "# ✗ Wrong" comment above code)
-        while IFS=: read -r _bp_line _bp_content; do
-            [[ -z "$_bp_line" ]] && continue
-            if echo "$_bp_content" | grep -qiE '(Never|Do not|Wrong|Incorrect|✗|anti.?pattern)'; then
-                continue
-            fi
-            _bp_prev_line=$(( _bp_line - 1 ))
-            if [[ $_bp_prev_line -gt 0 ]]; then
-                _bp_prev=$(sed -n "${_bp_prev_line}p" "$file")
-                if echo "$_bp_prev" | grep -qiE '(Never|Do not|Wrong|Incorrect|✗|anti.?pattern)'; then
-                    continue
-                fi
-            fi
-            warn "$_bp_base:$_bp_line: 'lake build' with .lean file arg (use 'lake env lean <file>')"
-        done < <(grep -nE 'lake build [A-Za-z0-9_./-]+\.lean' "$file" 2>/dev/null || true)
+        # No `lake build <file>` heuristic here (removed in #166): current Lake accepts
+        # source paths as build targets, and whether a bare basename resolves
+        # depends on the lib's srcDir, which a regex cannot know. The genuinely
+        # false claims ("does not accept file path arguments", textual / -> .
+        # module derivation) are pinned by test_contracts Check 39 instead.
 
         # Warn on lake build <file placeholder pattern
         while IFS=: read -r _bp_line _bp_content; do

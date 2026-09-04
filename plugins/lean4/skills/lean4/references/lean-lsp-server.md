@@ -25,7 +25,7 @@
 
 3. **After bootstrap, use LSP for normal iteration.**
    Day-to-day proof development should use LSP tools for discovery, search, and per-edit validation.
-   Reserve `lake env lean <path/to/File.lean>` (run from project root) for file-level gates and `lake build` for checkpoint/final verification.
+   Reserve `lake env lean <path/to/File.lean>` (run from project root) for fast file-local checks — it elaborates against the built `.olean`s of the file's imports and does not rebuild them, so after editing an imported module run `lake lean <path/to/File.lean>` first ([File Gate Scope](cycle-engine.md#file-gate-scope)) — and `lake build` for checkpoint/final verification.
 
 **Worktrees:** prime cache separately per worktree. Do **not** symlink another worktree's `.lake/build`.
 

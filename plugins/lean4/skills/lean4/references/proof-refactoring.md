@@ -264,7 +264,7 @@ Extract one helper at a time, compile after each:
 1. Copy `have` proof to new lemma
 2. Identify required parameters
 3. Replace original with `have h := helper args`
-4. `lean_diagnostic_messages(file)` per-edit, `lake env lean <path/to/File.lean>` for file gate (from project root)
+4. `lean_diagnostic_messages(file)` per-edit, `lake env lean <path/to/File.lean>` for file gate (from project root); once a refactor has touched an imported module, gate with `lake lean <path/to/File.lean>` instead — the file gate reads stale `.olean`s ([File Gate Scope](cycle-engine.md#file-gate-scope))
 5. Commit if successful
 
 ### Step 4: Iterate
@@ -727,6 +727,7 @@ lean_goal(file_path, line)
 **Without LSP:**
 ```bash
 lake env lean FILE.lean  # After each extraction (run from project root)
+lake lean path/to/FILE.lean   # Instead, once an extraction moved code into an imported module (see cycle-engine.md#file-gate-scope)
 ```
 
 **Why:** Errors compound. One error at a time is faster than five mixed together.
