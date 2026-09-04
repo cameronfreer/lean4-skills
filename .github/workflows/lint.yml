@@ -217,6 +217,13 @@ jobs:
       - name: test_contracts.sh (wrapper/doc/agent contract suite)
         run: bash plugins/lean4/tools/test_contracts.sh
 
+      # Executable evidence for the /disprove transaction contract that Check 39
+      # pins (#166): gate blocks may hold a command (the same-run `#print axioms`
+      # probe), drop-role preserves the artifact, rollback removes both. The
+      # helper is Python; no macOS leg needed.
+      - name: Self-test — disprove artifact transactions
+        run: bash plugins/lean4/tests/test_disprove_artifact_txn.sh
+
       # Also run the lint_docs self-test on Linux so its staleness probes
       # (7–8) exercise the GNU `date -d` branch of Check 20's portable date
       # parser; the macOS bash3-compat job runs the same probes against the
