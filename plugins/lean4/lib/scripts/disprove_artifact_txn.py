@@ -17,7 +17,7 @@ that id.
 
 Markers (Lean line comments, inert):
     -- lean4:disprove-begin txn=<id> cycle=<n> role=artifact|gate decl=<name>
-    <block body: a declaration or a command such as `#print axioms _root_.X`>
+    <block body: a declaration or a command such as `#print axioms X` (unqualified — see disprove-engine.md Phase 3)>
     -- lean4:disprove-end txn=<id>
 
 Subcommands:

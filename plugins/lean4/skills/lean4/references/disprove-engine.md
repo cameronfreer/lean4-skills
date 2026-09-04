@@ -676,9 +676,15 @@ the qualified-name target resolved to in Phase 1):
    `--role=gate --decl=T_counterexample_negates_target`. Then, for **every** shape,
    append the gate-only axiom probe under the same txn —
    `--role=gate --decl=T_counterexample_axioms` with the one-line snippet
-   `#print axioms _root_.T_counterexample` (direct shapes) or
-   `#print axioms _root_.T_counterexample_negates_target` (witness shapes) — so the
+   `#print axioms T_counterexample` (direct shapes) or
+   `#print axioms T_counterexample_negates_target` (witness shapes) — so the
    axiom inspection is elaborated by the same fresh process as the compile gate.
+   The name is deliberately **unqualified**: the blocks are appended at the physical
+   end of the file, and a `namespace N` left open to end-of-file (legal Lean) makes
+   the appended theorem `N.T_counterexample`; an unqualified probe resolves to that
+   newly appended declaration, whereas `_root_.T_counterexample` would inspect an
+   imported root declaration of the same name and could report a clean axiom set for
+   the wrong theorem.
    Each append is wrapped in `-- lean4:disprove-begin/-end txn=… role=…` markers and
    refuses to clobber a decl already declared outside the txn. (The standalone
    collision-safe writer `lean4-skills-disprove-emit-artifact` remains for

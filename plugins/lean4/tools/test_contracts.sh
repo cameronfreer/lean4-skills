@@ -1902,7 +1902,7 @@ fi
 # same lake lean run as the compile gate. lean_verify goes through the LSP's
 # persistent scratch pool, whose import snapshot can lag the rebuilt imports.
 if [[ -n "$_c39_p3" ]]; then
-    for _c39_s in '`#print axioms _root_.T_counterexample`' '`#print axioms _root_.T_counterexample_negates_target`' \
+    for _c39_s in '`#print axioms T_counterexample`' '`#print axioms T_counterexample_negates_target`' 'deliberately **unqualified**' \
                   '--role=gate --decl=T_counterexample_axioms' \
                   'same `lake lean` run' 'advisory cross-check only'; do
         if ! grep -qF -- "$_c39_s" <<<"$_c39_p3"; then
@@ -1914,6 +1914,17 @@ if [[ -n "$_c39_p3" ]]; then
         fail "Check 39: disprove-engine.md Phase 3 presents lean_verify and #print axioms as interchangeable licensing routes"
         check39_ok=0
     fi
+    # The probe must be UNQUALIFIED: blocks land at end-of-file, where a
+    # namespace left open makes the artifact N.T_counterexample; `_root_.`
+    # would inspect an imported root declaration of the same name instead.
+    if grep -qF '#print axioms _root_.' <<<"$_c39_p3"; then
+        fail "Check 39: disprove-engine.md Phase 3 probe is root-qualified (_root_.) — it must be the unqualified name so it resolves to the just-appended declaration"
+        check39_ok=0
+    fi
+fi
+if grep -qF '#print axioms _root_.' "$_c39_dcmd" "$_c39_cex"; then
+    fail "Check 39: a /disprove axiom probe is root-qualified (_root_.) — use the unqualified name"
+    check39_ok=0
 fi
 if grep -qE 'via `lean_verify` / `#print axioms`|via `lean_verify` \(or `#print axioms`\)' "$_c39_dcmd"; then
     fail "Check 39: disprove.md presents lean_verify and #print axioms as interchangeable licensing routes"
