@@ -65,13 +65,12 @@ jobs:
           LEAN_FILE_GATE_KEEP_DIR: ${{ runner.temp }}/lean_file_gate_failures
         run: python3 plugins/lean4/tests/integration/test_lean_file_gate.py -v
 
-      - name: Core-Lean instance-registration snippets (SKILL.md § Type Class Patterns)
-        # Same pinned toolchain, no Mathlib. Positive cases show a downstream
-        # consumer synthesizing a have/let-supplied instance; each negative
-        # control is a #guard_msgs block, so the file fails if a documented
-        # failure stops failing.
+      - name: Core-Lean reference snippets (instance registration; #167/#168/#169 diagnostics)
+        # Same pinned toolchain, no Mathlib. Documented repairs must elaborate;
+        # documented failures are #guard_msgs controls, plus one must-fail file
+        # for the `omit` parse error that #guard_msgs cannot capture.
         working-directory: plugins/lean4/tests/fixtures/lean_file_gate
-        run: lean ../reference_snippets/core_instance_snippets.lean
+        run: bash ../reference_snippets/run_core_snippets.sh
 
       - name: Upload failing projects + command transcripts
         if: failure()

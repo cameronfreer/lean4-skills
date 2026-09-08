@@ -12,6 +12,7 @@ This reference provides detailed explanations and fixes for the most common comp
 | **"(deterministic) timeout at 'typeclass'"** | Instance search too deep or looping | Supply the instance with evidence (`have : C := ⟨proof⟩`) or `set_option synthInstance.maxHeartbeats 40000 in`; check for instance loops |
 | **WHNF/isDefEq timeout** (500k+ heartbeats) | Complex function in polymorphic goal | **[performance-optimization.md](performance-optimization.md)** - use `@[irreducible]` wrapper |
 | **"type mismatch"** (has type ℕ but expected ℝ) | Wrong type | Use coercion: `(x : ℝ)` or `↑x` |
+| **"Application type mismatch … has type `Type u` … expected to have type `Type`"** reported at an *argument* of a universe-polymorphic definition | A bare `: Type` result annotation means `Type 0`; the constraint propagates backwards into the arguments | `Type _` to infer the result universe, or `Type u` to state the relationship; see [§ 20](#20-bare-type-result-annotation-forces-universe-0) |
 | **"expected Filter got Measure"** | Dot notation namespace confusion | Use standalone: `EventuallyEq.lemma h` not `h.EventuallyEq.lemma` |
 | **"numerals are data but expected Prop"** | Value where proof expected | Use proof term: `tendsto_const_nhds` not `1` |
 | **"tactic 'exact' failed"** | Goal/term type mismatch | Use `apply` for unification or restructure: `⟨h.2, h.1⟩` |
@@ -604,6 +605,8 @@ let μX := pathLaw μ X  -- Should be Y not X
 **Don't:** Assume the error line is where you need to fix.
 **Do:** Trace backwards from error to find the root cause.
 
+**Two named instances of this:** a universe error reported at an *argument* when the cause is a bare `: Type` result annotation ([§ 20](#20-bare-type-result-annotation-forces-universe-0)), and `unexpected token 'omit'` reported at a *docstring* when the cause is the line order below it ([§ 21](#21-declaration-prefix-ordering-omit--in-attributes-docstring)).
+
 ### 14. Alpha/Beta-Equivalence Issues (Binder Mismatches)
 
 **Problem:** Lean fails to match expressions because binder names differ (α-equivalence) or beta-redexes aren't reduced.
@@ -767,6 +770,43 @@ import Phases.Pal
 **What's wrong:** The current mathlib header shape is: copyright block → `module` → grouped `public import` / plain `import` blocks (blank line between them) → `/-!` docstring → `public section`. Declarations in a `module` are private by default, so a converted file also needs the `public section` (or per-declaration `public`) to export its API.
 
 **Fix:** Rewrite the header to the canonical template in [mathlib-style.md § 1](mathlib-style.md#1-file-header-copyright-module-imports-critical), then refresh generated root-import files with `lake exe mk_all`. Command-side: `/lean4:draft` and `/lean4:formalize` emit this shape for mathlib-targeted `--output=file` writes (`--mathlib-template`).
+
+### 20. Bare `Type` Result Annotation Forces Universe 0
+
+**Problem:** `: Type` means `Type 0`, not "some type". Elaboration pushes that constraint backwards into the arguments, so the error can land on an argument (or the application) of a universe-polymorphic definition and read as if *that definition* were broken.
+
+**Full error message** (reported at the argument `α`, Lean 4.33.1):
+```
+error: Application type mismatch: The argument
+  α
+has type
+  Type u
+of sort `Type (u + 1)` but is expected to have type
+  Type
+of sort `Type 1` in the application
+  WrappedType α
+```
+
+**Example failure:**
+```lean
+universe u
+def WrappedType (α : Type u) : Type u := α
+
+-- ✗ Fails at `α`: the result annotation means `Type 0`
+example (α : Type u) : Type := WrappedType α
+-- ✗ An explicit universe argument cannot override the annotation; the error
+--   moves to the application ("Type mismatch  WrappedType α …")
+example (α : Type u) : Type := WrappedType.{u} α
+
+-- ✓ Infer the result universe …
+example (α : Type u) : Type _ := WrappedType α
+-- ✓ … or state the universe relationship explicitly
+example (α : Type u) : Type u := WrappedType α
+```
+
+**Fix:** use `Type _` when the universe should be inferred, or `Type u` (naming the universe) when the relationship to the arguments is part of the statement. Write a bare `: Type` only when universe zero is intended. Neither `_` nor a named universe is universally preferable: `_` asks for inference, `u` documents a relationship.
+
+**Why it matters:** the apparent conclusion is "the definition under test is uninstantiable", when the probe's annotation is the cause. All four forms above are in `tests/fixtures/reference_snippets/diagnostic_snippets.lean` (the two failures as `#guard_msgs` controls).
 
 ---
 
