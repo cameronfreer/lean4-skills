@@ -625,7 +625,7 @@ trace "Current goal: {·}"
 
 -- Debug instance synthesis
 set_option trace.Meta.synthInstance true in
-theorem my_theorem : Goal := by apply_instance
+theorem my_theorem : Goal := by infer_instance
 ```
 
 ## Tactic Selection Decision Tree

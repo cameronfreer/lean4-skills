@@ -128,15 +128,16 @@ lemma condExp_eq_of_integral_eq
 **Critical issues:**
 - Binder order: instance parameters before plain parameters
 - Never use `‹_›` for ambient space (resolves incorrectly)
-- Provide trimmed measure instances with `haveI`
+- Check whether trimmed-measure instances already synthesize before adding any; freeze with plain `have` if needed (`haveI` only inlines — irrelevant in a proof)
 
 ```lean
 -- ✅ Correct pattern
-lemma my_condexp_lemma {Ω : Type*} {m₀ : MeasurableSpace Ω}
+lemma my_condExp_lemma {Ω : Type*} {m₀ : MeasurableSpace Ω}
     {μ : Measure Ω} [IsFiniteMeasure μ]
     {m : MeasurableSpace Ω} (hm : m ≤ m₀) : Result := by
-  haveI : IsFiniteMeasure (μ.trim hm) := isFiniteMeasure_trim μ hm
-  haveI : SigmaFinite (μ.trim hm) := sigmaFinite_trim μ hm
+  -- `IsFiniteMeasure (μ.trim hm)` is a Mathlib instance; σ-finiteness follows.
+  -- Optional freeze (plain `have` registers the instance):
+  have : SigmaFinite (μ.trim hm) := inferInstance
   -- Now call mathlib lemmas
 ```
 

@@ -112,7 +112,7 @@ Proceed? (yes / no)
 
 **Top 3 blockers:**
 1. Missing lemma about tendsto_atTop → search Mathlib.Topology.Order
-2. Typeclass instance missing for MeasurableSpace β → add `haveI`
+2. Typeclass instance missing for MeasurableSpace β → supply the intended structure (`have : MeasurableSpace β := borel β` only when `[TopologicalSpace β]` is available and Borel is intended; otherwise import the declaring module or report the missing prerequisite); `inferInstance` would re-run the failed search
 3. Proof too long (38 lines) → extract helper lemma first
 
 **Evidence:**

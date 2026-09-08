@@ -384,7 +384,7 @@ Compiler-guided repair is an **escalation-only** workflow — not the default re
 |-------|-------------|
 | `type mismatch` | Add coercion, `convert`, fix argument |
 | `unknown identifier` | Search mathlib, add import |
-| `failed to synthesize` | Add `haveI`/`letI` |
+| `failed to synthesize` | Import/`open scoped` the declaring module, or supply the instance with evidence via plain `have`/`let` (`haveI`/`letI` only inline; `:= inferInstance` only freezes one that already synthesizes) |
 | `timeout` | Narrow `simp`, add explicit types |
 
 For detailed fixes, see [compilation-errors.md](compilation-errors.md). For persistent issues, [capture a build log](compilation-errors.md#build-log-capture) for inspection.

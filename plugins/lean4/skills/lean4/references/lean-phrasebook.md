@@ -22,7 +22,7 @@ This guide translates common mathematical proof phrases into their Lean 4 equiva
 - **Chain equalities**: `calc`, `rw [h₁, h₂]`
 - **Simplify**: `simp`, `ring`, `field_simp`, `norm_num`
 - **Explore options**: `exact?`, `apply?`, `simp?`
-- **Manage goals**: `swap`, `rotate`, `all_goals`
+- **Manage goals**: `swap`, `pick_goal n`, `rotate_left`, `all_goals`
 
 **See also:** [tactics-reference.md](tactics-reference.md) for comprehensive tactic documentation.
 
@@ -719,7 +719,7 @@ Managing multiple goals and proof structure.
 ```lean
 swap
 ```
-- Also: `swap n`, `rotate`, `rotate n`
+- Also: `pick_goal n` (bring goal n to the front), `rotate_left n` / `rotate_right n`. `swap n` and bare `rotate` are not Lean 4 tactics.
 
 **"We establish all these goals by the same argument"**
 ```lean

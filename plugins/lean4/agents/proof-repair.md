@@ -54,7 +54,7 @@ Consume the `run-contract/v1` [dispatch record](../skills/lean4/references/hando
 | `type_mismatch` | `convert _ using N`, type annotation, `refine`, `rw` |
 | `unsolved_goals` | `simp?`, `exact?`, `intro`, `use`, `constructor` |
 | `unknown_ident` | Search mathlib, add import, fix namespace |
-| `synth_instance` | `haveI`/`letI`, `open scoped`, reorder arguments |
+| `synth_instance` | local instance via plain `have`/`let`, `open scoped`, reorder arguments |
 | `timeout` | `simp only [...]`, `clear`, explicit instances |
 
 ## Output

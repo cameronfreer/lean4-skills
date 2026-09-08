@@ -19,9 +19,9 @@ When working with sub-σ-algebras and conditional expectation:
 
 1. **Make ambient space explicit:** `{m₀ : MeasurableSpace Ω}` (never `‹_›`)
 2. **Correct binder order:** All instance parameters first, THEN plain parameters
-3. **Use `haveI`** to provide trimmed measure instances before calling mathlib
-4. **Avoid instance pollution:** Pin ambient (`let m0 := ‹...›`), use `@` for ambient facts (see [instance-pollution.md](instance-pollution.md))
-5. **Prefer set-integral projection:** Use `set_integral_condexp` instead of proving `μ[g|m] = g`
+3. **Check whether synthesis already succeeds** before adding local instances: given `[IsFiniteMeasure μ]`, `IsFiniteMeasure (μ.trim hm)` is a Mathlib instance and `SigmaFinite (μ.trim hm)` follows from it. `[SigmaFinite μ]` alone is **not** enough (`sigmaFinite_trim_bot_iff`; synthesis fails). If you still freeze one, use plain `have` (it registers the instance; `haveI` only inlines, which is irrelevant in a proof)
+4. **Avoid instance pollution:** name the ambient instance in the declaration (`[mΩ : MeasurableSpace Ω]`) and state ambient facts against it (`@`, `MeasurableSet[mΩ]`); `let m0 := ‹…›` is only the recovery when you cannot change the signature (see [instance-pollution.md](instance-pollution.md))
+5. **Prefer set-integral projection:** Use `setIntegral_condExp` instead of proving `μ[g|m] = g`
 6. **Rewrite products to indicators:** `f * indicator` → `indicator f` avoids measurability issues
 7. **Follow condExpWith pattern** for conditional expectation (see below)
 8. **Copy-paste σ-algebra relations** from ready-to-use snippets (see Advanced Patterns)
@@ -32,9 +32,9 @@ When working with sub-σ-algebras and conditional expectation:
 
 | Task | Lemma | Notes |
 |------|-------|-------|
-| CE integrability | `integrable_condexp` | Always available |
-| Project CE to set integral | `set_integral_condexp` | Use this, not a.e. equality |
-| Trim measure instance | `sigmaFinite_trim μ hm` | After `haveI` |
+| CE integrability | `integrable_condExp` | Always available |
+| Project CE to set integral | `setIntegral_condExp` | Use this, not a.e. equality |
+| Trim measure instance | `inferInstance` (via the `isFiniteMeasure_trim` instance + `IsFiniteMeasure.toSigmaFinite`) | Needs `[IsFiniteMeasure μ]`; optional freeze: `have : SigmaFinite (μ.trim hm) := inferInstance` |
 | Preimage measurability | `measurableSet_preimage hf hs` | Function syntax |
 | Lift sub-σ-algebra set | `hm _ hs_m` where `hm : m ≤ m₀` | Direct application |
 
@@ -51,12 +51,17 @@ When working with sub-σ-algebras and conditional expectation:
 - **Timeout errors:** Can cause 500k+ heartbeat explosions in type unification
 - **Hard to debug:** Synthesized vs inferred type mismatches are cryptic
 
-**Quick fix:** Pin ambient instance FIRST before defining sub-σ-algebras:
+**Quick fix:** name the ambient instance in the declaration, state the ambient facts against it, THEN define sub-σ-algebras. `MeasurableSpace.comap W m` pulls the **codomain** structure `m` back along `W`, so for `W : Ω → γ` the argument is the `MeasurableSpace γ`, never the ambient `MeasurableSpace Ω`:
 ```lean
-let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›  -- Pin ambient
--- Now safe to define sub-σ-algebras
-let mW : MeasurableSpace Ω := MeasurableSpace.comap W m0
+lemma foo {Ω γ : Type*} [mΩ : MeasurableSpace Ω] [mγ : MeasurableSpace γ]
+    (W : Ω → γ) (hW : Measurable W) ... := by
+  -- ambient facts first, against the named instance
+  have hpre : MeasurableSet[mΩ] (W ⁻¹' C) := hC.preimage hW
+  -- now the sub-σ-algebra: σ(W) = comap of the CODOMAIN structure
+  let mW : MeasurableSpace Ω := MeasurableSpace.comap W mγ
+  have hmW_le : mW ≤ mΩ := hW.comap_le
 ```
+If you cannot change the signature, `let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›` recovers a name for the ambient instance — `‹…›` picks the currently selected local instance, so it must be the first line, before any other `MeasurableSpace Ω` local exists.
 
 ---
 
@@ -70,19 +75,19 @@ let mW : MeasurableSpace Ω := MeasurableSpace.comap W m0
 
 2. **❌ Don't define sub-σ-algebras without pinning ambient first**
    - Bug: Instance pollution makes Lean pick local `mW` over ambient (even from outer scopes!)
-   - Fix: Pin ambient (`let m0 := ‹...›`), use `@` for ambient facts, THEN define `let mW := ...`
+   - Fix: name the ambient instance in the declaration (`[mΩ : MeasurableSpace Ω]`), state ambient facts against it (`@`, `MeasurableSet[mΩ]`), THEN define `let mW := MeasurableSpace.comap W mγ` (`let m0 := ‹...›` only when the signature is not yours to change)
 
 3. **❌ Don't prove CE idempotence when you need set-integral equality**
    - Hard: Proving `μ[g|m] = g` a.e.
-   - Easy: `set_integral_condexp` gives `∫_{s} μ[g|m] = ∫_{s} g` for s ∈ m
+   - Easy: `setIntegral_condExp` gives `∫_{s} μ[g|m] = ∫_{s} g` for s ∈ m
 
 4. **❌ Don't force product measurability**
    - Fragile: `AEStronglyMeasurable (fun ω ↦ f ω * g ω)`
    - Robust: Rewrite to `indicator` and use `Integrable.indicator`
 
-5. **❌ Don't use `set` with `MeasurableSpace.comap ... inferInstance`**
-   - Bug: `inferInstance` captures snapshot that drifts from ambient, causing `inst✝⁶ vs inferInstance` errors
-   - Fix: Inline comaps everywhere, freeze ambient with `let` for explicit passing only
+5. **❌ Don't state ambient facts after introducing a `MeasurableSpace Ω` local without naming the instance**
+   - Bug: a bare `MeasurableSet`/`StronglyMeasurable` is elaborated against whichever `MeasurableSpace Ω` local is newest at that point; facts elaborated before and after a new class-typed local then disagree (`inst✝⁶ vs mW`)
+   - Fix: name the ambient instance and write ambient facts against it (`MeasurableSet[mΩ]`, `@`); or inline the comaps so no intermediate class-typed local exists
    - Details: See "The `inferInstance` Drift Trap" pattern below
 
 ---
@@ -92,16 +97,18 @@ let mW : MeasurableSpace Ω := MeasurableSpace.comap W m0
 The canonical approach for conditional expectation with sub-σ-algebras:
 
 ```lean
-lemma my_condexp_lemma
+lemma my_condExp_lemma
     {Ω : Type*} {m₀ : MeasurableSpace Ω}  -- ✅ Explicit ambient
     {μ : Measure Ω} [IsFiniteMeasure μ]
     {m : MeasurableSpace Ω} (hm : m ≤ m₀)  -- ✅ Explicit relation
     {f : Ω → ℝ} (hf : Integrable f μ) :
     ... μ[f|m] ... := by
-  -- Provide instances explicitly:
-  haveI : IsFiniteMeasure μ := inferInstance
-  haveI : IsFiniteMeasure (μ.trim hm) := isFiniteMeasure_trim μ hm
-  haveI : SigmaFinite (μ.trim hm) := sigmaFinite_trim μ hm
+  -- Check whether synthesis already succeeds before adding local instances:
+  -- `[IsFiniteMeasure μ]` is in scope, `IsFiniteMeasure (μ.trim hm)` is a Mathlib
+  -- instance (`isFiniteMeasure_trim`), and `SigmaFinite (μ.trim hm)` follows from
+  -- it (`IsFiniteMeasure.toSigmaFinite`). Only the σ-finiteness freeze is worth
+  -- keeping, and plain `have` registers it (`haveI` would only inline):
+  have : SigmaFinite (μ.trim hm) := inferInstance
 
   -- Now CE and mathlib lemmas work
   ...
@@ -110,7 +117,7 @@ lemma my_condexp_lemma
 **Key elements:**
 - `{m₀ : MeasurableSpace Ω}` - explicit ambient space
 - `(hm : m ≤ m₀)` - explicit relation (not `m ≤ ‹_›`)
-- `haveI` for trimmed measure instances before using CE
+- Check synthesis first; with `[IsFiniteMeasure μ]` in scope, freeze `SigmaFinite (μ.trim hm)` with plain `have` only if it helps (`[SigmaFinite μ]` alone does not synthesize it)
 
 ---
 
@@ -138,7 +145,7 @@ lemma good {Ω : Type*} [inst : MeasurableSpace Ω]
 
 ## Common Error Messages
 
-**"typeclass instance problem is stuck"** → Add `haveI` for trimmed measure instances
+**"typeclass instance problem is stuck"** → Not a missing instance: the class's *arguments* still contain unresolved metavariables (`IsFiniteMeasure ?μ`, `SigmaFinite (?μ.trim ?hm)`), so search cannot start. Pin them — annotate the expected type, or pass the implicits (`(μ := μ) (m := m)`, `(hm := hm)`) — and synthesis usually succeeds on its own. Freeze with plain `have : SigmaFinite (μ.trim hm) := inferInstance` only if it then still helps.
 
 **"has type @MeasurableSet Ω m B but expected @MeasurableSet Ω m₀ B"** → Check binder order
 
@@ -225,26 +232,29 @@ type mismatch
 
 ## Advanced Patterns (Battle-Tested from Real Projects)
 
-### 1. Avoid Instance Pollution (Pin Ambient + Use `@`)
+### 1. Avoid Instance Pollution (Name the Ambient Instance + Use `@`)
 
-**Problem:** When you define `let mW : MeasurableSpace Ω := ...`, Lean picks `mW` over the ambient instance. Even outer scope definitions cause pollution.
+**Problem:** When you define `let mW : MeasurableSpace Ω := ...`, a bare `MeasurableSet`/`StronglyMeasurable` elaborated afterwards resolves to `mW`, not the ambient instance. Even outer scope definitions cause this.
 
-**⭐ PREFERRED: Pin ambient instance + use `@` for ambient facts**
+**⭐ PREFERRED: name the ambient instance in the declaration + use `@` (or `[mΩ]`) for ambient facts**
 
 ```lean
-theorem my_theorem ... := by
-  -- ✅ STEP 0: PIN the ambient instance
-  let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›
+theorem my_theorem {Ω β γ : Type*} [m0 : MeasurableSpace Ω] [mβ : MeasurableSpace β]
+    [mγ : MeasurableSpace γ] (Z : Ω → β) (W : Ω → γ) (hZ : Measurable Z) (hW : Measurable W)
+    ... := by
+  -- ✅ STEP 0: the ambient instance already has a NAME (`m0`) from the binder list.
+  -- Recovery only if the signature is not yours to change:
+  --   let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›
 
-  -- ✅ STEP 1: ALL ambient work using m0 explicitly
-  have hZ_m0 : @Measurable Ω β m0 _ Z := by simpa [m0] using hZ
-  have hBpre : @MeasurableSet Ω m0 (Z ⁻¹' B) := hB.preimage hZ_m0
-  have hCpre : @MeasurableSet Ω m0 (W ⁻¹' C) := hC.preimage hW_m0
+  -- ✅ STEP 1: ALL ambient work against m0 explicitly
+  have hBpre : @MeasurableSet Ω m0 (Z ⁻¹' B) := hB.preimage hZ
+  have hCpre : @MeasurableSet Ω m0 (W ⁻¹' C) := hC.preimage hW
   -- ... all other ambient facts
 
-  -- ✅ STEP 2: NOW define sub-σ-algebras
-  let mW  : MeasurableSpace Ω := MeasurableSpace.comap W m0
-  let mZW : MeasurableSpace Ω := MeasurableSpace.comap (fun ω ↦ (Z ω, W ω)) m0
+  -- ✅ STEP 2: NOW define sub-σ-algebras. `comap f m` pulls the CODOMAIN
+  -- structure `m` back along `f` — the argument is mγ / mβ.prod mγ, never m0.
+  let mW  : MeasurableSpace Ω := MeasurableSpace.comap W mγ
+  let mZW : MeasurableSpace Ω := MeasurableSpace.comap (fun ω ↦ (Z ω, W ω)) (mβ.prod mγ)
 
   -- ✅ STEP 3: Work with sub-σ-algebras
   have hmW_le : mW ≤ m0 := hW.comap_le
@@ -257,8 +267,10 @@ theorem my_theorem ... := by
 -- Tier 2: m0 versions (for @ notation)
 have hBpre_m0 : @MeasurableSet Ω m0 (Z ⁻¹' B) := hB.preimage hZ_m0
 
--- Tier 3: Ambient versions (for mathlib lemmas that infer instances)
-have hBpre : MeasurableSet (Z ⁻¹' B) := by simpa [m0] using hBpre_m0
+-- Tier 3: Ambient versions (for mathlib lemmas that infer instances). Keep the
+-- structure explicit: a bare `MeasurableSet` here selects the newest local (mZW),
+-- and `simpa [m0]` is rejected when `m0` is a parameter rather than a `let`.
+have hBpre : MeasurableSet[m0] (Z ⁻¹' B) := hBpre_m0
 
 -- Use ambient version with mathlib:
 have := integral_indicator hBpre ...  -- No expensive unification!
@@ -270,68 +282,62 @@ This eliminates timeout errors (500k+ heartbeats → normal) by avoiding expensi
 
 ---
 
-### 2. The `inferInstance` Drift Trap (Inline Comaps Everywhere)
+### 2. The `inferInstance` Drift Trap (Newest Class-Typed Local Wins)
 
-**Problem:** Using `set mη := MeasurableSpace.comap η inferInstance` captures an instance snapshot that drifts from ambient parameters, causing `inst✝⁶ vs inferInstance` type errors.
+**Problem:** After `set mη := MeasurableSpace.comap η mβ`, every bare `MeasurableSet` / `StronglyMeasurable` / `inferInstance` elaborated *later* resolves to `mη`, the newest `MeasurableSpace Ω` local, while facts elaborated *earlier* still mention the ambient `inst✝⁶`. The two sides then disagree:
 
 **The Error:**
 ```lean
 Type mismatch:
   hη ht has type @MeasurableSet Ω inst✝⁶ (η ⁻¹' t)
-but expected       @MeasurableSet Ω inferInstance (η ⁻¹' t)
+but expected       @MeasurableSet Ω mη (η ⁻¹' t)
 ```
 
-**Root cause:** `inferInstance` inside `set` creates a fresh instance different from the ambient `inst✝⁶`.
+**Root cause:** not a mutating `inferInstance` — an elaborated value is stable. Each `set`/`let` of a `MeasurableSpace Ω` adds a newer class-typed local, and *later* elaboration picks it. Name the ambient instance and state ambient facts against it and the two sides agree; `set` itself is not the problem, unnamed ambient facts after it are.
 
 **❌ What DOESN'T work:**
 ```lean
--- Even freezing ambient doesn't help!
-let m0 : MeasurableSpace Ω := (by exact ‹MeasurableSpace Ω›)
-set mη := MeasurableSpace.comap η mγ  -- Creates new local instance
-set mζ := MeasurableSpace.comap ζ mγ
+set mη := MeasurableSpace.comap η mβ   -- newest `MeasurableSpace Ω` local from here on
 
--- Later: still fails with inst✝⁶ vs this✝ errors
-have hmη_le : mη ≤ m0 := by
-  intro s hs
-  exact hη ht  -- ❌ Type mismatch!
+-- Stated AFTER the `set`, with the instance left implicit: resolves to mη
+have hpre : MeasurableSet (η ⁻¹' t) := hη ht   -- ❌ inst✝⁶ vs mη mismatch
 ```
 
-**✅ Solution - Pattern B: Inline comaps everywhere**
+**✅ Solution A (default): name the ambient instance, state ambient facts against it**
+```lean
+lemma foo {Ω β : Type*} [mΩ : MeasurableSpace Ω] [mβ : MeasurableSpace β]
+    (η : Ω → β) (hη : Measurable η) ... := by
+  set mη := MeasurableSpace.comap η mβ
+  have hpre : MeasurableSet[mΩ] (η ⁻¹' t) := hη ht        -- ✅ names mΩ
+  have hmη_le : mη ≤ mΩ := hη.comap_le
+```
+
+**✅ Solution B: inline the comaps so no intermediate class-typed local exists**
 
 ```lean
--- Freeze ambient instances for explicit passing ONLY
-let mΩ : MeasurableSpace Ω := (by exact ‹MeasurableSpace Ω›)
-let mγ : MeasurableSpace β := (by exact ‹MeasurableSpace β›)
+lemma foo {Ω β : Type*} [mΩ : MeasurableSpace Ω] [mβ : MeasurableSpace β]
+    (η ζ : Ω → β) (hη : Measurable η) (hζ : Measurable ζ) ... := by
+  -- no `set`: nothing new for later elaboration to pick up
+  have hmη_le : MeasurableSpace.comap η mβ ≤ mΩ := hη.comap_le
+  have hmζ_le : MeasurableSpace.comap ζ mβ ≤ mΩ := hζ.comap_le
 
--- Inline comaps at every use - NEVER use `set`
-have hmη_le : MeasurableSpace.comap η mγ ≤ mΩ := by
-  intro s hs
-  rcases hs with ⟨t, ht, rfl⟩
-  exact (hη ht : @MeasurableSet Ω mΩ (η ⁻¹' t))
-
-have hmζ_le : MeasurableSpace.comap ζ mγ ≤ mΩ := by
-  intro s hs
-  rcases hs with ⟨t, ht, rfl⟩
-  exact (hζ ht : @MeasurableSet Ω mΩ (ζ ⁻¹' t))
-
--- Use inlined comaps in all lemma applications
-have hCEη : μ[f | MeasurableSpace.comap η mγ] =ᵐ[μ]
-            (fun ω ↦ ∫ y, f y ∂(condExpKernel μ (MeasurableSpace.comap η mγ) ω)) :=
-  condExp_ae_eq_integral_condExpKernel hmη_le hint
+  -- inlined comaps in the lemma applications
+  have hCEη : μ[f | MeasurableSpace.comap η mβ] =ᵐ[μ]
+              (fun ω ↦ ∫ y, f y ∂(condExpKernel μ (MeasurableSpace.comap η mβ) ω)) :=
+    condExp_ae_eq_integral_condExpKernel hmη_le hint
 ```
 
 **Why it works:**
-- No intermediate names = no instance shadowing
-- Explicit `mΩ` and `mγ` ensure stable references
-- Lean's unification handles inlined comaps consistently
-- Type annotations like `@MeasurableSet Ω mΩ` force exact instances
+- A named ambient instance (`mΩ`, from the binder list) is a stable reference; `MeasurableSet[mΩ]` / `@MeasurableSet Ω mΩ` says which structure a fact is about
+- Without an intermediate name there is no newer class-typed local for later elaboration to prefer
+- `MeasurableSpace.comap η mβ` takes the **codomain** structure (`mβ : MeasurableSpace β` for `η : Ω → β`), never the ambient `MeasurableSpace Ω`
 
 **Key takeaways:**
-1. Never use `set` with `MeasurableSpace.comap ... inferInstance`
-2. Freeze ambient with `let` only for explicit passing to lemmas
-3. Inline comaps at every use site - trust Lean's unification
-4. `haveI` adds MORE instances without fixing drift
-5. Use explicit type annotations when needed: `(hη ht : @MeasurableSet Ω mΩ ...)`
+1. Name the ambient instance in the declaration; `let m0 := ‹…›` only when the signature is not yours to change
+2. Ambient facts stated after a `set`/`let` of a `MeasurableSpace Ω` must name the instance (`MeasurableSet[mΩ]`, `@`)
+3. Inlining the comaps is the alternative when you would rather not name anything
+4. Adding local instances (`have`/`haveI`) adds MORE class-typed locals; it does not fix drift
+5. Compile-checked: `tests/fixtures/reference_snippets/measure_theory_snippets.lean` elaborates the transport line with `StronglyMeasurable[mΩ]`, and its executable `#guard_msgs` control shows the bare `StronglyMeasurable` form failing ("expected mW ≤ mZW")
 
 **Real-world impact:** Resolved ALL instance synthesis errors in 150-line conditional expectation proofs (Kallenberg Lemma 1.3).
 
@@ -344,15 +350,17 @@ have hCEη : μ[f | MeasurableSpace.comap η mγ] =ᵐ[μ]
 ```lean
 -- For s ∈ m, Integrable g:
 have : ∫ x in s, μ[g|m] x ∂μ = ∫ x in s, g x ∂μ :=
-  set_integral_condexp (μ := μ) (m := m) (hm := hm) (hs := hs) (hf := hg)
+  setIntegral_condExp (μ := μ) (m := m) (hm := hm) (hs := hs) (hf := hg)
 ```
 
-**Wrapper to avoid parameter drift:**
+**Wrapper to avoid parameter drift** (name the ambient space — `hm : m ≤ ‹_›` resolves to `m ≤ m`, the exact trap this reference warns about; state `hs` for `m`; the finite-measure assumption supplies `SigmaFinite (μ.trim hm)`):
 ```lean
-lemma setIntegral_condExp_eq (μ : Measure Ω) (m : MeasurableSpace Ω) (hm : m ≤ ‹_›)
-    {s : Set Ω} (hs : MeasurableSet s) {g : Ω → ℝ} (hg : Integrable g μ) :
-  ∫ x in s, μ[g|m] x ∂μ = ∫ x in s, g x ∂μ := by
-  simpa using set_integral_condexp (μ := μ) (m := m) (hm := hm) (hs := hs) (hf := hg)
+lemma setIntegral_condExp_eq {Ω : Type*} [m₀ : MeasurableSpace Ω]
+    {μ : Measure Ω} [IsFiniteMeasure μ]
+    {m : MeasurableSpace Ω} (hm : m ≤ m₀)
+    {s : Set Ω} (hs : MeasurableSet[m] s) {g : Ω → ℝ} (hg : Integrable g μ) :
+    ∫ x in s, (μ[g|m]) x ∂μ = ∫ x in s, g x ∂μ :=
+  setIntegral_condExp hm hg hs
 ```
 
 ---
@@ -368,7 +376,7 @@ have hMulAsInd : (fun ω ↦ μ[f|mW] ω * gB ω) = (Z ⁻¹' B).indicator (μ[f
 
 -- Integrability without product measurability
 have : Integrable (fun ω ↦ μ[f|mW] ω * gB ω) μ := by
-  simpa [hMulAsInd] using (integrable_condexp).indicator (hB.preimage hZ)
+  simpa [hMulAsInd] using (integrable_condExp).indicator (hB.preimage hZ)
 ```
 
 **Restricted integral:** `∫_{S} (Z⁻¹ B).indicator h = ∫_{S ∩ Z⁻¹ B} h`
@@ -391,19 +399,27 @@ have : ∀ᵐ ω ∂μ, ‖μ[f|m] ω‖ ≤ (1 : ℝ) := by
 
 ### 6. σ-Algebra Relations (Ready-to-Paste)
 
+Compile-checked (`tests/fixtures/reference_snippets/measure_theory_snippets.lean`). Assumes named ambient structures in the declaration: `[mΩ : MeasurableSpace Ω] [mβ : MeasurableSpace β] [mγ : MeasurableSpace γ]`, `Z : Ω → β`, `W : Ω → γ`, `hZ : Measurable Z`, `hW : Measurable W`. `comap` takes the **codomain** structure.
+
 ```lean
+-- σ(W) and σ(Z,W) as comaps of the CODOMAIN structures
+let mW  : MeasurableSpace Ω := MeasurableSpace.comap W mγ
+let mZW : MeasurableSpace Ω := MeasurableSpace.comap (fun ω ↦ (Z ω, W ω)) (mβ.prod mγ)
+
 -- σ(W) ≤ ambient
-have hmW_le : mW ≤ ‹MeasurableSpace Ω› := hW.comap_le
+have hmW_le : mW ≤ mΩ := hW.comap_le
 
 -- σ(Z,W) ≤ ambient
-have hmZW_le : mZW ≤ ‹MeasurableSpace Ω› := (hZ.prod_mk hW).comap_le
+have hmZW_le : mZW ≤ mΩ := (hZ.prodMk hW).comap_le
 
--- σ(W) ≤ σ(Z,W)
-have hmW_le_mZW : mW ≤ mZW := (measurable_snd.comp (hZ.prod_mk hW)).comap_le
+-- σ(W) ≤ σ(Z,W): W = Prod.snd ∘ (Z,W)
+have hmW_le_mZW : mW ≤ mZW :=
+  MeasurableSpace.comap_le_comap_of_eq_comp Prod.snd measurable_snd rfl
 
--- Measurability transport
-have hsm_ce : StronglyMeasurable[mW] (μ[f|mW]) := stronglyMeasurable_condexp
-have hsm_ceAmb : StronglyMeasurable (μ[f|mW]) := hsm_ce.mono hmW_le
+-- Measurability transport — name the ambient instance: after the two `let`s a
+-- bare `StronglyMeasurable` resolves to mZW and `.mono hmW_le` fails
+have hsm_ce : StronglyMeasurable[mW] (μ[f|mW]) := stronglyMeasurable_condExp
+have hsm_ceAmb : StronglyMeasurable[mΩ] (μ[f|mW]) := hsm_ce.mono hmW_le
 ```
 
 ---
@@ -711,13 +727,15 @@ have := condExp_ae_eq_integral_condExpKernel (μ := μ) (m := tailSigma X) (hm :
 **Manual instances:**
 ```lean
 -- Provide instance explicitly
-haveI : IsProbabilityMeasure (μ.map f) := isProbabilityMeasure_map hf hμ
+have : IsProbabilityMeasure (μ.map f) := Measure.isProbabilityMeasure_map hf
+-- `[IsProbabilityMeasure μ]` is an instance argument, not a hypothesis to pass; for
+-- `hf : Measurable f` use `hf.aemeasurable`
 ```
 
 **Type annotations:**
 ```lean
 -- Help elaborator with type
-((μ.map f : Measure β) : Type)
+(μ.map f : Measure β)   -- a measure is a value, never `: Type`
 ```
 
 ### 8. API Discovery with lean_leanfinder
@@ -783,8 +801,8 @@ sorry  -- TODO: Need measurableSet_preimage hf hs
 ## Mathlib Lemma Quick Reference
 
 **Conditional expectation (scalar form):**
-- `integrable_condexp`, `stronglyMeasurable_condexp`, `aestronglyMeasurable_condexp`
-- `set_integral_condexp` - set-integral projection (wrap as `setIntegral_condExp_eq`)
+- `integrable_condExp`, `stronglyMeasurable_condExp`, `stronglyMeasurable_condExp.aestronglyMeasurable` (there is no `aestronglyMeasurable_condExp`)
+- `setIntegral_condExp` - set-integral projection (wrap as `setIntegral_condExp_eq`)
 
 **Conditional expectation (kernel form):**
 - `condExp_ae_eq_integral_condExpKernel` - convert scalar to kernel form
@@ -794,7 +812,7 @@ sorry  -- TODO: Need measurableSet_preimage hf hs
 **Kernels and pushforward:**
 - `Kernel.measurable_coe` - kernel evaluation at measurable set is measurable
 - `Measure.map_apply` - pushforward characterization: `(μ.map f) s = μ (f ⁻¹' s)`
-- `isProbabilityMeasure_map` - probability preserved by pushforward
+- `Measure.isProbabilityMeasure_map hf` - probability preserved by pushforward (`hf : AEMeasurable f μ`; the probability assumption is an instance argument)
 - `measurableSet_preimage` - preimage of measurable set is measurable (function syntax!)
 
 **A.E. boundedness:**
@@ -805,7 +823,7 @@ sorry  -- TODO: Need measurableSet_preimage hf hs
 - `Set.indicator_of_mem`, `Set.indicator_of_notMem`, `Set.indicator_indicator`
 
 **Trimmed measures:**
-- `isFiniteMeasure_trim`, `sigmaFinite_trim`
+- `isFiniteMeasure_trim` (instance; needs `[IsFiniteMeasure μ]`), `IsFiniteMeasure.toSigmaFinite` (instance) — plain `sigmaFinite_trim` no longer exists, and `[SigmaFinite μ]` alone does not give `SigmaFinite (μ.trim hm)` (`sigmaFinite_trim_bot_iff`); see `sigmaFiniteTrim_mono` / `SigmaFinite.of_trim`
 
 **Measurability lifting:**
 - `MeasurableSet[m] s → MeasurableSet[m₀] s` via `hm _ hs_m` where `hm : m ≤ m₀`

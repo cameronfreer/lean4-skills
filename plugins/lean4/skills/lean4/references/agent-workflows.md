@@ -115,11 +115,15 @@ Build fails, error persists. Stage 1 retry:
 +++ Core.lean
 @@ -42,1 +42,2 @@
 -  exact h1
-+  haveI : DiscreteTopology α := inferInstance
++  -- Evidence must come from the context: `hdisc : ‹TopologicalSpace α› = ⊥` is
++  -- available here. `⟨rfl⟩` only proves this when the topology is literally `⊥`,
++  -- and measurability alone never establishes discreteness. `inferInstance`
++  -- would just re-run the failed search.
++  have : DiscreteTopology α := ⟨hdisc⟩
 +  exact continuous_of_discreteTopology
 ```
 
-Build succeeds. ✓
+Build succeeds. ✓ (If no such evidence exists, the honest repair is to report the missing prerequisite, not to invent an instance.)
 
 ### Instance Synthesis Repair
 

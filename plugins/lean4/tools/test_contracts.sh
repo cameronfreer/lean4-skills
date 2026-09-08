@@ -2038,6 +2038,188 @@ if [[ "$check40_ok" -eq 1 ]]; then
     ok "Check 40: golf escalation routing pinned (#55: statement changes reported, multi-file/strategy → /lean4:refactor, axiom-eliminator = axiom hygiene only)"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 41: local-instance guidance (#188 + #162). In Lean 4 plain have/let
+# register class-typed locals for synthesis; haveI/letI differ only by
+# inlining, which is irrelevant in a proof (Mathlib's HaveILetI linter). The
+# skill must state that rule and no proof-context example may prescribe
+# haveI/letI; measure-theory must not carry the stale trim idioms.
+# ---------------------------------------------------------------------------
+check41_ok=1
+_c41_skill="$PLUGIN_ROOT/skills/lean4/SKILL.md"
+_c41_sec=$(extract_section "$_c41_skill" "## Type Class Patterns")
+if [[ -z "$_c41_sec" ]]; then
+    fail "Check 41: SKILL.md missing '## Type Class Patterns'"
+    check41_ok=0
+else
+    for _c41_s in 'register local instances themselves' 'differ only by' 'inlining' \
+                  'Linter/HaveILetI.html' 'check whether synthesis already succeeds'; do
+        if ! grep -qiF -- "$_c41_s" <<<"$_c41_sec"; then
+            fail "Check 41: SKILL.md Type Class Patterns must state the have/let vs haveI/letI rule ($_c41_s)"
+            check41_ok=0
+        fi
+    done
+    if grep -qE '^(haveI|letI) :' <<<"$_c41_sec"; then
+        fail "Check 41: SKILL.md Type Class Patterns still prescribes haveI/letI in its example"
+        check41_ok=0
+    fi
+fi
+# No proof-context example line may START with haveI/letI (diff '+' lines
+# and indented tactic lines included); prose that EXPLAINS the difference may
+# still name them.
+for _c41_f in skills/lean4/SKILL.md skills/lean4/references/compilation-errors.md \
+              skills/lean4/references/instance-pollution.md skills/lean4/references/measure-theory.md \
+              skills/lean4/references/domain-patterns.md skills/lean4/references/compiler-guided-repair.md \
+              skills/lean4/references/tactic-patterns.md skills/lean4/references/agent-workflows.md; do
+    # Allowance: a deliberate data-definition example (where `letI` inlining
+    # is meaningful) is permitted when the line carries a `-- data:` marker.
+    if grep -E '^[+ ]*(haveI|letI)( [A-Za-z_]+)? :' "$PLUGIN_ROOT/$_c41_f" | grep -qv -- '-- data:'; then
+        fail "Check 41: $_c41_f still shows a haveI/letI example line in a proof context (mark a deliberate data-definition example with '-- data:'): $(grep -E '^[+ ]*(haveI|letI)( [A-Za-z_]+)? :' "$PLUGIN_ROOT/$_c41_f" | grep -v -- '-- data:' | head -1 | cut -c1-90)"
+        check41_ok=0
+    fi
+done
+# #162: the two obsolete trim idioms must not return anywhere in the docs.
+if grep -rqE 'isFiniteMeasure_trim μ hm|sigmaFinite_trim μ hm' "$PLUGIN_ROOT" --include='*.md'; then
+    fail "Check 41: stale trim idiom (isFiniteMeasure_trim μ hm / sigmaFinite_trim μ hm) is back — IsFiniteMeasure (μ.trim hm) is a Mathlib instance and plain sigmaFinite_trim no longer exists"
+    check41_ok=0
+fi
+_c41_mt="$PLUGIN_ROOT/skills/lean4/references/measure-theory.md"
+if ! grep -qF 'have : SigmaFinite (μ.trim hm) := inferInstance' "$_c41_mt"; then
+    fail "Check 41: measure-theory.md must show the optional σ-finiteness freeze via plain have + inferInstance"
+    check41_ok=0
+fi
+if ! grep -qiF 'check whether synthesis already succeeds' "$_c41_mt"; then
+    fail "Check 41: measure-theory.md must tell the reader to check synthesis before adding local instances"
+    check41_ok=0
+fi
+# Lean-3-isms / stale Mathlib names found by the reference audit must not return:
+# `apply_instance` (Lean 4: infer_instance), the pre-2024 `condexp` /
+# `set_integral_condexp` spellings (now condExp / setIntegral_condExp), and the
+# nonexistent `condExp_unique`.
+if grep -rqE '\bapply_instance\b' "$PLUGIN_ROOT/skills" "$PLUGIN_ROOT/commands" "$PLUGIN_ROOT/agents" --include='*.md'; then
+    fail "Check 41: apply_instance (Lean 3) is back — Lean 4 is infer_instance"
+    check41_ok=0
+fi
+if grep -rE '[A-Za-z]_condexp\b|\bset_integral_condexp\b|\bcondExp_unique\b' "$PLUGIN_ROOT/skills" --include='*.md' | grep -qv 'there is no `condExp_unique`'; then
+    fail "Check 41: stale Mathlib name (…_condexp / set_integral_condexp / condExp_unique) is back — use …_condExp / setIntegral_condExp / ae_eq_condExp_of_forall_setIntegral_eq"
+    check41_ok=0
+fi
+# Compile-checked corrections from the #200 review (each of these forms was
+# elaborated against Mathlib; see tests/fixtures/reference_snippets/).
+_c41_mt="$PLUGIN_ROOT/skills/lean4/references/measure-theory.md"
+for _c41_s in 'stronglyMeasurable_condExp.aestronglyMeasurable' \
+              'Measure.isProbabilityMeasure_map hf' \
+              '(hm : m ≤ m₀)' \
+              'setIntegral_condExp hm hg hs'; do
+    if ! grep -qF -- "$_c41_s" "$_c41_mt"; then
+        fail "Check 41: measure-theory.md must carry the compile-checked form '$_c41_s'"
+        check41_ok=0
+    fi
+done
+# Negative forms are matched as CODE (a bare identifier use, a binder, an
+# application), so a sentence that explains why a form is wrong does not trip.
+if grep -E 'aestronglyMeasurable_condExp' "$_c41_mt" | grep -qv 'there is no'; then
+    fail "Check 41: measure-theory.md uses the nonexistent aestronglyMeasurable_condExp (use stronglyMeasurable_condExp.aestronglyMeasurable)"
+    check41_ok=0
+fi
+for _c41_bad in 'isProbabilityMeasure_map hf hμ' ': Measure β) : Type)' '(hm : m ≤ ‹_›)'; do
+    if grep -qF -- "$_c41_bad" "$_c41_mt"; then
+        fail "Check 41: measure-theory.md regained a form that does not elaborate: $_c41_bad"
+        check41_ok=0
+    fi
+done
+if grep -E '`swap n`|`rotate`,|`rotate n`|termination_by my_rec n => n' "$PLUGIN_ROOT/skills/lean4/references/lean-phrasebook.md" "$PLUGIN_ROOT/skills/lean4/references/compilation-errors.md" | grep -qvE 'not Lean 4 tactics|is rejected'; then
+    fail "Check 41: obsolete goal-management (swap n / rotate) or pre-4.6 termination_by form is back"
+    check41_ok=0
+fi
+# A genuinely missing instance is never fixed by `:= inferInstance` (it re-runs
+# the failed search); the repair/review recipes must supply evidence instead.
+# Lines that SAY so ("re-runs", "only freezes", "not `:= inferInstance`") pass.
+for _c41_f in commands/review.md skills/lean4/references/command-examples.md \
+              skills/lean4/references/compiler-guided-repair.md skills/lean4/references/agent-workflows.md; do
+    if grep -E '(missing|Missing|Need|need|Add instance|Provide instance)[^.]*:= inferInstance' "$PLUGIN_ROOT/$_c41_f" | grep -qvE 're-runs|only freezes|not `:= inferInstance`|would just fail again'; then
+        fail "Check 41: $_c41_f prescribes ':= inferInstance' as the fix for a MISSING instance (it only freezes one that already synthesizes)"
+        check41_ok=0
+    fi
+done
+# Supplied-instance recipes must state their prerequisites: `borel β` needs a
+# topology (and Borel must be the intended σ-algebra); the DiscreteTopology
+# repair needs evidence that the topology is ⊥ (`⟨rfl⟩` proves it only then).
+# The prerequisite may sit on the recipe line itself or on the line just
+# before / after it (a wrapped bullet), not only on the same line.
+while IFS=: read -r _c41_bf _c41_bl _; do
+    [[ -n "$_c41_bf" ]] || continue
+    if ! sed -n "$(( _c41_bl > 1 ? _c41_bl - 1 : 1 )),$(( _c41_bl + 1 ))p" "$_c41_bf" | grep -qiE 'TopologicalSpace|topology'; then
+        fail "Check 41: a borel recipe does not state its topology prerequisite (same or adjacent line): ${_c41_bf#"$PLUGIN_ROOT"/}:$_c41_bl"
+        check41_ok=0
+    fi
+done < <(grep -rn 'borel [A-Za-zαβ]' "$PLUGIN_ROOT/skills" "$PLUGIN_ROOT/commands" --include='*.md')
+_c41_aw="$PLUGIN_ROOT/skills/lean4/references/agent-workflows.md"
+if grep -qF 'DiscreteTopology α := ⟨rfl⟩' "$_c41_aw"; then
+    fail "Check 41: agent-workflows.md proves DiscreteTopology with ⟨rfl⟩ (only valid when the topology is literally ⊥); cite the evidence"
+    check41_ok=0
+fi
+if ! grep -qF 'DiscreteTopology α := ⟨hdisc⟩' "$_c41_aw"; then
+    fail "Check 41: agent-workflows.md DiscreteTopology repair must cite its evidence (hdisc)"
+    check41_ok=0
+fi
+# instance-pollution must not claim plain let is "just data" for a class type.
+if grep -qF 'For data, use plain `let`' "$PLUGIN_ROOT/skills/lean4/references/instance-pollution.md"; then
+    fail "Check 41: instance-pollution.md still claims plain let avoids registering a class-typed local as an instance"
+    check41_ok=0
+fi
+# Round 4 (#200): `MeasurableSpace.comap f m` takes the CODOMAIN structure, so
+# `comap Z m0` with `m0 : MeasurableSpace Ω` (the domain) is a type error; the
+# σ-algebra-relations block is the compile-checked form (named ambient
+# structures, product codomain for the joint σ-algebra, `prodMk`,
+# `comap_le_comap_of_eq_comp`, and the transport line naming `[mΩ]`).
+_c41_ip="$PLUGIN_ROOT/skills/lean4/references/instance-pollution.md"
+for _c41_f in "$_c41_mt" "$_c41_ip"; do
+    if grep -qE 'MeasurableSpace\.comap [^ ]+ m0\b' "$_c41_f"; then
+        fail "Check 41: ${_c41_f#"$PLUGIN_ROOT"/} comaps the DOMAIN structure (comap Z m0); comap takes the codomain structure (mβ / mβ.prod mγ)"
+        check41_ok=0
+    fi
+    if grep -qE '\.prod_mk\b|drifts from ambient|NEVER use `set`|‹MeasurableSpace Ω› := hW' "$_c41_f"; then
+        fail "Check 41: ${_c41_f#"$PLUGIN_ROOT"/} regained a round-4 rejected form (prod_mk / 'drifts from ambient' / categorical NEVER-use-set / ‹MeasurableSpace Ω› bound)"
+        check41_ok=0
+    fi
+done
+for _c41_s in 'MeasurableSpace.comap W mγ' '(mβ.prod mγ)' \
+              'MeasurableSpace.comap_le_comap_of_eq_comp Prod.snd measurable_snd rfl' \
+              'StronglyMeasurable[mΩ] (μ[f|mW])' 'sigmaFinite_trim_bot_iff' \
+              'unresolved metavariables'; do
+    if ! grep -qF -- "$_c41_s" "$_c41_mt"; then
+        fail "Check 41: measure-theory.md must carry the round-4 compile-checked form / prerequisite '$_c41_s'"
+        check41_ok=0
+    fi
+done
+if ! grep -qF 'MeasurableSpace.comap Z mβ' "$_c41_ip"; then
+    fail "Check 41: instance-pollution.md must define the sub-σ-algebra as comap of the codomain structure (comap Z mβ)"
+    check41_ok=0
+fi
+_c41_ce="$PLUGIN_ROOT/skills/lean4/references/compilation-errors.md"
+if grep -qF 'have := ⟨' "$_c41_ce"; then
+    fail "Check 41: compilation-errors.md shows an untyped 'have := ⟨proof⟩' (the instance type must be stated: have : C := ⟨proof⟩)"
+    check41_ok=0
+fi
+if ! grep -F 'typeclass instance problem is stuck' "$_c41_ce" | grep -qi 'metavariable'; then
+    fail "Check 41: compilation-errors.md must explain 'typeclass instance problem is stuck' as unresolved metavariables in the class arguments (not a missing instance)"
+    check41_ok=0
+fi
+# The core-Lean evidence for the have/let rule runs in CI with the pinned
+# toolchain; the fixture and its workflow step must both exist.
+if [[ ! -f "$PLUGIN_ROOT/tests/fixtures/reference_snippets/core_instance_snippets.lean" ]]; then
+    fail "Check 41: tests/fixtures/reference_snippets/core_instance_snippets.lean (core-Lean have/let evidence) is missing"
+    check41_ok=0
+fi
+if ! grep -qF 'reference_snippets/core_instance_snippets.lean' "$PLUGIN_ROOT/../../.github/workflows/lean-integration.yml"; then
+    fail "Check 41: lean-integration.yml no longer runs core_instance_snippets.lean"
+    check41_ok=0
+fi
+if [[ "$check41_ok" -eq 1 ]]; then
+    ok "Check 41: local-instance guidance pinned (#188/#162: have/let register instances, haveI/letI = inlining only + linter; no haveI/letI example lines; stale trim idioms gone; synthesis-first rule; comap takes the codomain structure; core-Lean fixture in CI)"
+fi
+
 if [[ "$check39_ok" -eq 1 ]]; then
     ok "Check 39: file-gate scope pinned (#166: canonical section w/ both failure directions + both recovery paths, cited sites corrected, cross-file editors routed, disprove REFUTED licensed by lake lean <target-file>, no naive module-name derivation)"
 fi

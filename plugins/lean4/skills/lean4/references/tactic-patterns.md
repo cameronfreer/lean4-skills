@@ -19,7 +19,7 @@ Quick reference for choosing tactics based on goal structure.
 
 ### Universal Quantifier (`∀ x, P x`)
 
-- `intro` / `intros` - Introduce variable(s)
+- `intro x y` - Introduce variable(s) by name (`intros` exists in Lean 4 but yields inaccessible names; prefer `intro`)
 - `intro x` - Introduce with specific name
 
 ### Existential Quantifier (`∃ x, P x`)
@@ -31,7 +31,7 @@ Quick reference for choosing tactics based on goal structure.
 ### Implication (`P → Q`)
 
 - `intro h` - Assume hypothesis
-- `intros` - Introduce multiple hypotheses
+- `intro h₁ h₂` - Introduce multiple hypotheses by name
 
 ### Conjunction (`P ∧ Q`)
 
@@ -68,8 +68,8 @@ Goal contains: `Measure`, `Measurable`, `μ`, `∫`, `Integrable`, `AEMeasurable
 
 Goal contains: `IsProbabilityMeasure`, `probability`, `condExp`
 
-- `haveI : IsProbabilityMeasure μ := ...` - Provide instance
-- `apply condExp_unique` - Conditional expectation uniqueness
+- `have : IsProbabilityMeasure μ := ⟨measure_univ_proof⟩` - Supply the instance with its proof (plain `have` registers it; `inferInstance` only freezes one that already synthesizes)
+- `ae_eq_condExp_of_forall_setIntegral_eq` - Conditional expectation uniqueness via set integrals (there is no `condExp_unique`)
 - `measurability` - Check measurability
 
 ### Topology/Analysis

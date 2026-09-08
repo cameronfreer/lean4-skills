@@ -65,6 +65,14 @@ jobs:
           LEAN_FILE_GATE_KEEP_DIR: ${{ runner.temp }}/lean_file_gate_failures
         run: python3 plugins/lean4/tests/integration/test_lean_file_gate.py -v
 
+      - name: Core-Lean instance-registration snippets (SKILL.md § Type Class Patterns)
+        # Same pinned toolchain, no Mathlib. Positive cases show a downstream
+        # consumer synthesizing a have/let-supplied instance; each negative
+        # control is a #guard_msgs block, so the file fails if a documented
+        # failure stops failing.
+        working-directory: plugins/lean4/tests/fixtures/lean_file_gate
+        run: lean ../reference_snippets/core_instance_snippets.lean
+
       - name: Upload failing projects + command transcripts
         if: failure()
         uses: actions/upload-artifact@v4

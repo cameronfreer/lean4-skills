@@ -340,13 +340,16 @@ See [compilation-errors](references/compilation-errors.md) for error-by-error gu
 ## Type Class Patterns
 
 ```lean
--- Local instance for this proof block
-haveI : MeasurableSpace Ω := inferInstance
-letI : Fintype α := ⟨...⟩
+-- Local instance for this proof block: plain `have`/`let` already register a
+-- class-typed local for synthesis in Lean 4
+have : MeasurableSpace Ω := inferInstance
+let inst : Fintype α := ⟨...⟩   -- `let` when the VALUE must stay visible (data)
 
 -- Scoped instances (affects current section)
 open scoped Topology MeasureTheory
 ```
+
+**`haveI` / `letI` rule (Lean 4):** `have` and `let` register local instances themselves; `haveI`/`letI` differ only by *inlining* the value into the term. In a tactic proof of a proposition that inlining can have no effect (proof irrelevance), so `haveI`/`letI` are never needed there — Mathlib's [`haveI`/`letI` linter](https://leanprover-community.github.io/mathlib4_docs/Mathlib/Tactic/Linter/HaveILetI.html) flags them. Reserve `letI` for definitions where the instance value must be inlined into data. Before adding any local instance, check whether synthesis already succeeds (many "provide the instance" idioms predate the corresponding Mathlib instance).
 
 Order matters: provide outer structures before inner ones.
 

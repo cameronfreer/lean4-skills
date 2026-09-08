@@ -236,14 +236,14 @@ If success → done! If fail → next iteration (max 24 attempts)
 ### synth_implicit / synth_instance
 
 **Strategies:**
-1. Provide instance: `haveI : Instance := ...`
-2. Local instance: `letI : Instance := ...`
-3. Open scope: `open scoped Topology`
+1. Supply the instance with actual evidence: `have : Instance := ⟨proof⟩` or a lemma that builds it (registers it; `haveI` only inlines). `have : Instance := inferInstance` re-runs the search that just failed — it only freezes an instance that is ALREADY synthesizable
+2. Local instance whose value must stay visible (data, not a proof): `let inst : Instance := ...`
+3. Make an existing instance visible: `import` the module that declares it or `open scoped Topology`
 4. Reorder arguments (instances before regular params)
 
 **Example:**
 ```diff
-+  haveI : MeasurableSpace β := inferInstance
++  have : MeasurableSpace β := borel β   -- an actual value: needs `[TopologicalSpace β]`, and Borel must be the intended σ-algebra; `inferInstance` would just fail again
    apply theorem_needing_instance
 ```
 
@@ -456,14 +456,14 @@ theorem foo : MemLp f p μ := by  -- ✓ ASCII name
 **Likely cause:** Missing type class instance in context.
 
 **Fix strategy:**
-1. Add instance: `haveI : Instance := inferInstance`
-2. Or: `letI : Instance := ...`
+1. Supply the instance with actual evidence: `have : Instance := ⟨proof⟩` or a lemma that builds it (`… := inferInstance` re-runs the failed search; it only freezes an already-synthesizable instance)
+2. Or, when the value must stay visible (data): `let inst : Instance := ...`
 3. Check import: may need `import Mathlib.X.Y`
 4. Reorder parameters (instances before regular params)
 
 **Example:**
 ```diff
-+  haveI : MeasurableSpace α := inferInstance
++  have : MeasurableSpace α := borel α   -- an actual value: needs `[TopologicalSpace α]`, and Borel must be the intended σ-algebra; `inferInstance` would just fail again
    apply theorem_needing_instance
 ```
 
@@ -564,19 +564,25 @@ theorem foo (h : Measurable f) : Continuous f := by
   simp
 ```
 
-### Pattern 2: Missing Instance with haveI
+### Pattern 2: Missing Instance (supply it, don't re-search)
 
 **Before:**
 ```lean
 theorem bar : Property := by
-  apply lemma  -- ❌ failed to synthesize instance
+  apply lemma  -- ❌ failed to synthesize instance MeasurableSpace α
 ```
 
-**After:**
+**After** — three different situations, three different fixes:
 ```lean
+-- (a) the instance exists but is not visible: import the declaring module /
+--     `open scoped ...`; no local binding needed.
+-- (b) it is genuinely missing: supply a VALUE or PROOF (plain `have`/`let`
+--     registers it). `:= inferInstance` here just re-runs the failed search.
 theorem bar : Property := by
-  haveI : MeasurableSpace α := inferInstance
+  have : MeasurableSpace α := borel α   -- requires `[TopologicalSpace α]` and that Borel is the intended σ-algebra; otherwise supply the intended structure or report the missing prerequisite
   apply lemma
+-- (c) it already synthesizes and you only want to freeze it (performance,
+--     stability): `have : MeasurableSpace α := inferInstance` is fine.
 ```
 
 ### Pattern 3: Unknown Identifier → Import
