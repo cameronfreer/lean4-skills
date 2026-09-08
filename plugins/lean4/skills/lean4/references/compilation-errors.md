@@ -16,7 +16,7 @@ This reference provides detailed explanations and fixes for the most common comp
 | **"expected Filter got Measure"** | Dot notation namespace confusion | Use standalone: `EventuallyEq.lemma h` not `h.EventuallyEq.lemma` |
 | **"numerals are data but expected Prop"** | Value where proof expected | Use proof term: `tendsto_const_nhds` not `1` |
 | **"tactic 'exact' failed"** | Goal/term type mismatch | Use `apply` for unification or restructure: `⟨h.2, h.1⟩` |
-| **"unknown identifier"** | Missing import OR namespace not opened | Import tactic OR `open Filter Topology` |
+| **"unknown identifier"** | Missing import OR namespace not opened — or, for a *local* variable that existed before a `rintro … rfl` / `subst`, the substitution eliminated it | Import tactic OR `open Filter Topology`; for a vanished local, inspect the changed context: [tactic-patterns.md § Pitfalls](tactic-patterns.md#rintro--rfl-can-eliminate-the-outer-variable) |
 | **"invalid 'import' command"** | Module docstring placed before imports | Move `/-! ... -/` after the `import` block; see [§ 15 below](#15-invalid-import-command-module-docstring-before-imports) |
 | **"unexpected token/identifier"** | Section comment in proof | Replace `/-! -/` with `--` in tactic mode |
 | **"unexpected token 'omit'; expected …"** reported at a docstring | `omit [...] in` placed *after* the declaration docstring | Put `omit … in` first, then the docstring, then the declaration; see [§ 21](#21-declaration-prefix-ordering-omit--in-attributes-docstring) |
@@ -254,6 +254,8 @@ unknown identifier 'Tendsto'
 ```
 
 **What it means:** Tactic not imported OR namespace not opened.
+
+**Not this section:** if the unknown name is a *local variable* that was in the context a few lines earlier, nothing is missing — a `rintro … rfl` or `subst` eliminated it and rewrote the hypotheses that mentioned it. Inspect the changed context; see the [`rintro … rfl` pitfall in tactic-patterns.md](tactic-patterns.md#rintro--rfl-can-eliminate-the-outer-variable).
 
 **Cause 1: Missing tactic import**
 

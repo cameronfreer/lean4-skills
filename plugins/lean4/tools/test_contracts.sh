@@ -2285,6 +2285,15 @@ if grep -qiE 'rintro[^.]*always eliminates' <<<"$_c42_pf"; then
     fail "Check 42: tactic-patterns.md overstates rintro … rfl as always eliminating the outer variable"
     check42_ok=0
 fi
+# #168 is also reachable from the generic "unknown identifier" row and § 5.
+if ! grep -F '"unknown identifier"' <<<"$_c42_qr" | grep -qF 'tactic-patterns.md#rintro--rfl-can-eliminate-the-outer-variable'; then
+    fail "Check 42: compilation-errors.md unknown-identifier row must cross-link the rintro … rfl pitfall"
+    check42_ok=0
+fi
+if ! extract_section "$_c42_ce" "### 5. Unknown Identifier (Missing Tactic or Namespace Open)" | grep -qF 'tactic-patterns.md#rintro--rfl-can-eliminate-the-outer-variable'; then
+    fail "Check 42: compilation-errors.md § 5 must cross-link the rintro … rfl pitfall for a vanished local"
+    check42_ok=0
+fi
 for _c42_t in 'subst m' 'rw [h]'; do
     if ! grep -qF -- "$_c42_t" <<<"$_c42_pf"; then
         fail "Check 42: tactic-patterns.md rintro pitfall must show the repair '$_c42_t'"

@@ -15,9 +15,14 @@ if out="$(lean "$here/diagnostic_omit_negative.lean" 2>&1)"; then
     echo "FAIL: diagnostic_omit_negative.lean elaborated, but it documents a parse error" >&2
     exit 1
 fi
-printf '%s\n' "$out" | head -c 300; echo
-grep -qF "unexpected token 'omit'" <<<"$out" \
-    || { echo "FAIL: message no longer contains unexpected token 'omit'" >&2; exit 1; }
-grep -qE "diagnostic_omit_negative\.lean:7:" <<<"$out" \
-    || { echo "FAIL: error not reported at the docstring line (7)" >&2; exit 1; }
+printf '%.300s\n' "$out"
+# File, line, severity, and message matched TOGETHER: an unrelated line-7
+# diagnostic plus the omit error elsewhere must not pass.
+if ! grep -qE \
+    "diagnostic_omit_negative[.]lean:7:[0-9]+: error: unexpected token 'omit'" \
+    <<<"$out"; then
+    printf '%s\n' "$out" >&2
+    echo "FAIL: expected unexpected token 'omit' at the docstring line (7)" >&2
+    exit 1
+fi
 echo "ok: all core snippet checks passed"
