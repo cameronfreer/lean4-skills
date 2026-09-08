@@ -19,6 +19,7 @@ This reference provides detailed explanations and fixes for the most common comp
 | **"unknown identifier"** | Missing import OR namespace not opened | Import tactic OR `open Filter Topology` |
 | **"invalid 'import' command"** | Module docstring placed before imports | Move `/-! ... -/` after the `import` block; see [§ 15 below](#15-invalid-import-command-module-docstring-before-imports) |
 | **"unexpected token/identifier"** | Section comment in proof | Replace `/-! -/` with `--` in tactic mode |
+| **"unexpected token 'omit'; expected …"** reported at a docstring | `omit [...] in` placed *after* the declaration docstring | Put `omit … in` first, then the docstring, then the declaration; see [§ 21](#21-declaration-prefix-ordering-omit--in-attributes-docstring) |
 | **"no goals to be solved"** | Tactic already finished | Remove redundant tactics after `simp` |
 | **"equation compiler failed"** | Can't prove termination | Add a `termination_by n` clause (the pre-4.6 `termination_by my_rec n => n` form is rejected) |
 | **"synthesized: m, inferred: inst✝"** | Instance pollution (sub-σ-algebras) | ⚡ **READ [instance-pollution.md](instance-pollution.md)** - pin ambient first! |
@@ -94,7 +95,7 @@ omit [MeasurableSpace Ω] in
 lemma my_lemma : Statement := by
   proof
 ```
-- **Must appear before the docstring** (not after)
+- Line order matters: `omit … in` before the docstring — see [§ 21](#21-declaration-prefix-ordering-omit--in-attributes-docstring) for the rule and the error it produces
 - Common when section variables cause unwanted instance requirements
 - Can omit multiple: `omit [inst1] [inst2] in`
 
@@ -807,6 +808,46 @@ example (α : Type u) : Type u := WrappedType α
 **Fix:** use `Type _` when the universe should be inferred, or `Type u` (naming the universe) when the relationship to the arguments is part of the statement. Write a bare `: Type` only when universe zero is intended. Neither `_` nor a named universe is universally preferable: `_` asks for inference, `u` documents a relationship.
 
 **Why it matters:** the apparent conclusion is "the definition under test is uninstantiable", when the probe's annotation is the cause. All four forms above are in `tests/fixtures/reference_snippets/diagnostic_snippets.lean` (the two failures as `#guard_msgs` controls).
+
+### 21. Declaration Prefix Ordering (`omit … in`, Attributes, Docstring)
+
+**Problem:** the pieces that can precede a declaration have a fixed order. A docstring (`/-- … -/`) binds to the *next command*; `omit [...] in` and `set_option … in` are command prefixes that must come *before* it, and attributes (`@[simp]`) come *after* it, immediately before the declaration keyword. Put the docstring first and `omit` is parsed as a separate command, which is exactly what the message says.
+
+**Full error message** (Lean 4.33.1; reported at the *docstring's* position, not the `omit` line — an instance of [§ 13](#13-error-location-can-be-misleading)):
+```
+error: unexpected token 'omit'; expected '#guard_msgs', 'abbrev', 'add_decl_doc', 'axiom', … 'theorem' or 'unif_hint'
+```
+The searchable part is `unexpected token 'omit'`; the alternative list is long and toolchain-dependent.
+
+**Example failure:**
+```lean
+section
+variable [Inhabited Nat]
+
+-- ✗ Fails, error reported at the docstring:
+/-- Doc comment placed before omit. -/
+omit [Inhabited Nat] in
+theorem bad : True := trivial
+
+-- ✓ Prefix first, then docstring, then declaration:
+omit [Inhabited Nat] in
+/-- Doc comment after omit. -/
+theorem good : True := trivial
+end
+```
+
+**The rule, in one place:**
+
+| Position | What goes there |
+|---|---|
+| 1 | command prefixes: `omit [...] in`, `include … in`, `set_option … in`, `open … in` |
+| 2 | the docstring `/-- … -/` |
+| 3 | attributes `@[simp, …]` and modifiers (`private`, `protected`, `noncomputable`) |
+| 4 | the declaration keyword |
+
+This is *declaration* prefix ordering. *File-header* ordering (copyright → `module` → imports → module docstring → `public section`) is a different rule with its own error, `invalid 'import' command`: see [§ 15](#15-invalid-import-command-module-docstring-before-imports) and [mathlib-style.md § 2 Placement](mathlib-style.md#placement).
+
+The repair is a `tests/fixtures/reference_snippets/diagnostic_snippets.lean` entry and the failure is the must-fail `diagnostic_omit_negative.lean` beside it (a parse error, so `#guard_msgs` cannot wrap it); [domain-patterns.md Pattern 7](domain-patterns.md#pattern-7-managing-section-variables-with-omit) shows the measure-theory use and links here rather than restating the rule.
 
 ---
 

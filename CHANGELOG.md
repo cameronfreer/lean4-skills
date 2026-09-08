@@ -1,5 +1,16 @@
 # Changelog
 
+## v4.8.7 (September 2026)
+
+Three diagnostic entries from field reports (#167, #168, #169), each backed by executable core-Lean snippets run in CI. Documentation and contract check only.
+
+### Added
+
+- **Bare `Type` result annotation forces universe 0 (#167).** `: Type` means `Type 0`; the constraint propagates backwards, so the error lands on an *argument* (or the application) of a universe-polymorphic definition and reads as if that definition were broken. compilation-errors.md gains a quick-reference row keyed on the symptom and § 20 with both error shapes and both repairs: `Type _` when the universe should be inferred, `Type u` when the relationship is part of the statement, bare `Type` only when universe zero is intended.
+- **`rintro … rfl` can eliminate the outer variable (#168).** When the introduced equation relates a fresh variable to one already in context, the pre-existing variable can be the one substituted away and every hypothesis about it rewritten; the outer name then fails with `Unknown identifier`. tactic-patterns.md gains a Pitfalls section with the reproducer and the two repairs that keep the outer name usable (`intro` + `rw [h]`, or `intro` + `subst <introduced>`).
+- **`unexpected token 'omit'` is discoverable from the error index (#169).** The rule that `omit [...] in` precedes the declaration docstring existed in two places, neither reachable from the error text. compilation-errors.md gains a quick-reference row with the literal string and one canonical § 21 (declaration prefix ordering: command prefixes → docstring → attributes/modifiers → keyword), noting the error is reported at the *docstring's* position and that file-header ordering (§ 15, mathlib-style.md) is a different rule. § 1 Pattern 4 and domain-patterns.md Pattern 7 now link to § 21 instead of restating it; § 13 (misleading error locations) names both new cases.
+- **Executable evidence.** `tests/fixtures/reference_snippets/diagnostic_snippets.lean` elaborates every repair and pins every failure as a `#guard_msgs` control against the pinned Lean 4.33.1 toolchain; the `omit` failure is a parse error `#guard_msgs` cannot capture, so `diagnostic_omit_negative.lean` must fail and `run_core_snippets.sh` asserts the message and the docstring-line location. The `lean-integration` workflow runs the script (which also covers the v4.8.6 instance fixture). Check 42 pins discoverability only: the rows, the § 20/§ 21 homes, the links from the older copies, the "can eliminate" phrasing, and the fixtures' presence in CI.
+
 ## v4.8.6 (September 2026)
 
 Local-instance guidance corrected for Lean 4 (#188) and the obsolete trimmed-measure idiom removed (#162). Documentation and contract check only.

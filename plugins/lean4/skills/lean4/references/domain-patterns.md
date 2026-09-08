@@ -210,7 +210,7 @@ lemma abs_integral_mul_le_L2 [IsFiniteMeasure μ] {f g : Ω → ℝ}
 end IntegrationHelpers
 ```
 
-**Critical:** `omit [...] in` must appear **before** docstring, not after.
+**Critical:** `omit [...] in` must appear **before** the docstring. The rule for everything that can precede a declaration, and the `unexpected token 'omit'` error you get when the order is wrong, live in [compilation-errors.md § 21](compilation-errors.md#21-declaration-prefix-ordering-omit--in-attributes-docstring).
 
 **When to use:** Lemma doesn't use section variable, or variable causes unwanted instance requirements.
 
