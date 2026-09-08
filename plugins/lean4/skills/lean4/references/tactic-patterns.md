@@ -120,6 +120,40 @@ Goal contains: `Group`, `Ring`, `Field`, `Monoid`, `comm`, `mul`, `add`
 4. **Search mathlib:** Most goals are already solved
 5. **Check types:** Use `#check` to understand terms
 
+## Pitfalls
+
+### `rintro … rfl` can eliminate the outer variable
+
+An `rfl` pattern substitutes along the equation, but does not say *which* side survives. When the equation relates a freshly introduced variable to one already fixed in the context, the **pre-existing** variable can be the one eliminated, and every hypothesis mentioning it is rewritten:
+
+```lean
+example (m : Nat) (P : Nat → Prop) (hP : P m) : ∀ m', m' = m → P m' := by
+  rintro m' rfl
+  -- context is now  m' : ℕ,  hP : P m'  — `m` is gone
+  show P m          -- ✗ Unknown identifier `m`
+  exact hP
+```
+
+Two repairs, both keeping the outer name `m` usable:
+
+```lean
+-- keep the context intact: introduce the equation and rewrite with it
+example (m : Nat) (P : Nat → Prop) (hP : P m) : ∀ m', m' = m → P m' := by
+  intro m' h
+  rw [h]
+  show P m
+  exact hP
+
+-- or substitute the INTRODUCED variable by name
+example (m : Nat) (P : Nat → Prop) (hP : P m) : ∀ m', m' = m → P m' := by
+  intro m' h
+  subst m'
+  show P m
+  exact hP
+```
+
+Reach for `rintro … rfl` when you do not care which name survives; otherwise `intro` + `rw`/`subst <introduced>`. All three are `tests/fixtures/reference_snippets/diagnostic_snippets.lean` entries (the failure as a `#guard_msgs` control).
+
 ## See Also
 
 - [tactics-reference.md](tactics-reference.md) - Full tactic documentation
