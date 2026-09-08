@@ -183,3 +183,27 @@ example {Ω β : Type*} [m0 : MeasurableSpace Ω] [MeasurableSpace β]
     (Z : Ω → β) (hZ : Measurable Z) : True := by
   have hZ_m0 : @Measurable Ω β m0 _ Z := by simpa [m0] using hZ
   trivial
+
+-- ❌ Negative control (executable): the transport line with a BARE
+-- `StronglyMeasurable` — after the two `let`s it resolves to mZW, so
+-- `hsm_ce.mono hmW_le` is handed `mW ≤ mΩ` where `mW ≤ mZW` is expected.
+/--
+error: Application type mismatch: The argument
+  hmW_le
+has type
+  mW ≤ mΩ
+but is expected to have type
+  mW ≤ mZW
+in the application
+  StronglyMeasurable.mono hsm_ce hmW_le
+-/
+#guard_msgs in
+example {Ω β γ : Type*} [mΩ : MeasurableSpace Ω] [mβ : MeasurableSpace β]
+    [mγ : MeasurableSpace γ] (Z : Ω → β) (W : Ω → γ) (hW : Measurable W)
+    (μ : Measure Ω) (f : Ω → ℝ) : True := by
+  let mW : MeasurableSpace Ω := MeasurableSpace.comap W mγ
+  let mZW : MeasurableSpace Ω := MeasurableSpace.comap (fun ω ↦ (Z ω, W ω)) (mβ.prod mγ)
+  have hmW_le : mW ≤ mΩ := hW.comap_le
+  have hsm_ce : StronglyMeasurable[mW] (μ[f|mW]) := stronglyMeasurable_condExp
+  have hsm_ceAmb : StronglyMeasurable (μ[f|mW]) := hsm_ce.mono hmW_le
+  trivial

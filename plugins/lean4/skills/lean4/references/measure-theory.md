@@ -337,7 +337,7 @@ lemma foo {Ω β : Type*} [mΩ : MeasurableSpace Ω] [mβ : MeasurableSpace β]
 2. Ambient facts stated after a `set`/`let` of a `MeasurableSpace Ω` must name the instance (`MeasurableSet[mΩ]`, `@`)
 3. Inlining the comaps is the alternative when you would rather not name anything
 4. Adding local instances (`have`/`haveI`) adds MORE class-typed locals; it does not fix drift
-5. Compile-checked: `tests/fixtures/reference_snippets/measure_theory_snippets.lean` shows the transport line failing with a bare `StronglyMeasurable` and passing with `StronglyMeasurable[mΩ]`
+5. Compile-checked: `tests/fixtures/reference_snippets/measure_theory_snippets.lean` elaborates the transport line with `StronglyMeasurable[mΩ]`, and its executable `#guard_msgs` control shows the bare `StronglyMeasurable` form failing ("expected mW ≤ mZW")
 
 **Real-world impact:** Resolved ALL instance synthesis errors in 150-line conditional expectation proofs (Kallenberg Lemma 1.3).
 
