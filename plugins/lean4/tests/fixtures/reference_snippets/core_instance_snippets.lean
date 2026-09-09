@@ -8,7 +8,7 @@ Run by the `lean-integration` workflow with the `lean_file_gate` fixture's pinne
 toolchain (no Mathlib needed):
 
     cd plugins/lean4/tests/fixtures/lean_file_gate
-    lean ../reference_snippets/core_instance_snippets.lean
+    lean ../reference_snippets/core_instance_snippets.lean   # or: bash ../reference_snippets/run_core_snippets.sh
 
 Every negative control is a `#guard_msgs` block: the file stops elaborating if a
 documented failure stops failing, or its message drifts.

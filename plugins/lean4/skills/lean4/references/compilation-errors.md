@@ -12,12 +12,14 @@ This reference provides detailed explanations and fixes for the most common comp
 | **"(deterministic) timeout at 'typeclass'"** | Instance search too deep or looping | Supply the instance with evidence (`have : C := ⟨proof⟩`) or `set_option synthInstance.maxHeartbeats 40000 in`; check for instance loops |
 | **WHNF/isDefEq timeout** (500k+ heartbeats) | Complex function in polymorphic goal | **[performance-optimization.md](performance-optimization.md)** - use `@[irreducible]` wrapper |
 | **"type mismatch"** (has type ℕ but expected ℝ) | Wrong type | Use coercion: `(x : ℝ)` or `↑x` |
+| **"Application type mismatch … has type `Type u` … expected to have type `Type`"** reported at an *argument* of a universe-polymorphic definition | A bare `: Type` result annotation means `Type 0`; the constraint propagates backwards into the arguments | `Type _` to infer the result universe, or `Type u` to state the relationship; see [§ 20](#20-bare-type-result-annotation-forces-universe-0) |
 | **"expected Filter got Measure"** | Dot notation namespace confusion | Use standalone: `EventuallyEq.lemma h` not `h.EventuallyEq.lemma` |
 | **"numerals are data but expected Prop"** | Value where proof expected | Use proof term: `tendsto_const_nhds` not `1` |
 | **"tactic 'exact' failed"** | Goal/term type mismatch | Use `apply` for unification or restructure: `⟨h.2, h.1⟩` |
-| **"unknown identifier"** | Missing import OR namespace not opened | Import tactic OR `open Filter Topology` |
+| **"unknown identifier"** | Missing import OR namespace not opened — or, for a *local* variable that existed before a `rintro … rfl` / `subst`, the substitution eliminated it | Import tactic OR `open Filter Topology`; for a vanished local, inspect the changed context: [tactic-patterns.md § Pitfalls](tactic-patterns.md#rintro--rfl-can-eliminate-the-outer-variable) |
 | **"invalid 'import' command"** | Module docstring placed before imports | Move `/-! ... -/` after the `import` block; see [§ 15 below](#15-invalid-import-command-module-docstring-before-imports) |
 | **"unexpected token/identifier"** | Section comment in proof | Replace `/-! -/` with `--` in tactic mode |
+| **"unexpected token 'omit'; expected …"** reported at a docstring | `omit [...] in` placed *after* the declaration docstring | Put `omit … in` first, then the docstring, then the declaration; see [§ 21](#21-declaration-prefix-ordering-omit--in-attributes-docstring) |
 | **"no goals to be solved"** | Tactic already finished | Remove redundant tactics after `simp` |
 | **"equation compiler failed"** | Can't prove termination | Add a `termination_by n` clause (the pre-4.6 `termination_by my_rec n => n` form is rejected) |
 | **"synthesized: m, inferred: inst✝"** | Instance pollution (sub-σ-algebras) | ⚡ **READ [instance-pollution.md](instance-pollution.md)** - pin ambient first! |
@@ -93,7 +95,7 @@ omit [MeasurableSpace Ω] in
 lemma my_lemma : Statement := by
   proof
 ```
-- **Must appear before the docstring** (not after)
+- Line order matters: `omit … in` before the docstring — see [§ 21](#21-declaration-prefix-ordering-omit--in-attributes-docstring) for the rule and the error it produces
 - Common when section variables cause unwanted instance requirements
 - Can omit multiple: `omit [inst1] [inst2] in`
 
@@ -252,6 +254,8 @@ unknown identifier 'Tendsto'
 ```
 
 **What it means:** Tactic not imported OR namespace not opened.
+
+**Local variables:** for a local variable that was present earlier, inspect how the context changed; `rintro … rfl` or `subst` may have eliminated it. See the [`rintro … rfl` pitfall in tactic-patterns.md](tactic-patterns.md#rintro--rfl-can-eliminate-the-outer-variable).
 
 **Cause 1: Missing tactic import**
 
@@ -604,6 +608,8 @@ let μX := pathLaw μ X  -- Should be Y not X
 **Don't:** Assume the error line is where you need to fix.
 **Do:** Trace backwards from error to find the root cause.
 
+**Two named instances of this:** a universe error reported at an *argument* when the cause is a bare `: Type` result annotation ([§ 20](#20-bare-type-result-annotation-forces-universe-0)), and `unexpected token 'omit'` reported at a *docstring* when the cause is the line order below it ([§ 21](#21-declaration-prefix-ordering-omit--in-attributes-docstring)).
+
 ### 14. Alpha/Beta-Equivalence Issues (Binder Mismatches)
 
 **Problem:** Lean fails to match expressions because binder names differ (α-equivalence) or beta-redexes aren't reduced.
@@ -767,6 +773,83 @@ import Phases.Pal
 **What's wrong:** The current mathlib header shape is: copyright block → `module` → grouped `public import` / plain `import` blocks (blank line between them) → `/-!` docstring → `public section`. Declarations in a `module` are private by default, so a converted file also needs the `public section` (or per-declaration `public`) to export its API.
 
 **Fix:** Rewrite the header to the canonical template in [mathlib-style.md § 1](mathlib-style.md#1-file-header-copyright-module-imports-critical), then refresh generated root-import files with `lake exe mk_all`. Command-side: `/lean4:draft` and `/lean4:formalize` emit this shape for mathlib-targeted `--output=file` writes (`--mathlib-template`).
+
+### 20. Bare `Type` Result Annotation Forces Universe 0
+
+**Problem:** `: Type` means `Type 0`, not "some type". Elaboration pushes that constraint backwards into the arguments, so the error can land on an argument (or the application) of a universe-polymorphic definition and read as if *that definition* were broken.
+
+**Full error message** (reported at the argument `α`, Lean 4.33.1):
+```
+error: Application type mismatch: The argument
+  α
+has type
+  Type u
+of sort `Type (u + 1)` but is expected to have type
+  Type
+of sort `Type 1` in the application
+  WrappedType α
+```
+
+**Example failure:**
+```lean
+universe u
+def WrappedType (α : Type u) : Type u := α
+
+-- ✗ Fails at `α`: the result annotation means `Type 0`
+example (α : Type u) : Type := WrappedType α
+-- ✗ An explicit universe argument cannot override the annotation; the error
+--   moves to the application ("Type mismatch  WrappedType α …")
+example (α : Type u) : Type := WrappedType.{u} α
+
+-- ✓ Infer the result universe …
+example (α : Type u) : Type _ := WrappedType α
+-- ✓ … or state the universe relationship explicitly
+example (α : Type u) : Type u := WrappedType α
+```
+
+**Fix:** use `Type _` when the universe should be inferred, or `Type u` (naming the universe) when the relationship to the arguments is part of the statement. Write a bare `: Type` only when universe zero is intended. Neither `_` nor a named universe is universally preferable: `_` asks for inference, `u` documents a relationship.
+
+**Why it matters:** the apparent conclusion is "the definition under test is uninstantiable", when the probe's annotation is the cause. All four forms above are in `tests/fixtures/reference_snippets/diagnostic_snippets.lean` (the two failures as `#guard_msgs` controls).
+
+### 21. Declaration Prefix Ordering (`omit … in`, Attributes, Docstring)
+
+**Problem:** the pieces that can precede a declaration have a fixed order. A docstring (`/-- … -/`) binds to the *next command*; `omit [...] in` and `set_option … in` are command prefixes that must come *before* it, and attributes (`@[simp]`) come *after* it, immediately before the declaration keyword. Put the docstring first and `omit` is parsed as a separate command, which is exactly what the message says.
+
+**Full error message** (Lean 4.33.1; reported at the *docstring's* position, not the `omit` line — an instance of [§ 13](#13-error-location-can-be-misleading)):
+```
+error: unexpected token 'omit'; expected '#guard_msgs', 'abbrev', 'add_decl_doc', 'axiom', … 'theorem' or 'unif_hint'
+```
+The searchable part is `unexpected token 'omit'`; the alternative list is long and toolchain-dependent.
+
+**Example failure:**
+```lean
+section
+variable [Inhabited Nat]
+
+-- ✗ Fails, error reported at the docstring:
+/-- Doc comment placed before omit. -/
+omit [Inhabited Nat] in
+theorem bad : True := trivial
+
+-- ✓ Prefix first, then docstring, then declaration:
+omit [Inhabited Nat] in
+/-- Doc comment after omit. -/
+theorem good : True := trivial
+end
+```
+
+**The rule, in one place:**
+
+| Position | What goes there |
+|---|---|
+| 1 | command prefixes: `omit [...] in`, `include … in`, `set_option … in`, `open … in` |
+| 2 | the docstring `/-- … -/` |
+| 3 | attributes `@[simp, …]` and modifiers (`private`, `protected`, `noncomputable`) |
+| 4 | the declaration keyword |
+
+This is *declaration* prefix ordering. *File-header* ordering (copyright → `module` → imports → module docstring → `public section`) is a different rule with its own error, `invalid 'import' command`: see [§ 15](#15-invalid-import-command-module-docstring-before-imports) and [mathlib-style.md § 2 Placement](mathlib-style.md#placement).
+
+The repair is a `tests/fixtures/reference_snippets/diagnostic_snippets.lean` entry and the failure is the must-fail `diagnostic_omit_negative.lean` beside it (a parse error, so `#guard_msgs` cannot wrap it); [domain-patterns.md Pattern 7](domain-patterns.md#pattern-7-managing-section-variables-with-omit) shows the measure-theory use and links here rather than restating the rule.
 
 ---
 

@@ -2212,12 +2212,107 @@ if [[ ! -f "$PLUGIN_ROOT/tests/fixtures/reference_snippets/core_instance_snippet
     fail "Check 41: tests/fixtures/reference_snippets/core_instance_snippets.lean (core-Lean have/let evidence) is missing"
     check41_ok=0
 fi
-if ! grep -qF 'reference_snippets/core_instance_snippets.lean' "$PLUGIN_ROOT/../../.github/workflows/lean-integration.yml"; then
-    fail "Check 41: lean-integration.yml no longer runs core_instance_snippets.lean"
+# The workflow runs the fixture directly or via run_core_snippets.sh, which
+# must then name it.
+if ! grep -qF 'reference_snippets/core_instance_snippets.lean' "$PLUGIN_ROOT/../../.github/workflows/lean-integration.yml" \
+   && ! { grep -qF 'reference_snippets/run_core_snippets.sh' "$PLUGIN_ROOT/../../.github/workflows/lean-integration.yml" \
+          && grep -qF 'core_instance_snippets.lean' "$PLUGIN_ROOT/tests/fixtures/reference_snippets/run_core_snippets.sh"; }; then
+    fail "Check 41: lean-integration.yml no longer runs core_instance_snippets.lean (directly or via run_core_snippets.sh)"
     check41_ok=0
 fi
 if [[ "$check41_ok" -eq 1 ]]; then
     ok "Check 41: local-instance guidance pinned (#188/#162: have/let register instances, haveI/letI = inlining only + linter; no haveI/letI example lines; stale trim idioms gone; synthesis-first rule; comap takes the codomain structure; core-Lean fixture in CI)"
+fi
+
+# ---------------------------------------------------------------------------
+# Check 42: diagnostic discoverability (#167 / #168 / #169). Correctness of the
+# snippets is established by the executable core fixtures (run_core_snippets.sh
+# in lean-integration.yml); this check pins that each entry is REACHABLE from
+# the error text and that the rule has one home with links, not copies.
+# ---------------------------------------------------------------------------
+check42_ok=1
+_c42_ce="$PLUGIN_ROOT/skills/lean4/references/compilation-errors.md"
+_c42_dp="$PLUGIN_ROOT/skills/lean4/references/domain-patterns.md"
+_c42_tp="$PLUGIN_ROOT/skills/lean4/references/tactic-patterns.md"
+_c42_qr=$(extract_section "$_c42_ce" "## Quick Reference Table")
+# #167: a quick-reference row keyed on the symptom, pointing at § 20.
+if ! grep -F 'Application type mismatch' <<<"$_c42_qr" | grep -F 'Type u' | grep -qF '#20-bare-type-result-annotation-forces-universe-0'; then
+    fail "Check 42: compilation-errors.md quick reference lacks the #167 row (Application type mismatch … Type u … → § 20)"
+    check42_ok=0
+fi
+if ! grep -qE '^### 20\. Bare `Type` Result Annotation Forces Universe 0' "$_c42_ce"; then
+    fail "Check 42: compilation-errors.md § 20 (bare Type forces universe 0) missing"
+    check42_ok=0
+fi
+_c42_s20=$(extract_section "$_c42_ce" "### 20. Bare \`Type\` Result Annotation Forces Universe 0")
+for _c42_t in '`Type _`' '`Type u`' 'universe zero is intended'; do
+    if ! grep -qF -- "$_c42_t" <<<"$_c42_s20"; then
+        fail "Check 42: § 20 must teach both Type _ (inference) and Type u (explicit relationship) and when bare Type is right ($_c42_t)"
+        check42_ok=0
+    fi
+done
+# #169: literal error text in the quick reference, one canonical subsection,
+# the older copies LINK to it instead of restating the rule.
+if ! grep -F "unexpected token 'omit'" <<<"$_c42_qr" | grep -qF '#21-declaration-prefix-ordering-omit--in-attributes-docstring'; then
+    fail "Check 42: compilation-errors.md quick reference lacks the literal unexpected token 'omit' row → § 21"
+    check42_ok=0
+fi
+if ! grep -qE '^### 21\. Declaration Prefix Ordering' "$_c42_ce"; then
+    fail "Check 42: compilation-errors.md § 21 (declaration prefix ordering) missing"
+    check42_ok=0
+fi
+_c42_s21=$(extract_section "$_c42_ce" "### 21. Declaration Prefix Ordering (\`omit … in\`, Attributes, Docstring)")
+if ! grep -qF "unexpected token 'omit'" <<<"$_c42_s21" || ! grep -qF '#15-invalid-import-command' <<<"$_c42_s21"; then
+    fail "Check 42: § 21 must quote the literal error and link file-header ordering (§ 15) as a DIFFERENT rule"
+    check42_ok=0
+fi
+_c42_p4=$(extract_section "$_c42_ce" "### 1. Failed to Synthesize Instance")
+if ! grep -qF '#21-declaration-prefix-ordering' <<<"$_c42_p4"; then
+    fail "Check 42: compilation-errors.md § 1 Pattern 4 must link § 21 rather than restate the omit ordering rule"
+    check42_ok=0
+fi
+if ! grep -F 'omit [...] in' "$_c42_dp" | grep -F 'before' | grep -qF 'compilation-errors.md#21-declaration-prefix-ordering'; then
+    fail "Check 42: domain-patterns.md Pattern 7 must link compilation-errors.md § 21 on the omit ordering line"
+    check42_ok=0
+fi
+# #168: the pitfall says CAN eliminate (not always), with the repairs.
+_c42_pf=$(extract_section "$_c42_tp" "## Pitfalls")
+if ! grep -qF 'rintro … rfl` can eliminate the outer variable' <<<"$_c42_pf"; then
+    fail "Check 42: tactic-patterns.md Pitfalls must carry the rintro … rfl entry, phrased as 'can eliminate'"
+    check42_ok=0
+fi
+if grep -qiE 'rintro[^.]*always eliminates' <<<"$_c42_pf"; then
+    fail "Check 42: tactic-patterns.md overstates rintro … rfl as always eliminating the outer variable"
+    check42_ok=0
+fi
+# #168 is also reachable from the generic "unknown identifier" row and § 5.
+if ! grep -F '"unknown identifier"' <<<"$_c42_qr" | grep -qF 'tactic-patterns.md#rintro--rfl-can-eliminate-the-outer-variable'; then
+    fail "Check 42: compilation-errors.md unknown-identifier row must cross-link the rintro … rfl pitfall"
+    check42_ok=0
+fi
+if ! extract_section "$_c42_ce" "### 5. Unknown Identifier (Missing Tactic or Namespace Open)" | grep -qF 'tactic-patterns.md#rintro--rfl-can-eliminate-the-outer-variable'; then
+    fail "Check 42: compilation-errors.md § 5 must cross-link the rintro … rfl pitfall for a vanished local"
+    check42_ok=0
+fi
+for _c42_t in 'subst m' 'rw [h]'; do
+    if ! grep -qF -- "$_c42_t" <<<"$_c42_pf"; then
+        fail "Check 42: tactic-patterns.md rintro pitfall must show the repair '$_c42_t'"
+        check42_ok=0
+    fi
+done
+# Executable evidence wired into CI.
+for _c42_f in diagnostic_snippets.lean diagnostic_omit_negative.lean run_core_snippets.sh; do
+    if [[ ! -f "$PLUGIN_ROOT/tests/fixtures/reference_snippets/$_c42_f" ]]; then
+        fail "Check 42: tests/fixtures/reference_snippets/$_c42_f is missing"
+        check42_ok=0
+    fi
+done
+if ! grep -qF 'reference_snippets/run_core_snippets.sh' "$PLUGIN_ROOT/../../.github/workflows/lean-integration.yml"; then
+    fail "Check 42: lean-integration.yml no longer runs run_core_snippets.sh"
+    check42_ok=0
+fi
+if [[ "$check42_ok" -eq 1 ]]; then
+    ok "Check 42: diagnostic discoverability pinned (#167 § 20 + row, #168 pitfall, #169 literal row + § 21 with links from Pattern 4 / domain-patterns; core fixtures in CI)"
 fi
 
 if [[ "$check39_ok" -eq 1 ]]; then
