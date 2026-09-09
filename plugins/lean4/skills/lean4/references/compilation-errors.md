@@ -255,7 +255,7 @@ unknown identifier 'Tendsto'
 
 **What it means:** Tactic not imported OR namespace not opened.
 
-**Not this section:** if the unknown name is a *local variable* that was in the context a few lines earlier, nothing is missing — a `rintro … rfl` or `subst` eliminated it and rewrote the hypotheses that mentioned it. Inspect the changed context; see the [`rintro … rfl` pitfall in tactic-patterns.md](tactic-patterns.md#rintro--rfl-can-eliminate-the-outer-variable).
+**Local variables:** for a local variable that was present earlier, inspect how the context changed; `rintro … rfl` or `subst` may have eliminated it. See the [`rintro … rfl` pitfall in tactic-patterns.md](tactic-patterns.md#rintro--rfl-can-eliminate-the-outer-variable).
 
 **Cause 1: Missing tactic import**
 
