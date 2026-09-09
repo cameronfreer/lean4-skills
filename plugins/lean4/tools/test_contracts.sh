@@ -2315,6 +2315,83 @@ if [[ "$check42_ok" -eq 1 ]]; then
     ok "Check 42: diagnostic discoverability pinned (#167 § 20 + row, #168 pitfall, #169 literal row + § 21 with links from Pattern 4 / domain-patterns; core fixtures in CI)"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 43: run-store/v1 contract (#82A; Refs #82). The behaviour is
+# established by tests/test_run_store.py (fault injection, locks, containment,
+# Git); this check pins that the reference states the contract's load-bearing
+# sentences, that the primitive + wrapper + tests exist and are wired, and
+# that the store is documented as storage only (no trust promotion, no
+# controller enforcement, #82 open).
+# ---------------------------------------------------------------------------
+check43_ok=1
+_c43_ref="$PLUGIN_ROOT/skills/lean4/references/run-store.md"
+if [[ ! -f "$_c43_ref" ]]; then
+    fail "Check 43: references/run-store.md missing"
+    check43_ok=0
+else
+    for _c43_s in 'Manifest + journal are authoritative' \
+                  'Only an unterminated final fragment is recoverable' \
+                  'Appending to a damaged journal is refused' \
+                  'validated observed prefix' \
+                  'not proof of a crashed writer' \
+                  'last `handoff` event in the validated prefix' \
+                  'historical evidence, never current certification' \
+                  'never a custody check' \
+                  'does not bless intervening changes' \
+                  '`journal_only`' '`indeterminate`' '`nothing_written`' \
+                  'not exactly-once delivery' \
+                  'Any existing lock blocks' \
+                  'no `--break-stale-lock`' \
+                  'unsupported_platform' \
+                  'guards only the final component' \
+                  'only if no such file exists' \
+                  'never untrack' \
+                  'stays open'; do
+        if ! grep -qF -- "$_c43_s" "$_c43_ref"; then
+            fail "Check 43: run-store.md must state: $_c43_s"
+            check43_ok=0
+        fi
+    done
+    if grep -qiE 'verified: (true|false)|marks? .* trusted|exactly-once (delivery )?(is )?guaranteed' "$_c43_ref"; then
+        fail "Check 43: run-store.md must not promise trust promotion or exactly-once delivery"
+        check43_ok=0
+    fi
+fi
+for _c43_f in lib/scripts/run_store.py lib/scripts/run_contract_validate.py bin/lean4-skills-run-store tests/test_run_store.py; do
+    if [[ ! -f "$PLUGIN_ROOT/$_c43_f" ]]; then
+        fail "Check 43: $_c43_f missing"
+        check43_ok=0
+    fi
+done
+if [[ -f "$PLUGIN_ROOT/tests/test_run_contract.py" ]] && grep -qE '^def validate_(dispatch|handoff)\(' "$PLUGIN_ROOT/tests/test_run_contract.py"; then
+    fail "Check 43: test_run_contract.py re-defines the validator instead of importing run_contract_validate (production module)"
+    check43_ok=0
+fi
+if ! grep -qF 'from run_contract_validate import' "$PLUGIN_ROOT/tests/test_run_contract.py"; then
+    fail "Check 43: test_run_contract.py must import the production validator"
+    check43_ok=0
+fi
+if grep -qE 'rerun_forbidden\(|same_task\(' "$PLUGIN_ROOT/lib/scripts/run_store.py"; then
+    fail "Check 43: run_store.py must not evaluate the rerun guard (storing a dispatch is not controller enforcement)"
+    check43_ok=0
+fi
+if ! grep -qF 'plugins/lean4/tests/test_run_store.py' "$PLUGIN_ROOT/../../.github/workflows/lint.yml"; then
+    fail "Check 43: lint.yml python-tests must run test_run_store.py"
+    check43_ok=0
+fi
+if ! grep -qF 'lean4-skills-run-store:' "$PLUGIN_ROOT/tests/test_wrapper_runtime.sh"; then
+    fail "Check 43: wrapper smoke table must list lean4-skills-run-store"
+    check43_ok=0
+fi
+if ! grep -qF 'references/run-store.md' "$PLUGIN_ROOT/skills/lean4/SKILL.md" \
+   || ! grep -qF 'run-store.md' "$PLUGIN_ROOT/skills/lean4/references/handoff-contract.md"; then
+    fail "Check 43: SKILL.md and handoff-contract.md must link references/run-store.md"
+    check43_ok=0
+fi
+if [[ "$check43_ok" -eq 1 ]]; then
+    ok "Check 43: run-store/v1 contract pinned (#82A: authoritative manifest+journal, damaged-tail policy, observed-prefix reads, four write outcomes, blocking lock, platform boundary, containment, Git; storage only, #82 open)"
+fi
+
 if [[ "$check39_ok" -eq 1 ]]; then
     ok "Check 39: file-gate scope pinned (#166: canonical section w/ both failure directions + both recovery paths, cited sites corrected, cross-file editors routed, disprove REFUTED licensed by lake lean <target-file>, no naive module-name derivation)"
 fi
