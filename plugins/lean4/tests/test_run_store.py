@@ -42,6 +42,12 @@ def _text(path: str) -> str:
         return f.read()
 
 
+def _is_lock_payload(data: bytes) -> bool:
+    """The lock's diagnostic contents also go through the injectable write;
+    fault injections aimed at the journal let them through."""
+    return data.startswith(b'{"pid"')
+
+
 def _note(**over: Any) -> dict[str, Any]:
     n: dict[str, Any] = {"kind": "candidate", "text": "try simp", "lean": None}
     n.update(over)
@@ -495,6 +501,8 @@ class WriteOutcomes(_Base):
         real = os.write
 
         def short(fd: int, data: bytes) -> int:
+            if _is_lock_payload(data):
+                return real(fd, data)
             return real(fd, data[: max(1, len(data) // 3)])
 
         rs._write = short
@@ -512,6 +520,8 @@ class WriteOutcomes(_Base):
         calls = {"n": 0}
 
         def flaky(fd: int, data: bytes) -> int:
+            if _is_lock_payload(data):
+                return real(fd, data)
             calls["n"] += 1
             if calls["n"] == 1:
                 return real(fd, data[:5])
@@ -533,6 +543,8 @@ class WriteOutcomes(_Base):
         rid = self.create()
 
         def boom(fd: int, data: bytes) -> int:
+            if _is_lock_payload(data):
+                return os.write(fd, data)
             raise OSError(5, "injected EIO")
 
         rs._write = boom
@@ -702,7 +714,7 @@ class Containment(_Base):
         os.symlink(outside, target)
         with self.assertRaises(rs.RefusedError) as cm:
             rs.op_load(self.root, rid)
-        self.assertEqual(cm.exception.code, "no_such_run")
+        self.assertEqual(cm.exception.code, "containment")
 
     def test_symlinked_runs_directory_refused(self) -> None:
         os.makedirs(self.root)
@@ -720,8 +732,22 @@ class Containment(_Base):
         os.symlink(os.path.join(self.tmp, "elsewhere.jsonl"), jp)
         with open(os.path.join(self.tmp, "elsewhere.jsonl"), "w"):
             pass
-        with self.assertRaises(OSError):
+        with self.assertRaises(rs.RefusedError) as cm:
             rs.op_append(self.root, rid, "note", _note())
+        self.assertEqual(cm.exception.code, "containment")
+        # and through the CLI it is a structured refusal, not a traceback
+        p = self.cli(
+            "append",
+            "--run-id",
+            rid,
+            "--kind",
+            "note",
+            "--payload",
+            "-",
+            stdin=json.dumps(_note()),
+        )
+        self.assertEqual(p.returncode, rs.EXIT_REFUSED, p.stderr)
+        self.assertEqual(json.loads(p.stdout)["code"], "containment")
 
     def test_unsupported_platform_refuses_before_writing(self) -> None:
         saved = rs.platform_supported
@@ -776,6 +802,390 @@ class GitBehaviour(_Base):
         )
         self.assertNotIn("?? ", p.stdout)
         self.assertIn(rid, p.stdout)  # listed only as ignored
+
+
+@unittest.skipUnless(POSIX, "run-store mutations need a POSIX dir_fd host")
+class RootAndStoreInit(_Base):
+    """Review round 1: root containment, fresh-store synchronization,
+    .gitignore publication, the Git index check against the repository
+    that CONTAINS the storage location."""
+
+    def test_symlinked_storage_root_refused_and_nothing_escapes(self) -> None:
+        outside = os.path.join(self.tmp, "outside")
+        os.makedirs(outside)
+        os.symlink(outside, self.root)  # project/.lean4-skills → outside
+        with self.assertRaises(rs.RefusedError) as cm:
+            self.create()
+        self.assertEqual(cm.exception.code, "containment")
+        self.assertEqual(os.listdir(outside), [])
+        with self.assertRaises(rs.RefusedError) as cm:
+            rs.op_load(self.root, self.rid_for(NOW))
+        self.assertEqual(cm.exception.code, "containment")
+
+    def test_manifest_records_resolved_root(self) -> None:
+        # the PARENT may be reached through a symlink (the user's anchor);
+        # the manifest records the resolved location
+        link = os.path.join(self.tmp, "proj-link")
+        os.symlink(self.project, link)
+        res = rs.op_create(
+            valid_dispatch(),
+            storage_root=os.path.join(link, ".lean4-skills"),
+            project_root=link,
+            tracker_session_id=None,
+            prior_run=None,
+            now=NOW,
+        )
+        m = rs.op_load(self.root, res["run_id"])["manifest"]
+        self.assertEqual(m["storage_root"], os.path.realpath(self.root))
+        self.assertTrue(res["run_directory"].startswith(os.path.realpath(self.root)))
+
+    def test_fresh_store_sync_failures_refuse_before_any_run(self) -> None:
+        # fresh store fsync order: 1 storage_root (new runs entry), 2 parent of
+        # storage_root (new root entry), 3 .gitignore temp, 4 runs dir (publish)
+        for nth in (1, 2, 3, 4):
+            import shutil
+
+            shutil.rmtree(self.root, ignore_errors=True)
+            self._fail_fsync_on(nth)
+            with self.assertRaises(rs.RefusedError) as cm:
+                self.create()
+            rs._fsync = os.fsync
+            self.assertIn(
+                cm.exception.code,
+                {"store_init_unsynced", "gitignore_write_failed"},
+                f"step {nth}",
+            )
+            self.assertFalse(
+                os.path.exists(os.path.join(self.runs, self.rid_for(NOW))),
+                f"step {nth}",
+            )
+            # no half-published .gitignore: either absent or exactly the policy
+            gi = os.path.join(self.runs, ".gitignore")
+            if os.path.exists(gi):
+                self.assertEqual(_text(gi), "*\n")
+        # and a clean create afterwards works
+        rid = self.create()
+        self.assertEqual(rs.op_load(self.root, rid)["events"], [])
+
+    def _fail_fsync_on(self, nth: int) -> None:
+        calls = {"n": 0}
+        real = os.fsync
+
+        def fsync(fd: int) -> None:
+            calls["n"] += 1
+            if calls["n"] == nth:
+                raise OSError(5, "injected fsync failure")
+            real(fd)
+
+        rs._fsync = fsync
+
+    def tearDown(self) -> None:
+        rs._fsync = os.fsync
+        rs._write = os.write
+        super().tearDown()
+
+    def test_failed_gitignore_init_is_not_mistaken_for_user_policy(self) -> None:
+        real = os.write
+
+        def boom(fd: int, data: bytes) -> int:
+            if data == b"*\n":
+                raise OSError(28, "injected ENOSPC")
+            return real(fd, data)
+
+        rs._write = boom
+        with self.assertRaises(rs.RefusedError) as cm:
+            self.create()
+        self.assertEqual(cm.exception.code, "gitignore_write_failed")
+        rs._write = real
+        self.assertFalse(os.path.exists(os.path.join(self.runs, ".gitignore")))
+        self.assertEqual([n for n in os.listdir(self.runs) if n.endswith(".tmp")], [])
+        rid = self.create()
+        self.assertEqual(_text(os.path.join(self.runs, ".gitignore")), "*\n")
+        self.assertTrue(rs.valid_run_id(rid))
+
+    def test_git_index_checked_in_the_repo_containing_the_store(self) -> None:
+        other = os.path.join(self.tmp, "other-repo")
+        os.makedirs(os.path.join(other, "store", "runs"))
+        if (
+            subprocess.run(
+                ["git", "-C", other, "init", "-q"], capture_output=True, check=False
+            ).returncode
+            != 0
+        ):
+            self.skipTest("git unavailable")
+        tracked = os.path.join(other, "store", "runs", "tracked.txt")
+        with open(tracked, "w") as f:
+            f.write("x")
+        subprocess.run(
+            ["git", "-C", other, "add", "-f", "store/runs/tracked.txt"],
+            check=True,
+            capture_output=True,
+        )
+        with self.assertRaises(rs.RefusedError) as cm:
+            rs.op_create(
+                valid_dispatch(),
+                storage_root=os.path.join(other, "store"),
+                project_root=self.project,
+                tracker_session_id=None,
+                prior_run=None,
+                now=NOW,
+            )
+        self.assertEqual(cm.exception.code, "git_tracked")
+
+
+@unittest.skipUnless(POSIX, "run-store mutations need a POSIX dir_fd host")
+class RecoveryAfterFailure(_Base):
+    def setUp(self) -> None:
+        super().setUp()
+        self._saved = (rs._write, rs._fsync, rs._rename)
+
+    def tearDown(self) -> None:
+        rs._write, rs._fsync, rs._rename = self._saved
+        super().tearDown()
+
+    def test_lock_init_failure_is_structured_and_releases_the_lock(self) -> None:
+        rid = self.create()
+        real = os.write
+
+        def boom(fd: int, data: bytes) -> int:
+            if _is_lock_payload(data):
+                real(fd, data[:5])
+                raise OSError(28, "injected ENOSPC")
+            return real(fd, data)
+
+        rs._write = boom
+        with self.assertRaises(rs.RefusedError) as cm:
+            rs.op_append(self.root, rid, "note", _note())
+        self.assertEqual(cm.exception.code, "lock_init_failed")
+        rs._write = real
+        self.assertFalse(os.path.exists(os.path.join(self.run_dir(rid), rs.LOCK_NAME)))
+        self.assertEqual(
+            rs.op_append(self.root, rid, "note", _note())["outcome"], "committed"
+        )
+
+    def test_cache_recovers_after_a_failed_rename(self) -> None:
+        rid = self.create()
+
+        def bad_rename(*a: Any, **k: Any) -> None:
+            raise OSError(5, "injected rename failure")
+
+        rs._rename = bad_rename
+        self.assertEqual(
+            rs.op_set_handoff(self.root, rid, valid_handoff())["outcome"],
+            "journal_only",
+        )
+        rs._rename = os.rename
+        res = rs.op_set_handoff(self.root, rid, valid_handoff(next_action="stop"))
+        self.assertEqual((res["outcome"], res["seq"]), ("committed", 2))
+        out = rs.op_load(self.root, rid)
+        self.assertEqual(out["handoff_cache"], "current")
+        self.assertEqual(out["effective_handoff"]["seq"], 2)
+        self.assertEqual(
+            [n for n in os.listdir(self.run_dir(rid)) if n.endswith(".tmp")], []
+        )
+
+    def test_manifest_of_another_run_is_an_integrity_failure(self) -> None:
+        rid = self.create()
+        other = self.rid_for("2026-09-09T13:00:00Z")
+        mp = os.path.join(self.run_dir(rid), rs.MANIFEST_NAME)
+        m = json.loads(_text(mp))
+        m["run_id"] = other
+        with open(mp, "w") as f:
+            json.dump(m, f)
+        for call in (
+            lambda: rs.op_load(self.root, rid),
+            lambda: rs.op_append(self.root, rid, "note", _note()),
+        ):
+            with self.assertRaises(rs.RefusedError) as cm:
+                call()
+            self.assertEqual(cm.exception.code, "integrity_failure")
+
+    def test_unexpected_oserror_reports_indeterminate_not_nothing_written(self) -> None:
+        rid = self.create()
+        # the CLI runs a fresh interpreter, so patch via a driver instead
+        drv = (
+            f"import sys, json; sys.path.insert(0, {_LIB!r}); import run_store as rs\n"
+            "def explode(*a, **k): raise OSError(5, 'surprise')\n"
+            "rs._append_locked = explode\n"
+            f"sys.exit(rs.main(['--root', {self.root!r}, 'append', '--run-id', {rid!r}, '--kind', 'note', '--payload', '-']))"
+        )
+        p = subprocess.run(
+            [sys.executable, "-c", drv],
+            input=json.dumps(_note()),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(p.returncode, rs.EXIT_INDETERMINATE, p.stderr)
+        self.assertEqual(json.loads(p.stdout)["outcome"], "indeterminate")
+
+
+@unittest.skipUnless(POSIX, "process-kill tests need a POSIX host")
+class ProcessCrash(_Base):
+    """Real process death (SIGKILL) at a chosen fsync, not an injected
+    exception: no cleanup code runs, so these exercise the on-disk state a
+    restarted process actually finds."""
+
+    def _kill_at(self, nth: int, argv: list[str], stdin: str) -> int:
+        drv = (
+            "import os, signal, sys, json; sys.path.insert(0, {!r}); import run_store as rs\n"
+            "n = {{'n': 0}}\n"
+            "def fsync(fd):\n"
+            "    n['n'] += 1\n"
+            "    if n['n'] == {}: os.kill(os.getpid(), signal.SIGKILL)\n"
+            "    os.fsync(fd)\n"
+            "rs._fsync = fsync\n"
+            "sys.exit(rs.main({!r}))"
+        ).format(_LIB, nth, ["--root", self.root, *argv])
+        p = subprocess.run(
+            [sys.executable, "-c", drv],
+            input=stdin,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return p.returncode
+
+    def test_killed_between_journal_commit_and_cache_replacement(self) -> None:
+        rid = self.create()
+        rs.op_set_handoff(self.root, rid, valid_handoff())
+        # set-handoff fsyncs: 1 journal (commit), 2 cache temp, 3 run dir
+        rc_ = self._kill_at(
+            2,
+            ["set-handoff", "--run-id", rid, "--payload", "-"],
+            json.dumps(valid_handoff(next_action="stop")),
+        )
+        self.assertLess(rc_, 0)  # died by signal: no outcome at all
+        out = rs.op_load(self.root, rid)
+        self.assertEqual(out["effective_handoff"]["seq"], 2)  # journal committed
+        self.assertEqual(out["handoff_cache"], "stale")  # old cache disagrees
+        self.assertFalse(out["damaged"])
+        # the crash left the lock: documented stale-lock state, manual recovery
+        lock = os.path.join(self.run_dir(rid), rs.LOCK_NAME)
+        self.assertTrue(os.path.exists(lock))
+        with self.assertRaises(rs.RefusedError) as cm:
+            rs.op_append(self.root, rid, "note", _note())
+        self.assertEqual(cm.exception.code, "busy")
+        os.remove(lock)
+        self.assertEqual(rs.op_append(self.root, rid, "note", _note())["seq"], 3)
+        # a crash can leave the uniquely named cache temp behind (auxiliary
+        # residue, documented); it must not block the next cache replacement
+        leftovers = [n for n in os.listdir(self.run_dir(rid)) if n.endswith(".tmp")]
+        self.assertLessEqual(len(leftovers), 1)
+        res = rs.op_set_handoff(self.root, rid, valid_handoff(next_action="golf"))
+        self.assertEqual(res["outcome"], "committed")
+        self.assertEqual(rs.op_load(self.root, rid)["handoff_cache"], "current")
+
+    def test_killed_during_journal_append_leaves_recoverable_or_clean_state(
+        self,
+    ) -> None:
+        rid = self.create()
+        # fsync 1 in append is the journal commit itself: bytes are on disk
+        # (page cache) but the process never acknowledged
+        rc_ = self._kill_at(
+            1,
+            ["append", "--run-id", rid, "--kind", "note", "--payload", "-"],
+            json.dumps(_note()),
+        )
+        self.assertLess(rc_, 0)
+        out = rs.op_load(self.root, rid)
+        self.assertIn(len(out["events"]), {0, 1})
+        self.assertFalse(out["damaged"])  # a complete line or nothing — never garbage
+
+    def test_killed_during_creation_leaves_incomplete_run(self) -> None:
+        self.create(now="2026-09-09T11:59:59Z")  # store exists (gitignore published)
+        rid = self.rid_for(NOW)
+        # create fsyncs on an existing store: 1 journal, 2 manifest temp, 3 run dir, 4 runs dir
+        rc_ = self._kill_at(
+            2, ["create", "--dispatch", "-", "--now", NOW], json.dumps(valid_dispatch())
+        )
+        self.assertLess(rc_, 0)
+        with self.assertRaises(rs.RefusedError) as cm:
+            rs.op_load(self.root, rid)
+        self.assertEqual(cm.exception.code, "incomplete_run")
+        with self.assertRaises(rs.RefusedError):
+            rs.op_append(self.root, rid, "note", _note())
+
+
+class PortableLoad(unittest.TestCase):
+    """The read-only path backend: exercised unconditionally (and for real on
+    the Windows CI job) against the prebuilt fixture run, and on POSIX hosts
+    also with the descriptor backend forced off."""
+
+    FIXTURE_ROOT = os.path.join(_HERE, "fixtures", "run_store")
+
+    def _fixture_rid(self) -> str:
+        runs = os.path.join(self.FIXTURE_ROOT, "runs")
+        ids = [d for d in os.listdir(runs) if rs.valid_run_id(d)]
+        self.assertEqual(len(ids), 1)
+        return ids[0]
+
+    def test_prebuilt_fixture_loads_via_path_backend(self) -> None:
+        rid = self._fixture_rid()
+        out = rs._load_from(
+            rs._PathRun(os.path.join(self.FIXTURE_ROOT, "runs", rid)), rid
+        )
+        self.assertEqual(out["run_id"], rid)
+        self.assertEqual(
+            [e["kind"] for e in out["events"]], ["note", "dispatch", "handoff"]
+        )
+        self.assertEqual(out["handoff_cache"], "current")
+        self.assertEqual(out["warnings"], [])
+
+    def test_op_load_with_descriptor_backend_forced_off(self) -> None:
+        saved = rs.platform_supported
+        rs.platform_supported = lambda: False
+        try:
+            rid = self._fixture_rid()
+            out = rs.op_load(self.FIXTURE_ROOT, rid)
+            self.assertEqual(out["effective_handoff"]["seq"], 3)
+            with self.assertRaises(rs.RefusedError) as cm:
+                rs.op_load(self.FIXTURE_ROOT, "20260909T120000Z-00000000")
+            self.assertEqual(cm.exception.code, "no_such_run")
+            with self.assertRaises(rs.RefusedError) as cm:
+                rs.op_load(self.FIXTURE_ROOT, "../x")
+            self.assertEqual(cm.exception.code, "bad_run_id")
+        finally:
+            rs.platform_supported = saved
+
+    def test_validate_is_platform_independent(self) -> None:
+        rid = self._fixture_rid()
+        with open(
+            os.path.join(self.FIXTURE_ROOT, "runs", rid, rs.MANIFEST_NAME),
+            encoding="utf-8",
+        ) as f:
+            self.assertEqual(rs.validate_manifest(json.load(f)), [])
+
+
+class Timestamps(unittest.TestCase):
+    def test_now_must_be_exact_utc_form(self) -> None:
+        for bad in (
+            "2026-09-09T12:00:00+05:00",
+            "2026-09-09",
+            "2026-09-09T12:00:00",
+            "2026-09-09T12:00:00.5Z",
+            "",
+            "now",
+        ):
+            with self.assertRaises(ValueError, msg=bad):
+                rs.make_run_id("t", "sorry", "prove", None, bad)
+
+    def test_year_one_yields_a_valid_id(self) -> None:
+        rid = rs.make_run_id("t", "sorry", "prove", None, "0001-01-01T00:00:00Z")
+        self.assertTrue(rs.valid_run_id(rid))
+        self.assertTrue(rid.startswith("00010101T000000Z-"))
+
+
+@unittest.skipUnless(POSIX, "run-store mutations need a POSIX dir_fd host")
+class TimestampsOnDisk(_Base):
+    def test_bad_now_refused_and_year_one_round_trips(self) -> None:
+        with self.assertRaises(rs.RefusedError) as cm:
+            self.create(now="2026-09-09T12:00:00+05:00")
+        self.assertEqual(cm.exception.code, "bad_timestamp")
+        rid = self.create(now="0001-01-01T00:00:00Z")
+        self.assertEqual(
+            rs.op_load(self.root, rid)["manifest"]["created"], "0001-01-01T00:00:00Z"
+        )
 
 
 @unittest.skipUnless(POSIX, "run-store mutations need a POSIX dir_fd host")

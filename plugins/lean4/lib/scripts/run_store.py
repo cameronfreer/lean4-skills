@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """run-store/v1 — durable storage primitive for proving runs (#82A; Refs #82).
 
 One directory per run:
@@ -19,33 +20,41 @@ evidence, never current certification: `load` changes no trust status.
 Storage only. Command wiring, Replan updates, restart reconciliation,
 /inspect, /resume are later work against #82.
 
-Platform boundary (v3 spec): mutations (`create`, `append`, `set-handoff`) are
-implemented for POSIX hosts whose `os` supports dir_fd on open/rename/mkdir/
-unlink/stat (Linux, macOS). Elsewhere they exit 3 `unsupported_platform`
-BEFORE touching the filesystem; `load` and `validate` work everywhere.
+Platform boundary (v3 spec): mutations (`create`, `append`, `set-handoff`)
+are implemented for POSIX hosts whose `os` supports dir_fd on open/rename/
+mkdir/unlink/stat/link (Linux, macOS). Elsewhere they exit 3
+`unsupported_platform` BEFORE touching the filesystem. `load` and `validate`
+work everywhere: on supported hosts `load` uses the same descriptor-relative
+path as mutations; elsewhere it uses a portable READ-ONLY path-based backend
+(best-effort symlink refusal by inspection, not race-proof — documented).
 
-Containment: every path component under the storage root is opened relative
-to its already-open parent directory fd with O_NOFOLLOW (which guards only the
-final component of one open — hence one open per component), so a symlink
-swapped in after any path check is still refused.
+Containment (supported hosts): the storage root's PARENT is the user's
+anchor (resolved with realpath, opened as given); the storage-root entry,
+`runs`, `<run-id>` and every file are then opened relative to the already-open
+parent descriptor with O_NOFOLLOW — which guards only the final component of
+one open, hence one open per component — so a symlink swapped in after any
+check is still refused.
 
-Durability, per operation:
-  append       write loop until every byte is written (short writes retried),
-               then fsync(journal); ack only after fsync.
-  set-handoff  append (as above) → write+fsync temp → rename(dir_fd) →
-               fsync(run dir).
-  create       mkdir(run dir, exclusive) → create+fsync empty journal →
-               write+fsync manifest.json.tmp → rename → fsync(run dir) →
-               fsync(runs dir).
-On macOS F_FULLFSYNC is attempted after fsync on file fds; its failure is an
-`indeterminate` outcome, not ignored.
+Durability, per operation (fsync = fsync; F_FULLFSYNC on macOS for FILE
+descriptors only):
+  fresh store   mkdir storage_root → mkdir runs → fsync(storage_root) →
+                fsync(parent of storage_root); then publish runs/.gitignore
+                via temp + link (never overwriting an existing file).
+  append        write loop until every byte is written (short writes
+                retried), then fsync(journal); ack only after fsync.
+  set-handoff   append (as above) → write+fsync unique temp → rename(dir_fd)
+                → fsync(run dir).
+  create        mkdir(run dir, exclusive) → create+fsync empty journal →
+                write+fsync unique temp manifest → rename → fsync(run dir) →
+                fsync(runs dir).
 
 Write outcomes (exit codes): committed 0; refused/nothing_written 3;
 journal_only 5; indeterminate 6. `journal_only` does not guarantee the next
 `load` sees a stale cache (the rename may have landed before the directory
 sync failed); a process killed after commit but before returning yields no
-outcome at all. Callers reconcile with `load` before retrying — these are
-honest outcomes, not exactly-once delivery.
+outcome at all; an unexpected OSError is reported as `indeterminate` (step
+`unexpected`) rather than guessed at. Callers reconcile with `load` before
+retrying — these are honest outcomes, not exactly-once delivery.
 
 Stdlib only; Python 3.10+.
 """
@@ -58,6 +67,8 @@ import hashlib
 import json
 import os
 import re
+import secrets
+import subprocess
 import sys
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -83,11 +94,13 @@ NOTE_KINDS = {
 }
 
 RUN_ID_RE = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$")
+TIMESTAMP_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
 
 MANIFEST_NAME = "manifest.json"
 JOURNAL_NAME = "events.jsonl"
 CACHE_NAME = "handoff.json"
 LOCK_NAME = ".lock"
+GITIGNORE_NAME = ".gitignore"
 RUNS_DIRNAME = "runs"
 STORE_DIRNAME = ".lean4-skills"
 
@@ -97,11 +110,14 @@ EXIT_REFUSED = 3
 EXIT_JOURNAL_ONLY = 5
 EXIT_INDETERMINATE = 6
 
+_O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+_O_BINARY = getattr(os, "O_BINARY", 0)
+
 # Indirections so fault-injection tests can fail exactly one step.
 _write = os.write
 _fsync = os.fsync
 _rename = os.rename
-_full_fsync_hook = None  # tests may set a callable(fd) to simulate F_FULLFSYNC
+_full_fsync_hook: Callable[[int], None] | None = None
 
 
 class RefusedError(Exception):
@@ -122,14 +138,23 @@ class IndeterminateError(Exception):
         self.detail = detail
 
 
+class UsageError(Exception):
+    pass
+
+
 # --------------------------------------------------------------------------
-# platform + paths
+# platform + identity
 # --------------------------------------------------------------------------
 
 
 def platform_supported() -> bool:
-    need = {os.open, os.rename, os.mkdir, os.unlink, os.stat}
-    return os.name == "posix" and need <= os.supports_dir_fd
+    need = {os.open, os.rename, os.mkdir, os.unlink, os.stat, os.link}
+    return (
+        os.name == "posix"
+        and hasattr(os, "O_DIRECTORY")
+        and hasattr(os, "O_NOFOLLOW")
+        and need <= os.supports_dir_fd
+    )
 
 
 def require_platform() -> None:
@@ -155,53 +180,75 @@ def valid_run_id(run_id: Any) -> bool:
     return isinstance(run_id, str) and RUN_ID_RE.fullmatch(run_id) is not None
 
 
+def parse_timestamp(created: str) -> datetime:
+    """Exactly `YYYY-MM-DDTHH:MM:SSZ` (UTC); anything else is rejected."""
+    if not isinstance(created, str) or not TIMESTAMP_RE.fullmatch(created):
+        raise ValueError("timestamp must be YYYY-MM-DDTHH:MM:SSZ (UTC)")
+    return datetime.strptime(created, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+
+
 def make_run_id(
     target: str, scope: str, mode: str, tracker_session_id: str | None, created: str
 ) -> str:
+    dt = parse_timestamp(created)
     h = hashlib.sha256(
         "|".join([target, scope, mode, tracker_session_id or "none", created]).encode(
             "utf-8"
         )
     ).hexdigest()[:8]
-    stamp = datetime.fromisoformat(created.replace("Z", "+00:00")).strftime(
-        "%Y%m%dT%H%M%SZ"
+    # zero-padded from components: strftime("%Y") is platform-dependent for
+    # years < 1000 and would produce an id that fails the store's own regex.
+    stamp = (
+        f"{dt.year:04d}{dt.month:02d}{dt.day:02d}T"
+        f"{dt.hour:02d}{dt.minute:02d}{dt.second:02d}Z"
     )
-    return f"{stamp}-{h}"
+    rid = f"{stamp}-{h}"
+    if not valid_run_id(rid):  # pragma: no cover — defensive
+        raise ValueError(f"generated run id {rid!r} is malformed")
+    return rid
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# --------------------------------------------------------------------------
+# descriptor-relative filesystem helpers (supported hosts)
+# --------------------------------------------------------------------------
 
 
 def _open_dir(name: str, dir_fd: int | None) -> int:
-    flags = os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0)
-    return os.open(name, flags, dir_fd=dir_fd)
+    return os.open(name, os.O_RDONLY | os.O_DIRECTORY | _O_NOFOLLOW, dir_fd=dir_fd)
 
 
-def _open_root(storage_root: str) -> int:
-    """The configured root itself is opened by absolute path (it is the
-    user's choice, symlink or not); everything BELOW it is opened per
-    component with O_NOFOLLOW."""
-    try:
-        return os.open(storage_root, os.O_RDONLY | os.O_DIRECTORY)
-    except OSError as ex:
-        raise RefusedError("storage_root_unavailable", f"{storage_root}: {ex}") from ex
-
-
-def _ensure_dir(name: str, dir_fd: int) -> int:
-    """mkdir name under dir_fd if missing (EEXIST tolerated), then open it
-    with O_NOFOLLOW — an existing symlink of that name is refused."""
-    with contextlib.suppress(FileExistsError):
-        os.mkdir(name, 0o755, dir_fd=dir_fd)
+def _open_dir_contained(name: str, dir_fd: int, what: str) -> int:
     try:
         return _open_dir(name, dir_fd)
+    except FileNotFoundError as ex:
+        raise RefusedError(f"no_{what}", f"{name}: {ex}") from ex
     except OSError as ex:
         raise RefusedError(
-            "containment", f"{name}: not a real directory ({ex})"
+            "containment", f"{what} {name!r}: not a real directory ({ex})"
         ) from ex
 
 
-def _fsync_all(fd: int, step: str) -> None:
+def _mkdir_if_missing(name: str, dir_fd: int) -> bool:
+    """True when this call created it."""
+    try:
+        os.mkdir(name, 0o755, dir_fd=dir_fd)
+    except FileExistsError:
+        return False
+    return True
+
+
+def _fsync_all(fd: int, step: str, *, directory: bool = False) -> None:
+    """fsync; on macOS additionally F_FULLFSYNC for FILE descriptors."""
     try:
         _fsync(fd)
     except OSError as ex:
         raise IndeterminateError(step, f"fsync failed: {ex}") from ex
+    if directory:
+        return
     if _full_fsync_hook is not None:
         try:
             _full_fsync_hook(fd)
@@ -233,13 +280,18 @@ def _write_all(fd: int, data: bytes, step: str) -> None:
         written += n
 
 
-def _write_file_atomic(dir_fd: int, name: str, data: bytes, step: str) -> None:
-    """temp (O_EXCL) → write all → fsync → rename → fsync(dir)."""
-    tmp = f"{name}.tmp"
+def _temp_name(name: str) -> str:
+    return f"{name}.{os.getpid()}.{secrets.token_hex(4)}.tmp"
+
+
+def _write_temp(dir_fd: int, name: str, data: bytes, step: str) -> str:
+    """Create a unique temp file beside `name`, write + fsync it; return its
+    name. On failure the temp file is removed (best effort) before raising."""
+    tmp = _temp_name(name)
     try:
         fd = os.open(
             tmp,
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | _O_NOFOLLOW,
             0o644,
             dir_fd=dir_fd,
         )
@@ -248,13 +300,27 @@ def _write_file_atomic(dir_fd: int, name: str, data: bytes, step: str) -> None:
     try:
         _write_all(fd, data, step)
         _fsync_all(fd, step)
-    finally:
+    except BaseException:
         os.close(fd)
+        with contextlib.suppress(OSError):
+            os.unlink(tmp, dir_fd=dir_fd)
+        raise
+    os.close(fd)
+    return tmp
+
+
+def _write_file_atomic(dir_fd: int, name: str, data: bytes, step: str) -> None:
+    """unique temp → write all → fsync → rename over `name` → fsync(dir).
+    A failed rename removes the temp (best effort) so the next attempt is
+    not blocked by a leftover."""
+    tmp = _write_temp(dir_fd, name, data, step)
     try:
         _rename(tmp, name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
     except OSError as ex:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp, dir_fd=dir_fd)
         raise IndeterminateError(step, f"rename failed: {ex}") from ex
-    _fsync_all(dir_fd, step)
+    _fsync_all(dir_fd, step, directory=True)
 
 
 # --------------------------------------------------------------------------
@@ -265,8 +331,9 @@ def _write_file_atomic(dir_fd: int, name: str, data: bytes, step: str) -> None:
 class _Lock:
     """One mutation holds .lock in the run directory. Any existing lock blocks
     (busy) — contents are diagnostic only, never used to break a lock.
-    Released on normal completion and handled failures; a crash may leave a
-    stale lock (manual recovery: delete it with no store process running)."""
+    Released on normal completion and handled failures (including a failed
+    initialization of the lock's own contents); a crash may leave a stale
+    lock (manual recovery: delete it with no store process running)."""
 
     def __init__(self, run_fd: int) -> None:
         self.run_fd = run_fd
@@ -276,7 +343,7 @@ class _Lock:
         try:
             fd = os.open(
                 LOCK_NAME,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | _O_NOFOLLOW,
                 0o644,
                 dir_fd=self.run_fd,
             )
@@ -284,16 +351,19 @@ class _Lock:
             raise RefusedError("busy", "another store process holds .lock") from ex
         except OSError as ex:
             raise RefusedError("lock_unavailable", str(ex)) from ex
+        self.held = True  # created by us: release on any failure below
         info = {
             "pid": os.getpid(),
             "host": os.uname().nodename if hasattr(os, "uname") else None,
             "acquired": _now_iso(),
         }
         try:
-            os.write(fd, (json.dumps(info) + "\n").encode("utf-8"))
-        finally:
+            _write_all(fd, (json.dumps(info) + "\n").encode("utf-8"), "lock")
+        except (RefusedError, IndeterminateError) as ex:
             os.close(fd)
-        self.held = True
+            self.__exit__()
+            raise RefusedError("lock_init_failed", str(ex)) from ex
+        os.close(fd)
         return self
 
     def __exit__(self, *exc: Any) -> None:
@@ -304,7 +374,50 @@ class _Lock:
 
 
 # --------------------------------------------------------------------------
-# journal reading (validated observed prefix)
+# run handles: descriptor-relative (supported hosts) or path-based read-only
+# --------------------------------------------------------------------------
+
+
+class _FdRun:
+    """Reads relative to an open run-directory descriptor with O_NOFOLLOW."""
+
+    def __init__(self, run_fd: int) -> None:
+        self.run_fd = run_fd
+
+    def open_read(self, name: str) -> int:
+        return os.open(name, os.O_RDONLY | _O_NOFOLLOW, dir_fd=self.run_fd)
+
+    def exists(self, name: str) -> bool:
+        try:
+            os.stat(name, dir_fd=self.run_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            return False
+        return True
+
+
+class _PathRun:
+    """Portable READ-ONLY backend: plain paths. Symlinks are refused by
+    inspection before each open (best effort, not race-proof) — this backend
+    never mutates, so the exposure is limited to reading a swapped-in file."""
+
+    def __init__(self, run_dir: str) -> None:
+        self.run_dir = run_dir
+
+    def _path(self, name: str) -> str:
+        p = os.path.join(self.run_dir, name)
+        if os.path.islink(p):
+            raise OSError(f"{name}: symlink refused by the portable read-only backend")
+        return p
+
+    def open_read(self, name: str) -> int:
+        return os.open(self._path(name), os.O_RDONLY | _O_BINARY)
+
+    def exists(self, name: str) -> bool:
+        return os.path.lexists(os.path.join(self.run_dir, name))
+
+
+# --------------------------------------------------------------------------
+# validation of stored shapes
 # --------------------------------------------------------------------------
 
 
@@ -394,6 +507,11 @@ def validate_cache(obj: Any) -> list[str]:
     return e
 
 
+# --------------------------------------------------------------------------
+# reading (validated observed prefix)
+# --------------------------------------------------------------------------
+
+
 def _read_exact(fd: int, size: int) -> bytes:
     chunks: list[bytes] = []
     remaining = size
@@ -406,7 +524,7 @@ def _read_exact(fd: int, size: int) -> bytes:
     return b"".join(chunks)
 
 
-def read_journal(run_fd: int) -> dict[str, Any]:
+def read_journal(run: _FdRun | _PathRun) -> dict[str, Any]:
     """The validated observed prefix of events.jsonl.
 
     Captures the size at open and reads only through that boundary. Returns
@@ -416,9 +534,7 @@ def read_journal(run_fd: int) -> dict[str, Any]:
     schema-invalid event, seq gap or duplicate) is not. Nothing is rewritten.
     """
     try:
-        fd = os.open(
-            JOURNAL_NAME, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=run_fd
-        )
+        fd = run.open_read(JOURNAL_NAME)
     except FileNotFoundError:
         return {
             "events": [],
@@ -426,6 +542,8 @@ def read_journal(run_fd: int) -> dict[str, Any]:
             "damaged": True,
             "next_seq": 1,
         }
+    except OSError as ex:
+        raise RefusedError("containment", f"{JOURNAL_NAME}: {ex}") from ex
     try:
         size = os.fstat(fd).st_size
         data = _read_exact(fd, size)
@@ -464,10 +582,10 @@ def read_journal(run_fd: int) -> dict[str, Any]:
     }
 
 
-def _read_json_file(run_fd: int, name: str) -> tuple[Any, str | None]:
+def _read_json_file(run: _FdRun | _PathRun, name: str) -> tuple[Any, str | None]:
     """(object, None) or (None, reason)."""
     try:
-        fd = os.open(name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=run_fd)
+        fd = run.open_read(name)
     except FileNotFoundError:
         return None, "missing"
     except OSError as ex:
@@ -482,18 +600,236 @@ def _read_json_file(run_fd: int, name: str) -> tuple[Any, str | None]:
         return None, f"malformed: {ex}"
 
 
+def _check_run_loadable(run: _FdRun | _PathRun, run_id: str) -> dict[str, Any]:
+    manifest, why = _read_json_file(run, MANIFEST_NAME)
+    if manifest is None:
+        raise RefusedError("incomplete_run", f"manifest {why}")
+    errs = validate_manifest(manifest)
+    if errs:
+        raise RefusedError("incomplete_run", "manifest invalid: " + "; ".join(errs))
+    assert isinstance(manifest, dict)
+    if manifest["run_id"] != run_id:
+        raise RefusedError(
+            "integrity_failure",
+            f"manifest run_id {manifest['run_id']} does not match directory {run_id}",
+        )
+    if not run.exists(JOURNAL_NAME):
+        raise RefusedError(
+            "integrity_failure", "manifest published but journal missing"
+        )
+    return manifest
+
+
+def _load_from(run: _FdRun | _PathRun, run_id: str) -> dict[str, Any]:
+    manifest = _check_run_loadable(run, run_id)
+    journal = read_journal(run)
+    warnings = list(journal["warnings"])
+    handoffs = [ev for ev in journal["events"] if ev["kind"] == "handoff"]
+    effective = handoffs[-1] if handoffs else None
+    cache, why = _read_json_file(run, CACHE_NAME)
+    cache_state = "absent"
+    if why is None:
+        cerrs = validate_cache(cache)
+        if cerrs:
+            cache_state = "stale"
+            warnings.append({"code": "handoff_cache_stale", "detail": "; ".join(cerrs)})
+        elif effective is None:
+            cache_state = "stale"
+            warnings.append(
+                {
+                    "code": "handoff_cache_stale",
+                    "detail": "cache present but no handoff in the observed journal prefix",
+                }
+            )
+        elif (
+            cache["seq"] != effective["seq"] or cache["payload"] != effective["payload"]
+        ):
+            cache_state = "stale"
+            warnings.append(
+                {
+                    "code": "handoff_cache_stale",
+                    "detail": f"cache seq {cache['seq']} vs journal {effective['seq']}",
+                }
+            )
+        else:
+            cache_state = "current"
+    elif why != "missing":
+        cache_state = "stale"
+        warnings.append({"code": "handoff_cache_stale", "detail": why})
+    elif effective is not None:
+        cache_state = "stale"
+        warnings.append({"code": "handoff_cache_stale", "detail": "missing"})
+    return {
+        "schema": LOAD_SCHEMA,
+        "run_id": run_id,
+        "manifest": manifest,
+        "events": journal["events"],
+        "effective_handoff": effective,
+        "handoff_cache": cache_state,
+        "damaged": journal["damaged"],
+        "warnings": warnings,
+        "note": "validated observed prefix; historical evidence, not certification",
+    }
+
+
+# --------------------------------------------------------------------------
+# store layout (supported hosts)
+# --------------------------------------------------------------------------
+
+
+class _Store:
+    """Open descriptors for parent → storage_root → runs. `resolved_root` is
+    realpath(parent)/name — the path recorded in manifests."""
+
+    def __init__(self, parent_fd: int, root_fd: int, runs_fd: int, resolved_root: str):
+        self.parent_fd = parent_fd
+        self.root_fd = root_fd
+        self.runs_fd = runs_fd
+        self.resolved_root = resolved_root
+
+    def close(self) -> None:
+        for fd in (self.runs_fd, self.root_fd, self.parent_fd):
+            with contextlib.suppress(OSError):
+                os.close(fd)
+
+
+def _open_store(storage_root: str, create: bool) -> _Store:
+    parent = os.path.realpath(os.path.dirname(storage_root))
+    name = os.path.basename(storage_root)
+    if not name or name in (".", ".."):
+        raise RefusedError("bad_storage_root", f"{storage_root!r} has no usable name")
+    if create:
+        os.makedirs(parent, exist_ok=True)
+    try:
+        parent_fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY)
+    except OSError as ex:
+        raise RefusedError("storage_root_unavailable", f"{parent}: {ex}") from ex
+    root_fd = runs_fd = -1
+    try:
+        created_root = created_runs = False
+        if create:
+            created_root = _mkdir_if_missing(name, parent_fd)
+        root_fd = _open_dir_contained(name, parent_fd, "storage_root")
+        if create:
+            created_runs = _mkdir_if_missing(RUNS_DIRNAME, root_fd)
+        runs_fd = _open_dir_contained(RUNS_DIRNAME, root_fd, "runs_dir")
+        # Fresh-store initialization: a new directory entry is durable only
+        # once its PARENT directory is synchronized.
+        try:
+            if created_runs:
+                _fsync_all(root_fd, "store.init.runs", directory=True)
+            if created_root:
+                _fsync_all(parent_fd, "store.init.root", directory=True)
+        except IndeterminateError as ex:
+            raise RefusedError("store_init_unsynced", ex.detail) from ex
+    except BaseException:
+        for fd in (runs_fd, root_fd, parent_fd):
+            if fd >= 0:
+                with contextlib.suppress(OSError):
+                    os.close(fd)
+        raise
+    return _Store(parent_fd, root_fd, runs_fd, os.path.join(parent, name))
+
+
+def _ensure_gitignore(runs_fd: int) -> None:
+    """Publish runs/.gitignore containing '*' unless a file already exists.
+    Written to a unique temp and LINKED into place: link() fails with EEXIST
+    on an existing file, so user policy is never overwritten, and a failed
+    initialization leaves no half-written .gitignore behind."""
+    try:
+        os.stat(GITIGNORE_NAME, dir_fd=runs_fd, follow_symlinks=False)
+        return  # user policy (or an earlier publication) — preserved
+    except FileNotFoundError:
+        pass
+    try:
+        tmp = _write_temp(runs_fd, GITIGNORE_NAME, b"*\n", "gitignore")
+    except (RefusedError, IndeterminateError) as ex:
+        raise RefusedError("gitignore_write_failed", str(ex)) from ex
+    try:
+        try:
+            os.link(tmp, GITIGNORE_NAME, src_dir_fd=runs_fd, dst_dir_fd=runs_fd)
+        except FileExistsError:
+            return  # raced with another publisher / user: keep theirs
+        except OSError as ex:
+            raise RefusedError("gitignore_write_failed", f"link: {ex}") from ex
+        try:
+            _fsync_all(runs_fd, "gitignore.publish", directory=True)
+        except IndeterminateError as ex:
+            raise RefusedError("gitignore_write_failed", ex.detail) from ex
+    finally:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp, dir_fd=runs_fd)
+
+
+def _git_tracked_under(runs_dir: str) -> list[str]:
+    """Paths under runs_dir already in the index of the repository that
+    CONTAINS runs_dir (whichever repository that is). Empty when git is
+    absent or no repository contains it."""
+    anchor = runs_dir
+    while not os.path.isdir(anchor):
+        up = os.path.dirname(anchor)
+        if up == anchor:
+            return []
+        anchor = up
+    try:
+        top = subprocess.run(
+            ["git", "-C", anchor, "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if top.returncode != 0:
+        return []
+    toplevel = top.stdout.decode("utf-8", "replace").strip()
+    rel = os.path.relpath(os.path.realpath(runs_dir), os.path.realpath(toplevel))
+    if rel.startswith(".."):
+        return []
+    try:
+        out = subprocess.run(
+            ["git", "-C", toplevel, "ls-files", "-z", "--", rel],
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if out.returncode != 0:
+        return []
+    return [p.decode("utf-8", "replace") for p in out.stdout.split(b"\0") if p]
+
+
+def _open_run(runs_fd: int, run_id: str) -> int:
+    if not valid_run_id(run_id):
+        raise RefusedError("bad_run_id", "run id must match YYYYMMDDTHHMMSSZ-<8 hex>")
+    return _open_dir_contained(run_id, runs_fd, "such_run")
+
+
+def _with_run(
+    storage_root: str, run_id: str, fn: Callable[[int], dict[str, Any]]
+) -> dict[str, Any]:
+    store = _open_store(storage_root, create=False)
+    try:
+        run_fd = _open_run(store.runs_fd, run_id)
+        try:
+            return fn(run_fd)
+        finally:
+            os.close(run_fd)
+    finally:
+        store.close()
+
+
 # --------------------------------------------------------------------------
 # operations
 # --------------------------------------------------------------------------
 
 
-def _now_iso() -> str:
+def _dumps(obj: Any) -> bytes:
     return (
-        datetime.now(timezone.utc)
-        .replace(microsecond=0)
-        .isoformat()
-        .replace("+00:00", "Z")
-    )
+        json.dumps(obj, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+        + "\n"
+    ).encode("utf-8")
 
 
 def _plugin_version() -> str:
@@ -507,74 +843,6 @@ def _plugin_version() -> str:
         return str(v) if isinstance(v, str) else "unknown"
     except (OSError, ValueError):
         return "unknown"
-
-
-def _git_tracked_under(project_root: str, rel_dir: str) -> list[str]:
-    """Paths under rel_dir already in the Git index (ignore rules never
-    untrack). Empty when git is absent or the root is not a repository."""
-    import subprocess
-
-    try:
-        out = subprocess.run(
-            ["git", "-C", project_root, "ls-files", "-z", "--", rel_dir],
-            capture_output=True,
-            check=False,
-            timeout=30,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return []
-    if out.returncode != 0:
-        return []
-    return [p.decode("utf-8", "replace") for p in out.stdout.split(b"\0") if p]
-
-
-def _open_runs(storage_root: str, create: bool) -> tuple[int, int]:
-    """(root_fd, runs_fd). With create=True the directories are made."""
-    if create:
-        os.makedirs(storage_root, exist_ok=True)
-    root_fd = _open_root(storage_root)
-    try:
-        if create:
-            runs_fd = _ensure_dir(RUNS_DIRNAME, root_fd)
-        else:
-            try:
-                runs_fd = _open_dir(RUNS_DIRNAME, root_fd)
-            except OSError as ex:
-                raise RefusedError("no_runs_dir", f"{storage_root}/runs: {ex}") from ex
-    except BaseException:
-        os.close(root_fd)
-        raise
-    return root_fd, runs_fd
-
-
-def _open_run(runs_fd: int, run_id: str) -> int:
-    if not valid_run_id(run_id):
-        raise RefusedError("bad_run_id", "run id must match YYYYMMDDTHHMMSSZ-<8 hex>")
-    try:
-        return _open_dir(run_id, runs_fd)
-    except OSError as ex:
-        raise RefusedError("no_such_run", f"{run_id}: {ex}") from ex
-
-
-def _ensure_gitignore(runs_fd: int) -> None:
-    """runs/.gitignore containing '*' — ONLY if absent (user policy preserved)."""
-    try:
-        fd = os.open(
-            ".gitignore",
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
-            0o644,
-            dir_fd=runs_fd,
-        )
-    except FileExistsError:
-        return
-    try:
-        _write_all(fd, b"*\n", "gitignore")
-        _fsync_all(fd, "gitignore")
-    except IndeterminateError as ex:
-        # No run exists yet, so this is a refusal, not an indeterminate run write.
-        raise RefusedError("gitignore_write_failed", ex.detail) from ex
-    finally:
-        os.close(fd)
 
 
 def op_create(
@@ -603,32 +871,28 @@ def op_create(
         )
     except ValueError as ex:
         raise RefusedError("bad_timestamp", str(ex)) from ex
-    # Git index refusal: ignore rules never untrack an indexed file.
-    rel = os.path.relpath(os.path.join(storage_root, RUNS_DIRNAME), project_root)
-    if not rel.startswith(".."):
-        tracked = _git_tracked_under(project_root, rel)
-        if tracked:
-            raise RefusedError(
-                "git_tracked",
-                f"{len(tracked)} path(s) under {rel} are in the Git index (e.g. {tracked[0]})",
-            )
-    root_fd, runs_fd = _open_runs(storage_root, create=True)
+    # Git index refusal, against the repository that CONTAINS the storage
+    # location (not necessarily the project): ignore rules never untrack.
+    tracked = _git_tracked_under(os.path.join(storage_root, RUNS_DIRNAME))
+    if tracked:
+        raise RefusedError(
+            "git_tracked",
+            f"{len(tracked)} path(s) under {storage_root}/runs are in the Git index "
+            f"(e.g. {tracked[0]})",
+        )
+    store = _open_store(storage_root, create=True)
     try:
-        _ensure_gitignore(runs_fd)
+        _ensure_gitignore(store.runs_fd)
         # 1. exclusively reserve the run directory
-        try:
-            os.mkdir(run_id, 0o755, dir_fd=runs_fd)
-        except FileExistsError as ex:
-            raise RefusedError(
-                "run_exists", f"{run_id} already exists (collision)"
-            ) from ex
-        run_fd = _open_dir(run_id, runs_fd)
+        if not _mkdir_if_missing(run_id, store.runs_fd):
+            raise RefusedError("run_exists", f"{run_id} already exists (collision)")
+        run_fd = _open_dir_contained(run_id, store.runs_fd, "such_run")
         try:
             with _Lock(run_fd):
                 # 2. empty journal, synchronized
                 jfd = os.open(
                     JOURNAL_NAME,
-                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | _O_NOFOLLOW,
                     0o644,
                     dir_fd=run_fd,
                 )
@@ -636,13 +900,13 @@ def op_create(
                     _fsync_all(jfd, "create.journal")
                 finally:
                     os.close(jfd)
-                # 3+4. manifest via temp → rename → fsync(run dir)
+                # 3+4. manifest via unique temp → rename → fsync(run dir)
                 manifest = {
                     "schema": MANIFEST_SCHEMA,
                     "run_id": run_id,
                     "created": created,
                     "plugin_version": _plugin_version(),
-                    "storage_root": storage_root,
+                    "storage_root": store.resolved_root,
                     "tracker_session_id": tracker_session_id,
                     "prior_run": prior_run,
                     "dispatch": dispatch,
@@ -651,41 +915,13 @@ def op_create(
                     run_fd, MANIFEST_NAME, _dumps(manifest), "create.manifest"
                 )
             # publication: the runs directory entry must persist too
-            _fsync_all(runs_fd, "create.publish")
+            _fsync_all(store.runs_fd, "create.publish", directory=True)
         finally:
             os.close(run_fd)
+        run_directory = os.path.join(store.resolved_root, RUNS_DIRNAME, run_id)
     finally:
-        os.close(runs_fd)
-        os.close(root_fd)
-    return {
-        "outcome": "committed",
-        "run_id": run_id,
-        "run_directory": os.path.join(storage_root, RUNS_DIRNAME, run_id),
-    }
-
-
-def _dumps(obj: Any) -> bytes:
-    return (
-        json.dumps(obj, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-        + "\n"
-    ).encode("utf-8")
-
-
-def _check_run_loadable(run_fd: int) -> dict[str, Any]:
-    manifest, why = _read_json_file(run_fd, MANIFEST_NAME)
-    if manifest is None:
-        raise RefusedError("incomplete_run", f"manifest {why}")
-    errs = validate_manifest(manifest)
-    if errs:
-        raise RefusedError("incomplete_run", "manifest invalid: " + "; ".join(errs))
-    try:
-        os.stat(JOURNAL_NAME, dir_fd=run_fd, follow_symlinks=False)
-    except FileNotFoundError as ex:
-        raise RefusedError(
-            "integrity_failure", "manifest published but journal missing"
-        ) from ex
-    assert isinstance(manifest, dict)
-    return manifest
+        store.close()
+    return {"outcome": "committed", "run_id": run_id, "run_directory": run_directory}
 
 
 def _append_locked(run_fd: int, kind: str, payload: Any) -> int:
@@ -700,7 +936,7 @@ def _append_locked(run_fd: int, kind: str, payload: Any) -> int:
         errs = ["event kind not in enum"]
     if errs:
         raise RefusedError("invalid_payload", "; ".join(errs))
-    journal = read_journal(run_fd)
+    journal = read_journal(_FdRun(run_fd))
     if journal["damaged"]:
         raise RefusedError(
             "journal_damaged",
@@ -716,11 +952,12 @@ def _append_locked(run_fd: int, kind: str, payload: Any) -> int:
         "payload": payload,
     }
     line = _dumps(event)
-    fd = os.open(
-        JOURNAL_NAME,
-        os.O_WRONLY | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0),
-        dir_fd=run_fd,
-    )
+    try:
+        fd = os.open(
+            JOURNAL_NAME, os.O_WRONLY | os.O_APPEND | _O_NOFOLLOW, dir_fd=run_fd
+        )
+    except OSError as ex:
+        raise RefusedError("containment", f"{JOURNAL_NAME}: {ex}") from ex
     try:
         _write_all(fd, line, "append.write")
         _fsync_all(fd, "append.fsync")
@@ -729,28 +966,13 @@ def _append_locked(run_fd: int, kind: str, payload: Any) -> int:
     return seq
 
 
-def _with_run(
-    storage_root: str, run_id: str, fn: Callable[[int], dict[str, Any]]
-) -> dict[str, Any]:
-    root_fd, runs_fd = _open_runs(storage_root, create=False)
-    try:
-        run_fd = _open_run(runs_fd, run_id)
-        try:
-            return fn(run_fd)
-        finally:
-            os.close(run_fd)
-    finally:
-        os.close(runs_fd)
-        os.close(root_fd)
-
-
 def op_append(
     storage_root: str, run_id: str, kind: str, payload: Any
 ) -> dict[str, Any]:
     require_platform()
 
     def body(run_fd: int) -> dict[str, Any]:
-        _check_run_loadable(run_fd)
+        _check_run_loadable(_FdRun(run_fd), run_id)
         with _Lock(run_fd):
             seq = _append_locked(run_fd, kind, payload)
         return {"outcome": "committed", "run_id": run_id, "seq": seq}
@@ -762,7 +984,7 @@ def op_set_handoff(storage_root: str, run_id: str, payload: Any) -> dict[str, An
     require_platform()
 
     def body(run_fd: int) -> dict[str, Any]:
-        _check_run_loadable(run_fd)
+        _check_run_loadable(_FdRun(run_fd), run_id)
         with _Lock(run_fd):
             seq = _append_locked(run_fd, "handoff", payload)
             cache = {"schema": HANDOFF_CACHE_SCHEMA, "seq": seq, "payload": payload}
@@ -781,61 +1003,25 @@ def op_set_handoff(storage_root: str, run_id: str, payload: Any) -> dict[str, An
 
 
 def op_load(storage_root: str, run_id: str) -> dict[str, Any]:
-    def body(run_fd: int) -> dict[str, Any]:
-        manifest = _check_run_loadable(run_fd)
-        journal = read_journal(run_fd)
-        warnings = list(journal["warnings"])
-        handoffs = [ev for ev in journal["events"] if ev["kind"] == "handoff"]
-        effective = handoffs[-1] if handoffs else None
-        cache, why = _read_json_file(run_fd, CACHE_NAME)
-        cache_state = "absent"
-        if why is None:
-            cerrs = validate_cache(cache)
-            if cerrs:
-                cache_state = "stale"
-                warnings.append(
-                    {"code": "handoff_cache_stale", "detail": "; ".join(cerrs)}
-                )
-            elif effective is None:
-                cache_state = "stale"
-                warnings.append(
-                    {
-                        "code": "handoff_cache_stale",
-                        "detail": "cache present but no handoff in the observed journal prefix",
-                    }
-                )
-            elif (
-                cache["seq"] != effective["seq"]
-                or cache["payload"] != effective["payload"]
-            ):
-                cache_state = "stale"
-                warnings.append(
-                    {
-                        "code": "handoff_cache_stale",
-                        "detail": f"cache seq {cache['seq']} vs journal {effective['seq']}",
-                    }
-                )
-            else:
-                cache_state = "current"
-        elif why != "missing":
-            cache_state = "stale"
-            warnings.append({"code": "handoff_cache_stale", "detail": why})
-        elif effective is not None:
-            cache_state = "stale"
-            warnings.append({"code": "handoff_cache_stale", "detail": "missing"})
-        return {
-            "schema": LOAD_SCHEMA,
-            "run_id": run_id,
-            "manifest": manifest,
-            "events": journal["events"],
-            "effective_handoff": effective,
-            "handoff_cache": cache_state,
-            "damaged": journal["damaged"],
-            "warnings": warnings,
-            "note": "validated observed prefix; historical evidence, not certification",
-        }
-
-    return _with_run(storage_root, run_id, body)
+    if platform_supported():
+        return _with_run(
+            storage_root, run_id, lambda fd: _load_from(_FdRun(fd), run_id)
+        )
+    # Portable read-only backend.
+    if not valid_run_id(run_id):
+        raise RefusedError("bad_run_id", "run id must match YYYYMMDDTHHMMSSZ-<8 hex>")
+    runs_dir = os.path.join(os.path.abspath(storage_root), RUNS_DIRNAME)
+    run_dir = os.path.join(runs_dir, run_id)
+    for p, what in (
+        (os.path.abspath(storage_root), "storage_root"),
+        (runs_dir, "runs_dir"),
+        (run_dir, "such_run"),
+    ):
+        if os.path.islink(p):
+            raise RefusedError("containment", f"{what} {p!r} is a symlink")
+        if not os.path.isdir(p):
+            raise RefusedError(f"no_{what}", f"{p}: not a directory")
+    return _load_from(_PathRun(run_dir), run_id)
 
 
 # --------------------------------------------------------------------------
@@ -858,10 +1044,6 @@ def _read_payload(src: str) -> Any:
         return json.loads(data)
     except json.JSONDecodeError as ex:
         raise UsageError(f"malformed JSON: {ex}") from ex
-
-
-class UsageError(Exception):
-    pass
 
 
 def _emit(obj: dict[str, Any]) -> None:
@@ -887,7 +1069,9 @@ def main(argv: list[str]) -> int:
     )
     c.add_argument("--tracker-session-id")
     c.add_argument("--prior-run")
-    c.add_argument("--now", help="creation timestamp (ISO-8601 UTC); default now")
+    c.add_argument(
+        "--now", help="creation timestamp, exactly YYYY-MM-DDTHH:MM:SSZ; default now"
+    )
     a = sub.add_parser("append")
     a.add_argument("--run-id", required=True)
     a.add_argument("--kind", required=True, choices=sorted(EVENT_KINDS))
@@ -957,6 +1141,17 @@ def main(argv: list[str]) -> int:
         return EXIT_REFUSED
     except IndeterminateError as ex:
         _emit({"outcome": "indeterminate", "step": ex.step, "detail": ex.detail})
+        return EXIT_INDETERMINATE
+    except OSError as ex:
+        # Not a blanket "nothing written": the journal may or may not have
+        # changed, so say so and let the caller reconcile with `load`.
+        _emit(
+            {
+                "outcome": "indeterminate",
+                "step": "unexpected",
+                "detail": f"{type(ex).__name__}: {ex}",
+            }
+        )
         return EXIT_INDETERMINATE
 
 

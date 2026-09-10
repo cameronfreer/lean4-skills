@@ -1,0 +1,1 @@
+Prebuilt run-store/v1 run for the portable read-only `load` tests (tests/test_run_store.py `PortableLoad`, also run on the Windows CI job). Regenerate with the store, then pin `ts`/`storage_root`/`plugin_version` as in the generator; the store's own `runs/.gitignore` is deliberately absent here so the fixture is tracked.

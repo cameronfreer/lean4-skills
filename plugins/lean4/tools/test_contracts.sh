@@ -2346,6 +2346,13 @@ else
                   'guards only the final component' \
                   'only if no such file exists' \
                   'never untrack' \
+                  'contains the storage location' \
+                  'symlinked `storage_root`' \
+                  'fsync(parent of storage_root)' \
+                  'lock_init_failed' \
+                  'uniquely named temp' \
+                  'names another run' \
+                  'read-only** path backend' \
                   'stays open'; do
         if ! grep -qF -- "$_c43_s" "$_c43_ref"; then
             fail "Check 43: run-store.md must state: $_c43_s"
@@ -2357,7 +2364,7 @@ else
         check43_ok=0
     fi
 fi
-for _c43_f in lib/scripts/run_store.py lib/scripts/run_contract_validate.py bin/lean4-skills-run-store tests/test_run_store.py; do
+for _c43_f in lib/scripts/run_store.py lib/scripts/run_contract_validate.py bin/lean4-skills-run-store tests/test_run_store.py tests/fixtures/run_store/dispatch.json; do
     if [[ ! -f "$PLUGIN_ROOT/$_c43_f" ]]; then
         fail "Check 43: $_c43_f missing"
         check43_ok=0
@@ -2379,6 +2386,12 @@ if ! grep -qF 'plugins/lean4/tests/test_run_store.py' "$PLUGIN_ROOT/../../.githu
     fail "Check 43: lint.yml python-tests must run test_run_store.py"
     check43_ok=0
 fi
+for _c43_j in run-store-macos run-store-windows; do
+    if ! grep -qE "^  $_c43_j:" "$PLUGIN_ROOT/../../.github/workflows/lint.yml"; then
+        fail "Check 43: lint.yml must keep the $_c43_j job (real platform coverage, not a wrapper smoke)"
+        check43_ok=0
+    fi
+done
 if ! grep -qF 'lean4-skills-run-store:' "$PLUGIN_ROOT/tests/test_wrapper_runtime.sh"; then
     fail "Check 43: wrapper smoke table must list lean4-skills-run-store"
     check43_ok=0
