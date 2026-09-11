@@ -38,7 +38,11 @@ run_directory = storage_root/runs/<run-id>
 
 `load` never locks. It captures the journal's size at open and reads only through that boundary; the result is a **validated observed prefix**, not a durably committed snapshot — a reader can see a complete line before its writer's `fsync`, and a trailing fragment observed concurrently is not proof of a crashed writer. A writer decides "damaged" only after acquiring the lock and re-reading.
 
+The cache is disposable in the strong sense: any failure to read it — missing, malformed, a directory or FIFO where the file should be, a read error — is reported as `handoff_cache_stale` and never prevents loading the journal (cache opens are non-blocking, and only regular files are read). The manifest and journal keep their stricter treatment (`incomplete_run`, `journal_unreadable`).
+
 **Effective handoff** = the last `handoff` event in the validated prefix. The cache is `current` only when its `seq` **and** payload equal that event; otherwise `load` reports `handoff_cache_stale` (missing, malformed, older, or disagreeing). A cache whose `seq` is ahead of the prefix never contributes history.
+
+Persisted records use a **host-independent path grammar**: a stored `file_baseline` path is judged absolute by its serialized form (`/…`, `C:\…`, `C:/…`, `\\server\…`), never by the reading host's `os.path` (Python 3.13's Windows `isabs` rejects `/x`), so a POSIX-written run loads unchanged on Windows; host-local custody checks stay host-local. Results are emitted as UTF-8 with lone surrogates escaped, never a crash.
 
 Loaded content is **historical evidence, never current certification**: `load` changes no trust status, authorizes no edit, and a stored `file_baseline` is never a custody check. A restarted session must inspect and reconcile source drift against the stored baseline (`lean4-skills-file-baseline check`) **before** recording a fresh one; recording a new baseline does not bless intervening changes. There is no `verified` state in v1.
 
@@ -46,10 +50,10 @@ Loaded content is **historical evidence, never current certification**: `load` c
 
 | Operation | Steps (in order) |
 |---|---|
-| `append` | serialize one complete UTF-8 JSON line → under the writer lock, `write` until every byte is written (short writes retried) → `fsync(journal)` → acknowledge |
+| `append` | serialize one complete UTF-8 JSON line (an unpaired surrogate is refused as `invalid_payload` before any change) → under the writer lock, **publication barriers first**: `fsync(run dir)` → `fsync(runs dir)` (a loadable run may have been left by a `create` that failed at its last barriers, and synchronizing the journal's bytes does not make the entries needed to reach it durable; a barrier failure is `publish_unsynced`, nothing appended) → `write` until every byte is written (short writes retried) → `fsync(journal)` → acknowledge |
 | `set-handoff` | `append` as above → write a uniquely named temp + `fsync` → `rename` via the directory fd → `fsync(run dir)`. A failed rename removes its temp; temps are unique per attempt, so one failure never blocks the next replacement |
 | store init (every `create`) | the parent of `storage_root` must already exist (`no_parent_anchor` otherwise — the store never creates an ancestor chain it could not synchronize) → `mkdir storage_root` / `mkdir runs` if missing → `fsync(storage_root)` → `fsync(parent of storage_root)`, **repeated on every `create`** because an existing entry does not prove an earlier publication reached disk; then publish `runs/.gitignore` if absent: unique temp + `fsync` → `link` into place (fails on an existing file, so user policy is never overwritten and a failed initialization leaves no half-written file) → `fsync(runs)`. Any failure here is a refusal (`store_init_unsynced`, `gitignore_write_failed`): no run exists yet |
-| `create` | reserve `runs/<run-id>` exclusively → create + `fsync` the empty journal → write + `fsync` a uniquely named temp manifest → `rename` to `manifest.json` → `fsync(run dir)` → `fsync(runs dir)` → acknowledge |
+| `create` | reserve `runs/<run-id>` exclusively → create + `fsync` the empty journal → write + `fsync` a uniquely named temp manifest → `rename` to `manifest.json` → `fsync(run dir)` → `fsync(runs dir)` → acknowledge; the creation lock is held through that final barrier |
 
 On macOS, `F_FULLFSYNC` is attempted after `fsync` on **file** descriptors (directories get `fsync` only); its failure is reported, not ignored. Tests inject a failure at each step, and separate process-kill tests (SIGKILL at a chosen `fsync`) check the on-disk state a restarted process finds: a committed journal with a stale cache, a stale `.lock`, and possibly a leftover `*.tmp` — auxiliary residue that never blocks later operations.
 

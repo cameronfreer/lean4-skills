@@ -20,7 +20,6 @@ Stdlib only.
 
 from __future__ import annotations
 
-import os
 import re
 from collections.abc import Callable
 from typing import Any
@@ -154,8 +153,22 @@ def _typed_dicts(seq: Any, spec: dict[str, Callable[[Any], bool]]) -> bool:
     return isinstance(seq, list) and all(_exact(x, spec) for x in seq)
 
 
+# Serialized path grammar for PERSISTED records: a stored baseline must stay
+# valid whichever host reads it (Python 3.13's ntpath.isabs rejects "/x", so
+# os.path.isabs would make a POSIX-written record invalid on Windows). This
+# recognizes the supported serialized styles without resolving anything;
+# host-local custody checks (file_baseline.py) keep host-local semantics.
+_SERIALIZED_ABS = re.compile(r"^(/|[A-Za-z]:[\\/]|\\\\)")
+
+
+def _serialized_abs(p: Any) -> bool:
+    return isinstance(p, str) and _SERIALIZED_ABS.match(p) is not None
+
+
 def _valid_baseline(fb: Any) -> bool:
-    """A structurally valid file-baseline/v1 record (as the primitive requires)."""
+    """A structurally valid file-baseline/v1 record (as the primitive requires).
+    Path absoluteness is judged by the serialized grammar above, not by the
+    reading host's os.path."""
     if not isinstance(fb, dict) or fb.get("schema") != "file-baseline/v1":
         return False
     files = fb.get("files")
@@ -167,9 +180,9 @@ def _valid_baseline(fb: Any) -> bool:
         if not isinstance(f, dict):
             return False
         path, real = f.get("path"), f.get("realpath")
-        if not (isinstance(path, str) and os.path.isabs(path)):
+        if not (isinstance(path, str) and isinstance(real, str)):
             return False
-        if not (isinstance(real, str) and os.path.isabs(real)):
+        if not _serialized_abs(path) or not _serialized_abs(real):
             return False
         # The primitive rejects a duplicate path OR a duplicate realpath.
         if path in seen_paths or real in seen_reals:

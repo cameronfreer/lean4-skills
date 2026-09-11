@@ -456,6 +456,43 @@ class HandoffCache(_Base):
         self.assertEqual(out["handoff_cache"], "stale")
         self.assertEqual(out["effective_handoff"]["payload"], valid_handoff())
 
+    def test_unusable_cache_never_blocks_the_journal(self) -> None:
+        rid = self.create()
+        rs.op_set_handoff(self.root, rid, valid_handoff())
+        cp = self._cache_path(rid)
+        os.remove(cp)
+        os.mkdir(cp)  # a DIRECTORY where the cache should be
+        out = rs.op_load(self.root, rid)
+        self.assertEqual(out["effective_handoff"]["seq"], 1)
+        self.assertEqual(out["handoff_cache"], "stale")
+        os.rmdir(cp)
+        if hasattr(os, "mkfifo"):
+            os.mkfifo(cp)  # must not hang the reader
+            out = rs.op_load(self.root, rid)
+            self.assertEqual(out["handoff_cache"], "stale")
+            os.remove(cp)
+        # an injected read error is a stale cache too, and the manifest keeps
+        # its stricter treatment
+        saved = rs._read_regular
+
+        def bad(fd: int) -> bytes:
+            raise OSError(5, "injected read error")
+
+        rs._read_regular = bad
+        try:
+            with self.assertRaises(rs.RefusedError) as cm:
+                rs.op_load(self.root, rid)
+            self.assertEqual(cm.exception.code, "incomplete_run")
+        finally:
+            rs._read_regular = saved
+        # journal as a directory: strict, structured
+        jp = self.journal_path(rid)
+        os.remove(jp)
+        os.mkdir(jp)
+        with self.assertRaises(rs.RefusedError) as cm:
+            rs.op_load(self.root, rid)
+        self.assertEqual(cm.exception.code, "journal_unreadable")
+
     def test_cache_ahead_of_prefix_adds_no_history(self) -> None:
         rid = self.create()
         with open(self._cache_path(rid), "w") as f:
@@ -495,6 +532,17 @@ class WriteOutcomes(_Base):
             real(fd)
 
         rs._fsync = fsync
+
+    def _trace_fsyncs(self) -> list[int]:
+        seen: list[int] = []
+        real = os.fsync
+
+        def fsync(fd: int) -> None:
+            seen.append(os.fstat(fd).st_ino)
+            real(fd)
+
+        rs._fsync = fsync
+        return seen
 
     def test_short_writes_are_retried_then_committed(self) -> None:
         rid = self.create()
@@ -556,7 +604,8 @@ class WriteOutcomes(_Base):
 
     def test_journal_fsync_failure_is_indeterminate(self) -> None:
         rid = self.create()
-        self._fail_fsync_on(1)
+        # append fsyncs: 1 run dir barrier, 2 runs dir barrier, 3 journal
+        self._fail_fsync_on(3)
         with self.assertRaises(rs.IndeterminateError) as cm:
             rs.op_append(self.root, rid, "note", _note())
         self.assertEqual(cm.exception.step, "append.fsync")
@@ -590,8 +639,9 @@ class WriteOutcomes(_Base):
 
     def test_cache_dir_fsync_failure_is_journal_only(self) -> None:
         rid = self.create()
-        # fsync calls in set-handoff: 1 journal, 2 temp cache file, 3 run dir
-        self._fail_fsync_on(3)
+        # set-handoff fsyncs: 1 run dir barrier, 2 runs dir barrier, 3 journal,
+        # 4 temp cache file, 5 run dir (cache publish)
+        self._fail_fsync_on(5)
         res = rs.op_set_handoff(self.root, rid, valid_handoff())
         self.assertEqual(res["outcome"], "journal_only")
         rs._fsync = os.fsync
@@ -622,6 +672,35 @@ class WriteOutcomes(_Base):
                     rs.op_append(self.root, rid, "note", _note())
             else:
                 self.assertEqual(rs.op_load(self.root, rid)["events"], [])
+                # a run left by a create that failed at its last barriers:
+                # the next mutation must re-establish run-dir + runs-dir
+                # durability BEFORE accepting the journal write
+                seen = self._trace_fsyncs()
+                self.assertEqual(
+                    rs.op_append(self.root, rid, "note", _note())["seq"], 1
+                )
+                run_ino = os.stat(self.run_dir(rid)).st_ino
+                runs_ino = os.stat(self.runs).st_ino
+                self.assertEqual(
+                    seen[:2],
+                    [run_ino, runs_ino],
+                    f"step {nth}: barriers before the journal write",
+                )
+                seen = self._trace_fsyncs()
+                self.assertEqual(
+                    rs.op_set_handoff(self.root, rid, valid_handoff())["outcome"],
+                    "committed",
+                )
+                self.assertEqual(seen[:2], [run_ino, runs_ino], f"step {nth}")
+                rs._fsync = os.fsync
+                # and if that recovery barrier itself fails, nothing is appended
+                before = _read(self.journal_path(rid))
+                self._fail_fsync_on(2)
+                with self.assertRaises(rs.RefusedError) as cm2:
+                    rs.op_append(self.root, rid, "note", _note())
+                rs._fsync = os.fsync
+                self.assertEqual(cm2.exception.code, "publish_unsynced")
+                self.assertEqual(_read(self.journal_path(rid)), before)
 
     def test_create_rename_failure_leaves_incomplete_run(self) -> None:
         def bad_rename(*a: Any, **k: Any) -> None:
@@ -1033,6 +1112,42 @@ class RecoveryAfterFailure(_Base):
             [n for n in os.listdir(self.run_dir(rid)) if n.endswith(".tmp")], []
         )
 
+    def test_unpaired_surrogates_refused_before_any_change(self) -> None:
+        rid = self.create()
+        before = _read(self.journal_path(rid))
+        with self.assertRaises(rs.RefusedError) as cm:
+            rs.op_append(self.root, rid, "note", _note(text="\ud800"))
+        self.assertEqual(cm.exception.code, "invalid_payload")
+        self.assertEqual(_read(self.journal_path(rid)), before)
+        d = valid_dispatch()
+        d["context"]["goal_state"] = "\ud800"
+        with self.assertRaises(rs.RefusedError) as cm:
+            rs.op_create(
+                d,
+                storage_root=self.root,
+                project_root=self.project,
+                tracker_session_id=None,
+                prior_run=None,
+                now="2026-09-09T13:00:00Z",
+            )
+        self.assertEqual(cm.exception.code, "invalid_payload")
+        self.assertFalse(
+            os.path.exists(self.run_dir(self.rid_for("2026-09-09T13:00:00Z")))
+        )
+        # a surrogate that reaches _emit from hand-edited stored data is
+        # escaped, never a crash
+        import io
+
+        buf = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
+        saved = sys.stdout
+        sys.stdout = buf
+        try:
+            rs._emit({"outcome": "ok", "text": "\ud800"})
+        finally:
+            sys.stdout = saved
+        buf.flush()
+        self.assertIn(b"\\ud800", buf.buffer.getvalue())
+
     def test_manifest_of_another_run_is_an_integrity_failure(self) -> None:
         rid = self.create()
         other = self.rid_for("2026-09-09T13:00:00Z")
@@ -1098,9 +1213,10 @@ class ProcessCrash(_Base):
     def test_killed_between_journal_commit_and_cache_replacement(self) -> None:
         rid = self.create()
         rs.op_set_handoff(self.root, rid, valid_handoff())
-        # set-handoff fsyncs: 1 journal (commit), 2 cache temp, 3 run dir
+        # set-handoff fsyncs: 1 run dir barrier, 2 runs dir barrier,
+        # 3 journal (commit), 4 cache temp, 5 run dir
         rc_ = self._kill_at(
-            2,
+            4,
             ["set-handoff", "--run-id", rid, "--payload", "-"],
             json.dumps(valid_handoff(next_action="stop")),
         )
@@ -1129,10 +1245,11 @@ class ProcessCrash(_Base):
         self,
     ) -> None:
         rid = self.create()
-        # fsync 1 in append is the journal commit itself: bytes are on disk
-        # (page cache) but the process never acknowledged
+        # fsync 3 in append is the journal commit itself (1-2 are the
+        # publication barriers): bytes are on disk (page cache) but the
+        # process never acknowledged
         rc_ = self._kill_at(
-            1,
+            3,
             ["append", "--run-id", rid, "--kind", "note", "--payload", "-"],
             json.dumps(_note()),
         )

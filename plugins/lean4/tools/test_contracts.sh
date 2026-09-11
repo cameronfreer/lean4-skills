@@ -2351,6 +2351,9 @@ else
                   'fsync(parent of storage_root)' \
                   'repeated on every `create`' \
                   'no_parent_anchor' \
+                  'publication barriers first' \
+                  'host-independent path grammar' \
+                  'never prevents loading the journal' \
                   'lock_init_failed' \
                   'uniquely named temp' \
                   'names another run' \

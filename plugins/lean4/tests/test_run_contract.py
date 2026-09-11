@@ -504,6 +504,42 @@ class WorkerParameters(unittest.TestCase):
         )
 
 
+class SerializedPathGrammar(unittest.TestCase):
+    """Persisted baselines are host-independent: the same record must be
+    structurally valid on a Windows reader (Python 3.13 ntpath.isabs("/x")
+    is False) and on POSIX. The validator does not consult os.path."""
+
+    def _fb(self, path: str, real: str) -> dict[str, Any]:
+        fb = valid_dispatch()["file_baseline"]
+        fb["files"][0]["path"] = path
+        fb["files"][0]["realpath"] = real
+        return fb
+
+    def test_posix_and_windows_styles_accepted(self) -> None:
+        for path in (
+            "/repo/Foo.lean",
+            "C:\\repo\\Foo.lean",
+            "c:/repo/Foo.lean",
+            "\\\\srv\\share\\Foo.lean",
+        ):
+            self.assertTrue(_valid_baseline(self._fb(path, path)), path)
+
+    def test_relative_rejected(self) -> None:
+        for path in ("repo/Foo.lean", "./Foo.lean", "Foo.lean", "", "C:Foo.lean"):
+            self.assertFalse(_valid_baseline(self._fb(path, "/x")), path)
+            self.assertFalse(_valid_baseline(self._fb("/x", path)), path)
+
+    def test_fixture_dispatch_is_valid_without_os_path(self) -> None:
+        import run_contract_validate as mod
+
+        with open(mod.__file__, encoding="utf-8") as f:
+            code = [ln for ln in f if not ln.lstrip().startswith("#")]
+        # the validator must not consult the reading host's path module
+        self.assertFalse(any(ln.startswith("import os") for ln in code))
+        self.assertFalse(any("os.path.isabs(" in ln for ln in code))
+        self.assertEqual(mod.validate_dispatch(valid_dispatch()), [])
+
+
 class DeeperRejections(unittest.TestCase):
     def test_budget_value_type(self) -> None:
         d = valid_dispatch()

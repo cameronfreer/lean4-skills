@@ -68,6 +68,7 @@ import json
 import os
 import re
 import secrets
+import stat
 import subprocess
 import sys
 from collections.abc import Callable
@@ -112,6 +113,7 @@ EXIT_INDETERMINATE = 6
 
 _O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 _O_BINARY = getattr(os, "O_BINARY", 0)
+_O_NONBLOCK = getattr(os, "O_NONBLOCK", 0)
 
 # Indirections so fault-injection tests can fail exactly one step.
 _write = os.write
@@ -385,7 +387,11 @@ class _FdRun:
         self.run_fd = run_fd
 
     def open_read(self, name: str) -> int:
-        return os.open(name, os.O_RDONLY | _O_NOFOLLOW, dir_fd=self.run_fd)
+        # O_NONBLOCK: opening a FIFO left in the run directory must not hang;
+        # the regular-file check after open rejects it.
+        return os.open(
+            name, os.O_RDONLY | _O_NOFOLLOW | _O_NONBLOCK, dir_fd=self.run_fd
+        )
 
     def exists(self, name: str) -> bool:
         try:
@@ -545,8 +551,9 @@ def read_journal(run: _FdRun | _PathRun) -> dict[str, Any]:
     except OSError as ex:
         raise RefusedError("containment", f"{JOURNAL_NAME}: {ex}") from ex
     try:
-        size = os.fstat(fd).st_size
-        data = _read_exact(fd, size)
+        data = _read_regular(fd)  # size captured at open, read to that boundary
+    except OSError as ex:
+        raise RefusedError("journal_unreadable", f"{JOURNAL_NAME}: {ex}") from ex
     finally:
         os.close(fd)
     events: list[dict[str, Any]] = []
@@ -582,8 +589,18 @@ def read_journal(run: _FdRun | _PathRun) -> dict[str, Any]:
     }
 
 
+def _read_regular(fd: int) -> bytes:
+    """Whole contents of an open REGULAR file; anything else is an OSError."""
+    st = os.fstat(fd)
+    if not stat.S_ISREG(st.st_mode):
+        raise OSError(f"not a regular file (mode {oct(st.st_mode)})")
+    return _read_exact(fd, st.st_size)
+
+
 def _read_json_file(run: _FdRun | _PathRun, name: str) -> tuple[Any, str | None]:
-    """(object, None) or (None, reason)."""
+    """(object, None) or (None, reason) — every failure of the whole read is
+    a reason, never an exception, so an unusable CACHE can only ever be
+    reported stale (callers apply stricter treatment to the manifest)."""
     try:
         fd = run.open_read(name)
     except FileNotFoundError:
@@ -591,7 +608,9 @@ def _read_json_file(run: _FdRun | _PathRun, name: str) -> tuple[Any, str | None]
     except OSError as ex:
         return None, f"unreadable: {ex}"
     try:
-        data = _read_exact(fd, os.fstat(fd).st_size)
+        data = _read_regular(fd)
+    except OSError as ex:
+        return None, f"unreadable: {ex}"
     finally:
         os.close(fd)
     try:
@@ -810,13 +829,13 @@ def _open_run(runs_fd: int, run_id: str) -> int:
 
 
 def _with_run(
-    storage_root: str, run_id: str, fn: Callable[[int], dict[str, Any]]
+    storage_root: str, run_id: str, fn: Callable[[int, _Store], dict[str, Any]]
 ) -> dict[str, Any]:
     store = _open_store(storage_root, create=False)
     try:
         run_fd = _open_run(store.runs_fd, run_id)
         try:
-            return fn(run_fd)
+            return fn(run_fd, store)
         finally:
             os.close(run_fd)
     finally:
@@ -861,6 +880,7 @@ def op_create(
     errs = rc.validate_dispatch(dispatch)
     if errs:
         raise RefusedError("invalid_dispatch", "; ".join(errs))
+    _require_serializable(dispatch, "dispatch")
     if prior_run is not None and not valid_run_id(prior_run):
         raise RefusedError("bad_run_id", "prior_run must be a run id")
     created = now or _now_iso()
@@ -917,8 +937,9 @@ def op_create(
                 _write_file_atomic(
                     run_fd, MANIFEST_NAME, _dumps(manifest), "create.manifest"
                 )
-            # publication: the runs directory entry must persist too
-            _fsync_all(store.runs_fd, "create.publish", directory=True)
+                # publication: the runs directory entry must persist too —
+                # still under the lock, so no mutation can interleave
+                _fsync_all(store.runs_fd, "create.publish", directory=True)
         finally:
             os.close(run_fd)
         run_directory = os.path.join(store.resolved_root, RUNS_DIRNAME, run_id)
@@ -969,14 +990,41 @@ def _append_locked(run_fd: int, kind: str, payload: Any) -> int:
     return seq
 
 
+def _publish_barriers(run_fd: int, runs_fd: int) -> None:
+    """Under the mutation lock, before accepting a journal mutation: make the
+    run's directory entries durable. A loadable run may have been left by a
+    `create` that failed or died at its last barriers, and synchronizing the
+    journal's contents does not make the entries needed to REACH it durable.
+    Nothing has been written yet, so a failure here is a refusal."""
+    try:
+        _fsync_all(run_fd, "mutate.publish.run", directory=True)
+        _fsync_all(runs_fd, "mutate.publish.runs", directory=True)
+    except IndeterminateError as ex:
+        raise RefusedError("publish_unsynced", ex.detail) from ex
+
+
+def _require_serializable(payload: Any, what: str) -> None:
+    """Reject payloads the strict UTF-8 serializer cannot write (an unpaired
+    surrogate passes the structural string checks) BEFORE any filesystem
+    change."""
+    try:
+        _dumps(payload)
+    except UnicodeEncodeError as ex:
+        raise RefusedError(
+            "invalid_payload", f"{what} is not UTF-8 serializable: {ex}"
+        ) from ex
+
+
 def op_append(
     storage_root: str, run_id: str, kind: str, payload: Any
 ) -> dict[str, Any]:
     require_platform()
+    _require_serializable(payload, "payload")
 
-    def body(run_fd: int) -> dict[str, Any]:
+    def body(run_fd: int, store: _Store) -> dict[str, Any]:
         _check_run_loadable(_FdRun(run_fd), run_id)
         with _Lock(run_fd):
+            _publish_barriers(run_fd, store.runs_fd)
             seq = _append_locked(run_fd, kind, payload)
         return {"outcome": "committed", "run_id": run_id, "seq": seq}
 
@@ -985,10 +1033,12 @@ def op_append(
 
 def op_set_handoff(storage_root: str, run_id: str, payload: Any) -> dict[str, Any]:
     require_platform()
+    _require_serializable(payload, "payload")
 
-    def body(run_fd: int) -> dict[str, Any]:
+    def body(run_fd: int, store: _Store) -> dict[str, Any]:
         _check_run_loadable(_FdRun(run_fd), run_id)
         with _Lock(run_fd):
+            _publish_barriers(run_fd, store.runs_fd)
             seq = _append_locked(run_fd, "handoff", payload)
             cache = {"schema": HANDOFF_CACHE_SCHEMA, "seq": seq, "payload": payload}
             try:
@@ -1008,7 +1058,7 @@ def op_set_handoff(storage_root: str, run_id: str, payload: Any) -> dict[str, An
 def op_load(storage_root: str, run_id: str) -> dict[str, Any]:
     if platform_supported():
         return _with_run(
-            storage_root, run_id, lambda fd: _load_from(_FdRun(fd), run_id)
+            storage_root, run_id, lambda fd, _store: _load_from(_FdRun(fd), run_id)
         )
     # Portable read-only backend.
     if not valid_run_id(run_id):
@@ -1059,7 +1109,11 @@ def _emit(obj: dict[str, Any]) -> None:
     Lean goals such as `⊢`, and a text-mode write would raise after the
     operation already succeeded."""
     obj = {"schema": RESULT_SCHEMA, **obj}
-    out = (json.dumps(obj, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    # backslashreplace: a lone surrogate in hand-edited stored data must not
+    # crash the report of an operation that already happened.
+    out = (json.dumps(obj, ensure_ascii=False, indent=2) + "\n").encode(
+        "utf-8", "backslashreplace"
+    )
     stream = getattr(sys.stdout, "buffer", None)
     if stream is None:  # pragma: no cover — replaced stdout without a buffer
         sys.stdout.write(out.decode("utf-8", "replace"))
