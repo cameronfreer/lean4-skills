@@ -1148,6 +1148,78 @@ class RecoveryAfterFailure(_Base):
         buf.flush()
         self.assertIn(b"\\ud800", buf.buffer.getvalue())
 
+    def test_unencodable_storage_root_refused_before_reserving_the_run(self) -> None:
+        # a valid POSIX directory name with a non-UTF-8 byte becomes a
+        # surrogate-escaped str; the manifest (storage_root) must be
+        # preflighted before the run directory and journal exist
+        parent = os.path.join(self.tmp, "raw")
+        os.makedirs(parent)
+        raw_dir = os.path.join(parent.encode(), b"st\xffore")
+        os.mkdir(raw_dir)
+        root = os.fsdecode(raw_dir)
+        with self.assertRaises(rs.RefusedError) as cm:
+            rs.op_create(
+                valid_dispatch(),
+                storage_root=root,
+                project_root=self.project,
+                tracker_session_id=None,
+                prior_run=None,
+                now=NOW,
+            )
+        self.assertEqual(cm.exception.code, "invalid_payload")
+        self.assertIn("manifest", cm.exception.detail)
+        self.assertFalse(
+            os.path.exists(os.path.join(raw_dir, b"runs", self.rid_for(NOW).encode()))
+        )
+        # and through the CLI it is a structured refusal, not a traceback
+        p = subprocess.run(
+            [BIN, "--root", root, "create", "--dispatch", "-", "--now", NOW],
+            input=json.dumps(valid_dispatch()).encode(),
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(
+            p.returncode, rs.EXIT_REFUSED, p.stderr.decode("utf-8", "replace")
+        )
+        self.assertEqual(
+            json.loads(p.stdout.decode("utf-8"))["code"], "invalid_payload"
+        )
+
+    def test_cache_only_read_failures_are_just_stale(self) -> None:
+        rid = self.create()
+        rs.op_set_handoff(self.root, rid, valid_handoff())
+        cache_ino = os.stat(os.path.join(self.run_dir(rid), rs.CACHE_NAME)).st_ino
+        saved_read, saved_json = rs._read_regular, rs._read_json_file
+
+        def read_fails_for_cache(
+            fd: int,
+        ) -> bytes:  # injected read/fstat failure, cache only
+            if os.fstat(fd).st_ino == cache_ino:
+                raise OSError(5, "injected cache read failure")
+            return saved_read(fd)
+
+        rs._read_regular = read_fails_for_cache
+        try:
+            out = rs.op_load(self.root, rid)
+        finally:
+            rs._read_regular = saved_read
+        self.assertEqual(out["effective_handoff"]["seq"], 1)
+        self.assertEqual(out["handoff_cache"], "stale")
+        self.assertTrue(any("injected" in w.get("detail", "") for w in out["warnings"]))
+
+        def json_fails_for_cache(run: Any, name: str) -> tuple[Any, str | None]:
+            if name == rs.CACHE_NAME:
+                return None, "unreadable: injected fstat failure"
+            return saved_json(run, name)
+
+        rs._read_json_file = json_fails_for_cache  # type: ignore[assignment]
+        try:
+            out = rs.op_load(self.root, rid)
+        finally:
+            rs._read_json_file = saved_json  # type: ignore[assignment]
+        self.assertEqual(out["effective_handoff"]["seq"], 1)
+        self.assertEqual(out["handoff_cache"], "stale")
+
     def test_manifest_of_another_run_is_an_integrity_failure(self) -> None:
         rid = self.create()
         other = self.rid_for("2026-09-09T13:00:00Z")

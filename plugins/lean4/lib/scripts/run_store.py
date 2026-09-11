@@ -905,6 +905,21 @@ def op_create(
         )
     store = _open_store(storage_root, create=True)
     try:
+        # Preflight the COMPLETE manifest before reserving anything: the
+        # resolved root can carry a surrogate-escaped (non-UTF-8) directory
+        # name that the strict serializer would reject after the run
+        # directory and empty journal already existed.
+        manifest = {
+            "schema": MANIFEST_SCHEMA,
+            "run_id": run_id,
+            "created": created,
+            "plugin_version": _plugin_version(),
+            "storage_root": store.resolved_root,
+            "tracker_session_id": tracker_session_id,
+            "prior_run": prior_run,
+            "dispatch": dispatch,
+        }
+        _require_serializable(manifest, "manifest (storage_root or session id)")
         _ensure_gitignore(store.runs_fd)
         # 1. exclusively reserve the run directory
         if not _mkdir_if_missing(run_id, store.runs_fd):
@@ -924,16 +939,6 @@ def op_create(
                 finally:
                     os.close(jfd)
                 # 3+4. manifest via unique temp → rename → fsync(run dir)
-                manifest = {
-                    "schema": MANIFEST_SCHEMA,
-                    "run_id": run_id,
-                    "created": created,
-                    "plugin_version": _plugin_version(),
-                    "storage_root": store.resolved_root,
-                    "tracker_session_id": tracker_session_id,
-                    "prior_run": prior_run,
-                    "dispatch": dispatch,
-                }
                 _write_file_atomic(
                     run_fd, MANIFEST_NAME, _dumps(manifest), "create.manifest"
                 )
