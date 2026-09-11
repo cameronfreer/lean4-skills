@@ -1228,6 +1228,55 @@ class Cli(_Base):
         p = self.cli()
         self.assertEqual(p.returncode, rs.EXIT_USAGE)
 
+    def test_cli_io_is_utf8_under_a_cp1252_console(self) -> None:
+        """Native Windows consoles default to cp1252; the dispatch fixture
+        carries `⊢`. Reproduced on Linux by forcing the encoding (the same
+        class of bug #194 fixed in the guardrail hook)."""
+        env = dict(os.environ, PYTHONIOENCODING="cp1252")
+        d = json.dumps(valid_dispatch())
+        p = subprocess.run(
+            [
+                BIN,
+                "--root",
+                self.root,
+                "--project-root",
+                self.project,
+                "create",
+                "--dispatch",
+                "-",
+                "--now",
+                NOW,
+            ],
+            input=d.encode("utf-8"),
+            capture_output=True,
+            env=env,
+            check=False,
+        )
+        self.assertEqual(p.returncode, 0, p.stderr.decode("utf-8", "replace"))
+        rid = json.loads(p.stdout.decode("utf-8"))["run_id"]
+        p = subprocess.run(
+            [BIN, "--root", self.root, "load", "--run-id", rid],
+            capture_output=True,
+            env=env,
+            check=False,
+        )
+        self.assertEqual(p.returncode, 0, p.stderr.decode("utf-8", "replace"))
+        out = json.loads(p.stdout.decode("utf-8"))
+        self.assertEqual(
+            out["manifest"]["dispatch"]["context"]["goal_state"], "⊢ Continuous f"
+        )
+        p = self.cli(
+            "append",
+            "--run-id",
+            rid,
+            "--kind",
+            "note",
+            "--payload",
+            "-",
+            stdin="\xff not utf-8",
+        )
+        self.assertEqual(p.returncode, rs.EXIT_USAGE)
+
     def test_env_root_and_project_default(self) -> None:
         env = dict(os.environ, LEAN4_RUN_STORE=os.path.join(self.tmp, "elsewhere"))
         p = subprocess.run(

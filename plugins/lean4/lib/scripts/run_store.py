@@ -1032,12 +1032,17 @@ def op_load(storage_root: str, run_id: str) -> dict[str, Any]:
 def _read_payload(src: str) -> Any:
     try:
         if src == "-":
-            data = sys.stdin.read()
+            stream = getattr(sys.stdin, "buffer", None)
+            raw = stream.read() if stream is not None else sys.stdin.read().encode()
         else:
-            with open(src, encoding="utf-8") as f:
-                data = f.read()
+            with open(src, "rb") as f:
+                raw = f.read()
     except OSError as ex:
         raise RefusedError("payload_unreadable", f"{src}: {ex}") from ex
+    try:
+        data = raw.decode("utf-8")  # payloads are UTF-8 regardless of the console
+    except UnicodeDecodeError as ex:
+        raise UsageError(f"payload is not UTF-8: {ex}") from ex
     if not data.strip():
         raise UsageError("empty payload")
     try:
@@ -1047,8 +1052,17 @@ def _read_payload(src: str) -> Any:
 
 
 def _emit(obj: dict[str, Any]) -> None:
+    """Always UTF-8 bytes: a cp1252 console (native Windows) cannot encode
+    Lean goals such as `⊢`, and a text-mode write would raise after the
+    operation already succeeded."""
     obj = {"schema": RESULT_SCHEMA, **obj}
-    sys.stdout.write(json.dumps(obj, ensure_ascii=False, indent=2) + "\n")
+    out = (json.dumps(obj, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    stream = getattr(sys.stdout, "buffer", None)
+    if stream is None:  # pragma: no cover — replaced stdout without a buffer
+        sys.stdout.write(out.decode("utf-8", "replace"))
+    else:
+        stream.write(out)
+    sys.stdout.flush()
 
 
 def main(argv: list[str]) -> int:
