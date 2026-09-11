@@ -263,7 +263,7 @@ See [sorry-filling.md](references/sorry-filling.md) for the full scratch-work pr
   `lean4-skills-disprove-target-resolve`, `lean4-skills-file-baseline`,
   `lean4-skills-project-context`,
   `lean4-skills-checkpoint-mathlib-roots`,
-  `lean4-skills-validate-review-output`). In a persistent environment these
+  `lean4-skills-validate-review-output`, `lean4-skills-run-store`). In a persistent environment these
   are bare commands on PATH. In a trusted native Codex plugin, prefix the
   wrapper name with the literal absolute `bin_dir` from SessionStart (for
   example `/installed/plugin/bin/lean4-skills-sorry-analyzer`). Do not use
@@ -408,6 +408,8 @@ lean4-skills-sorry-analyzer . --report-only
 **Cycle Engine:** [cycle-engine](references/cycle-engine.md) — shared prove/autoprove logic (stuck, deep mode, falsification, safety)
 
 **Handoff Contract:** [handoff-contract](references/handoff-contract.md) — `run-contract/v1` dispatch + handoff records and the rerun guard (don't relaunch the same mode on the same `blocker_signature` without new evidence; route to `review --mode=stuck`, `formalize`, or human handoff)
+
+**Run Store:** [run-store](references/run-store.md) — `run-store/v1`, the storage primitive for those records (`lean4-skills-run-store`: immutable manifest, append-only journal, disposable handoff cache; historical evidence, never certification). Storage only — engine wiring is open under #82.
 
 **LSP Tools:** [lean-lsp-server](references/lean-lsp-server.md) (quick start), [lean-lsp-tools-api](references/lean-lsp-tools-api.md) (full API — grep `^##` for tool names)
 

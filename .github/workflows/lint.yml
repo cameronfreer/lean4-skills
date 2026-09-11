@@ -61,6 +61,7 @@ jobs:
           python3 plugins/lean4/lib/scripts/tests/test_checkpoint_mathlib_roots.py
           python3 plugins/lean4/tests/test_review_schema.py
           python3 plugins/lean4/tests/test_run_contract.py
+          python3 plugins/lean4/tests/test_run_store.py
 
       # command_args parser suite. Run via discover so a new test_parser_*.py
       # cannot silently skip CI (the same coverage-gap class the comment above
@@ -100,6 +101,54 @@ jobs:
         env:
           MYPYPATH: lib
         run: mypy --python-version 3.10 --strict lib/ hooks/
+
+  # run-store/v1 (#82A) storage suite on the two SUPPORTED mutation hosts
+  # and on Windows, where mutations must be refused before any write and the
+  # portable read-only `load` path must work against the prebuilt fixture.
+  # The Linux run is part of python-tests above; these settle real platform
+  # behaviour (macOS fsync/F_FULLFSYNC, Windows dir_fd absence) — not a
+  # wrapper smoke.
+  run-store-macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        # the documented floor and a current interpreter (3.13 changed
+        # ntpath.isabs — the fixture must load regardless of the reader)
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: run-store storage suite (macOS)
+        run: |
+          python3 plugins/lean4/tests/test_run_contract.py
+          python3 plugins/lean4/tests/test_run_store.py
+
+  run-store-windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: run-store portable path (Windows)
+        shell: bash
+        run: |
+          python plugins/lean4/tests/test_run_contract.py
+          python plugins/lean4/tests/test_run_store.py
+          # mutations are refused BEFORE any write; load works via the portable backend
+          rc=0
+          python plugins/lean4/lib/scripts/run_store.py --root "$RUNNER_TEMP/store" create --dispatch plugins/lean4/tests/fixtures/run_store/dispatch.json --now 2026-09-09T12:00:00Z || rc=$?
+          test "$rc" -eq 3 || { echo "expected exit 3 (unsupported_platform), got $rc"; exit 1; }
+          test ! -e "$RUNNER_TEMP/store" || { echo "refusal must not create the store"; exit 1; }
+          rid=""
+          for d in plugins/lean4/tests/fixtures/run_store/runs/*/; do rid=$(basename "$d"); done
+          test -n "$rid" || { echo "no fixture run found"; exit 1; }
+          python plugins/lean4/lib/scripts/run_store.py --root plugins/lean4/tests/fixtures/run_store load --run-id "$rid" | grep -q '"handoff_cache": "current"'
 
   shellcheck:
     runs-on: ubuntu-latest

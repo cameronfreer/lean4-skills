@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# lean4-skills-run-store — model-facing wrapper around lib/scripts/run_store.py,
+# the run-store/v1 storage primitive (#82A; Refs #82). One directory per run
+# under <storage_root>/runs/<run-id> with an immutable manifest, an append-only
+# JSONL journal, and a disposable latest-handoff cache. Storage only: no
+# command wiring, no trust promotion, no rerun enforcement.
+#
+#   create      --dispatch FILE|-  [--project-root DIR] [--prior-run ID] [--tracker-session-id ID]
+#   append      --run-id ID --kind dispatch|handoff|note --payload FILE|-
+#   set-handoff --run-id ID --payload FILE|-
+#   load        --run-id ID
+#   validate    --kind manifest|event|dispatch|handoff|note FILE|-
+#
+# Exit codes (see references/run-store.md):
+#   0  committed / ok
+#   2  usage error or malformed JSON input
+#   3  refused, nothing written (busy, journal_damaged, unsupported_platform,
+#      validation, containment, incomplete_run, integrity_failure)
+#   5  journal_only  — journal synchronized, cache completion not confirmed
+#   6  indeterminate — partial write or unconfirmed durability; inspect first
+#
+# See lean4-skills-project-context for the bin/-wrapper rationale.
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+exec "${LEAN4_PYTHON_BIN:-python3}" "$PLUGIN_ROOT/lib/scripts/run_store.py" "$@"

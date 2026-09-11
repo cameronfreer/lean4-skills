@@ -1,427 +1,32 @@
 """Structural fixtures for the run-contract/v1 dispatch + handoff records (#190).
 
 The contract in `references/handoff-contract.md` is documentation, but its
-required-field sets and conditional nullability are checkable — this suite
-encodes them as a small structural validator and exercises valid and invalid
-fixtures (including a proof-repair handoff carrying a unified-diff artifact), so
-"valid record" cannot regress to prose. Stdlib only.
+required-field sets and conditional nullability are checkable. The validator is
+PRODUCTION code (lib/scripts/run_contract_validate.py — moved there for the run
+store, #82A) and this suite consumes that same module, exercising valid and
+invalid fixtures (including a proof-repair handoff carrying a unified-diff
+artifact) so "valid record" cannot regress to prose. Stdlib only.
 """
 
 from __future__ import annotations
 
 import os
-import re
+import sys
 import unittest
-from collections.abc import Callable
 from typing import Any
 
-
-def _is_str(x: Any) -> bool:
-    return isinstance(x, str)
-
-
-def _is_int(x: Any) -> bool:
-    return isinstance(x, int) and not isinstance(x, bool)
-
-
-# --- enums (mirrors handoff-contract.md) ---
-SCOPES = {"sorry", "deps", "file", "changed", "project"}
-MODES = {"prove", "autoprove", "golf"}
-WORKERS = {"sorry-filler-deep", "proof-repair", "proof-golfer", "axiom-eliminator"}
-STOP_REASONS = {
-    "max-stuck",
-    "max-cycles",
-    "max-runtime",
-    "user-stop",
-    "queue-empty",
-    "protocol-error",
-    "operational-error",
-}
-OPERATIONAL_STOPS = {"protocol-error", "operational-error"}
-BLOCKER_KINDS = {
-    "proof",
-    "false-statement",
-    "safety-guard",
-    "capability",
-    "protocol",
-    "operational",
-}
-BLOCKER_CLASSES = {
-    "definitional-equality",
-    "missing-intro-constructor-cases",
-    "missing-rewrite",
-    "arithmetic",
-    "missing-library-lemma",
-    "typeclass-coercion-elaboration",
-    "needs-helper-lemma",
-}
-NEXT_ACTIONS = {"continue", "deep", "repair", "redraft", "golf", "stop"}
-STATUSES = {"solved", "stuck", "stopped"}
-
-DISPATCH_FIELDS = {
-    "schema",
-    "record",
-    "target",
-    "scope",
-    "mode",
-    "worker",
-    "parameters",
-    "capabilities",
-    "owned_files",
-    "file_baseline",
-    "prior_blocker",
-    "evidence_delta",
-    "budget",
-    "context",
-}
-CONTEXT_FIELDS = {
-    "prior_failure",
-    "goal_state",
-    "diagnostics",
-    "search_results",
-    "candidates_tested",
-    "code_actions",
-    "scratch_location",
-}
-HANDOFF_FIELDS = {
-    "schema",
-    "record",
-    "target",
-    "scope",
-    "mode",
-    "status",
-    "stop_reason",
-    "stop_detail",
-    "blocker_kind",
-    "blocker_class",
-    "blocker_signature",
-    "attempted_tools",
-    "best_candidates",
-    "failed_avenues",
-    "evidence",
-    "files_owned",
-    "files_changed",
-    "file_baseline",
-    "artifacts",
-    "next_action",
-    "new_evidence_required_for_rerun",
-}
-
-
-def _baseline_covers(baseline: Any, owned_files: Any) -> bool:
-    if not isinstance(baseline, dict) or not isinstance(owned_files, list):
-        return False
-    files = baseline.get("files")
-    if not isinstance(files, list):
-        return False
-    covered = {f.get("path") for f in files if isinstance(f, dict)}
-    return set(owned_files) <= covered
-
-
-def _str_list(x: Any) -> bool:
-    return isinstance(x, list) and all(isinstance(s, str) for s in x)
-
-
-def _exact(obj: Any, spec: dict[str, Callable[[Any], bool]]) -> bool:
-    """obj is a dict with EXACTLY the keys in spec, each value passing its predicate."""
-    return (
-        isinstance(obj, dict)
-        and set(obj) == set(spec)
-        and all(pred(obj[k]) for k, pred in spec.items())
-    )
-
-
-def _typed_dicts(seq: Any, spec: dict[str, Callable[[Any], bool]]) -> bool:
-    return isinstance(seq, list) and all(_exact(x, spec) for x in seq)
-
-
-def _valid_baseline(fb: Any) -> bool:
-    """A structurally valid file-baseline/v1 record (as the primitive requires)."""
-    if not isinstance(fb, dict) or fb.get("schema") != "file-baseline/v1":
-        return False
-    files = fb.get("files")
-    if not isinstance(files, list) or not files:  # the primitive rejects empty
-        return False
-    seen_paths: set[str] = set()
-    seen_reals: set[str] = set()
-    for f in files:
-        if not isinstance(f, dict):
-            return False
-        if not (isinstance(f.get("path"), str) and os.path.isabs(f["path"])):
-            return False
-        if not (isinstance(f.get("realpath"), str) and os.path.isabs(f["realpath"])):
-            return False
-        # The primitive rejects a duplicate path OR a duplicate realpath.
-        if f["path"] in seen_paths or f["realpath"] in seen_reals:
-            return False
-        seen_paths.add(f["path"])
-        seen_reals.add(f["realpath"])
-        if not isinstance(f.get("exists"), bool):
-            return False
-        sha, size = f.get("sha256"), f.get("size")
-        if f["exists"]:
-            if not (isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{64}", sha)):
-                return False
-            if not _is_int(size) or size < 0:  # negative size is invalid
-                return False
-        elif sha is not None or size is not None:
-            return False
-    return True
-
-
-# Fully-typed shape of each worker's `parameters` payload (exact keys + types).
-def _deep_budget_ok(x: Any) -> bool:
-    return _exact(x, {"scope": _is_str, "max_files": _is_int, "max_lines": _is_int})
-
-
-def _repair_error_ok(x: Any) -> bool:
-    return _exact(
-        x,
-        {
-            "errorType": _is_str,
-            "message": _is_str,
-            "file": _is_str,
-            "line": _is_int,
-            "goal": _is_str,
-            "localContext": _str_list,
-        },
-    )
-
-
-WORKER_PARAM_SHAPES: dict[str, dict[str, Callable[[Any], bool]]] = {
-    "sorry-filler-deep": {
-        "fast_pass_error": _is_str,
-        "permission_level": _is_str,
-        "deep_budget": _deep_budget_ok,
-    },
-    "proof-repair": {"error": _repair_error_ok},
-    "proof-golfer": {
-        "search_mode": lambda x: x in {"off", "quick", "full"},
-        "golfable_patterns": _str_list,
-        "candidate_targets": _str_list,
-    },
-    "axiom-eliminator": {"axioms": _str_list, "permission_level": _is_str},
-}
-
-
-def validate_parameters(worker: Any, params: Any) -> list[str]:
-    """worker==null → parameters=={}; each named worker → its EXACT typed shape."""
-    if worker is None:
-        return (
-            []
-            if params == {}
-            else ["inline dispatch (worker null) must have parameters {}"]
-        )
-    if worker not in WORKER_PARAM_SHAPES:
-        return ["unknown worker"]
-    if not _exact(params, WORKER_PARAM_SHAPES[worker]):
-        return [f"{worker} parameters must match its exact typed shape"]
-    return []
-
-
-def validate_dispatch(obj: dict[str, Any]) -> list[str]:
-    e: list[str] = []
-    missing = DISPATCH_FIELDS - set(obj)
-    if missing:
-        e.append(f"dispatch missing {sorted(missing)}")
-    if obj.get("schema") != "run-contract/v1":
-        e.append("dispatch schema must be run-contract/v1")
-    if obj.get("record") != "dispatch":
-        e.append("dispatch record must be 'dispatch'")
-    if obj.get("scope") not in SCOPES:
-        e.append("dispatch scope not in enum")
-    if obj.get("mode") not in MODES:
-        e.append("dispatch mode not in enum")
-    if obj.get("worker") is not None and obj.get("worker") not in WORKERS:
-        e.append("dispatch worker must be a known agent or null")
-    if (
-        not _str_list(obj.get("owned_files"))
-        or not _str_list(obj.get("evidence_delta"))
-        or not _str_list(obj.get("capabilities"))
-    ):
-        e.append(
-            "owned_files / evidence_delta / capabilities must be arrays of strings"
-        )
-    # worker/parameters correlation (the "typed parameters" contract).
-    e += validate_parameters(obj.get("worker"), obj.get("parameters"))
-    # nested context member types + typed item shapes.
-    ctx = obj.get("context")
-    if not isinstance(ctx, dict) or (CONTEXT_FIELDS - set(ctx)):
-        e.append("dispatch context missing required members")
-    else:
-        if not _str_list(ctx.get("diagnostics")) or not _str_list(
-            ctx.get("code_actions")
-        ):
-            e.append("context.diagnostics / code_actions must be string arrays")
-        if not _typed_dicts(
-            ctx.get("search_results"),
-            {"tool": _is_str, "query": _is_str, "top": _str_list},
-        ):
-            e.append(
-                "context.search_results items must be {tool:str, query:str, top:[str]}"
-            )
-        if not _typed_dicts(
-            ctx.get("candidates_tested"), {"snippet": _is_str, "result": _is_str}
-        ):
-            e.append(
-                "context.candidates_tested items must be {snippet:str, result:str}"
-            )
-        if not isinstance(ctx.get("scratch_location"), str):
-            e.append("context.scratch_location must be a non-null string")
-        if not (ctx.get("prior_failure") is None or _is_str(ctx.get("prior_failure"))):
-            e.append("context.prior_failure must be str|null")
-        if not (ctx.get("goal_state") is None or _is_str(ctx.get("goal_state"))):
-            e.append("context.goal_state must be str|null")
-    # budget subfields: exact keys AND value types.
-    b = obj.get("budget")
-    if not isinstance(b, dict) or set(b) != {
-        "max_cycles",
-        "max_stuck_cycles",
-        "runtime",
-    }:
-        e.append("budget must be {max_cycles, max_stuck_cycles, runtime}")
-    else:
-        for k in ("max_cycles", "max_stuck_cycles"):
-            if not (
-                b[k] is None or (isinstance(b[k], int) and not isinstance(b[k], bool))
-            ):
-                e.append(f"budget.{k} must be integer|null")
-        if not (b["runtime"] is None or isinstance(b["runtime"], str)):
-            e.append("budget.runtime must be duration-string|null")
-    # file_baseline is a valid file-baseline/v1 covering every owned_files path.
-    fb = obj.get("file_baseline")
-    if not _valid_baseline(fb):
-        e.append("file_baseline must be a valid file-baseline/v1 record")
-    elif not _baseline_covers(fb, obj.get("owned_files")):
-        e.append("file_baseline.files must cover every owned_files path")
-    return e
-
-
-def _blocker_driven(obj: dict[str, Any]) -> bool:
-    return obj.get("status") == "stuck" or (
-        obj.get("status") == "stopped" and obj.get("stop_reason") == "max-stuck"
-    )
-
-
-def validate_handoff(obj: dict[str, Any]) -> list[str]:
-    e: list[str] = []
-    missing = HANDOFF_FIELDS - set(obj)
-    if missing:
-        e.append(f"handoff missing {sorted(missing)}")
-    if obj.get("schema") != "run-contract/v1" or obj.get("record") != "handoff":
-        e.append("handoff schema/record wrong")
-    sr = obj.get("stop_reason")
-    # Self-identifying task triple + baseline: non-null EXCEPT a protocol-error
-    # handoff reporting a malformed dispatch (nothing valid to echo).
-    malformed_ok = sr == "protocol-error"
-    t, sc, md, fb = (obj.get(k) for k in ("target", "scope", "mode", "file_baseline"))
-    if malformed_ok:
-        if t is not None and not isinstance(t, str):
-            e.append("target, when present, must be a string")
-        if sc is not None and sc not in SCOPES:
-            e.append("scope, when present, must be in enum")
-        if md is not None and md not in MODES:
-            e.append("mode, when present, must be in enum")
-        if fb is not None and not _valid_baseline(fb):
-            e.append("file_baseline, when present, must be a valid file-baseline/v1")
-    else:
-        if not isinstance(t, str) or sc not in SCOPES or md not in MODES:
-            e.append("handoff must echo a valid target/scope/mode")
-        if not _valid_baseline(fb) or not _baseline_covers(fb, obj.get("files_owned")):
-            e.append(
-                "handoff file_baseline must be a valid file-baseline/v1 covering files_owned"
-            )
-    if obj.get("status") not in STATUSES:
-        e.append("handoff status not in enum")
-    # stop_reason non-null iff stopped.
-    if obj.get("status") == "stopped":
-        if sr not in STOP_REASONS:
-            e.append("stopped handoff needs a valid stop_reason")
-    elif sr is not None:
-        e.append("stop_reason must be null unless stopped")
-    # stop_detail non-null iff operational/protocol stop.
-    if sr in OPERATIONAL_STOPS:
-        if not obj.get("stop_detail"):
-            e.append("operational/protocol stop needs a stop_detail")
-    elif obj.get("stop_detail") is not None:
-        e.append("stop_detail must be null unless operational/protocol stop")
-    # blocker fields non-null iff blocker-driven.
-    driven = _blocker_driven(obj)
-    for f in ("blocker_kind", "blocker_signature", "new_evidence_required_for_rerun"):
-        if driven and not obj.get(f):
-            e.append(f"blocker-driven handoff needs non-null {f}")
-        if not driven and obj.get(f) is not None:
-            e.append(f"{f} must be null when not blocker-driven")
-    if driven and obj.get("blocker_kind") not in BLOCKER_KINDS:
-        e.append("blocker_kind not in enum")
-    # blocker_class non-null iff blocker_kind == proof.
-    bc = obj.get("blocker_class")
-    if driven and obj.get("blocker_kind") == "proof":
-        if bc not in BLOCKER_CLASSES:
-            e.append("proof blocker needs a valid blocker_class")
-    elif bc is not None:
-        e.append("blocker_class must be null unless blocker_kind == proof")
-    if obj.get("next_action") not in NEXT_ACTIONS:
-        e.append("next_action not in enum")
-    # string-list fields.
-    for f in ("files_owned", "files_changed", "attempted_tools", "failed_avenues"):
-        if not _str_list(obj.get(f)):
-            e.append(f"{f} must be an array of strings")
-    # nested evidence shape incl. item + delta types.
-    ev = obj.get("evidence")
-    if not isinstance(ev, dict) or not (
-        _str_list(ev.get("queries"))
-        and _str_list(ev.get("top_candidates"))
-        and _typed_dicts(ev.get("attempts"), {"snippet": _is_str, "result": _is_str})
-        and {"goal_delta", "diagnostic_delta"} <= set(ev)
-        and (ev.get("goal_delta") is None or _is_str(ev.get("goal_delta")))
-        and (ev.get("diagnostic_delta") is None or _is_str(ev.get("diagnostic_delta")))
-    ):
-        e.append(
-            "evidence shape invalid (str-list queries/top_candidates, {snippet:str,result:str} attempts, str|null deltas)"
-        )
-    # best_candidates and artifacts are fully-typed item lists.
-    if not _typed_dicts(
-        obj.get("best_candidates"), {"candidate": _is_str, "outcome": _is_str}
-    ):
-        e.append("best_candidates items must be {candidate:str, outcome:str}")
-    if not _typed_dicts(obj.get("artifacts"), {"kind": _is_str, "content": _is_str}):
-        e.append("artifacts items must be {kind:str, content:str}")
-    return e
-
-
-def same_task(new_dispatch: dict[str, Any], prior_handoff: dict[str, Any]) -> bool:
-    return all(
-        new_dispatch.get(k) == prior_handoff.get(k) for k in ("target", "scope", "mode")
-    )
-
-
-def rerun_forbidden(
-    new_dispatch: dict[str, Any], prior_handoff: dict[str, Any]
-) -> bool:
-    """The rerun guard, evaluated from the two records — both branches."""
-    # Operational/protocol branch: relaunch only with a nonempty evidence_delta
-    # resolving stop_detail. Scope to same_task when the prior task identity is
-    # available; a malformed-dispatch handoff (null identity) has no task to
-    # compare, so the paired-retry fallback applies to any dispatch.
-    if prior_handoff.get("stop_reason") in OPERATIONAL_STOPS:
-        # same_task is only evaluable with a COMPLETE identity; a partial
-        # malformed identity (e.g. target parsed, scope/mode null) must fall
-        # through to the paired-retry rule, not be treated as unrelated.
-        identity_complete = all(
-            prior_handoff.get(k) is not None for k in ("target", "scope", "mode")
-        )
-        if identity_complete and not same_task(new_dispatch, prior_handoff):
-            return False  # an unrelated task is not a rerun of this stop
-        return not new_dispatch.get("evidence_delta")
-    # Blocker branch.
-    return (
-        same_task(new_dispatch, prior_handoff)
-        and prior_handoff.get("blocker_signature") is not None
-        and new_dispatch.get("prior_blocker") == prior_handoff.get("blocker_signature")
-        and not new_dispatch.get("evidence_delta")
-    )
-
+_LIB_SCRIPTS = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib", "scripts"
+)
+sys.path.insert(0, _LIB_SCRIPTS)
+from run_contract_validate import (  # noqa: E402
+    _valid_baseline,
+    rerun_forbidden,
+    same_task,
+    validate_dispatch,
+    validate_handoff,
+    validate_parameters,
+)
 
 # --- fixtures ---
 
@@ -897,6 +502,42 @@ class WorkerParameters(unittest.TestCase):
                 {"axioms": [], "permission_level": "edit", "extra": 1},
             )
         )
+
+
+class SerializedPathGrammar(unittest.TestCase):
+    """Persisted baselines are host-independent: the same record must be
+    structurally valid on a Windows reader (Python 3.13 ntpath.isabs("/x")
+    is False) and on POSIX. The validator does not consult os.path."""
+
+    def _fb(self, path: str, real: str) -> dict[str, Any]:
+        fb = valid_dispatch()["file_baseline"]
+        fb["files"][0]["path"] = path
+        fb["files"][0]["realpath"] = real
+        return fb
+
+    def test_posix_and_windows_styles_accepted(self) -> None:
+        for path in (
+            "/repo/Foo.lean",
+            "C:\\repo\\Foo.lean",
+            "c:/repo/Foo.lean",
+            "\\\\srv\\share\\Foo.lean",
+        ):
+            self.assertTrue(_valid_baseline(self._fb(path, path)), path)
+
+    def test_relative_rejected(self) -> None:
+        for path in ("repo/Foo.lean", "./Foo.lean", "Foo.lean", "", "C:Foo.lean"):
+            self.assertFalse(_valid_baseline(self._fb(path, "/x")), path)
+            self.assertFalse(_valid_baseline(self._fb("/x", path)), path)
+
+    def test_fixture_dispatch_is_valid_without_os_path(self) -> None:
+        import run_contract_validate as mod
+
+        with open(mod.__file__, encoding="utf-8") as f:
+            code = [ln for ln in f if not ln.lstrip().startswith("#")]
+        # the validator must not consult the reading host's path module
+        self.assertFalse(any(ln.startswith("import os") for ln in code))
+        self.assertFalse(any("os.path.isabs(" in ln for ln in code))
+        self.assertEqual(mod.validate_dispatch(valid_dispatch()), [])
 
 
 class DeeperRejections(unittest.TestCase):
