@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from collections.abc import Callable
 from typing import Any
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -672,35 +673,66 @@ class WriteOutcomes(_Base):
                     rs.op_append(self.root, rid, "note", _note())
             else:
                 self.assertEqual(rs.op_load(self.root, rid)["events"], [])
-                # a run left by a create that failed at its last barriers:
-                # the next mutation must re-establish run-dir + runs-dir
-                # durability BEFORE accepting the journal write
-                seen = self._trace_fsyncs()
-                self.assertEqual(
-                    rs.op_append(self.root, rid, "note", _note())["seq"], 1
-                )
-                run_ino = os.stat(self.run_dir(rid)).st_ino
-                runs_ino = os.stat(self.runs).st_ino
-                self.assertEqual(
-                    seen[:2],
-                    [run_ino, runs_ino],
-                    f"step {nth}: barriers before the journal write",
-                )
-                seen = self._trace_fsyncs()
-                self.assertEqual(
-                    rs.op_set_handoff(self.root, rid, valid_handoff())["outcome"],
-                    "committed",
-                )
-                self.assertEqual(seen[:2], [run_ino, runs_ino], f"step {nth}")
-                rs._fsync = os.fsync
-                # and if that recovery barrier itself fails, nothing is appended
+                self._check_recovery_after_interrupted_create(nth)
+
+    def _interrupted_run(self, nth: int, second: int) -> str:
+        """A fresh run whose create failed at fsync `nth` (5 = run dir,
+        6 = runs dir) — loadable, but its publication may be undurable."""
+        now = f"2026-09-09T12:{nth:02d}:{second:02d}Z"
+        self._fail_fsync_on(nth)
+        with self.assertRaises(rs.IndeterminateError):
+            self.create(now=now)
+        rs._fsync = os.fsync
+        rid = self.rid_for(now)
+        self.assertEqual(rs.op_load(self.root, rid)["events"], [])
+        return rid
+
+    def _check_recovery_after_interrupted_create(self, nth: int) -> None:
+        """Each mutation entry point is exercised against its OWN interrupted
+        run (so set-handoff is not testing a run that append already
+        repaired), and each gets its own recovery-barrier failure."""
+        runs_ino = os.stat(self.runs).st_ino
+        ops: list[tuple[str, Callable[[str], dict[str, Any]]]] = [
+            ("append", lambda rid: rs.op_append(self.root, rid, "note", _note())),
+            (
+                "set-handoff",
+                lambda rid: rs.op_set_handoff(self.root, rid, valid_handoff()),
+            ),
+        ]
+        second = 10
+        for name, op in ops:
+            # the mutation must re-establish run-dir + runs-dir durability
+            # BEFORE accepting the journal write
+            rid = self._interrupted_run(nth, second)
+            second += 1
+            run_ino = os.stat(self.run_dir(rid)).st_ino
+            seen = self._trace_fsyncs()
+            self.assertEqual(
+                op(rid)["outcome"], "committed", f"{name} after step {nth}"
+            )
+            rs._fsync = os.fsync
+            self.assertEqual(
+                seen[:2],
+                [run_ino, runs_ino],
+                f"{name} after step {nth}: barriers before the journal write",
+            )
+            self.assertEqual(len(rs.op_load(self.root, rid)["events"]), 1)
+            # and if either recovery barrier fails, nothing is appended
+            for barrier in (1, 2):
+                rid = self._interrupted_run(nth, second)
+                second += 1
                 before = _read(self.journal_path(rid))
-                self._fail_fsync_on(2)
-                with self.assertRaises(rs.RefusedError) as cm2:
-                    rs.op_append(self.root, rid, "note", _note())
+                self._fail_fsync_on(barrier)
+                with self.assertRaises(rs.RefusedError) as cm:
+                    op(rid)
                 rs._fsync = os.fsync
-                self.assertEqual(cm2.exception.code, "publish_unsynced")
+                self.assertEqual(
+                    cm.exception.code, "publish_unsynced", f"{name} barrier {barrier}"
+                )
                 self.assertEqual(_read(self.journal_path(rid)), before)
+                self.assertFalse(
+                    os.path.exists(os.path.join(self.run_dir(rid), rs.LOCK_NAME))
+                )
 
     def test_create_rename_failure_leaves_incomplete_run(self) -> None:
         def bad_rename(*a: Any, **k: Any) -> None:
