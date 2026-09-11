@@ -1155,7 +1155,10 @@ class RecoveryAfterFailure(_Base):
         parent = os.path.join(self.tmp, "raw")
         os.makedirs(parent)
         raw_dir = os.path.join(parent.encode(), b"st\xffore")
-        os.mkdir(raw_dir)
+        try:
+            os.mkdir(raw_dir)
+        except OSError as ex:  # APFS (macOS) refuses non-UTF-8 names outright
+            self.skipTest(f"filesystem refuses non-UTF-8 names: {ex}")
         root = os.fsdecode(raw_dir)
         with self.assertRaises(rs.RefusedError) as cm:
             rs.op_create(
