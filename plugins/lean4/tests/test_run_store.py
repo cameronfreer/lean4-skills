@@ -601,9 +601,10 @@ class WriteOutcomes(_Base):
     def test_create_crash_at_each_step(self) -> None:
         # runs/.gitignore is written (and synced) by the FIRST create only; do
         # that once so the counted fsyncs are the run's own:
-        # 1 journal, 2 manifest temp, 3 run dir, 4 runs dir
+        # 1 storage_root barrier, 2 parent barrier (repeated on every create),
+        # 3 journal, 4 manifest temp, 5 run dir, 6 runs dir
         self.create(now="2026-09-09T11:59:59Z")
-        for nth, expect_manifest in ((1, False), (2, False), (3, True), (4, True)):
+        for nth, expect_manifest in ((3, False), (4, False), (5, True), (6, True)):
             self._fail_fsync_on(nth)
             with self.assertRaises(rs.IndeterminateError):
                 self.create(now=f"2026-09-09T12:00:{nth:02d}Z")
@@ -839,33 +840,81 @@ class RootAndStoreInit(_Base):
         self.assertEqual(m["storage_root"], os.path.realpath(self.root))
         self.assertTrue(res["run_directory"].startswith(os.path.realpath(self.root)))
 
-    def test_fresh_store_sync_failures_refuse_before_any_run(self) -> None:
-        # fresh store fsync order: 1 storage_root (new runs entry), 2 parent of
-        # storage_root (new root entry), 3 .gitignore temp, 4 runs dir (publish)
-        for nth in (1, 2, 3, 4):
-            import shutil
+    def _trace_fsyncs(self) -> list[int]:
+        """Record the inode of every fsync'd descriptor (pass-through)."""
+        seen: list[int] = []
+        real = os.fsync
 
-            shutil.rmtree(self.root, ignore_errors=True)
+        def fsync(fd: int) -> None:
+            seen.append(os.fstat(fd).st_ino)
+            real(fd)
+
+        rs._fsync = fsync
+        return seen
+
+    def test_fresh_store_sync_failures_refuse_before_any_run(self) -> None:
+        # fresh-store fsync order: 1 storage_root (runs entry), 2 parent of
+        # storage_root (root entry), 3 .gitignore temp, 4 runs dir (publish).
+        # After EACH injected failure the retry happens immediately, with the
+        # directories left in place, and must still perform both barriers.
+        import shutil
+
+        parent_ino = os.stat(self.project).st_ino
+        for nth in (1, 2, 3, 4):
+            shutil.rmtree(self.root, ignore_errors=True)  # fresh store for barrier nth
             self._fail_fsync_on(nth)
             with self.assertRaises(rs.RefusedError) as cm:
-                self.create()
-            rs._fsync = os.fsync
+                self.create(now=f"2026-09-09T12:00:{nth:02d}Z")
             self.assertIn(
                 cm.exception.code,
                 {"store_init_unsynced", "gitignore_write_failed"},
                 f"step {nth}",
             )
             self.assertFalse(
-                os.path.exists(os.path.join(self.runs, self.rid_for(NOW))),
+                os.path.exists(
+                    os.path.join(
+                        self.runs, self.rid_for(f"2026-09-09T12:00:{nth:02d}Z")
+                    )
+                ),
                 f"step {nth}",
             )
-            # no half-published .gitignore: either absent or exactly the policy
             gi = os.path.join(self.runs, ".gitignore")
             if os.path.exists(gi):
                 self.assertEqual(_text(gi), "*\n")
-        # and a clean create afterwards works
-        rid = self.create()
-        self.assertEqual(rs.op_load(self.root, rid)["events"], [])
+            # immediate retry: existence of the directories must not skip the barriers
+            seen = self._trace_fsyncs()
+            rid = self.create(now=f"2026-09-09T12:10:{nth:02d}Z")
+            rs._fsync = os.fsync
+            root_ino = os.stat(self.root).st_ino
+            self.assertIn(
+                root_ino, seen, f"retry after step {nth} skipped fsync(storage_root)"
+            )
+            self.assertIn(
+                parent_ino, seen, f"retry after step {nth} skipped fsync(parent)"
+            )
+            self.assertEqual(rs.op_load(self.root, rid)["events"], [])
+
+    def test_barriers_repeat_on_every_create_of_an_existing_store(self) -> None:
+        self.create(now="2026-09-09T11:59:59Z")
+        seen = self._trace_fsyncs()
+        self.create()
+        rs._fsync = os.fsync
+        self.assertIn(os.stat(self.root).st_ino, seen)
+        self.assertIn(os.stat(self.project).st_ino, seen)
+
+    def test_missing_parent_anchor_is_refused_without_creating_anything(self) -> None:
+        deep = os.path.join(self.tmp, "a", "b", ".lean4-skills")
+        with self.assertRaises(rs.RefusedError) as cm:
+            rs.op_create(
+                valid_dispatch(),
+                storage_root=deep,
+                project_root=self.project,
+                tracker_session_id=None,
+                prior_run=None,
+                now=NOW,
+            )
+        self.assertEqual(cm.exception.code, "no_parent_anchor")
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "a")))
 
     def _fail_fsync_on(self, nth: int) -> None:
         calls = {"n": 0}
@@ -1095,9 +1144,10 @@ class ProcessCrash(_Base):
     def test_killed_during_creation_leaves_incomplete_run(self) -> None:
         self.create(now="2026-09-09T11:59:59Z")  # store exists (gitignore published)
         rid = self.rid_for(NOW)
-        # create fsyncs on an existing store: 1 journal, 2 manifest temp, 3 run dir, 4 runs dir
+        # create fsyncs on an existing store: 1 root barrier, 2 parent barrier,
+        # 3 journal, 4 manifest temp, 5 run dir, 6 runs dir
         rc_ = self._kill_at(
-            2, ["create", "--dispatch", "-", "--now", NOW], json.dumps(valid_dispatch())
+            4, ["create", "--dispatch", "-", "--now", NOW], json.dumps(valid_dispatch())
         )
         self.assertLess(rc_, 0)
         with self.assertRaises(rs.RefusedError) as cm:
@@ -1298,8 +1348,8 @@ class Cli(_Base):
         )
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertTrue(
-            json.loads(p.stdout)["run_directory"].startswith(
-                os.path.join(self.tmp, "elsewhere")
+            os.path.realpath(json.loads(p.stdout)["run_directory"]).startswith(
+                os.path.realpath(os.path.join(self.tmp, "elsewhere"))
             )
         )
 

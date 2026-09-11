@@ -698,30 +698,33 @@ def _open_store(storage_root: str, create: bool) -> _Store:
     name = os.path.basename(storage_root)
     if not name or name in (".", ".."):
         raise RefusedError("bad_storage_root", f"{storage_root!r} has no usable name")
-    if create:
-        os.makedirs(parent, exist_ok=True)
+    # The parent is the user's anchor and must already exist: creating an
+    # ancestor chain here would leave entries above the root unsynchronized.
     try:
         parent_fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY)
     except OSError as ex:
-        raise RefusedError("storage_root_unavailable", f"{parent}: {ex}") from ex
+        raise RefusedError(
+            "no_parent_anchor",
+            f"{parent}: the parent of the storage root must already exist ({ex})",
+        ) from ex
     root_fd = runs_fd = -1
     try:
-        created_root = created_runs = False
         if create:
-            created_root = _mkdir_if_missing(name, parent_fd)
+            _mkdir_if_missing(name, parent_fd)
         root_fd = _open_dir_contained(name, parent_fd, "storage_root")
         if create:
-            created_runs = _mkdir_if_missing(RUNS_DIRNAME, root_fd)
+            _mkdir_if_missing(RUNS_DIRNAME, root_fd)
         runs_fd = _open_dir_contained(RUNS_DIRNAME, root_fd, "runs_dir")
-        # Fresh-store initialization: a new directory entry is durable only
-        # once its PARENT directory is synchronized.
-        try:
-            if created_runs:
+        # Store-initialization barriers, repeated on EVERY create: a directory
+        # entry is durable only once its parent is synchronized, and the
+        # entry's existence does not prove an earlier publication reached
+        # disk (a previous create may have failed or died right here).
+        if create:
+            try:
                 _fsync_all(root_fd, "store.init.runs", directory=True)
-            if created_root:
                 _fsync_all(parent_fd, "store.init.root", directory=True)
-        except IndeterminateError as ex:
-            raise RefusedError("store_init_unsynced", ex.detail) from ex
+            except IndeterminateError as ex:
+                raise RefusedError("store_init_unsynced", ex.detail) from ex
     except BaseException:
         for fd in (runs_fd, root_fd, parent_fd):
             if fd >= 0:

@@ -2349,6 +2349,8 @@ else
                   'contains the storage location' \
                   'symlinked `storage_root`' \
                   'fsync(parent of storage_root)' \
+                  'repeated on every `create`' \
+                  'no_parent_anchor' \
                   'lock_init_failed' \
                   'uniquely named temp' \
                   'names another run' \

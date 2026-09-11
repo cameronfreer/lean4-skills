@@ -118,7 +118,7 @@ jobs:
       - name: run-store storage suite (macOS)
         run: |
           python3 plugins/lean4/tests/test_run_contract.py
-          python3 plugins/lean4/tests/test_run_store.py -v 2>&1 | tail -30
+          python3 plugins/lean4/tests/test_run_store.py
 
   run-store-windows:
     runs-on: windows-latest
@@ -131,7 +131,7 @@ jobs:
         shell: bash
         run: |
           python plugins/lean4/tests/test_run_contract.py
-          python plugins/lean4/tests/test_run_store.py -v 2>&1 | tail -30
+          python plugins/lean4/tests/test_run_store.py
           # mutations are refused BEFORE any write; load works via the portable backend
           rc=0
           python plugins/lean4/lib/scripts/run_store.py --root "$RUNNER_TEMP/store" create --dispatch plugins/lean4/tests/fixtures/run_store/dispatch.json --now 2026-09-09T12:00:00Z || rc=$?
