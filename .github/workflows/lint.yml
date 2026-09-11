@@ -133,10 +133,13 @@ jobs:
           python plugins/lean4/tests/test_run_contract.py
           python plugins/lean4/tests/test_run_store.py -v 2>&1 | tail -30
           # mutations are refused BEFORE any write; load works via the portable backend
-          python plugins/lean4/lib/scripts/run_store.py --root "$RUNNER_TEMP/store" create --dispatch plugins/lean4/tests/fixtures/run_store/dispatch.json --now 2026-09-09T12:00:00Z; rc=$?
+          rc=0
+          python plugins/lean4/lib/scripts/run_store.py --root "$RUNNER_TEMP/store" create --dispatch plugins/lean4/tests/fixtures/run_store/dispatch.json --now 2026-09-09T12:00:00Z || rc=$?
           test "$rc" -eq 3 || { echo "expected exit 3 (unsupported_platform), got $rc"; exit 1; }
           test ! -e "$RUNNER_TEMP/store" || { echo "refusal must not create the store"; exit 1; }
-          rid=$(ls plugins/lean4/tests/fixtures/run_store/runs | grep -E '^[0-9]{8}T')
+          rid=""
+          for d in plugins/lean4/tests/fixtures/run_store/runs/*/; do rid=$(basename "$d"); done
+          test -n "$rid" || { echo "no fixture run found"; exit 1; }
           python plugins/lean4/lib/scripts/run_store.py --root plugins/lean4/tests/fixtures/run_store load --run-id "$rid" | grep -q '"handoff_cache": "current"'
 
   shellcheck:
