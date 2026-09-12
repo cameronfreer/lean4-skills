@@ -276,7 +276,9 @@ def _new_state(
 
 
 def _absorb(st: dict[str, Any], kind: str, payload: dict[str, Any]) -> None:
-    """Fold a PERSISTED event into the current parent context."""
+    """Fold an event into the parent context (committed history when called
+    on the real state; parent KNOWLEDGE when called on a copy with a pending,
+    unpersisted submission — see `_knowledge`)."""
     if kind == "dispatch":
         st["current"] = _context_from_dispatch(payload)
     elif kind == "handoff":
@@ -296,6 +298,7 @@ def _absorb(st: dict[str, Any], kind: str, payload: dict[str, Any]) -> None:
                 if x not in st["evidence"][k]:
                     st["evidence"][k].append(x)
         st["evidence"]["attempts"].extend(ev["attempts"])
+        st.setdefault("artifacts", []).extend(payload.get("artifacts", []))
         if ev.get("goal_delta") is not None:
             st["evidence"]["goal_delta"] = ev["goal_delta"]
         if ev.get("diagnostic_delta") is not None:
@@ -308,11 +311,41 @@ def _absorb(st: dict[str, Any], kind: str, payload: dict[str, Any]) -> None:
         st["failed_avenues"].append(payload["text"])
 
 
+def _valid_submission(kind: str, payload: Any) -> bool:
+    if kind == "dispatch":
+        return not rc.validate_dispatch(payload)
+    if kind == "handoff":
+        return not rc.validate_handoff(payload)
+    if kind == "note":
+        return rc._exact(
+            payload,
+            {
+                "kind": rc._is_str,
+                "text": rc._is_str,
+                "lean": lambda x: x is None or rc._is_str(x),
+            },
+        )
+    return False
+
+
+def _knowledge(st: dict[str, Any]) -> dict[str, Any]:
+    """Current parent knowledge = committed history + the validated submission
+    of an unresolved / failed operation (`inflight.pending`), which describes
+    work that HAPPENED even though its journal write did not commit."""
+    k: dict[str, Any] = json.loads(json.dumps(st))
+    pend = (st.get("inflight") or {}).get("pending")
+    if isinstance(pend, dict) and pend.get("kind") in ("dispatch", "handoff", "note"):
+        _absorb(k, str(pend["kind"]), pend["payload"])
+    return k
+
+
 def _operational_handoff(st: dict[str, Any], detail: str) -> dict[str, Any]:
     """The complete run-contract/v1 handoff the command must EMIT TO THE USER
-    when persistence stops the run — built from the CURRENT context (latest
-    persisted dispatch, accumulated changes, baseline and evidence) and
-    validated. Never written to the broken store by this helper."""
+    when persistence stops the run — built from current parent KNOWLEDGE
+    (latest dispatch, accumulated changes, baseline, evidence and artifacts,
+    including a validated submission whose write failed) and validated. Never
+    written to the broken store by this helper."""
+    st = _knowledge(st)
     c = st["current"]
     h = {
         "schema": "run-contract/v1",
@@ -333,7 +366,7 @@ def _operational_handoff(st: dict[str, Any], detail: str) -> dict[str, Any]:
         "files_owned": list(c["files_owned"]),
         "files_changed": list(st["files_changed"]),
         "file_baseline": c["file_baseline"],
-        "artifacts": [],
+        "artifacts": list(st.get("artifacts", [])),
         "next_action": "stop",
         "new_evidence_required_for_rerun": None,
     }
@@ -346,7 +379,7 @@ def _operational_handoff(st: dict[str, Any], detail: str) -> dict[str, Any]:
 def _stop_result(
     st: dict[str, Any], kind: str, outcome: str, detail: str
 ) -> dict[str, Any]:
-    return {
+    res: dict[str, Any] = {
         "action": "stop",
         "run_id": st["run_id"],
         "kind": kind,
@@ -354,6 +387,14 @@ def _stop_result(
         "detail": detail,
         "handoff": _operational_handoff(st, detail),
     }
+    pend = (st.get("inflight") or {}).get("pending")
+    if isinstance(pend, dict):
+        res["unpersisted"] = {
+            "kind": pend.get("kind"),
+            "seq": None,
+            "note": "this validated submission informed the handoff above but was NOT stored; it has no citation",
+        }
+    return res
 
 
 def _terminal_reason(st: dict[str, Any]) -> str | None:
@@ -402,6 +443,13 @@ def _mutate(
         "op": op,
         "kind": kind,
         "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        # the VALIDATED submission: parent knowledge even if the write fails
+        # (an invalid one is refused by the store and informs nothing)
+        "pending": (
+            {"kind": kind, "payload": payload}
+            if op != "finish" and _valid_submission(kind, payload)
+            else None
+        ),
     }
     err = _try_save(ns.state, st)
     if err:
@@ -427,6 +475,7 @@ def _mutate(
         code, raw, err_out = _run_store(args, body, root)
         outcome, detail, res = _classify(code, raw, err_out, expect_run_id=st["run_id"])
     # 3. resolve
+    inflight = st["inflight"]
     st["inflight"] = None
     if res is not None and (
         outcome == "committed" or (op == "finish" and outcome == "journal_only")
@@ -452,17 +501,31 @@ def _mutate(
                 )
         save_err = _try_save(ns.state, st)
         if save_err:
-            # The store DID commit; say so — but the run cannot continue: the
-            # next call finds the unresolved in-flight record and stops.
-            prefix = result.get("warning", "")
-            result["warning"] = (prefix + " " if prefix else "") + (
-                f"invocation state could not be updated ({save_err}); later calls will stop"
+            # The store DID commit — keep the outcome and its citation — but the
+            # resolution could not be recorded, so the run must stop NOW, not
+            # after one more step: the on-disk state still shows the in-flight
+            # record and would stop the next call anyway.
+            st["inflight"] = inflight  # what the disk still says
+            detail = (
+                f"invocation state could not be updated after a committed {op} "
+                f"({save_err}); bookkeeping is unresolved"
             )
+            if op == "finish":
+                result["warning"] = (
+                    result.get("warning", "") + " " if result.get("warning") else ""
+                ) + detail
+                return result, EXIT_OK  # terminal anyway; the handoff IS stored
+            stop = _stop_result(st, kind, "state_unwritable", detail)
+            stop["committed"] = {"seq": seq, "cite": result["cite"]}
+            stop.pop("unpersisted", None)  # it WAS persisted
+            return stop, EXIT_STOP
         return result, EXIT_OK
-    # not committed: the run stops (finish → not stored)
+    # not committed: the run stops (finish → not stored). The submission is
+    # kept as pending knowledge: it describes work that happened.
     if outcome == "malformed":
         detail = f"store acknowledgment unusable, treated as uncertain: {detail}"
     st["stopped"] = detail
+    st["inflight"] = inflight if op != "finish" else None
     if op == "finish":
         st["finished"] = "not-stored"
         result = _not_stored(st, outcome, detail, payload)

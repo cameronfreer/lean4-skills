@@ -2450,7 +2450,9 @@ else
                   'records each mutation as in-flight' \
                   'never the first dispatch with "no changes"' \
                   'A citation is issued only for an acknowledgment that passed those checks' \
-                  'never the invalid submission'; do
+                  'never the invalid submission' \
+                  'not even for one more step' \
+                  'Parent *knowledge* is distinguished from committed *history*'; do
         if ! grep -qF -- "$_c44_s" <<<"$_c44_sec"; then
             fail "Check 44: Run Persistence must state: $_c44_s"
             check44_ok=0

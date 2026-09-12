@@ -1,3 +1,4 @@
+# ruff: noqa: UP031  (fake-store scripts use %-formatting: they contain literal braces)
 """#82B acceptance: the proving commands' persistence protocol, end to end.
 
 The LLM-driven parts of prove/autoprove are prose; what CAN be executed is the
@@ -430,7 +431,7 @@ class FailurePolicy(_Env):
         # the REAL store, with the cache rename failing: journal_only on finish
         real = os.path.join(_LIB, "run_store.py")
         fake = self._fake_store(
-            "import runpy\n"  # noqa: UP031
+            "import runpy\n"
             "sys.path.insert(0, %r)\n"
             "import run_store as rs\n"
             "def bad_rename(*a, **k): raise OSError(5, 'injected rename failure')\n"
@@ -452,7 +453,7 @@ class FailurePolicy(_Env):
     def test_visible_but_unsynced_event_stops_not_continues(self) -> None:
         rid = self._started()
         fake = self._fake_store(
-            "sys.path.insert(0, %r)\n"  # noqa: UP031
+            "sys.path.insert(0, %r)\n"
             "import run_store as rs\n"
             "def bad_fsync(fd):\n"
             "    import os as _os\n"
@@ -479,7 +480,7 @@ class FailurePolicy(_Env):
         rid = self._started()
         marker = os.path.join(self.tmp, "busy-once")
         fake = self._fake_store(
-            "sys.path.insert(0, %r)\n"  # noqa: UP031
+            "sys.path.insert(0, %r)\n"
             "import run_store as rs\n"
             "if not os.path.exists(%r):\n"
             "    open(%r, 'w').close()\n"
@@ -570,7 +571,7 @@ class ControlState(_Env):
         # frozen so the resolution cannot be — simulate with a wrapper store
         # that freezes the directory before returning
         script = (
-            "sys.path.insert(0, %r)\n"  # noqa: UP031
+            "sys.path.insert(0, %r)\n"
             "import run_store as rs, stat\n"
             "def bad_fsync(fd):\n"
             "    import os as _os\n"
@@ -732,7 +733,7 @@ class ControlState(_Env):
                 )
                 self.assertEqual(rc_, 0, res)
                 rid = res["run_id"]
-                env = self._fake_store("RID = %r\n" % rid + script)  # noqa: UP031
+                env = self._fake_store("RID = %r\n" % rid + script)
                 rc_, res = self._run(
                     env, ["note", "--kind", "candidate", "--text", name]
                 )
@@ -856,6 +857,197 @@ class TruthfulFallback(_Env):
         self.assertEqual(res["fallback_handoff"]["stop_reason"], "operational-error")
         self.assertNotIn("cite", res)
         self.assertEqual(rs.op_load(self.root, rid)["events"], [])
+
+
+@unittest.skipUnless(POSIX, "the store's mutation hosts")
+class Round2(_Env):
+    """Review round 2: a committed write with failed bookkeeping stops NOW;
+    a worker handoff whose own write fails still informs the fallback."""
+
+    def _started(self) -> str:
+        rc_, res = self.persist(
+            "start", "--dispatch", "-", "--now", NOW, stdin=json.dumps(valid_dispatch())
+        )
+        self.assertEqual(rc_, 0, res)
+        return str(res["run_id"])
+
+    def _events(self, rid: str) -> list[dict[str, Any]]:
+        return list(rs.op_load(self.root, rid)["events"])
+
+    def _move_state_into(self, dirname: str) -> str:
+        d = os.path.join(self.tmp, dirname)
+        os.makedirs(d)
+        state = os.path.join(d, "state.json")
+        shutil.move(self.state, state)
+        self.env["LEAN4_RUN_PERSIST_STATE"] = state
+        return d
+
+    def _store_that_freezes(self, state_dir: str, extra: str = "") -> dict[str, str]:
+        fake = os.path.join(self.tmp, "fake_store.py")
+        with open(fake, "w", encoding="utf-8") as f:
+            f.write(
+                "import json, os, sys\nargs = sys.argv[1:]\n"
+                "sys.path.insert(0, %r)\n"
+                "import run_store as rs\n"
+                "%s"
+                "os.chmod(%r, 0o500)\n"
+                "sys.exit(rs.main(args))\n" % (_LIB, extra, state_dir)
+            )
+        return {"LEAN4_RUN_STORE_ARGV": json.dumps([sys.executable, fake])}
+
+    def _run(
+        self, env_extra: dict[str, str], argv: list[str], stdin: str | None = None
+    ) -> tuple[int, dict[str, Any]]:
+        env = dict(self.env, **env_extra)
+        p = subprocess.run(
+            [PERSIST, "--project-root", self.project, *argv],
+            input=stdin,
+            capture_output=True,
+            text=True,
+            env=env,
+            check=False,
+        )
+        self.assertTrue(p.stdout.strip(), p.stderr)
+        return p.returncode, json.loads(p.stdout)
+
+    def test_committed_write_with_failed_bookkeeping_stops_now(self) -> None:
+        rid = self._started()
+        state_dir = self._move_state_into("st-commit")
+        env = self._store_that_freezes(
+            state_dir
+        )  # real store commits, then the state dir is frozen
+        try:
+            rc_, res = self._run(
+                env, ["note", "--kind", "candidate", "--text", "try simp"]
+            )
+        finally:
+            os.chmod(state_dir, 0o700)
+        # the journal DID commit — the result says so, with its citation …
+        self.assertEqual(len(self._events(rid)), 1)
+        self.assertEqual(res["committed"], {"seq": 1, "cite": f"{rid}#1"})
+        # … but the current response is a STOP, not a continue
+        self.assertEqual(
+            (rc_, res["action"], res["outcome"]),
+            (rp.EXIT_STOP, "stop", "state_unwritable"),
+            res,
+        )
+        self.assertEqual(res["handoff"]["stop_reason"], "operational-error")
+        self.assertNotIn("unpersisted", res)
+        # and the next call stops too
+        rc_, res2 = self._run({}, ["note", "--kind", "candidate", "--text", "again"])
+        self.assertEqual((rc_, res2["action"]), (rp.EXIT_STOP, "stop"))
+        self.assertEqual(len(self._events(rid)), 1)
+
+    def _worker_handoff(self) -> dict[str, Any]:
+        h = valid_handoff(
+            files_changed=["/repo/Foo.lean"],
+            failed_avenues=["simp only [foo]"],
+            attempted_tools=["lean_leansearch"],
+        )
+        h["file_baseline"] = {
+            "schema": "file-baseline/v1",
+            "files": [
+                {
+                    "path": "/repo/Foo.lean",
+                    "realpath": "/repo/Foo.lean",
+                    "exists": True,
+                    "sha256": "c" * 64,
+                    "size": 99,
+                }
+            ],
+        }
+        h["evidence"]["queries"] = ["tendsto atTop"]
+        h["artifacts"] = [
+            {"kind": "unified-diff", "content": "--- a/Foo.lean\n+++ b/Foo.lean\n"}
+        ]
+        return h
+
+    def _assert_fallback_reflects_handoff(self, fb: dict[str, Any]) -> None:
+        self.assertEqual(fb["files_changed"], ["/repo/Foo.lean"])
+        self.assertEqual(fb["file_baseline"]["files"][0]["sha256"], "c" * 64)
+        self.assertEqual(fb["failed_avenues"], ["simp only [foo]"])
+        self.assertEqual(fb["attempted_tools"], ["lean_leansearch"])
+        self.assertEqual(fb["evidence"]["queries"], ["tendsto atTop"])
+        self.assertEqual(fb["artifacts"][0]["kind"], "unified-diff")
+        self.assertEqual(rc.validate_handoff(fb), [])
+
+    def test_refused_worker_handoff_still_informs_the_fallback(self) -> None:
+        rid = self._started()
+        # a real pre-write refusal: the publication barrier (run dir fsync) fails
+        fake = os.path.join(self.tmp, "fake_store.py")
+        with open(fake, "w", encoding="utf-8") as f:
+            f.write(
+                "import json, os, sys\nargs = sys.argv[1:]\n"
+                "sys.path.insert(0, %r)\n"
+                "import run_store as rs\n"
+                "def bad_fsync(fd):\n"
+                "    import os as _os, stat as _stat\n"
+                "    if _stat.S_ISDIR(_os.fstat(fd).st_mode): raise OSError(5, 'injected barrier failure')\n"
+                "    _os.fsync(fd)\n"
+                "rs._fsync = bad_fsync\n"
+                "sys.exit(rs.main(args))\n" % _LIB
+            )
+        env = {"LEAN4_RUN_STORE_ARGV": json.dumps([sys.executable, fake])}
+        rc_, res = self._run(
+            env, ["handoff", "--payload", "-"], json.dumps(self._worker_handoff())
+        )
+        self.assertEqual(
+            (rc_, res["action"], res["outcome"]),
+            (rp.EXIT_STOP, "stop", "refused:publish_unsynced"),
+            res,
+        )
+        self.assertEqual(self._events(rid), [])  # nothing reached the journal
+        self._assert_fallback_reflects_handoff(res["handoff"])
+        self.assertEqual(res["unpersisted"]["kind"], "handoff")
+        self.assertIsNone(res["unpersisted"]["seq"])
+        # a later call (e.g. the command's finish) still sees that knowledge
+        rc_, res2 = self._run(
+            {}, ["finish", "--payload", "-"], json.dumps(valid_handoff())
+        )
+        self.assertEqual((rc_, res2["stored"]), (rp.EXIT_STOP, False))
+
+    def test_indeterminate_worker_handoff_write_still_informs_the_fallback(
+        self,
+    ) -> None:
+        rid = self._started()
+        fake = os.path.join(self.tmp, "fake_store.py")
+        with open(fake, "w", encoding="utf-8") as f:
+            f.write(
+                "import json, os, sys\nargs = sys.argv[1:]\n"
+                "sys.path.insert(0, %r)\n"
+                "import run_store as rs\n"
+                "def bad_fsync(fd):\n"
+                "    import os as _os\n"
+                "    if 'events' in _os.readlink('/proc/self/fd/%%d' %% fd): raise OSError(5, 'injected journal fsync failure')\n"
+                "    _os.fsync(fd)\n"
+                "rs._fsync = bad_fsync\n"
+                "sys.exit(rs.main(args))\n" % _LIB
+            )
+        env = {"LEAN4_RUN_STORE_ARGV": json.dumps([sys.executable, fake])}
+        rc_, res = self._run(
+            env, ["handoff", "--payload", "-"], json.dumps(self._worker_handoff())
+        )
+        self.assertEqual(
+            (rc_, res["action"], res["outcome"]),
+            (rp.EXIT_STOP, "stop", "indeterminate"),
+            res,
+        )
+        self._assert_fallback_reflects_handoff(res["handoff"])
+        self.assertEqual(res["unpersisted"]["kind"], "handoff")
+        self.assertNotIn("cite", res)
+        self.assertEqual(
+            len(self._events(rid)), 1
+        )  # visible, but never claimed committed
+
+    def test_invalid_handoff_submission_is_still_rejected(self) -> None:
+        rid = self._started()
+        rc_, res = self._run(
+            {}, ["handoff", "--payload", "-"], json.dumps({"schema": "x"})
+        )
+        self.assertEqual((rc_, res["action"]), (rp.EXIT_STOP, "stop"), res)
+        self.assertEqual(res["outcome"], "refused:invalid_payload")
+        self.assertEqual(res["handoff"]["files_changed"], [])  # nothing valid to absorb
+        self.assertEqual(self._events(rid), [])
 
 
 if __name__ == "__main__":
