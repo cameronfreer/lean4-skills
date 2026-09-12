@@ -12,6 +12,7 @@ from ..types import (
     ParseContext,
     PositionalSpec,
 )
+from ._common import persist_flag, run_store_flag
 
 # ---------------------------------------------------------------------------
 # Autoprove-specific coercions
@@ -586,6 +587,8 @@ SPEC = CommandSpec(
         FLAG_BATCH_SIZE,
         FLAG_COMMIT,
         FLAG_GOLF,
+        persist_flag(),
+        run_store_flag(),
         FLAG_MAX_CYCLES,
         FLAG_MAX_TOTAL_RUNTIME,
         FLAG_MAX_STUCK_CYCLES,

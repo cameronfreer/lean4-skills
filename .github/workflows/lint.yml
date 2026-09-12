@@ -62,6 +62,7 @@ jobs:
           python3 plugins/lean4/tests/test_review_schema.py
           python3 plugins/lean4/tests/test_run_contract.py
           python3 plugins/lean4/tests/test_run_store.py
+          python3 plugins/lean4/tests/integration/test_run_persistence.py
 
       # command_args parser suite. Run via discover so a new test_parser_*.py
       # cannot silently skip CI (the same coverage-gap class the comment above

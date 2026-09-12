@@ -7,6 +7,7 @@ from ..types import (
     FlagSpec,
     PositionalSpec,
 )
+from ._common import persist_flag, run_store_flag
 
 # ---------------------------------------------------------------------------
 # Flag definitions
@@ -192,6 +193,8 @@ SPEC = CommandSpec(
         FLAG_BATCH_SIZE,
         FLAG_COMMIT,
         FLAG_GOLF,
+        persist_flag(),
+        run_store_flag(),
     ),
     cross_validations=(),
 )
