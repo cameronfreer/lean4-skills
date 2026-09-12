@@ -1390,8 +1390,9 @@ class PortableLoad(unittest.TestCase):
 
     def _fixture_rid(self) -> str:
         runs = os.path.join(self.FIXTURE_ROOT, "runs")
-        ids = [d for d in os.listdir(runs) if rs.valid_run_id(d)]
-        self.assertEqual(len(ids), 1)
+        # the v1 run (the v2 run beside it is covered by V2Runs)
+        ids = sorted(d for d in os.listdir(runs) if rs.valid_run_id(d))
+        self.assertEqual(len(ids), 2)
         return ids[0]
 
     def test_prebuilt_fixture_loads_via_path_backend(self) -> None:
@@ -1460,6 +1461,389 @@ class TimestampsOnDisk(_Base):
         self.assertEqual(
             rs.op_load(self.root, rid)["manifest"]["created"], "0001-01-01T00:00:00Z"
         )
+
+
+def _review(**over: Any) -> dict[str, Any]:
+    r: dict[str, Any] = {
+        "schema": rs.REVIEW_RECORD_SCHEMA,
+        "cycle": 1,
+        "mode": "batch",
+        "target": "/repo/Foo.lean",
+        "scope": "file",
+        "line": None,
+        "source": "internal",
+        "status": "skipped",
+        "output": None,
+        "triage": None,
+        "mapped_handoff": None,
+        "detail": "review disabled (--review-source=none)",
+    }
+    r.update(over)
+    return r
+
+
+def _review_output() -> dict[str, Any]:
+    return {
+        "version": "2.0",
+        "suggestions": [],
+        "summary": {
+            "total_suggestions": 0,
+            "by_severity": {
+                "error": 0,
+                "warning": 0,
+                "advisory": 0,
+                "hint": 0,
+                "style": 0,
+            },
+        },
+        "error": None,
+    }
+
+
+def _triage() -> dict[str, Any]:
+    return {
+        "blocker_class": "missing-library-lemma",
+        "blocker_kind": "proof",
+        "blocker_signature": "Foo.lean:42:unknown identifier",
+        "next_action": "continue",
+        "statement_may_be_false": False,
+        "evidence": {
+            "queries": ["tendsto atTop of monotone"],
+            "top_candidates": ["tendsto_atTop_mono"],
+            "attempts": [
+                {"snippet": "exact tendsto_atTop_mono h", "result": "type mismatch"}
+            ],
+            "goal_delta": None,
+            "diagnostic_delta": None,
+        },
+    }
+
+
+def _replan(**over: Any) -> dict[str, Any]:
+    r: dict[str, Any] = {
+        "schema": rs.REPLAN_SUMMARY_SCHEMA,
+        "cycle": 1,
+        "plan": "search Topology/Order for tendsto variants",
+        "failed_approaches": ["exact tendsto_atTop_mono h"],
+        "blockers": [
+            {
+                "file": "/repo/Foo.lean",
+                "line": 42,
+                "blocker_class": "missing-library-lemma",
+                "blocker_signature": "sig",
+            }
+        ],
+        "next_steps": ["try Tendsto.comp"],
+        "cites": [],
+    }
+    r.update(over)
+    return r
+
+
+class V2Shapes(unittest.TestCase):
+    """run-store-manifest/v2 + run-store-event/v2 validators (#82B)."""
+
+    def _manifest(self, **over: Any) -> dict[str, Any]:
+        m: dict[str, Any] = {
+            "schema": rs.MANIFEST_SCHEMA_V2,
+            "run_id": rs.make_run_id("t", "sorry", "prove", None, NOW),
+            "created": NOW,
+            "plugin_version": "4.10.0",
+            "storage_root": "/x",
+            "tracker_session_id": None,
+            "prior_run": None,
+            "dispatch": valid_dispatch(),
+            "event_schema": rs.EVENT_SCHEMA_V2,
+        }
+        m.update(over)
+        return m
+
+    def test_manifest_v2_requires_event_schema(self) -> None:
+        self.assertEqual(rs.validate_manifest(self._manifest()), [])
+        m = self._manifest()
+        del m["event_schema"]
+        self.assertTrue(rs.validate_manifest(m))  # v2 without it is INVALID, not v1
+        self.assertTrue(
+            rs.validate_manifest(self._manifest(event_schema=rs.EVENT_SCHEMA))
+        )
+        v1 = self._manifest(schema=rs.MANIFEST_SCHEMA)
+        self.assertTrue(rs.validate_manifest(v1))  # v1 must not carry event_schema
+        del v1["event_schema"]
+        self.assertEqual(rs.validate_manifest(v1), [])
+        self.assertEqual(rs.manifest_event_schema(v1), rs.EVENT_SCHEMA)
+        self.assertEqual(rs.manifest_event_schema(self._manifest()), rs.EVENT_SCHEMA_V2)
+
+    def test_event_kinds_per_schema(self) -> None:
+        ev = {
+            "schema": rs.EVENT_SCHEMA_V2,
+            "seq": 1,
+            "ts": NOW,
+            "kind": "replan",
+            "payload": _replan(),
+        }
+        self.assertEqual(rs.validate_event(ev, event_schema=rs.EVENT_SCHEMA_V2), [])
+        self.assertTrue(
+            rs.validate_event(ev, event_schema=rs.EVENT_SCHEMA)
+        )  # v2 kind + v2 schema in a v1 run
+        v1kind = {**ev, "schema": rs.EVENT_SCHEMA, "kind": "note", "payload": _note()}
+        self.assertEqual(rs.validate_event(v1kind, event_schema=rs.EVENT_SCHEMA), [])
+        self.assertTrue(
+            rs.validate_event(v1kind, event_schema=rs.EVENT_SCHEMA_V2)
+        )  # wrong envelope for the run
+        self.assertTrue(
+            rs.validate_event(
+                {**ev, "schema": rs.EVENT_SCHEMA}, event_schema=rs.EVENT_SCHEMA
+            )
+        )
+
+    def test_review_record_combinations(self) -> None:
+        self.assertEqual(rs.validate_review_record(_review()), [])
+        self.assertEqual(
+            rs.validate_review_record(
+                _review(status="completed", output=_review_output())
+            ),
+            [],
+        )
+        self.assertEqual(
+            rs.validate_review_record(
+                _review(
+                    status="completed",
+                    mode="stuck",
+                    line=42,
+                    triage=_triage(),
+                    mapped_handoff=valid_handoff(
+                        status="stuck",
+                        blocker_kind="proof",
+                        blocker_class="missing-library-lemma",
+                        blocker_signature="sig",
+                        new_evidence_required_for_rerun="a lemma",
+                    ),
+                )
+            ),
+            [],
+        )
+        self.assertEqual(
+            rs.validate_review_record(_review(status="failed", detail="hook exited 4")),
+            [],
+        )
+        # a skipped review is never a fabricated success
+        self.assertTrue(
+            rs.validate_review_record(
+                _review(status="skipped", output=_review_output())
+            )
+        )
+        self.assertTrue(
+            rs.validate_review_record(_review(status="skipped", detail=None))
+        )
+        self.assertTrue(
+            rs.validate_review_record(_review(status="completed"))
+        )  # batch without output
+        self.assertTrue(
+            rs.validate_review_record(
+                _review(status="completed", mode="stuck", output=_review_output())
+            )
+        )  # stuck without triage
+        self.assertTrue(
+            rs.validate_review_record(
+                _review(status="completed", output=_review_output(), triage=_triage())
+            )
+        )  # batch with triage
+        self.assertTrue(
+            rs.validate_review_record(_review(status="applied"))
+        )  # old name rejected
+        self.assertTrue(
+            rs.validate_review_record(
+                _review(status="completed", output={"version": "1.0"})
+            )
+        )
+        for junk in ([], {}, 7, None, "x"):
+            self.assertTrue(rs.validate_review_record(junk))
+            self.assertTrue(rs.validate_replan_summary(junk))
+
+    def test_replan_summary_shape(self) -> None:
+        self.assertEqual(rs.validate_replan_summary(_replan()), [])
+        self.assertTrue(rs.validate_replan_summary(_replan(cycle=0)))
+        self.assertTrue(rs.validate_replan_summary(_replan(cites=["not-a-cite"])))
+        self.assertTrue(rs.validate_replan_summary(_replan(blockers=[{"file": 1}])))
+        rid = rs.make_run_id("t", "sorry", "prove", None, NOW)
+        self.assertEqual(rs.validate_replan_summary(_replan(cites=[f"{rid}#3"])), [])
+
+
+@unittest.skipUnless(POSIX, "run-store mutations need a POSIX dir_fd host")
+class V2Runs(_Base):
+    def create_v2(self, now: str = NOW) -> str:
+        res = rs.op_create(
+            valid_dispatch(),
+            storage_root=self.root,
+            project_root=self.project,
+            tracker_session_id=None,
+            prior_run=None,
+            now=now,
+            event_schema=rs.EVENT_SCHEMA_V2,
+        )
+        return res["run_id"]
+
+    def test_v2_run_round_trip_with_review_and_replan(self) -> None:
+        rid = self.create_v2()
+        m = rs.op_load(self.root, rid)
+        self.assertEqual(m["event_schema"], rs.EVENT_SCHEMA_V2)
+        self.assertEqual(m["manifest"]["schema"], rs.MANIFEST_SCHEMA_V2)
+        self.assertEqual(rs.op_append(self.root, rid, "note", _note())["seq"], 1)
+        self.assertEqual(
+            rs.op_append(
+                self.root,
+                rid,
+                "review",
+                _review(status="completed", output=_review_output()),
+            )["seq"],
+            2,
+        )
+        self.assertEqual(
+            rs.op_append(
+                self.root, rid, "replan", _replan(cites=[f"{rid}#1", f"{rid}#2"])
+            )["seq"],
+            3,
+        )
+        out = rs.op_load(self.root, rid)
+        self.assertEqual(
+            [e["kind"] for e in out["events"]], ["note", "review", "replan"]
+        )
+        self.assertTrue(all(e["schema"] == rs.EVENT_SCHEMA_V2 for e in out["events"]))
+        self.assertEqual(out["warnings"], [])
+
+    def test_replan_cites_must_resolve_to_earlier_events_of_this_run(self) -> None:
+        rid = self.create_v2()
+        other = self.create_v2("2026-09-09T13:00:00Z")
+        before = _read(self.journal_path(rid))
+        for bad in ([f"{rid}#1"], [f"{other}#1"], [f"{rid}#0"]):
+            with self.assertRaises(rs.RefusedError) as cm:
+                rs.op_append(self.root, rid, "replan", _replan(cites=bad))
+            self.assertEqual(cm.exception.code, "invalid_payload", bad)
+        self.assertEqual(_read(self.journal_path(rid)), before)
+        rs.op_append(self.root, rid, "note", _note())
+        self.assertEqual(
+            rs.op_append(self.root, rid, "replan", _replan(cites=[f"{rid}#1"]))["seq"],
+            2,
+        )
+
+    def test_v2_kind_in_v1_run_refused_before_writing(self) -> None:
+        rid = self.create()  # v1 run, EMPTY journal
+        before = _read(self.journal_path(rid))
+        for kind, payload in (("review", _review()), ("replan", _replan())):
+            with self.assertRaises(rs.RefusedError) as cm:
+                rs.op_append(self.root, rid, kind, payload)
+            self.assertEqual(cm.exception.code, "kind_unsupported")
+        self.assertEqual(_read(self.journal_path(rid)), before)
+        out = rs.op_load(self.root, rid)
+        self.assertEqual(
+            (out["event_schema"], out["events"], out["warnings"]),
+            (rs.EVENT_SCHEMA, [], []),
+        )
+        # v1 kinds still append to a v1 run, and the manifest is never rewritten
+        manifest_before = _read(os.path.join(self.run_dir(rid), rs.MANIFEST_NAME))
+        self.assertEqual(rs.op_append(self.root, rid, "note", _note())["seq"], 1)
+        self.assertEqual(
+            rs.op_set_handoff(self.root, rid, valid_handoff())["outcome"], "committed"
+        )
+        self.assertEqual(
+            _read(os.path.join(self.run_dir(rid), rs.MANIFEST_NAME)), manifest_before
+        )
+        ev = json.loads(_read(self.journal_path(rid)).splitlines()[0])
+        self.assertEqual(ev["schema"], rs.EVENT_SCHEMA)
+
+    def test_mixed_version_journal_is_corrupt(self) -> None:
+        rid = self.create_v2()
+        rs.op_append(self.root, rid, "note", _note())
+        with open(self.journal_path(rid), "ab") as f:
+            f.write(
+                json.dumps(
+                    {
+                        "schema": rs.EVENT_SCHEMA,
+                        "seq": 2,
+                        "ts": NOW,
+                        "kind": "note",
+                        "payload": _note(),
+                    }
+                ).encode()
+                + b"\n"
+            )
+        out = rs.op_load(self.root, rid)
+        self.assertEqual(len(out["events"]), 1)
+        self.assertEqual(out["warnings"][0]["code"], "corrupt")
+        self.assertEqual(out["warnings"][0]["line"], 2)
+        # and a v2 kind inside a v1 run on disk is corruption too
+        rid1 = self.create(now="2026-09-09T14:00:00Z")
+        with open(self.journal_path(rid1), "ab") as f:
+            f.write(
+                json.dumps(
+                    {
+                        "schema": rs.EVENT_SCHEMA_V2,
+                        "seq": 1,
+                        "ts": NOW,
+                        "kind": "replan",
+                        "payload": _replan(),
+                    }
+                ).encode()
+                + b"\n"
+            )
+        out = rs.op_load(self.root, rid1)
+        self.assertEqual((out["events"], out["warnings"][0]["code"]), ([], "corrupt"))
+
+    def test_v1_fixture_still_loads_and_v2_fixture_loads(self) -> None:
+        root = os.path.join(_HERE, "fixtures", "run_store")
+        ids = sorted(
+            d for d in os.listdir(os.path.join(root, "runs")) if rs.valid_run_id(d)
+        )
+        self.assertEqual(len(ids), 2)
+        seen = set()
+        for rid in ids:
+            out = rs.op_load(root, rid)
+            seen.add(out["event_schema"])
+            self.assertEqual(out["warnings"], [])
+        self.assertEqual(seen, {rs.EVENT_SCHEMA, rs.EVENT_SCHEMA_V2})
+
+    def test_cli_create_event_schema_and_validate_kinds(self) -> None:
+        p = self.cli(
+            "create",
+            "--dispatch",
+            "-",
+            "--now",
+            NOW,
+            "--event-schema",
+            rs.EVENT_SCHEMA_V2,
+            stdin=json.dumps(valid_dispatch()),
+        )
+        self.assertEqual(p.returncode, 0, p.stderr)
+        rid = json.loads(p.stdout)["run_id"]
+        p = self.cli(
+            "append",
+            "--run-id",
+            rid,
+            "--kind",
+            "replan",
+            "--payload",
+            "-",
+            stdin=json.dumps(_replan()),
+        )
+        self.assertEqual(p.returncode, 0, p.stderr)
+        p = self.cli("validate", "--kind", "review", "-", stdin=json.dumps(_review()))
+        self.assertEqual(p.returncode, 0, p.stderr)
+        p = self.cli(
+            "validate",
+            "--kind",
+            "event",
+            "-",
+            stdin=json.dumps(
+                {
+                    "schema": rs.EVENT_SCHEMA_V2,
+                    "seq": 1,
+                    "ts": NOW,
+                    "kind": "review",
+                    "payload": _review(),
+                }
+            ),
+        )
+        self.assertEqual(p.returncode, 0, p.stderr)
 
 
 @unittest.skipUnless(POSIX, "run-store mutations need a POSIX dir_fd host")
