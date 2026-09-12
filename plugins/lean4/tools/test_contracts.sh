@@ -2358,6 +2358,10 @@ else
                   'uniquely named temp' \
                   'names another run' \
                   'read-only** path backend' \
+                  'single-version' \
+                  'never silently upgraded' \
+                  'never implicitly v1' \
+                  'never a fabricated success' \
                   'stays open'; do
         if ! grep -qF -- "$_c43_s" "$_c43_ref"; then
             fail "Check 43: run-store.md must state: $_c43_s"
@@ -2408,6 +2412,89 @@ if ! grep -qF 'references/run-store.md' "$PLUGIN_ROOT/skills/lean4/SKILL.md" \
 fi
 if [[ "$check43_ok" -eq 1 ]]; then
     ok "Check 43: run-store/v1 contract pinned (#82A: authoritative manifest+journal, damaged-tail policy, observed-prefix reads, four write outcomes, blocking lock, platform boundary, containment, Git; storage only, #82 open)"
+fi
+
+# ---------------------------------------------------------------------------
+# Check 44: run persistence integration (#82B; Refs #82). The protocol is
+# executed by tests/integration/test_run_persistence.py; this check pins that
+# the commands and the engine prescribe THAT protocol (flags, startup order,
+# sole writer, review/replan per cycle boundary, citation form, failure policy)
+# and that the wiring exists.
+# ---------------------------------------------------------------------------
+check44_ok=1
+_c44_ce="$PLUGIN_ROOT/skills/lean4/references/cycle-engine.md"
+_c44_sec=$(extract_section "$_c44_ce" "## Run Persistence")
+if [[ -z "$_c44_sec" ]]; then
+    fail "Check 44: cycle-engine.md missing '## Run Persistence'"
+    check44_ok=0
+else
+    for _c44_s in 'default **off**' \
+                  '`--run-store` → `$LEAN4_RUN_STORE` → `<project-root>/.lean4-skills`' \
+                  'neither configuration source triggers any storage activity' \
+                  'startup capability check' \
+                  'before any proof edit' \
+                  'requested persistence never silently disappears' \
+                  'sole journal writer' \
+                  'every review the command runs, skips, or fails' \
+                  'never a fabricated empty success' \
+                  'never implies suggested edits were applied' \
+                  'every cycle boundary, before `cycle-tracker tick`' \
+                  '`<run_id>#<seq>`' \
+                  'never re-append' \
+                  'never break the lock' \
+                  'no retry, no inferred success, no automatic reconciliation' \
+                  'not** evidence of a durable commit' \
+                  'never claim it was stored' \
+                  'never asked to persist its own failure report'; do
+        if ! grep -qF -- "$_c44_s" <<<"$_c44_sec"; then
+            fail "Check 44: Run Persistence must state: $_c44_s"
+            check44_ok=0
+        fi
+    done
+fi
+for _c44_cmd in prove autoprove; do
+    _c44_f="$PLUGIN_ROOT/commands/$_c44_cmd.md"
+    if ! grep -qE '^\| --persist \| No \| false \|' "$_c44_f" || ! grep -qE '^\| --run-store \| No \|' "$_c44_f"; then
+        fail "Check 44: $_c44_cmd.md input table must carry --persist (default false) and --run-store"
+        check44_ok=0
+    fi
+    if ! grep -qF 'requires `--persist`' "$_c44_f" || ! grep -qF 'cycle-engine.md#run-persistence' "$_c44_f"; then
+        fail "Check 44: $_c44_cmd.md must state the --run-store companion rule and link Run Persistence"
+        check44_ok=0
+    fi
+    if ! grep -qE 'persist_flag\(\)|run_store_flag\(\)' "$PLUGIN_ROOT/lib/command_args/specs/$_c44_cmd.py"; then
+        fail "Check 44: command_args spec for $_c44_cmd lacks the persist flags"
+        check44_ok=0
+    fi
+done
+if ! grep -qF 'fallback_handoff' "$PLUGIN_ROOT/commands/autoprove.md"; then
+    fail "Check 44: autoprove.md stop summary must print the fallback handoff in full when finish reports stored: false"
+    check44_ok=0
+fi
+for _c44_f in lib/scripts/run_persistence.py bin/lean4-skills-run-persist tests/integration/test_run_persistence.py tests/command_args/test_parser_persist.py; do
+    if [[ ! -f "$PLUGIN_ROOT/$_c44_f" ]]; then
+        fail "Check 44: $_c44_f missing"
+        check44_ok=0
+    fi
+done
+if ! grep -qF 'tests/integration/test_run_persistence.py' "$PLUGIN_ROOT/../../.github/workflows/lint.yml"; then
+    fail "Check 44: lint.yml must run tests/integration/test_run_persistence.py"
+    check44_ok=0
+fi
+if ! grep -qF 'lean4-skills-run-persist:' "$PLUGIN_ROOT/tests/test_wrapper_runtime.sh"; then
+    fail "Check 44: wrapper smoke table must list lean4-skills-run-persist"
+    check44_ok=0
+fi
+if grep -qE 'rerun_forbidden\(|same_task\(' "$PLUGIN_ROOT/lib/scripts/run_persistence.py"; then
+    fail "Check 44: run_persistence.py must not evaluate the rerun guard"
+    check44_ok=0
+fi
+if ! grep -qF '"skipped"' "$PLUGIN_ROOT/lib/scripts/run_store.py" || ! grep -qF 'status must be completed|skipped|failed' "$PLUGIN_ROOT/lib/scripts/run_store.py"; then
+    fail "Check 44: run_store.py must validate review-record status completed|skipped|failed"
+    check44_ok=0
+fi
+if [[ "$check44_ok" -eq 1 ]]; then
+    ok "Check 44: run persistence integration pinned (#82B: default-off flags + companion rule, startup order, sole writer, review/replan per cycle boundary, <run_id>#<seq> citations, stop-on-indeterminate, visible fallback never claimed stored; helper + tests wired)"
 fi
 
 if [[ "$check39_ok" -eq 1 ]]; then
