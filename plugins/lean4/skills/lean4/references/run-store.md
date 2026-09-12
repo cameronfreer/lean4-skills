@@ -38,17 +38,6 @@ A run is **single-version**: writers select the event schema from the manifest (
 
 `review-record/v1`: `{schema, cycle, mode: batch|stuck, target, scope, line, source: internal|external|both, status: completed|skipped|failed, output: lean4-review-output/v2|null, triage|null, mapped_handoff: run-contract/v1 handoff|null, detail}` — `completed` batch ⇒ `output`; `completed` stuck ⇒ `triage` + `mapped_handoff`; `skipped`/`failed` ⇒ no output/triage/handoff and a non-empty `detail` (a skipped review is never a fabricated success; `completed` never implies edits were applied). `replan-summary/v1`: `{schema, cycle, plan, failed_approaches, blockers: [{file, line, blocker_class, blocker_signature}], next_steps, cites}`; `cites` are `<run_id>#<seq>` and must resolve to **earlier events of the same run** (checked on append).
 
-## Versions: manifest v1/v2 and event v1/v2 (#82B)
-
-| Manifest | Event schema | Kinds |
-|---|---|---|
-| `run-store-manifest/v1` (no `event_schema` field) | implies `run-store-event/v1` | `dispatch`, `handoff`, `note` |
-| `run-store-manifest/v2` (**requires** `event_schema: "run-store-event/v2"`; a v2 manifest without it is invalid, never implicitly v1) | `run-store-event/v2` — same envelope, larger kind enum | v1 kinds + `review` (`review-record/v1`) and `replan` (`replan-summary/v1`) |
-
-A run is **single-version**: writers select the event schema from the manifest (`create --event-schema`); an existing manifest is never rewritten and a journal is never silently upgraded. Appending a `review`/`replan` to a v1 run is refused **before writing** (`kind_unsupported`) and leaves the run valid. Readers accept both versions; a mixed-version journal, or a v2 kind inside a v1 run on disk, is `corrupt` at the first mismatching line. `run-store-handoff/v1` and `run-contract/v1` are unchanged. `load` reports `event_schema`.
-
-`review-record/v1`: `{schema, cycle, mode: batch|stuck, target, scope, line, source: internal|external|both, status: completed|skipped|failed, output: lean4-review-output/v2|null, triage|null, mapped_handoff: run-contract/v1 handoff|null, detail}` — `completed` batch ⇒ `output`; `completed` stuck ⇒ `triage` + `mapped_handoff`; `skipped`/`failed` ⇒ no output/triage/handoff and a non-empty `detail` (a skipped review is never a fabricated success; `completed` never implies edits were applied). `replan-summary/v1`: `{schema, cycle, plan, failed_approaches, blockers: [{file, line, blocker_class, blocker_signature}], next_steps, cites}`; `cites` are `<run_id>#<seq>` and must resolve to **earlier events of the same run** (checked on append).
-
 ## Journal integrity
 
 - **Only an unterminated final fragment is recoverable**: `load` returns the validated prefix, reports `truncated_tail`, and leaves the bytes untouched. Excluded from the returned history never means deleted.

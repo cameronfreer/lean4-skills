@@ -412,6 +412,5 @@ def run_store_flag() -> FlagSpec:
         type="freeform",
         default=None,
         enforcement="startup-validated",
-        requires=("--persist",),
-        notes="Storage root: --run-store → $LEAN4_RUN_STORE → <project-root>/.lean4-skills",
+        notes="Storage root: --run-store → $LEAN4_RUN_STORE → <project-root>/.lean4-skills; requires --persist (cross-validation on the resolved value)",
     )

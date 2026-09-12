@@ -72,8 +72,6 @@ Startup requirements:
 | --golf | No | never | `prompt`, `auto`, or `never` |
 | --persist | No | false | Write this run to the run store (dispatches, handoffs, notes, reviews, Replan summaries; one run per invocation). Off by default — existing invocations are unchanged. Platform support is a startup capability check. See [cycle-engine: Run Persistence](../skills/lean4/references/cycle-engine.md#run-persistence). |
 | --run-store | No | — | Storage root override; requires `--persist` (`--run-store` without `--persist` → startup validation error). Precedence: `--run-store` → `$LEAN4_RUN_STORE` → `<project-root>/.lean4-skills`. |
-| --persist | No | false | Write this run to the run store (dispatches, handoffs, notes, reviews, Replan summaries; one run per invocation). Off by default — existing invocations are unchanged. Platform support is a startup capability check. See [cycle-engine: Run Persistence](../skills/lean4/references/cycle-engine.md#run-persistence). |
-| --run-store | No | — | Storage root override; requires `--persist` (`--run-store` without `--persist` → startup validation error). Precedence: `--run-store` → `$LEAN4_RUN_STORE` → `<project-root>/.lean4-skills`. |
 | --max-cycles | No | 20 | Session stop budget: max total cycles |
 | --max-total-runtime | No | 120m | Best-effort wall-clock session budget |
 | --max-stuck-cycles | No | 3 | Session stop budget: max consecutive stuck cycles |
@@ -215,8 +213,7 @@ When autoprove stops (for any reason), emit:
 | Deep invocations | D |
 | Time elapsed | T |
 | Formalizations | F |
-| Run (with `--persist`) | `<run_id>` — `stored` / `not stored: <detail>` |
-| Run (with `--persist`) | `<run_id>` — `stored` / `not stored: <detail>` |
+| Run (with `--persist`) | `<run_id>` — `stored` / `not stored: <detail>` (after `LEAN4_RUN_PERSIST_STATE` was set to a fresh invocation-private path and `run-persist start` ran before any proof edit) |
 
 **Handoff recommendations:**
 - [If incomplete: "Run /lean4:prove for guided work on remaining N sorries"]
@@ -228,10 +225,6 @@ When autoprove stops (for any reason), emit:
 After the human-readable summary above, emit the **complete** `run-contract/v1`
 [handoff record](../skills/lean4/references/handoff-contract.md) — every required
 field, not just the ones in the Markdown table. With `--persist` this is the
-record passed to `lean4-skills-run-persist finish`; if the result says
-`stored: false`, print its `fallback_handoff` here in full and say it was **not**
-saved (no citation). Citations of stored items use `<run_id>#<seq>` only
-([Run Persistence](../skills/lean4/references/cycle-engine.md#run-persistence)). With `--persist` this is the
 record passed to `lean4-skills-run-persist finish`; if the result says
 `stored: false`, print its `fallback_handoff` here in full and say it was **not**
 saved (no citation). Citations of stored items use `<run_id>#<seq>` only

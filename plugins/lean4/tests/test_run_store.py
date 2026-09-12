@@ -1604,23 +1604,44 @@ class V2Shapes(unittest.TestCase):
             ),
             [],
         )
-        self.assertEqual(
-            rs.validate_review_record(
-                _review(
-                    status="completed",
-                    mode="stuck",
-                    line=42,
-                    triage=_triage(),
-                    mapped_handoff=valid_handoff(
-                        status="stuck",
-                        blocker_kind="proof",
-                        blocker_class="missing-library-lemma",
-                        blocker_signature="sig",
-                        new_evidence_required_for_rerun="a lemma",
-                    ),
-                )
+        mapped = valid_handoff(
+            status="stuck",
+            blocker_kind="proof",
+            blocker_class="missing-library-lemma",
+            blocker_signature="Foo.lean:42:unknown identifier",
+            new_evidence_required_for_rerun="a lemma",
+        )
+        mapped["next_action"] = _triage()["next_action"]
+        stuck = _review(
+            status="completed",
+            mode="stuck",
+            target=mapped["target"],
+            line=42,
+            triage=_triage(),
+            mapped_handoff=mapped,
+        )
+        self.assertEqual(rs.validate_review_record(stuck), [])
+        # cross-field: the mapped handoff must wrap THIS triage of THIS target
+        wrong_target = dict(stuck, target="/repo/Other.lean")
+        self.assertTrue(rs.validate_review_record(wrong_target))
+        wrong_action = dict(stuck, mapped_handoff=dict(mapped, next_action="stop"))
+        self.assertTrue(rs.validate_review_record(wrong_action))
+        wrong_class = dict(
+            stuck, mapped_handoff=dict(mapped, blocker_class="arithmetic")
+        )
+        self.assertTrue(rs.validate_review_record(wrong_class))
+        not_driven = dict(
+            stuck,
+            mapped_handoff=dict(
+                valid_handoff(), target=mapped["target"], next_action="continue"
             ),
-            [],
+        )
+        self.assertTrue(rs.validate_review_record(not_driven))
+        # cross-field: a completed batch review cannot carry a failed report
+        failed_out = _review_output()
+        failed_out["error"] = "hook exited 4"
+        self.assertTrue(
+            rs.validate_review_record(_review(status="completed", output=failed_out))
         )
         self.assertEqual(
             rs.validate_review_record(_review(status="failed", detail="hook exited 4")),
@@ -1659,6 +1680,18 @@ class V2Shapes(unittest.TestCase):
         for junk in ([], {}, 7, None, "x"):
             self.assertTrue(rs.validate_review_record(junk))
             self.assertTrue(rs.validate_replan_summary(junk))
+
+    def test_event_schema_junk_never_raises(self) -> None:
+        for junk in ([], {}, 7, None):
+            ev = {
+                "schema": junk,
+                "seq": 1,
+                "ts": NOW,
+                "kind": "note",
+                "payload": _note(),
+            }
+            self.assertTrue(rs.validate_event(ev, event_schema=rs.EVENT_SCHEMA))
+            self.assertTrue(rs.validate_event(ev, event_schema=rs.EVENT_SCHEMA_V2))
 
     def test_replan_summary_shape(self) -> None:
         self.assertEqual(rs.validate_replan_summary(_replan()), [])

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ..coercions import RUN_STORE_REQUIRES_PERSIST
 from ..types import (
     CommandSpec,
     FlagSpec,
@@ -196,5 +197,5 @@ SPEC = CommandSpec(
         persist_flag(),
         run_store_flag(),
     ),
-    cross_validations=(),
+    cross_validations=(RUN_STORE_REQUIRES_PERSIST,),
 )

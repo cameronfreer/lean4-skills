@@ -511,6 +511,27 @@ def validate_review_record(payload: Any) -> list[str]:
             e.append("a completed stuck review must carry triage and mapped_handoff")
         if payload["mode"] == "batch" and (tri is not None or mh is not None):
             e.append("a batch review carries no triage/mapped_handoff")
+        # cross-field: a completed report is not a failed one
+        if isinstance(out, dict) and out.get("error") is not None:
+            e.append(
+                "a completed review's output carries a non-null error — record it as status failed"
+            )
+        # cross-field: the mapped handoff wraps THIS triage of THIS target
+        if isinstance(tri, dict) and isinstance(mh, dict) and not e:
+            if mh.get("target") != payload["target"]:
+                e.append("mapped_handoff.target must be the review's target")
+            if mh.get("next_action") != tri.get("next_action"):
+                e.append("mapped_handoff.next_action must equal triage.next_action")
+            driven = mh.get("status") == "stuck" or (
+                mh.get("status") == "stopped" and mh.get("stop_reason") == "max-stuck"
+            )
+            if not driven:
+                e.append(
+                    "a stuck review's mapped_handoff must be blocker-driven (stuck, or stopped/max-stuck)"
+                )
+            for k in ("blocker_class", "blocker_kind", "blocker_signature"):
+                if mh.get(k) != tri.get(k):
+                    e.append(f"mapped_handoff.{k} must equal triage.{k}")
     else:
         if out is not None or tri is not None or mh is not None:
             e.append(f"a {status} review carries no output/triage/mapped_handoff")
@@ -1437,7 +1458,9 @@ def main(argv: list[str]) -> int:
                     o,
                     event_schema=(
                         o["schema"]
-                        if isinstance(o, dict) and o.get("schema") in EVENT_SCHEMAS
+                        if isinstance(o, dict)
+                        and isinstance(o.get("schema"), str)
+                        and o.get("schema") in EVENT_SCHEMAS
                         else EVENT_SCHEMA
                     ),
                 ),

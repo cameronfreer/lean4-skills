@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from ..coercions import RUN_STORE_REQUIRES_PERSIST
 from ..types import (
     Coercion,
     CommandSpec,
@@ -600,6 +601,7 @@ SPEC = CommandSpec(
         FLAG_FORMALIZE_OUT,
     ),
     cross_validations=(
+        RUN_STORE_REQUIRES_PERSIST,
         STATEMENT_POLICY_PRESERVE_WARNING,
         FORMALIZE_AUTO_REQUIRES_SOURCE,
         FORMALIZE_AUTO_REQUIRES_CLAIM_SELECT,

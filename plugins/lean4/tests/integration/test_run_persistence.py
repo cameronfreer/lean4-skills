@@ -32,6 +32,7 @@ _PLUGIN = os.path.dirname(os.path.dirname(_HERE))
 _LIB = os.path.join(_PLUGIN, "lib", "scripts")
 sys.path.insert(0, _LIB)
 sys.path.insert(0, os.path.join(_PLUGIN, "tests"))
+import run_contract_validate as rc  # noqa: E402
 import run_persistence as rp  # noqa: E402
 import run_store as rs  # noqa: E402
 from test_run_contract import valid_dispatch, valid_handoff  # noqa: E402
@@ -99,20 +100,24 @@ def _review(cycle: int, **over: Any) -> dict[str, Any]:
 
 
 def _stuck_review(cycle: int) -> dict[str, Any]:
+    mapped = valid_handoff(
+        status="stuck",
+        blocker_kind="proof",
+        blocker_class="missing-library-lemma",
+        blocker_signature="Foo.lean:42:unknown identifier",
+        new_evidence_required_for_rerun="a tendsto lemma for monotone sequences",
+    )
+    # the mapped handoff wraps THIS triage of THIS target (cross-field rules)
+    mapped["next_action"] = _triage()["next_action"]
     return _review(
         cycle,
         mode="stuck",
+        target=mapped["target"],
         scope="sorry",
         line=42,
         output=None,
         triage=_triage(),
-        mapped_handoff=valid_handoff(
-            status="stuck",
-            blocker_kind="proof",
-            blocker_class="missing-library-lemma",
-            blocker_signature="Foo.lean:42:unknown identifier",
-            new_evidence_required_for_rerun="a tendsto lemma for monotone sequences",
-        ),
+        mapped_handoff=mapped,
     )
 
 
@@ -509,8 +514,348 @@ class FailurePolicy(_Env):
         fake = self._fake_store("sys.exit(1)\n")
         rc_, res = self._run(fake, ["note", "--kind", "candidate", "--text", "x"])
         self.assertEqual(
-            (rc_, res["action"], res["outcome"]), (rp.EXIT_STOP, "stop", "no_result")
+            (rc_, res["action"], res["outcome"]), (rp.EXIT_STOP, "stop", "malformed")
         )
+
+
+@unittest.skipUnless(POSIX, "the store's mutation hosts")
+class ControlState(_Env):
+    """Review round 1: the state file is control state. Bookkeeping failures
+    never suppress the store's outcome and never let the run continue."""
+
+    def _started(self) -> str:
+        rc_, res = self.persist(
+            "start", "--dispatch", "-", "--now", NOW, stdin=json.dumps(valid_dispatch())
+        )
+        self.assertEqual(rc_, 0, res)
+        return str(res["run_id"])
+
+    def _events(self, rid: str) -> list[dict[str, Any]]:
+        return list(rs.op_load(self.root, rid)["events"])
+
+    def _fake_store(self, script: str) -> dict[str, str]:
+        fake = os.path.join(self.tmp, "fake_store.py")
+        with open(fake, "w", encoding="utf-8") as f:
+            f.write("import json, os, sys\nargs = sys.argv[1:]\n" + script)
+        return {"LEAN4_RUN_STORE_ARGV": json.dumps([sys.executable, fake])}
+
+    def _run(
+        self, env_extra: dict[str, str], argv: list[str], stdin: str | None = None
+    ) -> tuple[int, dict[str, Any]]:
+        env = dict(self.env, **env_extra)
+        p = subprocess.run(
+            [PERSIST, "--project-root", self.project, *argv],
+            input=stdin,
+            capture_output=True,
+            text=True,
+            env=env,
+            check=False,
+        )
+        self.assertTrue(p.stdout.strip(), p.stderr)
+        return p.returncode, json.loads(p.stdout)
+
+    def test_state_save_failure_after_indeterminate_keeps_the_stop(self) -> None:
+        rid = self._started()
+        # make the state file's directory unwritable AFTER the in-flight record
+        # is written: the store runs, returns indeterminate, and the helper
+        # cannot record the stop
+        state_dir = os.path.join(self.tmp, "st")
+        os.makedirs(state_dir)
+        state = os.path.join(state_dir, "state.json")
+        shutil.move(self.state, state)
+        self.env["LEAN4_RUN_PERSIST_STATE"] = state
+        with open(state, encoding="utf-8") as f:
+            before = json.load(f)
+        # the in-flight record must be written first; then the directory is
+        # frozen so the resolution cannot be — simulate with a wrapper store
+        # that freezes the directory before returning
+        script = (
+            "sys.path.insert(0, %r)\n"  # noqa: UP031
+            "import run_store as rs, stat\n"
+            "def bad_fsync(fd):\n"
+            "    import os as _os\n"
+            "    if 'events' in _os.readlink('/proc/self/fd/%%d' %% fd): raise OSError(5, 'injected journal fsync failure')\n"
+            "    _os.fsync(fd)\n"
+            "rs._fsync = bad_fsync\n"
+            "os.chmod(%r, 0o500)\n"
+            "sys.exit(rs.main(args))\n" % (_LIB, state_dir)
+        )
+        env = self._fake_store(script)
+        try:
+            rc_, res = self._run(
+                env, ["note", "--kind", "candidate", "--text", "try simp"]
+            )
+            # the store's outcome is reported, with the handoff, despite the failed bookkeeping
+            self.assertEqual(
+                (rc_, res["action"], res["outcome"]),
+                (rp.EXIT_STOP, "stop", "indeterminate"),
+                res,
+            )
+            self.assertEqual(res["handoff"]["stop_reason"], "operational-error")
+            self.assertIn("invocation state could not be updated", res["warning"])
+        finally:
+            os.chmod(state_dir, 0o700)
+        # the state still carries the unresolved in-flight record, not stopped
+        with open(state, encoding="utf-8") as f:
+            st = json.load(f)
+        self.assertIsNone(st["stopped"])
+        self.assertIsNotNone(st["inflight"])
+        self.assertEqual(st["run_id"], before["run_id"])
+        # ... so the NEXT call stops without touching the store
+        n_before = len(self._events(rid))
+        rc_, res2 = self._run({}, ["note", "--kind", "candidate", "--text", "again"])
+        self.assertEqual(
+            (rc_, res2["action"], res2["outcome"]),
+            (rp.EXIT_STOP, "stop", "terminal"),
+            res2,
+        )
+        self.assertIn("left unresolved", res2["detail"])
+        self.assertEqual(len(self._events(rid)), n_before)
+        rc_, res3 = self._run(
+            {}, ["finish", "--payload", "-"], json.dumps(valid_handoff())
+        )
+        self.assertEqual((rc_, res3["stored"]), (rp.EXIT_STOP, False))
+
+    def test_state_unwritable_before_the_store_is_a_stop_with_nothing_attempted(
+        self,
+    ) -> None:
+        rid = self._started()
+        state_dir = os.path.join(self.tmp, "st2")
+        os.makedirs(state_dir)
+        state = os.path.join(state_dir, "state.json")
+        shutil.move(self.state, state)
+        self.env["LEAN4_RUN_PERSIST_STATE"] = state
+        os.chmod(state_dir, 0o500)
+        try:
+            rc_, res = self._run({}, ["note", "--kind", "candidate", "--text", "x"])
+        finally:
+            os.chmod(state_dir, 0o700)
+        self.assertEqual(
+            (rc_, res["action"], res["outcome"]),
+            (rp.EXIT_STOP, "stop", "state_unwritable"),
+        )
+        self.assertEqual(self._events(rid), [])
+
+    def test_start_refuses_an_existing_state_file(self) -> None:
+        self._started()
+        rc_, res = self.persist(
+            "start",
+            "--dispatch",
+            "-",
+            "--now",
+            "2026-09-09T13:00:00Z",
+            stdin=json.dumps(valid_dispatch()),
+        )
+        self.assertEqual(
+            (rc_, res["action"], res["code"]),
+            (rp.EXIT_STARTUP, "startup-error", "state_exists"),
+        )
+        self.assertEqual(
+            len(
+                [
+                    d
+                    for d in os.listdir(os.path.join(self.root, "runs"))
+                    if rs.valid_run_id(d)
+                ]
+            ),
+            1,
+        )
+
+    def test_finish_is_terminal(self) -> None:
+        rid = self._started()
+        rc_, res = self.persist(
+            "finish", "--payload", "-", stdin=json.dumps(valid_handoff())
+        )
+        self.assertEqual((rc_, res["stored"]), (0, True))
+        rc_, res = self.persist("note", "--kind", "candidate", "--text", "after finish")
+        self.assertEqual(
+            (rc_, res["action"], res["outcome"]), (rp.EXIT_STOP, "stop", "terminal")
+        )
+        self.assertEqual(len(self._events(rid)), 1)
+        rc_, res = self.persist(
+            "finish", "--payload", "-", stdin=json.dumps(valid_handoff())
+        )
+        self.assertEqual((rc_, res["stored"]), (rp.EXIT_STOP, False))
+
+    def test_root_is_bound_by_start(self) -> None:
+        custom = os.path.join(self.tmp, "custom-root")
+        os.makedirs(os.path.dirname(custom), exist_ok=True)
+        rc_, res = self._run(
+            {},
+            ["--root", custom, "start", "--dispatch", "-", "--now", NOW],
+            json.dumps(valid_dispatch()),
+        )
+        self.assertEqual(rc_, 0, res)
+        rid = res["run_id"]
+        # later calls without --root use the bound root
+        rc_, res = self._run({}, ["note", "--kind", "candidate", "--text", "x"])
+        self.assertEqual((rc_, res["action"], res["seq"]), (0, "continue", 1), res)
+        self.assertEqual(len(rs.op_load(custom, rid)["events"]), 1)
+        # a different --root is refused, nothing written anywhere
+        rc_, res = self._run(
+            {},
+            [
+                "--root",
+                os.path.join(self.tmp, "other"),
+                "note",
+                "--kind",
+                "candidate",
+                "--text",
+                "y",
+            ],
+        )
+        self.assertEqual((rc_, res["action"]), (rp.EXIT_USAGE, "usage"))
+        self.assertIn("bound storage root", res["detail"])
+        self.assertEqual(len(rs.op_load(custom, rid)["events"]), 1)
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "other")))
+
+    def test_malformed_acknowledgment_is_uncertain_never_a_citation(self) -> None:
+        cases = {
+            "wrong_schema_exit6": "print(json.dumps({'schema':'wrong','outcome':'committed','seq':99,'run_id':RID})); sys.exit(6)\n",
+            "exit_contradicts": "print(json.dumps({'schema':'run-store-result/v1','outcome':'committed','seq':99,'run_id':RID})); sys.exit(6)\n",
+            "wrong_run_id": "print(json.dumps({'schema':'run-store-result/v1','outcome':'committed','seq':1,'run_id':'20260909T120000Z-00000000'})); sys.exit(0)\n",
+            "bad_seq": "print(json.dumps({'schema':'run-store-result/v1','outcome':'committed','seq':'1','run_id':RID})); sys.exit(0)\n",
+            "not_json": "print('committed'); sys.exit(0)\n",
+        }
+        for n, (name, script) in enumerate(cases.items()):
+            with self.subTest(name):
+                # a fresh run + state per case
+                if os.path.exists(self.state):
+                    os.remove(self.state)
+                rc_, res = self.persist(
+                    "start",
+                    "--dispatch",
+                    "-",
+                    "--now",
+                    f"2026-09-09T12:00:{n:02d}Z",
+                    stdin=json.dumps(valid_dispatch()),
+                )
+                self.assertEqual(rc_, 0, res)
+                rid = res["run_id"]
+                env = self._fake_store("RID = %r\n" % rid + script)  # noqa: UP031
+                rc_, res = self._run(
+                    env, ["note", "--kind", "candidate", "--text", name]
+                )
+                self.assertEqual(
+                    (rc_, res.get("action"), res.get("outcome")),
+                    (rp.EXIT_STOP, "stop", "malformed"),
+                    (name, res),
+                )
+                self.assertNotIn("cite", res)
+                self.assertIn("uncertain", res["detail"])
+                self.assertEqual(self._events(rid), [])
+
+
+@unittest.skipUnless(POSIX, "the store's mutation hosts")
+class TruthfulFallback(_Env):
+    """The operational-error handoff reports the CURRENT work."""
+
+    def _started(self) -> str:
+        rc_, res = self.persist(
+            "start", "--dispatch", "-", "--now", NOW, stdin=json.dumps(valid_dispatch())
+        )
+        self.assertEqual(rc_, 0, res)
+        return str(res["run_id"])
+
+    def _fake_refusal(self) -> dict[str, str]:
+        fake = os.path.join(self.tmp, "fake_store.py")
+        with open(fake, "w", encoding="utf-8") as f:
+            f.write(
+                "import json, sys\n"
+                "print(json.dumps({'schema':'run-store-result/v1','outcome':'nothing_written','code':'publish_unsynced','detail':'fsync failed'})); sys.exit(3)\n"
+            )
+        return {"LEAN4_RUN_STORE_ARGV": json.dumps([sys.executable, fake])}
+
+    def test_fallback_reflects_latest_dispatch_changes_baseline_and_evidence(
+        self,
+    ) -> None:
+        self._started()
+        # redispatch to ANOTHER target with a different ownership set
+        d2 = valid_dispatch(target="/repo/Bar.lean:7", owned_files=["/repo/Bar.lean"])
+        d2["file_baseline"] = {
+            "schema": "file-baseline/v1",
+            "files": [
+                {
+                    "path": "/repo/Bar.lean",
+                    "realpath": "/repo/Bar.lean",
+                    "exists": True,
+                    "sha256": "a" * 64,
+                    "size": 10,
+                }
+            ],
+        }
+        rc_, res = self.persist("dispatch", "--payload", "-", stdin=json.dumps(d2))
+        self.assertEqual(rc_, 0, res)
+        # a worker handoff recording changed files, a newer baseline and evidence
+        h = valid_handoff(
+            target="/repo/Bar.lean:7",
+            files_owned=["/repo/Bar.lean"],
+            files_changed=["/repo/Bar.lean"],
+            failed_avenues=["simp only [foo]"],
+            attempted_tools=["lean_leansearch"],
+        )
+        h["file_baseline"] = {
+            "schema": "file-baseline/v1",
+            "files": [
+                {
+                    "path": "/repo/Bar.lean",
+                    "realpath": "/repo/Bar.lean",
+                    "exists": True,
+                    "sha256": "b" * 64,
+                    "size": 12,
+                }
+            ],
+        }
+        h["evidence"]["queries"] = ["tendsto atTop"]
+        rc_, res = self.persist("handoff", "--payload", "-", stdin=json.dumps(h))
+        self.assertEqual(rc_, 0, res)
+        rc_, res = self.persist(
+            "note", "--kind", "failed-avenue", "--text", "exact foo: type mismatch"
+        )
+        self.assertEqual(rc_, 0, res)
+        # now the store refuses
+        env = dict(self.env, **self._fake_refusal())
+        p = subprocess.run(
+            [
+                PERSIST,
+                "--project-root",
+                self.project,
+                "note",
+                "--kind",
+                "candidate",
+                "--text",
+                "x",
+            ],
+            capture_output=True,
+            text=True,
+            env=env,
+            check=False,
+        )
+        res = json.loads(p.stdout)
+        self.assertEqual((p.returncode, res["action"]), (rp.EXIT_STOP, "stop"), res)
+        fb = res["handoff"]
+        self.assertEqual(fb["target"], "/repo/Bar.lean:7")
+        self.assertEqual(fb["files_owned"], ["/repo/Bar.lean"])
+        self.assertEqual(fb["files_changed"], ["/repo/Bar.lean"])
+        self.assertEqual(fb["file_baseline"]["files"][0]["sha256"], "b" * 64)
+        self.assertEqual(
+            fb["failed_avenues"], ["simp only [foo]", "exact foo: type mismatch"]
+        )
+        self.assertEqual(fb["attempted_tools"], ["lean_leansearch"])
+        self.assertEqual(fb["evidence"]["queries"], ["tendsto atTop"])
+        self.assertEqual(rc.validate_handoff(fb), [])
+
+    def test_invalid_finish_submission_yields_a_valid_fallback(self) -> None:
+        rid = self._started()
+        rc_, res = self.persist("finish", "--payload", "-", stdin="{}")
+        self.assertEqual(
+            (rc_, res["action"], res["stored"], res["outcome"]),
+            (rp.EXIT_STOP, "done", False, "invalid_submission"),
+        )
+        self.assertEqual(rc.validate_handoff(res["fallback_handoff"]), [])
+        self.assertEqual(res["fallback_handoff"]["stop_reason"], "operational-error")
+        self.assertNotIn("cite", res)
+        self.assertEqual(rs.op_load(self.root, rid)["events"], [])
 
 
 if __name__ == "__main__":

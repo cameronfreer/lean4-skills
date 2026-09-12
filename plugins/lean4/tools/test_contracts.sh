@@ -2445,7 +2445,12 @@ else
                   'no retry, no inferred success, no automatic reconciliation' \
                   'not** evidence of a durable commit' \
                   'never claim it was stored' \
-                  'never asked to persist its own failure report'; do
+                  'never asked to persist its own failure report' \
+                  'invocation-private path' \
+                  'records each mutation as in-flight' \
+                  'never the first dispatch with "no changes"' \
+                  'A citation is issued only for an acknowledgment that passed those checks' \
+                  'never the invalid submission'; do
         if ! grep -qF -- "$_c44_s" <<<"$_c44_sec"; then
             fail "Check 44: Run Persistence must state: $_c44_s"
             check44_ok=0

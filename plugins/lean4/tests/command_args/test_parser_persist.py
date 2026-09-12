@@ -55,6 +55,20 @@ class TestPersistFlags(unittest.TestCase):
         self.assertEqual(result.errors, [])
         self.assertEqual(result.options["--persist"].value, False)
 
+    def test_run_store_with_explicit_false_persist_is_an_error(self):
+        # the companion rule is judged on the RESOLVED value, not token presence
+        for command in ("prove", "autoprove"):
+            result = self._parse(
+                command, "Foo.lean --persist=false --run-store /unused"
+            )
+            self.assertTrue(
+                any("--run-store requires --persist" in e for e in result.errors),
+                result.errors,
+            )
+            self.assertEqual(
+                len([e for e in result.errors if "--run-store" in e]), 1, result.errors
+            )
+
     def test_unknown_persist_like_flag_rejected(self):
         result = self._parse("autoprove", "Foo.lean --persist-to /x")
         self.assertTrue(result.errors)
