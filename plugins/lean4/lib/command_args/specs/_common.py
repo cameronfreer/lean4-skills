@@ -385,3 +385,32 @@ FLAG_INTENT_LEARN = intent_flag(
     default="auto",
     enum_values=("auto", "usage", "internals", "authoring", "math"),
 )
+
+
+# -- run persistence (#82B; Refs #82) ------------------------------------------
+
+
+def persist_flag() -> FlagSpec:
+    """--persist: write this invocation's run to the run store (default off)."""
+    return FlagSpec(
+        name="--persist",
+        type="bool",
+        default=False,
+        enforcement="startup-validated",
+        notes=(
+            "Write the run (dispatches, handoffs, notes, reviews, replans) to the "
+            "run store; off by default — existing invocations are unchanged. "
+            "Platform support is a startup capability check."
+        ),
+    )
+
+
+def run_store_flag() -> FlagSpec:
+    """--run-store DIR: storage root override; requires --persist."""
+    return FlagSpec(
+        name="--run-store",
+        type="freeform",
+        default=None,
+        enforcement="startup-validated",
+        notes="Storage root: --run-store → $LEAN4_RUN_STORE → <project-root>/.lean4-skills; requires --persist (cross-validation on the resolved value)",
+    )

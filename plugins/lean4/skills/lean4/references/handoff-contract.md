@@ -11,8 +11,10 @@ exchange, not an enforcement engine. "Durable" here means each record is
 **serializable and transferable** across a subagent, an inline pass, and a human
 handoff — the *same* record shape regardless of who plays a role. **Filesystem
 persistence of these records is the separate storage primitive in
-[run-store.md](run-store.md) (`run-store/v1`, #82A); wiring it into the engine is
-still open under Issue #82.**
+[run-store.md](run-store.md) (`run-store/v1`, #82A); `prove`/`autoprove --persist`
+write their runs through it ([cycle-engine.md § Run Persistence](cycle-engine.md#run-persistence),
+#82B) and cite stored items only as `<run_id>#<seq>`; prior-run reuse is still
+open under Issue #82.**
 
 The contract binds the **logical roles**, not processes: a host without
 subagents plays parent and worker inline in the main thread and satisfies the

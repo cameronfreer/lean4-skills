@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from ..coercions import RUN_STORE_REQUIRES_PERSIST
 from ..types import (
     CommandSpec,
     FlagSpec,
     PositionalSpec,
 )
+from ._common import persist_flag, run_store_flag
 
 # ---------------------------------------------------------------------------
 # Flag definitions
@@ -192,6 +194,8 @@ SPEC = CommandSpec(
         FLAG_BATCH_SIZE,
         FLAG_COMMIT,
         FLAG_GOLF,
+        persist_flag(),
+        run_store_flag(),
     ),
-    cross_validations=(),
+    cross_validations=(RUN_STORE_REQUIRES_PERSIST,),
 )

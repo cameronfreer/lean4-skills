@@ -41,6 +41,12 @@ Startup requirements:
 2. Refuse to start on startup validation errors.
 3. Persist any user-approved adjustments as session state so later cycles follow
    the updated configuration rather than the initial prose alone.
+4. With `--persist`: after the checks above and a valid first dispatch, set
+   `LEAN4_RUN_PERSIST_STATE` to a fresh invocation-private path and run
+   `lean4-skills-run-persist start` **before any proof edit**; a `startup-error`
+   is a startup validation error. Report the `run_id` in Resolved Inputs and
+   follow [Run Persistence](../skills/lean4/references/cycle-engine.md#run-persistence)
+   at every review, cycle boundary, and stop.
 
 ## Inputs
 
@@ -65,6 +71,8 @@ Startup requirements:
 | --batch-size | No | 1 | Sorries to attempt per cycle |
 | --commit | No | ask | `ask` (prompt before each commit), `auto`, or `never` |
 | --golf | No | prompt | `prompt`, `auto`, or `never` |
+| --persist | No | false | Write this run to the run store (dispatches, handoffs, notes, reviews, Replan summaries; one run per invocation). Off by default — existing invocations are unchanged. Platform support is a startup capability check. See [cycle-engine: Run Persistence](../skills/lean4/references/cycle-engine.md#run-persistence). |
+| --run-store | No | — | Storage root override; requires `--persist` (`--run-store` without `--persist` → startup validation error). Precedence: `--run-store` → `$LEAN4_RUN_STORE` → `<project-root>/.lean4-skills`. |
 
 ## Startup Behavior
 
@@ -194,6 +202,7 @@ Filled: 5/8 sorries
 Counterexamples: 1 (T_counterexample)
 Salvaged: 1 (T_salvaged)
 Commits: 7 new
+Run: 20260909T120000Z-7484bfa8 (stored; final handoff 20260909T120000Z-7484bfa8#8)   # with --persist
 
 Create checkpoint? (per-file + project build, axiom check, commit)
 - [yes] — run /lean4:checkpoint

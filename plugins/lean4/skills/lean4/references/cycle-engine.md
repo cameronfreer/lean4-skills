@@ -95,7 +95,55 @@ Reviews act as gates: review → replan → continue. In prove, replan requires 
 
 ## Replan Phase
 
-After review → enter planner mode → produce/update action plan. Work phase follows that plan next cycle.
+After review → enter planner mode → produce/update action plan. Work phase follows that plan next cycle. With `--persist`, the Replan summary is written to the run store at this boundary ([Run Persistence](#run-persistence)).
+
+## Run Persistence
+
+`prove` and `autoprove` can write the run to the [run store](run-store.md) (`--persist`; default **off** — existing invocations are unchanged). Everything below goes through `lean4-skills-run-persist`, which drives `lean4-skills-run-store` and encodes the failure policy; the command follows the helper's `action` field. Refs #82: this is command integration; prior-run reuse and restart reconciliation are later work.
+
+**Activation and startup.** Storage root precedence: `--run-store` → `$LEAN4_RUN_STORE` → `<project-root>/.lean4-skills`. With persistence off, neither configuration source triggers any storage activity. Platform support is a **startup capability check**, not a parser rule: `run-persist start` runs after inputs are validated, after the tracker is initialized (autoprove) and **after a valid first dispatch record with its `file_baseline` exists, but before any proof edit**; a `startup-error` result (e.g. `unsupported_platform` on Windows) is a startup validation error — requested persistence never silently disappears. `tracker_session_id` is nullable (guided `prove` has no tracker). The `run_id` is session state and appears in the Resolved Inputs block.
+
+**Invocation state.** Before `start`, set `LEAN4_RUN_PERSIST_STATE` to a fresh, invocation-private path (for example `$TMPDIR/lean4-run-persist-<pid>.json`) and pass the same environment to every later `run-persist` call. The helper creates that file exclusively (`state_exists` otherwise), binds the storage root and `run_id` to it (later calls need no `--root`; a different one is refused), records each mutation as in-flight before invoking the store and resolves it afterwards, and treats `finish` and any policy stop as terminal. If the resolution of a mutation cannot be recorded, the current call returns `stop` (keeping a committed outcome and its citation under `committed`, never pretending the event failed), and if the process dies in between, the next call finds the unresolved operation and stops — bookkeeping failure never suppresses the store's outcome and never lets the run continue, not even for one more step. The state also carries the current parent context (latest persisted dispatch, accumulated `files_changed`, baseline and evidence from persisted worker handoffs and notes), so the operational-error handoff the helper emits on a stop describes the work as it stands — never the first dispatch with "no changes". Parent *knowledge* is distinguished from committed *history*: a validated dispatch, worker handoff, or note whose own journal write fails or is unresolved still informs that handoff (changed files, baseline, evidence, artifacts) exactly once and is reported under `unpersisted` with no citation — as `not-stored` only when the store refused before writing or was never called, and as `unconfirmed` (persistence unconfirmed; no citation available from this state) for an indeterminate or unresolved write; if the pending knowledge itself could not be saved, the result says it will not survive another invocation. Invalid submissions are still rejected.
+
+Executable sequence (the acceptance test runs exactly this):
+
+```bash
+export LEAN4_RUN_PERSIST_STATE="$TMPDIR/lean4-run-persist-$$.json"
+lean4-skills-run-persist --root "$STORE" start --dispatch dispatch.json --tracker-session-id "$SID"   # before any proof edit
+lean4-skills-run-persist note --kind failed-avenue --text "exact foo: type mismatch"
+lean4-skills-run-persist review --payload review.json      # every review: completed | skipped | failed
+lean4-skills-run-persist replan --payload replan.json      # every cycle boundary, before tick
+lean4-skills-cycle-tracker tick --stuck=no
+lean4-skills-run-persist dispatch --payload dispatch2.json # a redispatch
+lean4-skills-run-persist handoff --payload worker.json     # the worker's handoff
+lean4-skills-run-persist finish --payload final.json       # terminal; read `stored`
+```
+
+**One run per invocation; the parent/controller is the sole journal writer.** Workers (subagents or inline passes) return evidence in their handoff record; the parent records it. Events, in the order they occur:
+
+| When | `run-persist` call | Stored as |
+|---|---|---|
+| a redispatch (deep worker, retry with new evidence) | `dispatch --payload` | `dispatch` event (the `run-contract/v1` record) |
+| a worker stops or gets stuck | `handoff --payload` | `handoff` event |
+| an approach is ruled out / a blocker classified / a search hit relied on / a snippet tried / a gap found | `note --kind failed-avenue\|blocker-diagnosis\|search-result\|candidate\|definition-gap\|source-note` | `note` event (`lean` only when a snippet is carried — historical, never certified) |
+| **every review the command runs, skips, or fails** | `review --payload` | `review` event: `review-record/v1` with `status: completed\|skipped\|failed` — a completed batch review carries the shipped `lean4-review-output/v2` verbatim; a completed stuck review carries the triage (`blocker_class`, `next_action`, evidence, falsification flag) and the parent's mapped handoff; a skipped review (`--review-source=none`, `--review-every=never`, not due) records why — **never a fabricated empty success**; `completed` never implies suggested edits were applied |
+| **every cycle boundary, before `cycle-tracker tick`** (stuck-triggered replans included) | `replan --payload` | `replan` event: `replan-summary/v1` — `cycle`, `plan`, `failed_approaches`, `blockers`, `next_steps`, `cites` |
+| the run stops, for any reason | `finish --payload` | the run's final `run-contract/v1` handoff (`set-handoff`) |
+
+**Citations.** Stored items are referenced only as **`<run_id>#<seq>`** (the helper returns `cite` for every committed event). The final handoff's `failed_avenues` / `evidence.top_candidates` / `evidence.attempts` and the Markdown stop summary use that form; a `replan` may only cite earlier events of the same run (the store refuses otherwise). Never cite an event the helper did not confirm.
+
+**Failure policy** (the helper's `action`; the command must obey it):
+
+| Store outcome | Helper result | Command behaviour |
+|---|---|---|
+| `committed` | `continue` | go on |
+| `journal_only` (finish only) | `done`, `stored: true`, `warning` | go on; the journal is authoritative; **never re-append**; the stop summary says "handoff cache not confirmed" |
+| `busy` | one bounded retry after 1 s, then as below | never break the lock |
+| any other refusal (`journal_damaged`, `publish_unsynced`, `invalid_payload`, `kind_unsupported`, …) | `stop` + an operational-error handoff | **stop further proof work**; emit that handoff (`status: stopped`, `stop_reason: operational-error`, `stop_detail: run-store <code>`) to the user; no next cycle, no `tick` |
+| `indeterminate`, or no / malformed / contradictory result from the store (wrong schema, exit status disagreeing with the outcome, a foreign `run_id`, a bad `seq`) | `stop` + operational-error handoff | **stop**; report the uncertainty. An event visible to `load` is **not** evidence of a durable commit — no retry, no inferred success, no automatic reconciliation in this version. A citation is issued only for an acknowledgment that passed those checks |
+| storage failure at `finish` | `done`, `stored: false`, `fallback_handoff` | emit `fallback_handoff` **in the stop summary, in full**; it was **not** saved and has **no citation** — never claim it was stored; the broken store is never asked to persist its own failure report. A submission that is not a complete `run-contract/v1` handoff is refused before anything is sent (`invalid_submission`), and the fallback is then the helper's validated operational-error handoff, never the invalid submission |
+
+Once the helper has stopped a run, every later `run-persist` call returns `stop` without touching the store.
 
 ## Stuck Definition
 

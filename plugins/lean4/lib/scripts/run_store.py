@@ -79,12 +79,25 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import run_contract_validate as rc
 
 MANIFEST_SCHEMA = "run-store-manifest/v1"
+MANIFEST_SCHEMA_V2 = "run-store-manifest/v2"
 EVENT_SCHEMA = "run-store-event/v1"
+EVENT_SCHEMA_V2 = "run-store-event/v2"
+REVIEW_RECORD_SCHEMA = "review-record/v1"
+REPLAN_SUMMARY_SCHEMA = "replan-summary/v1"
 HANDOFF_CACHE_SCHEMA = "run-store-handoff/v1"
 LOAD_SCHEMA = "run-store-load/v1"
 RESULT_SCHEMA = "run-store-result/v1"
 
 EVENT_KINDS = {"dispatch", "handoff", "note"}
+# run-store-event/v2 (#82B): the envelope is unchanged; the kind enum grows.
+# A run is single-version — its manifest selects the event schema; a v2 kind
+# in a v1 run is refused before writing and is corruption if found on disk.
+EVENT_KINDS_V2 = EVENT_KINDS | {"review", "replan"}
+EVENT_SCHEMAS = {EVENT_SCHEMA: EVENT_KINDS, EVENT_SCHEMA_V2: EVENT_KINDS_V2}
+REVIEW_MODES = {"batch", "stuck"}
+REVIEW_SOURCES = {"internal", "external", "both"}
+REVIEW_STATUSES = {"completed", "skipped", "failed"}
+CITE_RE = re.compile(r"^([0-9]{8}T[0-9]{6}Z-[0-9a-f]{8})#([1-9][0-9]*)$")
 NOTE_KINDS = {
     "candidate",
     "failed-avenue",
@@ -440,15 +453,209 @@ def validate_note(payload: Any) -> list[str]:
     return []
 
 
-def validate_event(obj: Any, expect_seq: int | None = None) -> list[str]:
+def validate_review_record(payload: Any) -> list[str]:
+    """review-record/v1 (#82B): one event per review the command ran, skipped,
+    or failed. Combinations are explicit — a skipped review is never a
+    fabricated success, and "completed" never implies edits were applied."""
+    want = {
+        "schema",
+        "cycle",
+        "mode",
+        "target",
+        "scope",
+        "line",
+        "source",
+        "status",
+        "output",
+        "triage",
+        "mapped_handoff",
+        "detail",
+    }
+    if not isinstance(payload, dict) or set(payload) != want:
+        return [f"review record must have exactly {sorted(want)}"]
+    e: list[str] = []
+    if payload["schema"] != REVIEW_RECORD_SCHEMA:
+        e.append(f"review record schema must be {REVIEW_RECORD_SCHEMA}")
+    if not rc._is_int(payload["cycle"]) or payload["cycle"] < 0:
+        e.append("review record cycle must be a non-negative integer")
+    if not rc._in_enum(payload["mode"], REVIEW_MODES):
+        e.append("review record mode must be batch|stuck")
+    if not rc._is_str(payload["target"]) or not rc._is_str(payload["scope"]):
+        e.append("review record target/scope must be strings")
+    if payload["line"] is not None and not rc._is_int(payload["line"]):
+        e.append("review record line must be int|null")
+    if not rc._in_enum(payload["source"], REVIEW_SOURCES):
+        e.append("review record source must be internal|external|both")
+    status = payload["status"]
+    if not rc._in_enum(status, REVIEW_STATUSES):
+        e.append("review record status must be completed|skipped|failed")
+        return e
+    out, tri, mh, detail = (
+        payload["output"],
+        payload["triage"],
+        payload["mapped_handoff"],
+        payload["detail"],
+    )
+    if detail is not None and not rc._is_str(detail):
+        e.append("review record detail must be str|null")
+    if out is not None:
+        e += [f"review output: {m}" for m in _validate_review_output(out)]
+    if tri is not None:
+        e += [f"review triage: {m}" for m in _validate_triage(tri)]
+    if mh is not None:
+        e += [f"mapped_handoff: {m}" for m in rc.validate_handoff(mh)]
+    if status == "completed":
+        if payload["mode"] == "batch" and out is None:
+            e.append("a completed batch review must carry its lean4-review-output/v2")
+        if payload["mode"] == "stuck" and (tri is None or mh is None):
+            e.append("a completed stuck review must carry triage and mapped_handoff")
+        if payload["mode"] == "batch" and (tri is not None or mh is not None):
+            e.append("a batch review carries no triage/mapped_handoff")
+        # cross-field: a completed report is not a failed one
+        if isinstance(out, dict) and out.get("error") is not None:
+            e.append(
+                "a completed review's output carries a non-null error — record it as status failed"
+            )
+        # cross-field: the mapped handoff wraps THIS triage of THIS target
+        if isinstance(tri, dict) and isinstance(mh, dict) and not e:
+            if mh.get("target") != payload["target"]:
+                e.append("mapped_handoff.target must be the review's target")
+            if mh.get("next_action") != tri.get("next_action"):
+                e.append("mapped_handoff.next_action must equal triage.next_action")
+            driven = mh.get("status") == "stuck" or (
+                mh.get("status") == "stopped" and mh.get("stop_reason") == "max-stuck"
+            )
+            if not driven:
+                e.append(
+                    "a stuck review's mapped_handoff must be blocker-driven (stuck, or stopped/max-stuck)"
+                )
+            for k in ("blocker_class", "blocker_kind", "blocker_signature"):
+                if mh.get(k) != tri.get(k):
+                    e.append(f"mapped_handoff.{k} must equal triage.{k}")
+    else:
+        if out is not None or tri is not None or mh is not None:
+            e.append(f"a {status} review carries no output/triage/mapped_handoff")
+        if not (rc._is_str(detail) and detail):
+            e.append(f"a {status} review must say why in detail")
+    return e
+
+
+def _validate_review_output(out: Any) -> list[str]:
+    """The shipped lean4-review-output/v2 validator (production module)."""
+    try:
+        import review_validate
+    except ImportError as ex:  # pragma: no cover
+        return [f"review validator unavailable: {ex}"]
+    try:
+        res = review_validate.validate_output(out)
+    except review_validate.SchemaUnavailableError as ex:  # pragma: no cover
+        return [f"review schema unavailable: {ex}"]
+    return list(res.errors) if not res.ok else []
+
+
+def _validate_triage(tri: Any) -> list[str]:
+    want = {
+        "blocker_class",
+        "blocker_kind",
+        "blocker_signature",
+        "next_action",
+        "statement_may_be_false",
+        "evidence",
+    }
+    if not isinstance(tri, dict) or set(tri) != want:
+        return [f"triage must have exactly {sorted(want)}"]
+    e: list[str] = []
+    if tri["blocker_class"] is not None and not rc._in_enum(
+        tri["blocker_class"], rc.BLOCKER_CLASSES
+    ):
+        e.append("triage blocker_class must be a Blocked-Goal Triage class or null")
+    if tri["blocker_kind"] is not None and not rc._in_enum(
+        tri["blocker_kind"], rc.BLOCKER_KINDS
+    ):
+        e.append("triage blocker_kind not in enum")
+    if tri["blocker_signature"] is not None and not rc._is_str(
+        tri["blocker_signature"]
+    ):
+        e.append("triage blocker_signature must be str|null")
+    if not rc._in_enum(tri["next_action"], rc.NEXT_ACTIONS):
+        e.append("triage next_action not in enum")
+    if not isinstance(tri["statement_may_be_false"], bool):
+        e.append("triage statement_may_be_false must be a boolean")
+    ev = tri["evidence"]
+    if not isinstance(ev, dict) or not (
+        rc._str_list(ev.get("queries"))
+        and rc._str_list(ev.get("top_candidates"))
+        and rc._typed_dicts(
+            ev.get("attempts"), {"snippet": rc._is_str, "result": rc._is_str}
+        )
+        and {"goal_delta", "diagnostic_delta"} <= set(ev)
+        and (ev.get("goal_delta") is None or rc._is_str(ev.get("goal_delta")))
+        and (
+            ev.get("diagnostic_delta") is None or rc._is_str(ev.get("diagnostic_delta"))
+        )
+    ):
+        e.append("triage evidence shape invalid")
+    return e
+
+
+def validate_replan_summary(payload: Any) -> list[str]:
+    """replan-summary/v1 (#82B): one per cycle boundary. `cites` are
+    `<run_id>#<seq>` references; the append path checks they resolve."""
+    want = {
+        "schema",
+        "cycle",
+        "plan",
+        "failed_approaches",
+        "blockers",
+        "next_steps",
+        "cites",
+    }
+    if not isinstance(payload, dict) or set(payload) != want:
+        return [f"replan summary must have exactly {sorted(want)}"]
+    e: list[str] = []
+    if payload["schema"] != REPLAN_SUMMARY_SCHEMA:
+        e.append(f"replan summary schema must be {REPLAN_SUMMARY_SCHEMA}")
+    if not rc._is_int(payload["cycle"]) or payload["cycle"] < 1:
+        e.append("replan summary cycle must be a positive integer")
+    if not rc._is_str(payload["plan"]):
+        e.append("replan summary plan must be a string")
+    for k in ("failed_approaches", "next_steps", "cites"):
+        if not rc._str_list(payload[k]):
+            e.append(f"replan summary {k} must be an array of strings")
+    if rc._str_list(payload["cites"]) and not all(
+        CITE_RE.match(c) for c in payload["cites"]
+    ):
+        e.append("replan summary cites must be <run_id>#<seq> references")
+    if not rc._typed_dicts(
+        payload["blockers"],
+        {
+            "file": rc._is_str,
+            "line": lambda x: x is None or rc._is_int(x),
+            "blocker_class": lambda x: x is None or rc._in_enum(x, rc.BLOCKER_CLASSES),
+            "blocker_signature": lambda x: x is None or rc._is_str(x),
+        },
+    ):
+        e.append(
+            "replan summary blockers items must be {file, line, blocker_class, blocker_signature}"
+        )
+    return e
+
+
+def validate_event(
+    obj: Any, expect_seq: int | None = None, event_schema: str = EVENT_SCHEMA
+) -> list[str]:
     if not isinstance(obj, dict):
         return ["event must be a JSON object"]
     e: list[str] = []
     if set(obj) != {"schema", "seq", "ts", "kind", "payload"}:
         e.append("event must have exactly {schema, seq, ts, kind, payload}")
         return e
-    if obj["schema"] != EVENT_SCHEMA:
-        e.append(f"event schema must be {EVENT_SCHEMA}")
+    if event_schema not in EVENT_SCHEMAS:
+        return [f"unknown event schema {event_schema!r}"]
+    if obj["schema"] != event_schema:
+        e.append(
+            f"event schema must be {event_schema} (this run's manifest selects it)"
+        )
     if not rc._is_int(obj["seq"]) or obj["seq"] < 1:
         e.append("event seq must be a positive integer")
     elif expect_seq is not None and obj["seq"] != expect_seq:
@@ -456,15 +663,25 @@ def validate_event(obj: Any, expect_seq: int | None = None) -> list[str]:
     if not rc._is_str(obj["ts"]):
         e.append("event ts must be a string")
     kind = obj["kind"]
-    if not rc._in_enum(kind, EVENT_KINDS):
-        e.append("event kind not in enum")
-    elif kind == "dispatch":
-        e += [f"dispatch payload: {m}" for m in rc.validate_dispatch(obj["payload"])]
-    elif kind == "handoff":
-        e += [f"handoff payload: {m}" for m in rc.validate_handoff(obj["payload"])]
+    if not rc._in_enum(kind, EVENT_SCHEMAS[event_schema]):
+        e.append(f"event kind not in enum for {event_schema}")
     else:
-        e += validate_note(obj["payload"])
+        e += validate_payload(kind, obj["payload"])
     return e
+
+
+def validate_payload(kind: str, payload: Any) -> list[str]:
+    if kind == "dispatch":
+        return [f"dispatch payload: {m}" for m in rc.validate_dispatch(payload)]
+    if kind == "handoff":
+        return [f"handoff payload: {m}" for m in rc.validate_handoff(payload)]
+    if kind == "note":
+        return validate_note(payload)
+    if kind == "review":
+        return validate_review_record(payload)
+    if kind == "replan":
+        return validate_replan_summary(payload)
+    return ["event kind not in enum"]
 
 
 def validate_manifest(obj: Any) -> list[str]:
@@ -481,11 +698,24 @@ def validate_manifest(obj: Any) -> list[str]:
         "prior_run",
         "dispatch",
     }
-    if set(obj) != want:
-        e.append(f"manifest must have exactly {sorted(want)}")
-        return e
-    if obj["schema"] != MANIFEST_SCHEMA:
-        e.append(f"manifest schema must be {MANIFEST_SCHEMA}")
+    schema = obj.get("schema")
+    if schema == MANIFEST_SCHEMA_V2:
+        # v2 REQUIRES event_schema; a v2 manifest without it is invalid, never
+        # implicitly v1.
+        want = want | {"event_schema"}
+        if set(obj) != want:
+            e.append(f"manifest v2 must have exactly {sorted(want)}")
+            return e
+        if obj["event_schema"] != EVENT_SCHEMA_V2:
+            e.append(f"manifest v2 event_schema must be {EVENT_SCHEMA_V2}")
+    else:
+        if set(obj) != want:
+            e.append(f"manifest must have exactly {sorted(want)}")
+            return e
+        if schema != MANIFEST_SCHEMA:
+            e.append(
+                f"manifest schema must be {MANIFEST_SCHEMA} or {MANIFEST_SCHEMA_V2}"
+            )
     if not valid_run_id(obj["run_id"]):
         e.append("manifest run_id malformed")
     for k in ("created", "plugin_version", "storage_root"):
@@ -499,6 +729,13 @@ def validate_manifest(obj: Any) -> list[str]:
         e.append("manifest prior_run must be a run id or null")
     e += [f"manifest dispatch: {m}" for m in rc.validate_dispatch(obj["dispatch"])]
     return e
+
+
+def manifest_event_schema(manifest: dict[str, Any]) -> str:
+    """The event schema a (validated) manifest selects: v1 implies event v1."""
+    if manifest.get("schema") == MANIFEST_SCHEMA_V2:
+        return str(manifest["event_schema"])
+    return EVENT_SCHEMA
 
 
 def validate_cache(obj: Any) -> list[str]:
@@ -530,7 +767,9 @@ def _read_exact(fd: int, size: int) -> bytes:
     return b"".join(chunks)
 
 
-def read_journal(run: _FdRun | _PathRun) -> dict[str, Any]:
+def read_journal(
+    run: _FdRun | _PathRun, event_schema: str = EVENT_SCHEMA
+) -> dict[str, Any]:
     """The validated observed prefix of events.jsonl.
 
     Captures the size at open and reads only through that boundary. Returns
@@ -570,7 +809,9 @@ def read_journal(run: _FdRun | _PathRun) -> dict[str, Any]:
             )
             damaged = True
             break
-        errs = validate_event(obj, expect_seq=len(events) + 1)
+        errs = validate_event(
+            obj, expect_seq=len(events) + 1, event_schema=event_schema
+        )
         if errs:
             warnings.append({"code": "corrupt", "line": i, "detail": "; ".join(errs)})
             damaged = True
@@ -641,7 +882,8 @@ def _check_run_loadable(run: _FdRun | _PathRun, run_id: str) -> dict[str, Any]:
 
 def _load_from(run: _FdRun | _PathRun, run_id: str) -> dict[str, Any]:
     manifest = _check_run_loadable(run, run_id)
-    journal = read_journal(run)
+    event_schema = manifest_event_schema(manifest)
+    journal = read_journal(run, event_schema)
     warnings = list(journal["warnings"])
     handoffs = [ev for ev in journal["events"] if ev["kind"] == "handoff"]
     effective = handoffs[-1] if handoffs else None
@@ -681,6 +923,7 @@ def _load_from(run: _FdRun | _PathRun, run_id: str) -> dict[str, Any]:
     return {
         "schema": LOAD_SCHEMA,
         "run_id": run_id,
+        "event_schema": event_schema,
         "manifest": manifest,
         "events": journal["events"],
         "effective_handoff": effective,
@@ -875,8 +1118,11 @@ def op_create(
     tracker_session_id: str | None,
     prior_run: str | None,
     now: str | None = None,
+    event_schema: str = EVENT_SCHEMA,
 ) -> dict[str, Any]:
     require_platform()
+    if event_schema not in EVENT_SCHEMAS:
+        raise RefusedError("bad_event_schema", f"unknown event schema {event_schema!r}")
     errs = rc.validate_dispatch(dispatch)
     if errs:
         raise RefusedError("invalid_dispatch", "; ".join(errs))
@@ -909,8 +1155,10 @@ def op_create(
         # resolved root can carry a surrogate-escaped (non-UTF-8) directory
         # name that the strict serializer would reject after the run
         # directory and empty journal already existed.
-        manifest = {
-            "schema": MANIFEST_SCHEMA,
+        manifest: dict[str, Any] = {
+            "schema": MANIFEST_SCHEMA
+            if event_schema == EVENT_SCHEMA
+            else MANIFEST_SCHEMA_V2,
             "run_id": run_id,
             "created": created,
             "plugin_version": _plugin_version(),
@@ -919,6 +1167,8 @@ def op_create(
             "prior_run": prior_run,
             "dispatch": dispatch,
         }
+        if event_schema != EVENT_SCHEMA:
+            manifest["event_schema"] = event_schema
         _require_serializable(manifest, "manifest (storage_root or session id)")
         _ensure_gitignore(store.runs_fd)
         # 1. exclusively reserve the run directory
@@ -953,19 +1203,22 @@ def op_create(
     return {"outcome": "committed", "run_id": run_id, "run_directory": run_directory}
 
 
-def _append_locked(run_fd: int, kind: str, payload: Any) -> int:
-    """Under the lock: re-read, refuse damage, append one event. Returns seq."""
-    if kind == "dispatch":
-        errs = rc.validate_dispatch(payload)
-    elif kind == "handoff":
-        errs = rc.validate_handoff(payload)
-    elif kind == "note":
-        errs = validate_note(payload)
-    else:
-        errs = ["event kind not in enum"]
+def _append_locked(
+    run_fd: int, kind: str, payload: Any, event_schema: str, run_id: str
+) -> int:
+    """Under the lock: re-read, refuse damage, append one event. Returns seq.
+    The run's manifest selects the event schema; a kind the run's version does
+    not know is refused BEFORE anything is written (the run stays valid)."""
+    if not rc._in_enum(kind, EVENT_SCHEMAS[event_schema]):
+        raise RefusedError(
+            "kind_unsupported",
+            f"event kind {kind!r} is not part of {event_schema}; this run stays "
+            f"{event_schema} (never silently upgraded)",
+        )
+    errs = validate_payload(kind, payload)
     if errs:
         raise RefusedError("invalid_payload", "; ".join(errs))
-    journal = read_journal(_FdRun(run_fd))
+    journal = read_journal(_FdRun(run_fd), event_schema)
     if journal["damaged"]:
         raise RefusedError(
             "journal_damaged",
@@ -973,8 +1226,17 @@ def _append_locked(run_fd: int, kind: str, payload: Any) -> int:
             + " — start a new run with prior_run set; repair is not a v1 operation",
         )
     seq = int(journal["next_seq"])
+    if kind == "replan":
+        # cites must resolve to EARLIER events of THIS run
+        for c in payload["cites"]:
+            m = CITE_RE.match(c)
+            if m is None or m.group(1) != run_id or int(m.group(2)) >= seq:
+                raise RefusedError(
+                    "invalid_payload",
+                    f"replan cite {c!r} does not resolve to an earlier event of {run_id}",
+                )
     event = {
-        "schema": EVENT_SCHEMA,
+        "schema": event_schema,
         "seq": seq,
         "ts": _now_iso(),
         "kind": kind,
@@ -1027,10 +1289,11 @@ def op_append(
     _require_serializable(payload, "payload")
 
     def body(run_fd: int, store: _Store) -> dict[str, Any]:
-        _check_run_loadable(_FdRun(run_fd), run_id)
+        manifest = _check_run_loadable(_FdRun(run_fd), run_id)
+        es = manifest_event_schema(manifest)
         with _Lock(run_fd):
             _publish_barriers(run_fd, store.runs_fd)
-            seq = _append_locked(run_fd, kind, payload)
+            seq = _append_locked(run_fd, kind, payload, es, run_id)
         return {"outcome": "committed", "run_id": run_id, "seq": seq}
 
     return _with_run(storage_root, run_id, body)
@@ -1041,10 +1304,11 @@ def op_set_handoff(storage_root: str, run_id: str, payload: Any) -> dict[str, An
     _require_serializable(payload, "payload")
 
     def body(run_fd: int, store: _Store) -> dict[str, Any]:
-        _check_run_loadable(_FdRun(run_fd), run_id)
+        manifest = _check_run_loadable(_FdRun(run_fd), run_id)
+        es = manifest_event_schema(manifest)
         with _Lock(run_fd):
             _publish_barriers(run_fd, store.runs_fd)
-            seq = _append_locked(run_fd, "handoff", payload)
+            seq = _append_locked(run_fd, "handoff", payload, es, run_id)
             cache = {"schema": HANDOFF_CACHE_SCHEMA, "seq": seq, "payload": payload}
             try:
                 _write_file_atomic(run_fd, CACHE_NAME, _dumps(cache), "cache")
@@ -1148,9 +1412,15 @@ def main(argv: list[str]) -> int:
     c.add_argument(
         "--now", help="creation timestamp, exactly YYYY-MM-DDTHH:MM:SSZ; default now"
     )
+    c.add_argument(
+        "--event-schema",
+        choices=sorted(EVENT_SCHEMAS),
+        default=EVENT_SCHEMA,
+        help="event schema for this run (manifest v2 ⇔ run-store-event/v2)",
+    )
     a = sub.add_parser("append")
     a.add_argument("--run-id", required=True)
-    a.add_argument("--kind", required=True, choices=sorted(EVENT_KINDS))
+    a.add_argument("--kind", required=True, choices=sorted(EVENT_KINDS_V2))
     a.add_argument("--payload", required=True)
     h = sub.add_parser("set-handoff")
     h.add_argument("--run-id", required=True)
@@ -1161,7 +1431,16 @@ def main(argv: list[str]) -> int:
     v.add_argument(
         "--kind",
         required=True,
-        choices=["manifest", "event", "dispatch", "handoff", "note", "cache"],
+        choices=[
+            "manifest",
+            "event",
+            "dispatch",
+            "handoff",
+            "note",
+            "cache",
+            "review",
+            "replan",
+        ],
     )
     v.add_argument("file")
     try:
@@ -1175,11 +1454,22 @@ def main(argv: list[str]) -> int:
             obj = _read_payload(ns.file)
             fn = {
                 "manifest": validate_manifest,
-                "event": validate_event,
+                "event": lambda o: validate_event(
+                    o,
+                    event_schema=(
+                        o["schema"]
+                        if isinstance(o, dict)
+                        and isinstance(o.get("schema"), str)
+                        and o.get("schema") in EVENT_SCHEMAS
+                        else EVENT_SCHEMA
+                    ),
+                ),
                 "dispatch": rc.validate_dispatch,
                 "handoff": rc.validate_handoff,
                 "note": validate_note,
                 "cache": validate_cache,
+                "review": validate_review_record,
+                "replan": validate_replan_summary,
             }[ns.kind]
             errs = fn(obj)
             _emit(
@@ -1198,6 +1488,7 @@ def main(argv: list[str]) -> int:
                 tracker_session_id=ns.tracker_session_id,
                 prior_run=ns.prior_run,
                 now=ns.now,
+                event_schema=ns.event_schema,
             )
         elif ns.cmd == "append":
             res = op_append(storage_root, ns.run_id, ns.kind, _read_payload(ns.payload))
