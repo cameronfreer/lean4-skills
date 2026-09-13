@@ -389,10 +389,22 @@ def _stop_result(
     }
     pend = (st.get("inflight") or {}).get("pending")
     if isinstance(pend, dict):
+        # A pre-write refusal (or a store never called) is KNOWN non-storage;
+        # an indeterminate / malformed / unresolved write is only unconfirmed.
+        known_absent = outcome.startswith("refused:") or outcome in (
+            "state_unwritable_before_store",
+        )
         res["unpersisted"] = {
             "kind": pend.get("kind"),
             "seq": None,
-            "note": "this validated submission informed the handoff above but was NOT stored; it has no citation",
+            "status": "not-stored" if known_absent else "unconfirmed",
+            "note": (
+                "this validated submission informed the handoff above but was NOT stored "
+                "(the store refused before writing / was never called); it has no citation"
+                if known_absent
+                else "this validated submission informed the handoff above; its persistence is "
+                "unconfirmed and no citation is available from this state"
+            ),
         }
     return res
 
@@ -453,15 +465,28 @@ def _mutate(
     }
     err = _try_save(ns.state, st)
     if err:
-        # nothing was attempted; without bookkeeping the run cannot continue
-        st["inflight"] = None
-        st["stopped"] = f"invocation state unwritable before {op}: {err}"
-        _try_save(ns.state, st)
+        # The store was NEVER called; without bookkeeping the run cannot
+        # continue. The validated submission still informs THIS fallback
+        # (it is pending knowledge in memory) — but it could not be saved, so
+        # it will not survive another invocation: say so.
+        detail = (
+            f"invocation state unwritable before {op}: {err}; the store was not called"
+        )
         if op == "finish":
-            return _not_stored(
-                st, "state_unwritable", st["stopped"], payload
-            ), EXIT_STOP
-        return _stop_result(st, kind, "state_unwritable", st["stopped"]), EXIT_STOP
+            st["inflight"] = None
+            st["stopped"] = detail
+            _try_save(ns.state, st)
+            return _not_stored(st, "state_unwritable", detail, payload), EXIT_STOP
+        early = _stop_result(st, kind, "state_unwritable_before_store", detail)
+        if "unpersisted" in early:
+            early["unpersisted"]["note"] += (
+                "; the pending knowledge could NOT be saved and will not survive another "
+                "invocation — keep this handoff"
+            )
+        st["inflight"] = None
+        st["stopped"] = detail
+        _try_save(ns.state, st)
+        return early, EXIT_STOP
     # 2. the store
     body = json.dumps(payload).encode("utf-8")
     if op == "finish":
@@ -505,7 +530,9 @@ def _mutate(
             # resolution could not be recorded, so the run must stop NOW, not
             # after one more step: the on-disk state still shows the in-flight
             # record and would stop the next call anyway.
-            st["inflight"] = inflight  # what the disk still says
+            # what the disk still says — minus the pending payload, which the
+            # in-memory context already absorbed (fold exactly once)
+            st["inflight"] = {**inflight, "pending": None}
             detail = (
                 f"invocation state could not be updated after a committed {op} "
                 f"({save_err}); bookkeeping is unresolved"

@@ -2452,7 +2452,9 @@ else
                   'A citation is issued only for an acknowledgment that passed those checks' \
                   'never the invalid submission' \
                   'not even for one more step' \
-                  'Parent *knowledge* is distinguished from committed *history*'; do
+                  'Parent *knowledge* is distinguished from committed *history*' \
+                  'will not survive another invocation' \
+                  'as `unconfirmed`'; do
         if ! grep -qF -- "$_c44_s" <<<"$_c44_sec"; then
             fail "Check 44: Run Persistence must state: $_c44_s"
             check44_ok=0

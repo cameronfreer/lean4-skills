@@ -633,7 +633,7 @@ class ControlState(_Env):
             os.chmod(state_dir, 0o700)
         self.assertEqual(
             (rc_, res["action"], res["outcome"]),
-            (rp.EXIT_STOP, "stop", "state_unwritable"),
+            (rp.EXIT_STOP, "stop", "state_unwritable_before_store"),
         )
         self.assertEqual(self._events(rid), [])
 
@@ -1048,6 +1048,201 @@ class Round2(_Env):
         self.assertEqual(res["outcome"], "refused:invalid_payload")
         self.assertEqual(res["handoff"]["files_changed"], [])  # nothing valid to absorb
         self.assertEqual(self._events(rid), [])
+
+
+@unittest.skipUnless(POSIX, "the store's mutation hosts")
+class Round3RichHandoff(_Env):
+    """Review round 3: ONE rich worker handoff (changes, baseline, one
+    attempt, one candidate, one artifact) across every failure path; each
+    response must fold it exactly once and describe its persistence honestly."""
+
+    def _started(self) -> str:
+        rc_, res = self.persist(
+            "start", "--dispatch", "-", "--now", NOW, stdin=json.dumps(valid_dispatch())
+        )
+        self.assertEqual(rc_, 0, res)
+        return str(res["run_id"])
+
+    def _events(self, rid: str) -> list[dict[str, Any]]:
+        return list(rs.op_load(self.root, rid)["events"])
+
+    def _rich(self) -> dict[str, Any]:
+        h = valid_handoff(
+            files_changed=["/repo/Foo.lean"],
+            failed_avenues=["simp only [foo]"],
+            attempted_tools=["lean_leansearch"],
+            best_candidates=[
+                {"candidate": "Tendsto.comp", "outcome": "unification failed"}
+            ],
+        )
+        h["file_baseline"] = {
+            "schema": "file-baseline/v1",
+            "files": [
+                {
+                    "path": "/repo/Foo.lean",
+                    "realpath": "/repo/Foo.lean",
+                    "exists": True,
+                    "sha256": "d" * 64,
+                    "size": 7,
+                }
+            ],
+        }
+        h["evidence"]["queries"] = ["tendsto atTop"]
+        h["evidence"]["attempts"] = [
+            {"snippet": "exact foo", "result": "type mismatch"}
+        ]
+        h["artifacts"] = [{"kind": "unified-diff", "content": "--- a\n+++ b\n"}]
+        return h
+
+    def _assert_folded_once(self, fb: dict[str, Any]) -> None:
+        self.assertEqual(fb["files_changed"], ["/repo/Foo.lean"])
+        self.assertEqual(fb["file_baseline"]["files"][0]["sha256"], "d" * 64)
+        self.assertEqual(fb["failed_avenues"], ["simp only [foo]"])
+        self.assertEqual(fb["attempted_tools"], ["lean_leansearch"])
+        self.assertEqual(len(fb["best_candidates"]), 1)
+        self.assertEqual(fb["evidence"]["queries"], ["tendsto atTop"])
+        self.assertEqual(len(fb["evidence"]["attempts"]), 1)
+        self.assertEqual(len(fb["artifacts"]), 1)
+        self.assertEqual(fb["stop_reason"], "operational-error")
+        self.assertEqual(rc.validate_handoff(fb), [])
+
+    def _run(
+        self, env_extra: dict[str, str], argv: list[str], stdin: str | None = None
+    ) -> tuple[int, dict[str, Any]]:
+        env = dict(self.env, **env_extra)
+        p = subprocess.run(
+            [PERSIST, "--project-root", self.project, *argv],
+            input=stdin,
+            capture_output=True,
+            text=True,
+            env=env,
+            check=False,
+        )
+        self.assertTrue(p.stdout.strip(), p.stderr)
+        return p.returncode, json.loads(p.stdout)
+
+    def _fake(self, script: str) -> dict[str, str]:
+        fake = os.path.join(self.tmp, "fake_store.py")
+        with open(fake, "w", encoding="utf-8") as f:
+            f.write(
+                "import json, os, sys\nargs = sys.argv[1:]\nsys.path.insert(0, %r)\nimport run_store as rs\n"
+                % _LIB
+                + script
+            )
+        return {"LEAN4_RUN_STORE_ARGV": json.dumps([sys.executable, fake])}
+
+    def test_initial_state_save_failure_keeps_the_handoff_and_says_it_cannot_survive(
+        self,
+    ) -> None:
+        rid = self._started()
+        d = os.path.join(self.tmp, "st-a")
+        os.makedirs(d)
+        state = os.path.join(d, "state.json")
+        shutil.move(self.state, state)
+        self.env["LEAN4_RUN_PERSIST_STATE"] = state
+        os.chmod(d, 0o500)  # the in-flight save fails; the store is never called
+        try:
+            rc_, res = self._run(
+                {}, ["handoff", "--payload", "-"], json.dumps(self._rich())
+            )
+        finally:
+            os.chmod(d, 0o700)
+        self.assertEqual(
+            (rc_, res["action"], res["outcome"]),
+            (rp.EXIT_STOP, "stop", "state_unwritable_before_store"),
+            res,
+        )
+        self.assertEqual(self._events(rid), [])
+        self._assert_folded_once(res["handoff"])
+        self.assertEqual(res["unpersisted"]["status"], "not-stored")
+        self.assertIn("was NOT stored", res["unpersisted"]["note"])
+        self.assertIn("will not survive another invocation", res["unpersisted"]["note"])
+
+    def test_store_refusal_is_known_non_storage(self) -> None:
+        rid = self._started()
+        env = self._fake(
+            "print(json.dumps({'schema':'run-store-result/v1','outcome':'nothing_written','code':'journal_damaged','detail':'x'})); sys.exit(3)\n"
+        )
+        rc_, res = self._run(
+            env, ["handoff", "--payload", "-"], json.dumps(self._rich())
+        )
+        self.assertEqual(
+            (rc_, res["action"], res["outcome"]),
+            (rp.EXIT_STOP, "stop", "refused:journal_damaged"),
+            res,
+        )
+        self.assertEqual(self._events(rid), [])
+        self._assert_folded_once(res["handoff"])
+        self.assertEqual(res["unpersisted"]["status"], "not-stored")
+        self.assertIn("was NOT stored", res["unpersisted"]["note"])
+        # the pending knowledge survives in the stopped state: the next call's handoff has it, once
+        rc_, res2 = self._run({}, ["note", "--kind", "candidate", "--text", "x"])
+        self.assertEqual(res2["action"], "stop")
+        self._assert_folded_once(res2["handoff"])
+
+    def test_indeterminate_write_is_unconfirmed_not_absent(self) -> None:
+        rid = self._started()
+        env = self._fake(
+            "def bad_fsync(fd):\n"
+            "    import os as _os\n"
+            "    if 'events' in _os.readlink('/proc/self/fd/%d' % fd): raise OSError(5, 'injected journal fsync failure')\n"
+            "    _os.fsync(fd)\n"
+            "rs._fsync = bad_fsync\n"
+            "sys.exit(rs.main(args))\n"
+        )
+        rc_, res = self._run(
+            env, ["handoff", "--payload", "-"], json.dumps(self._rich())
+        )
+        self.assertEqual(
+            (rc_, res["action"], res["outcome"]),
+            (rp.EXIT_STOP, "stop", "indeterminate"),
+            res,
+        )
+        self.assertEqual(len(self._events(rid)), 1)  # visible, unconfirmed
+        self._assert_folded_once(res["handoff"])
+        self.assertEqual(res["unpersisted"]["status"], "unconfirmed")
+        self.assertIn("unconfirmed", res["unpersisted"]["note"])
+        self.assertNotIn("NOT stored", res["unpersisted"]["note"])
+        self.assertNotIn("cite", res)
+
+    def test_committed_then_resolution_save_failure_folds_once_and_keeps_the_citation(
+        self,
+    ) -> None:
+        rid = self._started()
+        d = os.path.join(self.tmp, "st-d")
+        os.makedirs(d)
+        state = os.path.join(d, "state.json")
+        shutil.move(self.state, state)
+        self.env["LEAN4_RUN_PERSIST_STATE"] = state
+        env = self._fake("os.chmod(%r, 0o500)\nsys.exit(rs.main(args))\n" % d)
+        try:
+            rc_, res = self._run(
+                env, ["handoff", "--payload", "-"], json.dumps(self._rich())
+            )
+        finally:
+            os.chmod(d, 0o700)
+        self.assertEqual(
+            (rc_, res["action"], res["outcome"]),
+            (rp.EXIT_STOP, "stop", "state_unwritable"),
+            res,
+        )
+        self.assertEqual(len(self._events(rid)), 1)
+        self.assertEqual(res["committed"], {"seq": 1, "cite": f"{rid}#1"})
+        self.assertNotIn("unpersisted", res)
+        self._assert_folded_once(
+            res["handoff"]
+        )  # exactly one attempt/candidate/artifact
+        # next call: the disk state never absorbed it, so it is folded from the
+        # pending record — once — and described as unconfirmed from that state
+        rc_, res2 = self._run({}, ["note", "--kind", "candidate", "--text", "x"])
+        self.assertEqual(
+            (rc_, res2["action"], res2["outcome"]), (rp.EXIT_STOP, "stop", "terminal")
+        )
+        self._assert_folded_once(res2["handoff"])
+        self.assertEqual(res2["unpersisted"]["status"], "unconfirmed")
+        self.assertIn(
+            "no citation is available from this state", res2["unpersisted"]["note"]
+        )
 
 
 if __name__ == "__main__":
