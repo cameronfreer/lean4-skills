@@ -1,5 +1,11 @@
 # Changelog
 
+## v4.10.1 (September 2026)
+
+### Fixed
+
+- **Consistent terminal-state reporting for failed `run-persist finish` calls.** Early bookkeeping failure and invalid-finish handling now report `terminal_enforced` and the terminal-save warning just like non-final mutations. If no terminal condition could be recorded, the current call still ends with `done`, `stored: false`, `persistence: not-stored`, a full fallback and no citation, while explicitly warning that later helper processes may not remember the stop. An earlier recorded terminal condition remains enforced even when its update fails. Five focused regressions cover both finish paths, successful versus failed stop saves, and an already-recorded terminal condition, without adding retry or recovery behavior (follow-up to #204; Refs #82).
+
 ## v4.10.0 (September 2026)
 
 Run persistence for the proving commands (#82B; Refs #82 — prior-run reuse and restart reconciliation remain open).
