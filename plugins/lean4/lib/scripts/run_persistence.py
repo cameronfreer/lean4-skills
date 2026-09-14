@@ -42,8 +42,10 @@ state, not a run-id cache:
     dies in between), the next call finds the unresolved operation and stops —
     a state-write failure never suppresses the store's own outcome or the
     fallback report, and never lets the run continue;
-  * `finish` and a policy stop are terminal: later mutations return `stop`
-    without touching the store.
+  * once a terminal condition is recorded, `finish` and a policy stop prevent
+    later mutations without touching the store. If no terminal condition could
+    be recorded, report `terminal_enforced: false` and tell the controller to
+    retire the invocation; a later process cannot be guaranteed to remember it.
 The state also carries the CURRENT parent context (target/scope/mode and
 ownership from the latest persisted dispatch; files changed, baseline and
 evidence accumulated from persisted worker handoffs and notes), so the
@@ -236,6 +238,24 @@ def _try_save(path: str, st: dict[str, Any]) -> str | None:
     except OSError as ex:
         return f"{type(ex).__name__}: {ex}"
     return None
+
+
+def _report_terminal_save(
+    result: dict[str, Any], error: str | None, *, already_terminal: bool = False
+) -> None:
+    result["terminal_enforced"] = error is None or already_terminal
+    if error:
+        if already_terminal:
+            result["warning"] = (
+                f"terminal state could not be updated ({error}); an earlier recorded "
+                "terminal condition still prevents later mutations"
+            )
+        else:
+            result["warning"] = (
+                f"no control-state write succeeded ({error}); this result orders a stop, "
+                "but a later helper process cannot be guaranteed to remember it — retire "
+                "this invocation now"
+            )
 
 
 def _context_from_dispatch(d: dict[str, Any]) -> dict[str, Any]:
@@ -473,11 +493,9 @@ def _mutate(
             f"invocation state unwritable before {op}: {err}; the store was not called"
         )
         if op == "finish":
-            st["inflight"] = None
-            st["stopped"] = detail
-            _try_save(ns.state, st)
-            return _not_stored(st, "state_unwritable", detail, payload), EXIT_STOP
-        early = _stop_result(st, kind, "state_unwritable_before_store", detail)
+            early = _not_stored(st, "state_unwritable", detail, payload)
+        else:
+            early = _stop_result(st, kind, "state_unwritable_before_store", detail)
         if "unpersisted" in early:
             early["unpersisted"]["note"] += (
                 "; the pending knowledge could NOT be saved and will not survive another "
@@ -489,13 +507,7 @@ def _mutate(
         # The current call orders the controller to retire the invocation.
         # If NO control-state write succeeded, a later helper process cannot
         # be guaranteed to remember this stop: say so instead of claiming it.
-        early["terminal_enforced"] = stop_err is None
-        if stop_err:
-            early["warning"] = (
-                f"no control-state write succeeded ({stop_err}); this result orders a stop, "
-                "but a later helper process cannot be guaranteed to remember it — retire "
-                "this invocation now"
-            )
+        _report_terminal_save(early, stop_err)
         return early, EXIT_STOP
     # 2. the store
     body = json.dumps(payload).encode("utf-8")
@@ -695,12 +707,14 @@ def cmd_finish(ns: argparse.Namespace) -> int:
             "submitted handoff is not a valid run-contract/v1 record: "
             + "; ".join(errs)
         )
+        already_terminal = _terminal_reason(st) is not None
         st["stopped"] = detail
         st["finished"] = "not-stored"
-        _try_save(ns.state, st)
+        save_err = _try_save(ns.state, st)
         res = _not_stored(
             st, "invalid_submission", detail, _operational_handoff(st, detail)
         )
+        _report_terminal_save(res, save_err, already_terminal=already_terminal)
         res["submitted_errors"] = errs
         _emit(res)
         return EXIT_STOP

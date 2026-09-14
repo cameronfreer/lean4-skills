@@ -27,6 +27,7 @@ import sys
 import tempfile
 import unittest
 from typing import Any
+from unittest.mock import patch
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _PLUGIN = os.path.dirname(os.path.dirname(_HERE))
@@ -1448,6 +1449,122 @@ class Round4(_Env):
         self.assertEqual(
             (rc_, res4["action"], res4["outcome"]), (rp.EXIT_STOP, "stop", "terminal")
         )
+
+
+@unittest.skipUnless(POSIX, "the store's mutation hosts")
+class FinishTerminalReporting(_Env):
+    def _started(self) -> str:
+        code, res = self.persist(
+            "start", "--dispatch", "-", "--now", NOW, stdin=json.dumps(valid_dispatch())
+        )
+        self.assertEqual(code, 0, res)
+        return str(res["run_id"])
+
+    def _finish(
+        self, payload: dict[str, Any], *, fail_saves: int | None
+    ) -> tuple[dict[str, Any], int]:
+        original_save = rp._save_state
+        calls = 0
+
+        def save(path: str, st: dict[str, Any], *, exclusive: bool = False) -> None:
+            nonlocal calls
+            calls += 1
+            if fail_saves is None or calls <= fail_saves:
+                raise PermissionError("injected terminal-state save failure")
+            original_save(path, st, exclusive=exclusive)
+
+        with (
+            patch.object(rp, "_save_state", side_effect=save),
+            patch.object(rp, "_read_json", return_value=payload),
+            patch.object(rp, "_run_store") as store,
+            patch.object(rp, "_emit") as emit,
+        ):
+            code = rp.main(
+                ["--state", self.state, "--root", self.root, "finish", "--payload", "-"]
+            )
+        self.assertEqual(code, rp.EXIT_STOP)
+        store.assert_not_called()
+        emit.assert_called_once()
+        res = emit.call_args.args[0]
+        self.assertEqual(
+            (res["action"], res["stored"], res["persistence"]),
+            ("done", False, "not-stored"),
+        )
+        self.assertNotIn("cite", res)
+        self.assertNotIn("seq", res)
+        self.assertEqual(rc.validate_handoff(res["fallback_handoff"]), [])
+        return res, calls
+
+    def _next_note(self, rid: str, *, blocked: bool, events_before: int = 0) -> None:
+        self.assertEqual(len(rs.op_load(self.root, rid)["events"]), events_before)
+        code, res = self.persist(
+            "note", "--kind", "candidate", "--text", "after finish"
+        )
+        if blocked:
+            self.assertEqual(
+                (code, res["action"], res["outcome"]),
+                (rp.EXIT_STOP, "stop", "terminal"),
+            )
+        else:
+            # Deliberate boundary probe, not a prescribed controller retry:
+            # with no recorded stop a later process can still mutate.
+            self.assertEqual((code, res["action"]), (0, "continue"))
+        self.assertEqual(
+            len(rs.op_load(self.root, rid)["events"]),
+            events_before + (0 if blocked else 1),
+        )
+
+    def test_early_finish_reports_when_neither_state_save_succeeds(self) -> None:
+        rid = self._started()
+        submitted = valid_handoff()
+        res, calls = self._finish(submitted, fail_saves=None)
+        self.assertEqual((res["outcome"], calls), ("state_unwritable", 2))
+        self.assertIs(res["terminal_enforced"], False)
+        self.assertIn("cannot be guaranteed to remember", res["warning"])
+        self.assertIn("injected terminal-state save failure", res["warning"])
+        self.assertEqual(res["fallback_handoff"], submitted)
+        self._next_note(rid, blocked=False)
+
+    def test_early_finish_reports_when_the_stop_save_succeeds(self) -> None:
+        rid = self._started()
+        res, calls = self._finish(valid_handoff(), fail_saves=1)
+        self.assertEqual((res["outcome"], calls), ("state_unwritable", 2))
+        self.assertIs(res["terminal_enforced"], True)
+        self.assertNotIn("warning", res)
+        self._next_note(rid, blocked=True)
+
+    def test_invalid_finish_reports_a_failed_terminal_save(self) -> None:
+        rid = self._started()
+        res, calls = self._finish({}, fail_saves=None)
+        self.assertEqual((res["outcome"], calls), ("invalid_submission", 1))
+        self.assertIs(res["terminal_enforced"], False)
+        self.assertIn("cannot be guaranteed to remember", res["warning"])
+        self.assertIn("injected terminal-state save failure", res["warning"])
+        self.assertTrue(res["submitted_errors"])
+        self._next_note(rid, blocked=False)
+
+    def test_invalid_finish_reports_a_recorded_stop(self) -> None:
+        rid = self._started()
+        res, calls = self._finish({}, fail_saves=0)
+        self.assertEqual((res["outcome"], calls), ("invalid_submission", 1))
+        self.assertIs(res["terminal_enforced"], True)
+        self.assertNotIn("warning", res)
+        self._next_note(rid, blocked=True)
+
+    def test_invalid_finish_save_failure_preserves_an_existing_terminal_condition(
+        self,
+    ) -> None:
+        rid = self._started()
+        code, finished = self.persist(
+            "finish", "--payload", "-", stdin=json.dumps(valid_handoff())
+        )
+        self.assertEqual((code, finished["stored"]), (0, True))
+        res, calls = self._finish({}, fail_saves=None)
+        self.assertEqual((res["outcome"], calls), ("invalid_submission", 1))
+        self.assertIs(res["terminal_enforced"], True)
+        self.assertIn("injected terminal-state save failure", res["warning"])
+        self.assertNotIn("cannot be guaranteed", res["warning"])
+        self._next_note(rid, blocked=True, events_before=1)
 
 
 if __name__ == "__main__":

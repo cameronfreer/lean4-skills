@@ -146,6 +146,8 @@ lean4-skills-run-persist finish --payload final.json       # terminal; read `sto
 
 Once the helper has stopped a run **and could record that stop**, every later `run-persist` call returns `stop` without touching the store. If **no** control-state write succeeded (the in-flight record and the stop both failed to save), the current result still orders the controller to retire the invocation — it carries `terminal_enforced: false` and a warning — but the helper cannot guarantee that a later helper process remembers the stop; the controller must not call it again.
 
+The same reporting applies to an early `finish` state-save failure or an invalid finish submission whose stop cannot be saved: the current call remains `done`, `stored: false`, `persistence: not-stored`, with the full fallback and no citation. A successfully recorded stop sets `terminal_enforced: true`; if an earlier terminal condition was already recorded, a failed update warns but does not withdraw that enforcement.
+
 ## Stuck Definition
 
 A sorry or repair target is **stuck** when any of these hold:
