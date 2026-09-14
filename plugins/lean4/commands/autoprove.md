@@ -45,6 +45,13 @@ Startup requirements:
    A failed init (exit 2) is a startup validation error — do not proceed.
 4. The state file is the single source of truth for session counters.
    Read counters from `tick`/`status` output, not from conversational memory.
+5. With `--persist`: after the tracker is initialized and a valid first
+   dispatch (with its `file_baseline`) exists, set `LEAN4_RUN_PERSIST_STATE` to a
+   fresh invocation-private path (`mktemp -d` + a not-yet-existing file) and run
+   `lean4-skills-run-persist start` **before any proof edit**; a `startup-error`
+   is a startup validation error. Report the `run_id` in Resolved Inputs and
+   follow [Run Persistence](../skills/lean4/references/cycle-engine.md#run-persistence)
+   at every review, cycle boundary, and stop.
 
 ## Inputs
 
@@ -70,6 +77,8 @@ Startup requirements:
 | --batch-size | No | 2 | Sorries to attempt per cycle (advisory) |
 | --commit | No | auto | `auto` or `never` (`ask` coerced to `auto` — see note below) |
 | --golf | No | never | `prompt`, `auto`, or `never` |
+| --persist | No | false | Write this run to the run store (dispatches, handoffs, notes, reviews, Replan summaries; one run per invocation). Off by default — existing invocations are unchanged. Platform support is a startup capability check. See [cycle-engine: Run Persistence](../skills/lean4/references/cycle-engine.md#run-persistence). |
+| --run-store | No | — | Storage root override; requires `--persist` (`--run-store` without `--persist` → startup validation error). Precedence: `--run-store` → `$LEAN4_RUN_STORE` → `<project-root>/.lean4-skills`. |
 | --max-cycles | No | 20 | Session stop budget: max total cycles |
 | --max-total-runtime | No | 120m | Best-effort wall-clock session budget |
 | --max-stuck-cycles | No | 3 | Session stop budget: max consecutive stuck cycles |
@@ -211,6 +220,7 @@ When autoprove stops (for any reason), emit:
 | Deep invocations | D |
 | Time elapsed | T |
 | Formalizations | F |
+| Run (with `--persist`) | `<run_id>` — `stored` / `not stored: <detail>` (after `LEAN4_RUN_PERSIST_STATE` was set to a fresh invocation-private path and `run-persist start` ran before any proof edit) |
 
 **Handoff recommendations:**
 - [If incomplete: "Run /lean4:prove for guided work on remaining N sorries"]
@@ -221,7 +231,13 @@ When autoprove stops (for any reason), emit:
 
 After the human-readable summary above, emit the **complete** `run-contract/v1`
 [handoff record](../skills/lean4/references/handoff-contract.md) — every required
-field, not just the ones in the Markdown table. Command-specific mapping:
+field, not just the ones in the Markdown table. With `--persist` this is the
+record passed to `lean4-skills-run-persist finish`. Report per its result:
+`stored: true` → stored, with the confirmed citation and any cache warning;
+`stored: false, persistence: not-stored` → print `fallback_handoff` here in full,
+"not saved", no citation; `stored: false, persistence: unconfirmed` → print it in
+full, "persistence is unconfirmed", no citation — never "not saved", never "stored". Citations of stored items use `<run_id>#<seq>` only
+([Run Persistence](../skills/lean4/references/cycle-engine.md#run-persistence)). Command-specific mapping:
 `completion → status: solved`; `max-stuck → status: stopped, stop_reason:
 max-stuck` (blocker-driven, so the blocker fields are non-null); `max-cycles` /
 `max-runtime` / `user-stop` / `queue-empty` → `status: stopped` with that

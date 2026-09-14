@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# lean4-skills-run-persist — model-facing wrapper around
+# lib/scripts/run_persistence.py: the persistence protocol prove/autoprove
+# follow with --persist (#82B; Refs #82). It drives lean4-skills-run-store and
+# encodes the failure policy (references/cycle-engine.md § Run Persistence):
+# committed → continue; journal_only → continue + warning, never re-append;
+# busy → one retry; any other refusal or an indeterminate write → STOP proof
+# work and emit the operational-error handoff carried in the result.
+#
+#   start    --dispatch FILE|- [--tracker-session-id ID] [--prior-run ID]
+#   dispatch|handoff|review|replan --payload FILE|-
+#   note     --kind K --text T [--lean FILE]
+#   finish   --payload FILE|-        (result says stored: true|false)
+#   status
+# Common: --state FILE (or $LEAN4_RUN_PERSIST_STATE), --root DIR, --project-root DIR
+#
+# Exit codes: 0 continue / done(stored); 2 usage; 3 startup-error (do not
+# start the command); 5 stop / done(not stored) — act on the result's action.
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+exec "${LEAN4_PYTHON_BIN:-python3}" "$PLUGIN_ROOT/lib/scripts/run_persistence.py" "$@"

@@ -73,7 +73,7 @@ check_commands() {
         local max_lines=120
         case "$cmd" in
             autoformalize) max_lines=180 ;;
-            autoprove)  max_lines=300 ;;
+            autoprove)  max_lines=310 ;;
             checkpoint) max_lines=155 ;;
             diagnose)   max_lines=290 ;;
             disprove)   max_lines=310 ;;  # +10 (#166): expanded dependency-aware certification wording
@@ -81,7 +81,7 @@ check_commands() {
             formalize)  max_lines=210 ;;
             golf)       max_lines=178 ;;
             learn)      max_lines=210 ;;
-            prove)      max_lines=245 ;;
+            prove)      max_lines=255 ;;
             refactor)   max_lines=120 ;;
             review)     max_lines=470 ;;
         esac
@@ -318,7 +318,7 @@ check_cross_refs() {
     local agent_anchors="sorry-filler-deep proof-repair proof-golfer axiom-eliminator"
 
     # Valid anchors for cycle-engine.md
-    local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic session-tracking claim-boundary-protocol-autoformalize enforcement-levels falsification-artifacts repair-mode safety synthesis-outer-loop algorithm draft-commit-boundary header-fence session-generated-provenance statement-safety claim-queue file-assembly-contract review-router pre-flight-context-for-subagent-dispatch run-contract-run-contractv1 delegation-execution-policy file-baselines-and-drift-issue-102 file-gate-scope"
+    local engine_anchors="six-phase-cycle lsp-first-protocol build-target-policy review-phase replan-phase stuck-definition deep-mode checkpoint-logic session-tracking claim-boundary-protocol-autoformalize enforcement-levels falsification-artifacts repair-mode safety synthesis-outer-loop algorithm draft-commit-boundary header-fence session-generated-provenance statement-safety claim-queue file-assembly-contract review-router pre-flight-context-for-subagent-dispatch run-contract-run-contractv1 delegation-execution-policy file-baselines-and-drift-issue-102 file-gate-scope run-persistence"
 
     while IFS= read -r file; do
         # Check links to command-examples.md

@@ -880,3 +880,26 @@ AUTOFORMALIZE_OUT_REQUIRED = CrossValidation(
     doc_phrases=("--out` is required",),
     summary="autoformalize: require --out",
 )
+
+
+# -- run_store_requires_persist (#82B) -------------------------------------
+
+
+def run_store_requires_persist(
+    options: Mapping[str, object], ctx: ParseContext
+) -> list[str]:
+    """``--run-store`` is meaningful only when persistence is ON — judged by
+    the RESOLVED value of ``--persist`` (an explicit ``--persist=false`` is an
+    omission), not by whether the flag token appeared."""
+    if options.get("--run-store") is not None and options.get("--persist") is not True:
+        return ["--run-store requires --persist (persistence is off)"]
+    return []
+
+
+RUN_STORE_REQUIRES_PERSIST = CrossValidation(
+    rule_id="run_store_requires_persist",
+    fn=run_store_requires_persist,
+    severity="error",
+    doc_phrases=("`--run-store` without `--persist` \u2192 startup validation error",),
+    summary="--run-store requires --persist (resolved value; explicit false is omission)",
+)

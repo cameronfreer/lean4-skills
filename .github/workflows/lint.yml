@@ -62,6 +62,7 @@ jobs:
           python3 plugins/lean4/tests/test_review_schema.py
           python3 plugins/lean4/tests/test_run_contract.py
           python3 plugins/lean4/tests/test_run_store.py
+          python3 plugins/lean4/tests/integration/test_run_persistence.py
 
       # command_args parser suite. Run via discover so a new test_parser_*.py
       # cannot silently skip CI (the same coverage-gap class the comment above
@@ -124,6 +125,7 @@ jobs:
         run: |
           python3 plugins/lean4/tests/test_run_contract.py
           python3 plugins/lean4/tests/test_run_store.py
+          python3 plugins/lean4/tests/integration/test_run_persistence.py
 
   run-store-windows:
     runs-on: windows-latest
@@ -140,6 +142,7 @@ jobs:
         run: |
           python plugins/lean4/tests/test_run_contract.py
           python plugins/lean4/tests/test_run_store.py
+          python plugins/lean4/tests/integration/test_run_persistence.py
           # mutations are refused BEFORE any write; load works via the portable backend
           rc=0
           python plugins/lean4/lib/scripts/run_store.py --root "$RUNNER_TEMP/store" create --dispatch plugins/lean4/tests/fixtures/run_store/dispatch.json --now 2026-09-09T12:00:00Z || rc=$?
