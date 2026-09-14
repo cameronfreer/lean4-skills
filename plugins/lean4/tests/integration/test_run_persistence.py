@@ -44,6 +44,23 @@ POSIX = rs.platform_supported()
 NOW = "2026-09-09T12:00:00Z"
 
 
+# Portable journal identification for fault-injecting fake stores: the journal
+# is `<root>/runs/<run-id>/events.jsonl`, both taken from the store's own argv;
+# compare device/inode with the descriptor being fsync'd (no /proc needed).
+BAD_JOURNAL_FSYNC = (
+    "def _journal_ino():\n"
+    "    root = args[args.index('--root') + 1]\n"
+    "    rid = args[args.index('--run-id') + 1]\n"
+    "    st = os.stat(os.path.join(root, 'runs', rid, 'events.jsonl'))\n"
+    "    return (st.st_dev, st.st_ino)\n"
+    "def bad_fsync(fd):\n"
+    "    st = os.fstat(fd)\n"
+    "    if (st.st_dev, st.st_ino) == _journal_ino(): raise OSError(5, 'injected journal fsync failure')\n"
+    "    os.fsync(fd)\n"
+    "rs._fsync = bad_fsync\n"
+)
+
+
 def _review_output() -> dict[str, Any]:
     return {
         "version": "2.0",
@@ -453,14 +470,10 @@ class FailurePolicy(_Env):
     def test_visible_but_unsynced_event_stops_not_continues(self) -> None:
         rid = self._started()
         fake = self._fake_store(
-            "sys.path.insert(0, %r)\n"
-            "import run_store as rs\n"
-            "def bad_fsync(fd):\n"
-            "    import os as _os\n"
-            "    if not _os.path.isdir('/proc/self/fd/%%d' %% fd) and 'events' in _os.readlink('/proc/self/fd/%%d' %% fd): raise OSError(5, 'injected journal fsync failure')\n"
-            "    _os.fsync(fd)\n"
-            "rs._fsync = bad_fsync\n"
-            "sys.exit(rs.main(args))\n" % _LIB
+            "sys.path.insert(0, %r)\n" % _LIB
+            + "import run_store as rs\n"
+            + BAD_JOURNAL_FSYNC
+            + "sys.exit(rs.main(args))\n"
         )
         rc_, res = self._run(
             fake, ["note", "--kind", "candidate", "--text", "try simp"]
@@ -571,15 +584,11 @@ class ControlState(_Env):
         # frozen so the resolution cannot be — simulate with a wrapper store
         # that freezes the directory before returning
         script = (
-            "sys.path.insert(0, %r)\n"
-            "import run_store as rs, stat\n"
-            "def bad_fsync(fd):\n"
-            "    import os as _os\n"
-            "    if 'events' in _os.readlink('/proc/self/fd/%%d' %% fd): raise OSError(5, 'injected journal fsync failure')\n"
-            "    _os.fsync(fd)\n"
-            "rs._fsync = bad_fsync\n"
-            "os.chmod(%r, 0o500)\n"
-            "sys.exit(rs.main(args))\n" % (_LIB, state_dir)
+            "sys.path.insert(0, %r)\n" % _LIB
+            + "import run_store as rs, stat\n"
+            + BAD_JOURNAL_FSYNC
+            + "os.chmod(%r, 0o500)\n" % state_dir
+            + "sys.exit(rs.main(args))\n"
         )
         env = self._fake_store(script)
         try:
@@ -1015,13 +1024,10 @@ class Round2(_Env):
             f.write(
                 "import json, os, sys\nargs = sys.argv[1:]\n"
                 "sys.path.insert(0, %r)\n"
-                "import run_store as rs\n"
-                "def bad_fsync(fd):\n"
-                "    import os as _os\n"
-                "    if 'events' in _os.readlink('/proc/self/fd/%%d' %% fd): raise OSError(5, 'injected journal fsync failure')\n"
-                "    _os.fsync(fd)\n"
-                "rs._fsync = bad_fsync\n"
-                "sys.exit(rs.main(args))\n" % _LIB
+                % _LIB
+                + "import run_store as rs\n"
+                + BAD_JOURNAL_FSYNC
+                + "sys.exit(rs.main(args))\n"
             )
         env = {"LEAN4_RUN_STORE_ARGV": json.dumps([sys.executable, fake])}
         rc_, res = self._run(
@@ -1182,14 +1188,7 @@ class Round3RichHandoff(_Env):
 
     def test_indeterminate_write_is_unconfirmed_not_absent(self) -> None:
         rid = self._started()
-        env = self._fake(
-            "def bad_fsync(fd):\n"
-            "    import os as _os\n"
-            "    if 'events' in _os.readlink('/proc/self/fd/%d' % fd): raise OSError(5, 'injected journal fsync failure')\n"
-            "    _os.fsync(fd)\n"
-            "rs._fsync = bad_fsync\n"
-            "sys.exit(rs.main(args))\n"
-        )
+        env = self._fake(BAD_JOURNAL_FSYNC + "sys.exit(rs.main(args))\n")
         rc_, res = self._run(
             env, ["handoff", "--payload", "-"], json.dumps(self._rich())
         )
@@ -1278,16 +1277,7 @@ class FinishWording(_Env):
 
     def test_indeterminate_finish_is_unconfirmed_not_absent(self) -> None:
         self._started()
-        res = self._finish(
-            self._fake(
-                "def bad_fsync(fd):\n"
-                "    import os as _os\n"
-                "    if 'events' in _os.readlink('/proc/self/fd/%d' % fd): raise OSError(5, 'injected journal fsync failure')\n"
-                "    _os.fsync(fd)\n"
-                "rs._fsync = bad_fsync\n"
-                "sys.exit(rs.main(args))\n"
-            )
-        )
+        res = self._finish(self._fake(BAD_JOURNAL_FSYNC + "sys.exit(rs.main(args))\n"))
         self.assertEqual(
             (res["stored"], res["persistence"], res["outcome"]),
             (False, "unconfirmed", "indeterminate"),
@@ -1305,6 +1295,148 @@ class FinishWording(_Env):
         )
         self.assertEqual((res["stored"], res["persistence"]), (False, "not-stored"))
         self.assertIn("NOT saved", res["note"])
+
+
+@unittest.skipUnless(POSIX, "the store's mutation hosts")
+class Round4(_Env):
+    def _started(self) -> str:
+        rc_, res = self.persist(
+            "start", "--dispatch", "-", "--now", NOW, stdin=json.dumps(valid_dispatch())
+        )
+        self.assertEqual(rc_, 0, res)
+        return str(res["run_id"])
+
+    def _fake(self, script: str) -> dict[str, str]:
+        fake = os.path.join(self.tmp, "fake_store.py")
+        with open(fake, "w", encoding="utf-8") as f:
+            f.write(
+                "import json, os, sys\nargs = sys.argv[1:]\nsys.path.insert(0, %r)\nimport run_store as rs\n"
+                % _LIB
+                + script
+            )
+        return {"LEAN4_RUN_STORE_ARGV": json.dumps([sys.executable, fake])}
+
+    def _run(
+        self, env_extra: dict[str, str], argv: list[str], stdin: str | None = None
+    ) -> tuple[int, dict[str, Any]]:
+        env = dict(self.env, **env_extra)
+        p = subprocess.run(
+            [PERSIST, "--project-root", self.project, *argv],
+            input=stdin,
+            capture_output=True,
+            text=True,
+            env=env,
+            check=False,
+        )
+        self.assertTrue(p.stdout.strip(), p.stderr)
+        return p.returncode, json.loads(p.stdout)
+
+    def test_review_source_none_is_persisted_honestly_and_replan_proceeds(self) -> None:
+        """The resolved configuration `--review-source=none`: the skipped review
+        records source none (not a substituted source) and the cycle goes on."""
+        rid = self._started()
+        rec = _review(
+            1,
+            source="none",
+            status="skipped",
+            output=None,
+            detail="review disabled (--review-source=none)",
+        )
+        rc_, res = self._run({}, ["review", "--payload", "-"], json.dumps(rec))
+        self.assertEqual((rc_, res["action"], res["seq"]), (0, "continue", 1), res)
+        rc_, res = self._run(
+            {}, ["replan", "--payload", "-"], json.dumps(_replan(1, [res["cite"]]))
+        )
+        self.assertEqual((rc_, res["action"], res["seq"]), (0, "continue", 2), res)
+        out = rs.op_load(self.root, rid)
+        self.assertEqual(out["events"][0]["payload"]["source"], "none")
+        self.assertEqual(out["events"][0]["payload"]["status"], "skipped")
+        # a COMPLETED review may not claim source none
+        bad = _review(2, source="none")
+        rc_, res = self._run({}, ["review", "--payload", "-"], json.dumps(bad))
+        self.assertEqual(
+            (rc_, res["action"], res["outcome"]),
+            (rp.EXIT_STOP, "stop", "refused:invalid_payload"),
+        )
+
+    def test_finish_discriminator_across_paths(self) -> None:
+        # invalid submission → not-stored (never sent)
+        self._started()
+        _rc, res = self._run({}, ["finish", "--payload", "-"], "{}")
+        self.assertEqual(
+            (res["stored"], res["persistence"], res["outcome"]),
+            (False, "not-stored", "invalid_submission"),
+        )
+        self.assertIn("NOT saved", res["note"])
+        self.assertEqual(rc.validate_handoff(res["fallback_handoff"]), [])
+        # terminal call (the run is already stopped) → not-stored (never sent)
+        _rc, res = self._run(
+            {}, ["finish", "--payload", "-"], json.dumps(valid_handoff())
+        )
+        self.assertEqual(
+            (res["stored"], res["persistence"], res["outcome"]),
+            (False, "not-stored", "terminal"),
+        )
+        self.assertIn("NOT saved", res["note"])
+        # fresh run: refusal → not-stored; indeterminate → unconfirmed (FinishWording covers these too)
+        os.remove(self.state)
+        self.persist(
+            "start",
+            "--dispatch",
+            "-",
+            "--now",
+            "2026-09-09T12:00:01Z",
+            stdin=json.dumps(valid_dispatch()),
+        )
+        _rc, res = self._run(
+            self._fake(BAD_JOURNAL_FSYNC + "sys.exit(rs.main(args))\n"),
+            ["finish", "--payload", "-"],
+            json.dumps(valid_handoff()),
+        )
+        self.assertEqual((res["stored"], res["persistence"]), (False, "unconfirmed"))
+        self.assertIn("unconfirmed", res["note"])
+
+    def test_terminal_guarantee_is_scoped_when_no_control_state_write_succeeded(
+        self,
+    ) -> None:
+        """Bounded treatment (documented): when neither the in-flight record nor
+        the stop could be written, the current call still orders a stop and says
+        that a later helper process cannot be guaranteed to remember it."""
+        rid = self._started()
+        d = os.path.join(self.tmp, "st-t")
+        os.makedirs(d)
+        state = os.path.join(d, "state.json")
+        shutil.move(self.state, state)
+        self.env["LEAN4_RUN_PERSIST_STATE"] = state
+        os.chmod(d, 0o500)
+        try:
+            rc_, res = self._run({}, ["note", "--kind", "candidate", "--text", "x"])
+        finally:
+            os.chmod(d, 0o700)
+        self.assertEqual(
+            (rc_, res["action"], res["outcome"]),
+            (rp.EXIT_STOP, "stop", "state_unwritable_before_store"),
+        )
+        self.assertIs(res["terminal_enforced"], False)
+        self.assertIn("cannot be guaranteed to remember", res["warning"])
+        self.assertEqual(rs.op_load(self.root, rid)["events"], [])
+        # the scoped guarantee: after writability returns, the on-disk state
+        # carries no stop, so a later process is NOT blocked — exactly what the
+        # result warned about (the controller must have retired the invocation)
+        rc_, res2 = self._run({}, ["note", "--kind", "candidate", "--text", "y"])
+        self.assertEqual((rc_, res2["action"]), (0, "continue"))
+        # whereas when the stop COULD be written, it is enforced
+        rc_, res3 = self._run(
+            self._fake(
+                "print(json.dumps({'schema':'run-store-result/v1','outcome':'nothing_written','code':'journal_damaged','detail':'x'})); sys.exit(3)\n"
+            ),
+            ["note", "--kind", "candidate", "--text", "z"],
+        )
+        self.assertEqual(res3["action"], "stop")
+        rc_, res4 = self._run({}, ["note", "--kind", "candidate", "--text", "w"])
+        self.assertEqual(
+            (rc_, res4["action"], res4["outcome"]), (rp.EXIT_STOP, "stop", "terminal")
+        )
 
 
 if __name__ == "__main__":

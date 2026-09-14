@@ -2454,7 +2454,11 @@ else
                   'not even for one more step' \
                   'Parent *knowledge* is distinguished from committed *history*' \
                   'will not survive another invocation' \
-                  'as `unconfirmed`'; do
+                  'as `unconfirmed`' \
+                  '`persistence: not-stored' \
+                  'terminal_enforced: false' \
+                  'source: none` is valid only for a skipped review' \
+                  'do not assume `TMPDIR` is set'; do
         if ! grep -qF -- "$_c44_s" <<<"$_c44_sec"; then
             fail "Check 44: Run Persistence must state: $_c44_s"
             check44_ok=0
@@ -2476,8 +2480,12 @@ for _c44_cmd in prove autoprove; do
         check44_ok=0
     fi
 done
-if ! grep -qF 'fallback_handoff' "$PLUGIN_ROOT/commands/autoprove.md"; then
-    fail "Check 44: autoprove.md stop summary must print the fallback handoff in full when finish reports stored: false"
+if ! grep -qF 'fallback_handoff' "$PLUGIN_ROOT/commands/autoprove.md" || ! grep -qF 'persistence: unconfirmed' "$PLUGIN_ROOT/commands/autoprove.md"; then
+    fail "Check 44: autoprove.md stop summary must print the fallback handoff in full and distinguish not-stored from unconfirmed"
+    check44_ok=0
+fi
+if ! grep -qF 'lean4-skills-run-persist start' "$PLUGIN_ROOT/commands/autoprove.md"; then
+    fail "Check 44: autoprove.md startup requirements must include the persistence start gate"
     check44_ok=0
 fi
 for _c44_f in lib/scripts/run_persistence.py bin/lean4-skills-run-persist tests/integration/test_run_persistence.py tests/command_args/test_parser_persist.py; do

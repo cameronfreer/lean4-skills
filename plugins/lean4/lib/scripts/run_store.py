@@ -96,6 +96,9 @@ EVENT_KINDS_V2 = EVENT_KINDS | {"review", "replan"}
 EVENT_SCHEMAS = {EVENT_SCHEMA: EVENT_KINDS, EVENT_SCHEMA_V2: EVENT_KINDS_V2}
 REVIEW_MODES = {"batch", "stuck"}
 REVIEW_SOURCES = {"internal", "external", "both"}
+# `--review-source=none` is an accepted configuration: a review skipped for
+# that reason records the source that was actually selected.
+REVIEW_SOURCES_SKIPPED = REVIEW_SOURCES | {"none"}
 REVIEW_STATUSES = {"completed", "skipped", "failed"}
 CITE_RE = re.compile(r"^([0-9]{8}T[0-9]{6}Z-[0-9a-f]{8})#([1-9][0-9]*)$")
 NOTE_KINDS = {
@@ -484,8 +487,12 @@ def validate_review_record(payload: Any) -> list[str]:
         e.append("review record target/scope must be strings")
     if payload["line"] is not None and not rc._is_int(payload["line"]):
         e.append("review record line must be int|null")
-    if not rc._in_enum(payload["source"], REVIEW_SOURCES):
-        e.append("review record source must be internal|external|both")
+    if not rc._in_enum(payload["source"], REVIEW_SOURCES_SKIPPED):
+        e.append(
+            "review record source must be internal|external|both (none only when skipped)"
+        )
+    elif payload["source"] == "none" and payload.get("status") != "skipped":
+        e.append("review record source none is only valid for a skipped review")
     status = payload["status"]
     if not rc._in_enum(status, REVIEW_STATUSES):
         e.append("review record status must be completed|skipped|failed")

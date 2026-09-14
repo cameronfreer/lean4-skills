@@ -45,6 +45,13 @@ Startup requirements:
    A failed init (exit 2) is a startup validation error — do not proceed.
 4. The state file is the single source of truth for session counters.
    Read counters from `tick`/`status` output, not from conversational memory.
+5. With `--persist`: after the tracker is initialized and a valid first
+   dispatch (with its `file_baseline`) exists, set `LEAN4_RUN_PERSIST_STATE` to a
+   fresh invocation-private path (`mktemp -d` + a not-yet-existing file) and run
+   `lean4-skills-run-persist start` **before any proof edit**; a `startup-error`
+   is a startup validation error. Report the `run_id` in Resolved Inputs and
+   follow [Run Persistence](../skills/lean4/references/cycle-engine.md#run-persistence)
+   at every review, cycle boundary, and stop.
 
 ## Inputs
 
@@ -225,9 +232,11 @@ When autoprove stops (for any reason), emit:
 After the human-readable summary above, emit the **complete** `run-contract/v1`
 [handoff record](../skills/lean4/references/handoff-contract.md) — every required
 field, not just the ones in the Markdown table. With `--persist` this is the
-record passed to `lean4-skills-run-persist finish`; if the result says
-`stored: false`, print its `fallback_handoff` here in full and say it was **not**
-saved (no citation). Citations of stored items use `<run_id>#<seq>` only
+record passed to `lean4-skills-run-persist finish`. Report per its result:
+`stored: true` → stored, with the confirmed citation and any cache warning;
+`stored: false, persistence: not-stored` → print `fallback_handoff` here in full,
+"not saved", no citation; `stored: false, persistence: unconfirmed` → print it in
+full, "persistence is unconfirmed", no citation — never "not saved", never "stored". Citations of stored items use `<run_id>#<seq>` only
 ([Run Persistence](../skills/lean4/references/cycle-engine.md#run-persistence)). Command-specific mapping:
 `completion → status: solved`; `max-stuck → status: stopped, stop_reason:
 max-stuck` (blocker-driven, so the blocker fields are non-null); `max-cycles` /

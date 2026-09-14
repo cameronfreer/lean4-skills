@@ -42,7 +42,8 @@ Startup requirements:
 3. Persist any user-approved adjustments as session state so later cycles follow
    the updated configuration rather than the initial prose alone.
 4. With `--persist`: after the checks above and a valid first dispatch, set
-   `LEAN4_RUN_PERSIST_STATE` to a fresh invocation-private path and run
+   `LEAN4_RUN_PERSIST_STATE` to a fresh invocation-private path (`mktemp -d` + a
+   not-yet-existing file) and run
    `lean4-skills-run-persist start` **before any proof edit**; a `startup-error`
    is a startup validation error. Report the `run_id` in Resolved Inputs and
    follow [Run Persistence](../skills/lean4/references/cycle-engine.md#run-persistence)

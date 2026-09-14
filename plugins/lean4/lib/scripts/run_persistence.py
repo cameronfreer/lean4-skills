@@ -485,7 +485,17 @@ def _mutate(
             )
         st["inflight"] = None
         st["stopped"] = detail
-        _try_save(ns.state, st)
+        stop_err = _try_save(ns.state, st)
+        # The current call orders the controller to retire the invocation.
+        # If NO control-state write succeeded, a later helper process cannot
+        # be guaranteed to remember this stop: say so instead of claiming it.
+        early["terminal_enforced"] = stop_err is None
+        if stop_err:
+            early["warning"] = (
+                f"no control-state write succeeded ({stop_err}); this result orders a stop, "
+                "but a later helper process cannot be guaranteed to remember it — retire "
+                "this invocation now"
+            )
         return early, EXIT_STOP
     # 2. the store
     body = json.dumps(payload).encode("utf-8")
@@ -575,6 +585,7 @@ def _not_stored(
     known_absent = outcome.startswith("refused:") or outcome in (
         "state_unwritable",
         "invalid_submission",
+        "terminal",
     )
     return {
         "action": "done",
@@ -687,18 +698,11 @@ def cmd_finish(ns: argparse.Namespace) -> int:
         st["stopped"] = detail
         st["finished"] = "not-stored"
         _try_save(ns.state, st)
-        _emit(
-            {
-                "action": "done",
-                "run_id": st["run_id"],
-                "stored": False,
-                "outcome": "invalid_submission",
-                "detail": detail,
-                "fallback_handoff": _operational_handoff(st, detail),
-                "submitted_errors": errs,
-                "note": "emit fallback_handoff to the user in the stop summary; it was NOT saved and has no citation",
-            }
+        res = _not_stored(
+            st, "invalid_submission", detail, _operational_handoff(st, detail)
         )
+        res["submitted_errors"] = errs
+        _emit(res)
         return EXIT_STOP
     res, code = _mutate(ns, st, "finish", "handoff", handoff)
     _emit(res)
