@@ -38,7 +38,14 @@ import run_persistence as rp  # noqa: E402
 import run_store as rs  # noqa: E402
 from test_run_contract import valid_dispatch, valid_handoff  # noqa: E402
 
-PERSIST = os.path.join(_PLUGIN, "bin", "lean4-skills-run-persist")
+PERSIST_WRAPPER = os.path.join(_PLUGIN, "bin", "lean4-skills-run-persist")
+# The bash wrapper is the model-facing entry on POSIX hosts; elsewhere (Windows
+# runs the portable subset) drive the helper through the interpreter directly.
+PERSIST_CMD: list[str] = (
+    [PERSIST_WRAPPER]
+    if os.name == "posix"
+    else [sys.executable, os.path.join(_LIB, "run_persistence.py")]
+)
 TRACKER = os.path.join(_PLUGIN, "bin", "lean4-skills-cycle-tracker")
 POSIX = rs.platform_supported()
 NOW = "2026-09-09T12:00:00Z"
@@ -181,7 +188,7 @@ class _Env(unittest.TestCase):
         self, *args: str, stdin: str | None = None
     ) -> tuple[int, dict[str, Any]]:
         p = subprocess.run(
-            [PERSIST, "--root", self.root, "--project-root", self.project, *args],
+            [*PERSIST_CMD, "--root", self.root, "--project-root", self.project, *args],
             input=stdin,
             capture_output=True,
             text=True,
@@ -330,7 +337,11 @@ class PersistenceOff(_Env):
         # start. Simulate a full command run that never calls `start`.
         env = dict(self.env, LEAN4_RUN_STORE=os.path.join(self.tmp, "elsewhere"))
         p = subprocess.run(
-            [PERSIST, "status"], capture_output=True, text=True, env=env, check=False
+            [*PERSIST_CMD, "status"],
+            capture_output=True,
+            text=True,
+            env=env,
+            check=False,
         )
         self.assertEqual(
             p.returncode, rp.EXIT_USAGE
@@ -405,7 +416,7 @@ class FailurePolicy(_Env):
         if fake:
             env["LEAN4_RUN_STORE_ARGV"] = json.dumps([sys.executable, fake])
         p = subprocess.run(
-            [PERSIST, "--root", self.root, "--project-root", self.project, *argv],
+            [*PERSIST_CMD, "--root", self.root, "--project-root", self.project, *argv],
             input=stdin,
             capture_output=True,
             text=True,
@@ -558,7 +569,7 @@ class ControlState(_Env):
     ) -> tuple[int, dict[str, Any]]:
         env = dict(self.env, **env_extra)
         p = subprocess.run(
-            [PERSIST, "--project-root", self.project, *argv],
+            [*PERSIST_CMD, "--project-root", self.project, *argv],
             input=stdin,
             capture_output=True,
             text=True,
@@ -909,7 +920,7 @@ class Round2(_Env):
     ) -> tuple[int, dict[str, Any]]:
         env = dict(self.env, **env_extra)
         p = subprocess.run(
-            [PERSIST, "--project-root", self.project, *argv],
+            [*PERSIST_CMD, "--project-root", self.project, *argv],
             input=stdin,
             capture_output=True,
             text=True,
@@ -1117,7 +1128,7 @@ class Round3RichHandoff(_Env):
     ) -> tuple[int, dict[str, Any]]:
         env = dict(self.env, **env_extra)
         p = subprocess.run(
-            [PERSIST, "--project-root", self.project, *argv],
+            [*PERSIST_CMD, "--project-root", self.project, *argv],
             input=stdin,
             capture_output=True,
             text=True,
@@ -1265,7 +1276,7 @@ class FinishWording(_Env):
     def _finish(self, env_extra: dict[str, str]) -> dict[str, Any]:
         env = dict(self.env, **env_extra)
         p = subprocess.run(
-            [PERSIST, "--project-root", self.project, "finish", "--payload", "-"],
+            [*PERSIST_CMD, "--project-root", self.project, "finish", "--payload", "-"],
             input=json.dumps(valid_handoff()),
             capture_output=True,
             text=True,
@@ -1321,7 +1332,7 @@ class Round4(_Env):
     ) -> tuple[int, dict[str, Any]]:
         env = dict(self.env, **env_extra)
         p = subprocess.run(
-            [PERSIST, "--project-root", self.project, *argv],
+            [*PERSIST_CMD, "--project-root", self.project, *argv],
             input=stdin,
             capture_output=True,
             text=True,
