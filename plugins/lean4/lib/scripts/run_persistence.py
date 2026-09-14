@@ -569,14 +569,27 @@ def _mutate(
 def _not_stored(
     st: dict[str, Any], outcome: str, detail: str, submitted: Any
 ) -> dict[str, Any]:
+    # A pre-write refusal / a store never called / an invalid submission is
+    # KNOWN non-storage; an indeterminate, malformed or unresolved write is
+    # only unconfirmed (the journal may hold it — no citation from this state).
+    known_absent = outcome.startswith("refused:") or outcome in (
+        "state_unwritable",
+        "invalid_submission",
+    )
     return {
         "action": "done",
         "run_id": st["run_id"],
         "stored": False,
+        "persistence": "not-stored" if known_absent else "unconfirmed",
         "outcome": outcome,
         "detail": detail,
         "fallback_handoff": submitted,
-        "note": "emit fallback_handoff to the user in the stop summary; it was NOT saved and has no citation",
+        "note": (
+            "emit fallback_handoff to the user in the stop summary; it was NOT saved and has no citation"
+            if known_absent
+            else "emit fallback_handoff to the user in the stop summary; its persistence is "
+            "unconfirmed and no citation is available from this state"
+        ),
     }
 
 

@@ -1245,5 +1245,67 @@ class Round3RichHandoff(_Env):
         )
 
 
+@unittest.skipUnless(POSIX, "the store's mutation hosts")
+class FinishWording(_Env):
+    def _started(self) -> None:
+        rc_, res = self.persist(
+            "start", "--dispatch", "-", "--now", NOW, stdin=json.dumps(valid_dispatch())
+        )
+        self.assertEqual(rc_, 0, res)
+
+    def _fake(self, script: str) -> dict[str, str]:
+        fake = os.path.join(self.tmp, "fake_store.py")
+        with open(fake, "w", encoding="utf-8") as f:
+            f.write(
+                "import json, os, sys\nargs = sys.argv[1:]\nsys.path.insert(0, %r)\nimport run_store as rs\n"
+                % _LIB
+                + script
+            )
+        return {"LEAN4_RUN_STORE_ARGV": json.dumps([sys.executable, fake])}
+
+    def _finish(self, env_extra: dict[str, str]) -> dict[str, Any]:
+        env = dict(self.env, **env_extra)
+        p = subprocess.run(
+            [PERSIST, "--project-root", self.project, "finish", "--payload", "-"],
+            input=json.dumps(valid_handoff()),
+            capture_output=True,
+            text=True,
+            env=env,
+            check=False,
+        )
+        self.assertEqual(p.returncode, rp.EXIT_STOP, p.stderr)
+        return json.loads(p.stdout)
+
+    def test_indeterminate_finish_is_unconfirmed_not_absent(self) -> None:
+        self._started()
+        res = self._finish(
+            self._fake(
+                "def bad_fsync(fd):\n"
+                "    import os as _os\n"
+                "    if 'events' in _os.readlink('/proc/self/fd/%d' % fd): raise OSError(5, 'injected journal fsync failure')\n"
+                "    _os.fsync(fd)\n"
+                "rs._fsync = bad_fsync\n"
+                "sys.exit(rs.main(args))\n"
+            )
+        )
+        self.assertEqual(
+            (res["stored"], res["persistence"], res["outcome"]),
+            (False, "unconfirmed", "indeterminate"),
+        )
+        self.assertIn("unconfirmed", res["note"])
+        self.assertNotIn("NOT saved", res["note"])
+        self.assertNotIn("cite", res)
+
+    def test_refused_finish_is_known_not_stored(self) -> None:
+        self._started()
+        res = self._finish(
+            self._fake(
+                "print(json.dumps({'schema':'run-store-result/v1','outcome':'nothing_written','code':'publish_unsynced','detail':'x'})); sys.exit(3)\n"
+            )
+        )
+        self.assertEqual((res["stored"], res["persistence"]), (False, "not-stored"))
+        self.assertIn("NOT saved", res["note"])
+
+
 if __name__ == "__main__":
     unittest.main()
