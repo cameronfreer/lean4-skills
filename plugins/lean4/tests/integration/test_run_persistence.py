@@ -838,7 +838,7 @@ class TruthfulFallback(_Env):
         env = dict(self.env, **self._fake_refusal())
         p = subprocess.run(
             [
-                PERSIST,
+                *PERSIST_CMD,
                 "--project-root",
                 self.project,
                 "note",
