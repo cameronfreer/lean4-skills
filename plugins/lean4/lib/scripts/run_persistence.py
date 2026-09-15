@@ -652,25 +652,39 @@ def cmd_start(ns: argparse.Namespace, root: str) -> int:
                 }
             )
             return EXIT_STARTUP
+        project_root = os.path.abspath(ns.project_root or os.getcwd())
         try:
-            report = _read_json(ns.reuse_report)
-            if (
-                not isinstance(report, dict)
-                or report.get("schema") != run_reuse.REUSE_SCHEMA
-                or report.get("prior_run") != ns.prior_run
-            ):
+            report = run_reuse.validate_report(_read_json(ns.reuse_report))
+            if report["prior_run"] != ns.prior_run:
                 raise run_reuse.ReuseError(
-                    "bad_reuse_report",
-                    "not a run-persist-reuse/v1 report for this prior run",
+                    "reuse_report_mismatch",
+                    f"the reuse report names prior run {report['prior_run']!r}, not {ns.prior_run!r}",
                 )
+            # the report must be THIS invocation's: project, task, mode, ownership
+            run_reuse.bind_invocation(
+                report,
+                project_root=project_root,
+                target=str(dispatch.get("target")),
+                mode=str(dispatch.get("mode")),
+                owned_files=[str(f) for f in dispatch.get("owned_files", [])],
+            )
             loaded = run_reuse.load_prior(root, ns.prior_run)
             seq, digest = run_reuse.prefix_digest(loaded)
-            if digest != report.get("prefix_digest"):
+            if digest != report["prefix_digest"]:
                 raise run_reuse.ReuseError(
                     "prior_run_changed",
-                    f"the prior run's journal prefix changed since the preview (observed {report.get('observed_seq')} events, now {seq}); re-run reuse",
+                    f"the prior run's journal prefix changed since the preview (observed {report['observed_seq']} events, now {seq}); re-run reuse",
                 )
             selection = run_reuse.select(loaded)
+            # compatibility is re-checked against the ACTUAL startup dispatch
+            run_reuse.check_compat(
+                selection,
+                target=str(dispatch.get("target")),
+                scope=str(report["invocation"]["scope"]),
+                mode=str(dispatch.get("mode")),
+                project_root=project_root,
+                owned_files=[str(f) for f in dispatch.get("owned_files", [])],
+            )
             guard = run_reuse.guard_decision(
                 dispatch, selection, ns.evidence_justification
             )
@@ -687,7 +701,14 @@ def cmd_start(ns: argparse.Namespace, root: str) -> int:
                     }
                 )
                 return EXIT_STARTUP
-            note = json.loads(str(report["source_note_text"]))
+            # rebuilt from the validated records, never copied from the report
+            note = run_reuse.source_note(
+                prior_run=ns.prior_run,
+                observed_seq=seq,
+                prefix_digest_=digest,
+                sel=selection,
+                drift=report["drift"],
+            )
             note["evidence_justification"] = ns.evidence_justification
             note["guard"] = guard
             reuse_note = json.dumps(note, ensure_ascii=False, sort_keys=True)
@@ -743,8 +764,11 @@ def cmd_start(ns: argparse.Namespace, root: str) -> int:
             "note",
             {"kind": "source-note", "text": reuse_note, "lean": None},
         )
-        _save_state(ns.state, st)
+        # _mutate resolved its own bookkeeping; its result (committed cite,
+        # refusal, or indeterminate — with the fallback handoff) is emitted as is
         if res_note["action"] != "continue":
+            res_note["run_created"] = True
+            res_note["prior_run"] = ns.prior_run
             _emit(res_note)
             return code
         out["source_note_cite"] = res_note["cite"]
@@ -777,17 +801,15 @@ def cmd_reuse(ns: argparse.Namespace) -> int:
             )
             _emit({"action": "preview", **rep})
             return EXIT_OK
-        report = _read_json(ns.report)
-        if (
-            not isinstance(report, dict)
-            or report.get("schema") != run_reuse.REUSE_SCHEMA
-        ):
+        report = run_reuse.validate_report(_read_json(ns.report))
+        if os.path.realpath(project_root) != report["invocation"]["project_root"]:
             raise run_reuse.ReuseError(
-                "bad_reuse_report", "not a run-persist-reuse/v1 report"
+                "reuse_report_mismatch",
+                "the reuse report was made for another project root; re-run reuse",
             )
         loaded = run_reuse.load_prior(root, str(report["prior_run"]))
         _seq, digest = run_reuse.prefix_digest(loaded)
-        if digest != report.get("prefix_digest"):
+        if digest != report["prefix_digest"]:
             raise run_reuse.ReuseError(
                 "prior_run_changed",
                 "the prior run's journal prefix changed since the preview; re-run reuse",
@@ -797,7 +819,7 @@ def cmd_reuse(ns: argparse.Namespace) -> int:
             report=report,
             owned_files=list(ns.owned_file),
             approve=ns.approve,
-            prior_baseline=sel["baseline"],
+            selection=sel,
         )
         _emit({"action": "custody", **res})
         return EXIT_OK
