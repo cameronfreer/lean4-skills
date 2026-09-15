@@ -2541,7 +2541,12 @@ else
                   'never accepts drift automatically' \
                   '`blocker_cleared`' \
                   'A new run id, approved drift, or a freshly recorded baseline is not evidence' \
-                  '`--evidence-justification`'; do
+                  '`--evidence-justification`' \
+                  '**per-file merged baseline**' 'must never read as a match' \
+                  '**bound to the invocation**' '`reuse_report_mismatch`' '`bad_reuse_report`' \
+                  'never copied from the report' '**with their recommendations**' \
+                  '**with their source**' 'explicit `uncovered` outcome' \
+                  'never a silent exception'; do
         if ! grep -qF -- "$_c45_s" <<<"$_c45_sec"; then
             fail "Check 45: Prior-Run Reuse must state: $_c45_s"
             check45_ok=0
@@ -2559,7 +2564,7 @@ for _c45_cmd in prove autoprove; do
         check45_ok=0
     fi
 done
-if ! grep -qF 'stop before any edit and before custody' "$PLUGIN_ROOT/commands/autoprove.md"; then
+if ! grep -qF 'on drift or an uncovered file **stop before any edit and before custody**' "$PLUGIN_ROOT/commands/autoprove.md"; then
     fail "Check 45: autoprove.md must stop before edits and custody on drift"
     check45_ok=0
 fi

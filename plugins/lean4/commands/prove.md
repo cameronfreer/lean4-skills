@@ -48,7 +48,7 @@ Startup requirements:
    is a startup validation error. Report the `run_id` in Resolved Inputs and
    follow [Run Persistence](../skills/lean4/references/cycle-engine.md#run-persistence)
    at every review, cycle boundary, and stop. With `--prior-run`, first run
-   `run-persist reuse`, show the drift report, obtain approval of **that report**
+   `run-persist reuse`, show the drift report (drift and uncovered files), obtain approval of **that report**
    (its token), `run-persist custody`, and pass `--reuse-report` to `start`
    ([Prior-Run Reuse](../skills/lean4/references/cycle-engine.md#prior-run-reuse)).
 
