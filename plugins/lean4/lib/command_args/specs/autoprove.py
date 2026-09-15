@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from ..coercions import RUN_STORE_REQUIRES_PERSIST
+from ..coercions import PRIOR_RUN_REQUIRES_PERSIST, RUN_STORE_REQUIRES_PERSIST
 from ..types import (
     Coercion,
     CommandSpec,
@@ -13,7 +13,7 @@ from ..types import (
     ParseContext,
     PositionalSpec,
 )
-from ._common import persist_flag, run_store_flag
+from ._common import persist_flag, prior_run_flag, run_store_flag
 
 # ---------------------------------------------------------------------------
 # Autoprove-specific coercions
@@ -590,6 +590,7 @@ SPEC = CommandSpec(
         FLAG_GOLF,
         persist_flag(),
         run_store_flag(),
+        prior_run_flag(),
         FLAG_MAX_CYCLES,
         FLAG_MAX_TOTAL_RUNTIME,
         FLAG_MAX_STUCK_CYCLES,
@@ -602,6 +603,7 @@ SPEC = CommandSpec(
     ),
     cross_validations=(
         RUN_STORE_REQUIRES_PERSIST,
+        PRIOR_RUN_REQUIRES_PERSIST,
         STATEMENT_POLICY_PRESERVE_WARNING,
         FORMALIZE_AUTO_REQUIRES_SOURCE,
         FORMALIZE_AUTO_REQUIRES_CLAIM_SELECT,

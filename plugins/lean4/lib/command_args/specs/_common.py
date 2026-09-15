@@ -414,3 +414,17 @@ def run_store_flag() -> FlagSpec:
         enforcement="startup-validated",
         notes="Storage root: --run-store → $LEAN4_RUN_STORE → <project-root>/.lean4-skills; requires --persist (cross-validation on the resolved value)",
     )
+
+
+def prior_run_flag() -> FlagSpec:
+    """--prior-run ID: reuse a selected prior run's history (#82C); requires --persist."""
+    return FlagSpec(
+        name="--prior-run",
+        type="freeform",
+        default=None,
+        enforcement="startup-validated",
+        notes=(
+            "Explicit prior run id to reuse (never 'latest'); resolved within the "
+            "selected store; requires --persist (cross-validation on the resolved value)"
+        ),
+    )
