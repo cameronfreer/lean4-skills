@@ -69,6 +69,7 @@ from typing import Any
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import run_contract_validate as rc  # noqa: E402
+import run_reuse  # noqa: E402
 
 STORE = os.path.join(HERE, "run_store.py")
 RESULT_SCHEMA = "run-persist-result/v1"
@@ -637,6 +638,62 @@ def cmd_start(ns: argparse.Namespace, root: str) -> int:
             }
         )
         return EXIT_STARTUP
+    reuse_note: str | None = None
+    guard: dict[str, Any] | None = None
+    if ns.prior_run:
+        # #82C: revalidate the observed prefix, apply the rerun guard, and
+        # prepare the local source-note — all BEFORE creating anything.
+        if not ns.reuse_report:
+            _emit(
+                {
+                    "action": "startup-error",
+                    "code": "reuse_report_required",
+                    "detail": "--prior-run needs --reuse-report (the `reuse` preview)",
+                }
+            )
+            return EXIT_STARTUP
+        try:
+            report = _read_json(ns.reuse_report)
+            if (
+                not isinstance(report, dict)
+                or report.get("schema") != run_reuse.REUSE_SCHEMA
+                or report.get("prior_run") != ns.prior_run
+            ):
+                raise run_reuse.ReuseError(
+                    "bad_reuse_report",
+                    "not a run-persist-reuse/v1 report for this prior run",
+                )
+            loaded = run_reuse.load_prior(root, ns.prior_run)
+            seq, digest = run_reuse.prefix_digest(loaded)
+            if digest != report.get("prefix_digest"):
+                raise run_reuse.ReuseError(
+                    "prior_run_changed",
+                    f"the prior run's journal prefix changed since the preview (observed {report.get('observed_seq')} events, now {seq}); re-run reuse",
+                )
+            selection = run_reuse.select(loaded)
+            guard = run_reuse.guard_decision(
+                dispatch, selection, ns.evidence_justification
+            )
+            if guard["forbidden"]:
+                _emit(
+                    {
+                        "action": "startup-error",
+                        "code": "rerun_forbidden",
+                        "detail": guard["reason"],
+                        "new_evidence_required_for_rerun": guard.get(
+                            "new_evidence_required_for_rerun"
+                        ),
+                        "guard": guard,
+                    }
+                )
+                return EXIT_STARTUP
+            note = json.loads(str(report["source_note_text"]))
+            note["evidence_justification"] = ns.evidence_justification
+            note["guard"] = guard
+            reuse_note = json.dumps(note, ensure_ascii=False, sort_keys=True)
+        except run_reuse.ReuseError as ex:
+            _emit({"action": "startup-error", "code": ex.code, "detail": ex.detail})
+            return EXIT_STARTUP
     args = ["create", "--dispatch", "-", "--event-schema", EVENT_SCHEMA_V2]
     if ns.tracker_session_id:
         args += ["--tracker-session-id", ns.tracker_session_id]
@@ -658,6 +715,8 @@ def cmd_start(ns: argparse.Namespace, root: str) -> int:
         )
         return EXIT_STARTUP
     st = _new_state(root, str(res["run_id"]), str(res["run_directory"]), dispatch)
+    if ns.prior_run:
+        st["prior_run"] = ns.prior_run
     try:
         _save_state(ns.state, st, exclusive=True)
     except OSError as ex:
@@ -669,15 +728,82 @@ def cmd_start(ns: argparse.Namespace, root: str) -> int:
             }
         )
         return EXIT_STARTUP
-    _emit(
-        {
-            "action": "continue",
-            "run_id": st["run_id"],
-            "run_directory": st["run_directory"],
-            "state": ns.state,
-        }
-    )
+    out: dict[str, Any] = {
+        "action": "continue",
+        "run_id": st["run_id"],
+        "run_directory": st["run_directory"],
+        "state": ns.state,
+    }
+    if reuse_note is not None:
+        # the local source-note is the new run's first event; later Replans cite it
+        res_note, code = _mutate(
+            ns,
+            st,
+            "append",
+            "note",
+            {"kind": "source-note", "text": reuse_note, "lean": None},
+        )
+        _save_state(ns.state, st)
+        if res_note["action"] != "continue":
+            _emit(res_note)
+            return code
+        out["source_note_cite"] = res_note["cite"]
+        out["prior_run"] = ns.prior_run
+        out["guard"] = guard
+    _emit(out)
     return EXIT_OK
+
+
+def cmd_reuse(ns: argparse.Namespace) -> int:
+    """Read-only: `reuse` previews; `custody` re-derives the drift report and
+    returns the fresh baseline to record. Neither touches the store."""
+    project_root = os.path.abspath(ns.project_root or os.getcwd())
+    if ns.root:
+        root = os.path.abspath(ns.root)
+    elif os.environ.get("LEAN4_RUN_STORE"):
+        root = os.path.abspath(os.environ["LEAN4_RUN_STORE"])
+    else:
+        root = os.path.join(project_root, ".lean4-skills")
+    try:
+        if ns.cmd == "reuse":
+            rep = run_reuse.preview(
+                root=root,
+                prior_run=ns.prior_run,
+                target=ns.target,
+                scope=ns.scope,
+                mode=ns.mode,
+                project_root=project_root,
+                owned_files=list(ns.owned_file),
+            )
+            _emit({"action": "preview", **rep})
+            return EXIT_OK
+        report = _read_json(ns.report)
+        if (
+            not isinstance(report, dict)
+            or report.get("schema") != run_reuse.REUSE_SCHEMA
+        ):
+            raise run_reuse.ReuseError(
+                "bad_reuse_report", "not a run-persist-reuse/v1 report"
+            )
+        loaded = run_reuse.load_prior(root, str(report["prior_run"]))
+        _seq, digest = run_reuse.prefix_digest(loaded)
+        if digest != report.get("prefix_digest"):
+            raise run_reuse.ReuseError(
+                "prior_run_changed",
+                "the prior run's journal prefix changed since the preview; re-run reuse",
+            )
+        sel = run_reuse.select(loaded)
+        res = run_reuse.custody(
+            report=report,
+            owned_files=list(ns.owned_file),
+            approve=ns.approve,
+            prior_baseline=sel["baseline"],
+        )
+        _emit({"action": "custody", **res})
+        return EXIT_OK
+    except run_reuse.ReuseError as ex:
+        _emit({"action": "startup-error", "code": ex.code, "detail": ex.detail})
+        return EXIT_STARTUP
 
 
 def cmd_append(ns: argparse.Namespace, kind: str) -> int:
@@ -759,7 +885,37 @@ def main(argv: list[str]) -> int:
     s.add_argument("--dispatch", required=True)
     s.add_argument("--tracker-session-id")
     s.add_argument("--prior-run")
+    s.add_argument(
+        "--reuse-report", help="the `reuse` preview JSON (required with --prior-run)"
+    )
+    s.add_argument(
+        "--evidence-justification",
+        help="how the evidence delta addresses an operational prior stop",
+    )
     s.add_argument("--now")
+    ru = sub.add_parser(
+        "reuse", help="read-only preview of a prior run for reuse (#82C)"
+    )
+    ru.add_argument("--prior-run", required=True)
+    ru.add_argument("--target", required=True)
+    ru.add_argument("--scope", required=True)
+    ru.add_argument("--mode", required=True)
+    ru.add_argument(
+        "--owned-file",
+        action="append",
+        default=[],
+        help="intended owned file (repeatable)",
+    )
+    cu = sub.add_parser(
+        "custody",
+        help="re-derive the drift report and return the fresh baseline to record",
+    )
+    cu.add_argument("--report", required=True, help="the `reuse` preview JSON")
+    cu.add_argument("--owned-file", action="append", default=[])
+    cu.add_argument(
+        "--approve",
+        help="the approval token from the preview (required when drift is present)",
+    )
     for k in ("dispatch", "handoff", "review", "replan"):
         p = sub.add_parser(k)
         p.add_argument("--payload", required=True)
@@ -795,6 +951,8 @@ def main(argv: list[str]) -> int:
         if ns.cmd == "status":
             _emit({"action": "status", "state": _load_state(ns.state)})
             return EXIT_OK
+        if ns.cmd in ("reuse", "custody"):
+            return cmd_reuse(ns)
         if ns.cmd == "finish":
             return cmd_finish(ns)
         return cmd_append(ns, ns.cmd)
