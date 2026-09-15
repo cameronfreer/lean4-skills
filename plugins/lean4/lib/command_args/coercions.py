@@ -903,3 +903,25 @@ RUN_STORE_REQUIRES_PERSIST = CrossValidation(
     doc_phrases=("`--run-store` without `--persist` \u2192 startup validation error",),
     summary="--run-store requires --persist (resolved value; explicit false is omission)",
 )
+
+
+# -- prior_run_requires_persist (#82C) -------------------------------------
+
+
+def prior_run_requires_persist(
+    options: Mapping[str, object], ctx: ParseContext
+) -> list[str]:
+    """``--prior-run`` reuses stored history, which exists only with persistence
+    ON — judged by the RESOLVED value of ``--persist``."""
+    if options.get("--prior-run") is not None and options.get("--persist") is not True:
+        return ["--prior-run requires --persist (persistence is off)"]
+    return []
+
+
+PRIOR_RUN_REQUIRES_PERSIST = CrossValidation(
+    rule_id="prior_run_requires_persist",
+    fn=prior_run_requires_persist,
+    severity="error",
+    doc_phrases=("`--prior-run` without `--persist` \u2192 startup validation error",),
+    summary="--prior-run requires --persist (resolved value)",
+)

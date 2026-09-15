@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from ..coercions import RUN_STORE_REQUIRES_PERSIST
+from ..coercions import PRIOR_RUN_REQUIRES_PERSIST, RUN_STORE_REQUIRES_PERSIST
 from ..types import (
     CommandSpec,
     FlagSpec,
     PositionalSpec,
 )
-from ._common import persist_flag, run_store_flag
+from ._common import persist_flag, prior_run_flag, run_store_flag
 
 # ---------------------------------------------------------------------------
 # Flag definitions
@@ -196,6 +196,7 @@ SPEC = CommandSpec(
         FLAG_GOLF,
         persist_flag(),
         run_store_flag(),
+        prior_run_flag(),
     ),
-    cross_validations=(RUN_STORE_REQUIRES_PERSIST,),
+    cross_validations=(RUN_STORE_REQUIRES_PERSIST, PRIOR_RUN_REQUIRES_PERSIST),
 )

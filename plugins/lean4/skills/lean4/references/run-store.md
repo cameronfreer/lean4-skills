@@ -19,7 +19,7 @@ run_directory = storage_root/runs/<run-id>
 
 | File | Shape |
 |---|---|
-| `manifest.json` | `{schema, run_id, created, plugin_version, storage_root, tracker_session_id: string\|null, prior_run: run-id\|null, dispatch}` — `dispatch` is the first `run-contract/v1` dispatch record verbatim; it is **not** duplicated in the journal. `tracker_session_id` is nullable: no tracker is required. |
+| `manifest.json` | `{schema, run_id, created, plugin_version, storage_root, tracker_session_id: string\|null, prior_run: run-id\|null, dispatch}` — `dispatch` is the first `run-contract/v1` dispatch record verbatim; it is **not** duplicated in the journal. `tracker_session_id` is nullable: no tracker is required. `prior_run` is a link only — reuse (#82C) reads the prior run through `load` and never modifies it. |
 | `events.jsonl` | each line `{schema: "run-store-event/v1", seq, ts, kind, payload}`; `seq` starts at 1, dense, strictly increasing. `kind` ∈ `dispatch` (every redispatch after the first), `handoff` (the full record), `note`. `dispatch`/`handoff` payloads are unchanged `run-contract/v1` records validated by `run_contract_validate.py`. `note` payload: `{kind: candidate\|failed-avenue\|search-result\|blocker-diagnosis\|definition-gap\|source-note, text, lean: string\|null}`. |
 | `handoff.json` | `{schema: "run-store-handoff/v1", seq, payload}` — absent until the first handoff. |
 
