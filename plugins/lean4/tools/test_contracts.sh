@@ -2542,7 +2542,8 @@ else
                   '`blocker_cleared`' \
                   'A new run id, approved drift, or a freshly recorded baseline is not evidence' \
                   '`--evidence-justification`' \
-                  '**per-file merged baseline**' 'must never read as a match' \
+                  '**per-file merged baseline**' '**actual journal order**' 'must never read as a match' \
+                  'target, **scope**, mode and owned files' \
                   '**bound to the invocation**' '`reuse_report_mismatch`' '`bad_reuse_report`' \
                   'never copied from the report' '**with their recommendations**' \
                   '**with their source**' 'explicit `uncovered` outcome' \
