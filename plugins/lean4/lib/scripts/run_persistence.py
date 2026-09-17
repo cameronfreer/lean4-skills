@@ -665,6 +665,7 @@ def cmd_start(ns: argparse.Namespace, root: str) -> int:
                 report,
                 project_root=project_root,
                 target=str(dispatch.get("target")),
+                scope=str(dispatch.get("scope")),
                 mode=str(dispatch.get("mode")),
                 owned_files=[str(f) for f in dispatch.get("owned_files", [])],
             )
@@ -680,7 +681,7 @@ def cmd_start(ns: argparse.Namespace, root: str) -> int:
             run_reuse.check_compat(
                 selection,
                 target=str(dispatch.get("target")),
-                scope=str(report["invocation"]["scope"]),
+                scope=str(dispatch.get("scope")),
                 mode=str(dispatch.get("mode")),
                 project_root=project_root,
                 owned_files=[str(f) for f in dispatch.get("owned_files", [])],

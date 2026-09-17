@@ -163,10 +163,11 @@ def prefix_digest(loaded: dict[str, Any]) -> tuple[int, str]:
 def _merge_baselines(
     layers: list[tuple[dict[str, Any] | None, str | None]],
 ) -> tuple[dict[str, Any], dict[str, str]]:
-    """Per-file merged baseline. Layers are applied in order; a later layer's
-    entry for a path SUPERSEDES an earlier one (the handoff was recorded after
-    the dispatch), while paths the later layer does not cover keep the earlier
-    entry. Returns a file-baseline/v1 record and {path: origin cite}."""
+    """Per-file merged baseline. Layers are applied in JOURNAL order (the
+    manifest's dispatch first, then every dispatch/handoff event by seq); the
+    newest entry for a path wins, while paths a newer record does not cover
+    keep the older entry. Returns a file-baseline/v1 record and
+    {path: origin cite}."""
     merged: dict[str, dict[str, Any]] = {}
     origins: dict[str, str] = {}
     for baseline, cite in layers:
@@ -202,15 +203,20 @@ def select(loaded: dict[str, Any]) -> dict[str, Any]:
     handoff = handoffs[-1]["payload"] if handoffs else None
     handoff_cite = f"{rid}#{handoffs[-1]['seq']}" if handoffs else None
 
-    # per-file: the handoff's entries supersede the dispatch's for the same
-    # path; a worker handoff may cover FEWER files than its dispatch, so the
-    # dispatch's entries remain for the rest (never an implicit match)
-    baseline, baseline_origins = _merge_baselines(
-        [
-            (dispatch.get("file_baseline"), dispatch_cite),
-            (handoff.get("file_baseline") if handoff else None, handoff_cite),
-        ]
-    )
+    # per-file, in ACTUAL journal order: a redispatch may be newer than the
+    # last handoff (the process stopped before its worker returned), and a
+    # worker handoff may cover FEWER files than its dispatch — so the newest
+    # applicable entry per path wins and older records fill the rest (never
+    # an implicit match)
+    layers: list[tuple[dict[str, Any] | None, str | None]] = [
+        (manifest["dispatch"].get("file_baseline"), f"{rid}#manifest")
+    ]
+    layers += [
+        (e["payload"].get("file_baseline"), f"{rid}#{e['seq']}")
+        for e in events
+        if e["kind"] in ("dispatch", "handoff")
+    ]
+    baseline, baseline_origins = _merge_baselines(layers)
 
     replans = [e for e in events if e["kind"] == "replan"]
     last_replan = replans[-1]["payload"] if replans else None
@@ -590,15 +596,18 @@ def bind_invocation(
     *,
     project_root: str,
     target: str | None,
+    scope: str | None,
     mode: str | None,
     owned_files: list[str],
 ) -> None:
-    """The report must be THIS invocation's: same project, task, mode and
+    """The report must be THIS invocation's: same project, task (target AND
+    scope — the guard's same_task predicate depends on both), mode and
     intended ownership set (a journal digest alone does not establish that)."""
     inv = report["invocation"]
     want = {
         "project_root": os.path.realpath(project_root),
         "target": target,
+        "scope": scope,
         "mode": mode,
         "owned_files": _norm_files(owned_files),
     }

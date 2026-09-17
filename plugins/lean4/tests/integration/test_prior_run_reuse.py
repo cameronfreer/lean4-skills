@@ -1104,5 +1104,117 @@ class ReviewRound1(_Env):
         self.assertEqual((code, res["code"]), (rp.EXIT_STARTUP, "prior_run_changed"))
 
 
+@unittest.skipUnless(POSIX, "the store's mutation hosts")
+class ReviewRound2(_Env):
+    """PR #206 review round 2: journal-order baseline merge; scope binding."""
+
+    _start = ReviewRound1._start
+
+    def _redispatched_prior(self) -> tuple[str, bytes, dict[str, Any]]:
+        """handoff at #5 records revision A; a NEWER dispatch at #6 records the
+        accepted revision B."""
+        with open(self.foo, "rb") as f:
+            rev_a = f.read()
+        prior = self.make_prior(handoff=self.handoff())
+        with open(self.foo, "wb") as f:
+            f.write(rev_a + b"-- accepted revision for redispatch\n")
+        d = self.dispatch()
+        rs.op_append(self.root, prior, "dispatch", d)
+        return prior, rev_a, d
+
+    def test_newer_dispatch_baseline_wins_and_unchanged_revision_matches(
+        self,
+    ) -> None:
+        prior, _rev_a, _d = self._redispatched_prior()
+        _rc, rep = self.preview(prior)
+        self.assertEqual(rep["action"], "preview", rep)
+        self.assertEqual(rep["selection"]["dispatch_cite"], f"{prior}#6")
+        self.assertEqual(rep["selection"]["baseline_origins"], {self.foo: f"{prior}#6"})
+        self.assertEqual(rep["drift"]["result"], "match")
+        rc_, cus = self.persist(
+            "custody", "--report", self.write_report(rep), "--owned-file", self.foo
+        )
+        self.assertEqual((rc_, cus["result"]), (0, "match"), cus)
+
+    def test_rollback_to_the_older_handoff_revision_is_drift(self) -> None:
+        prior, rev_a, d = self._redispatched_prior()
+        with open(self.foo, "wb") as f:
+            f.write(rev_a)  # external rollback to the OLDER handoff's bytes
+        _rc, rep = self.preview(prior)
+        self.assertEqual(rep["selection"]["baseline_origins"], {self.foo: f"{prior}#6"})
+        self.assertEqual(rep["drift"]["result"], "drift", rep["drift"])
+        rc_, cus = self.persist(
+            "custody", "--report", self.write_report(rep), "--owned-file", self.foo
+        )
+        self.assertEqual((rc_, cus["code"]), (rp.EXIT_STARTUP, "drift_unapproved"))
+        # the older handoff's baseline alone would have matched — that is the hole
+        _c, old, _e = rr._baseline_cmd(
+            ["check", "--baseline", "-"],
+            rr._canon(
+                rs.op_load(self.root, prior)["events"][4]["payload"]["file_baseline"]
+            ),
+        )
+        self.assertEqual(old["result"], "match")
+        _c, new, _e = rr._baseline_cmd(
+            ["check", "--baseline", "-"], rr._canon(d["file_baseline"])
+        )
+        self.assertEqual(new["result"], "drift")
+
+    def test_older_records_fill_paths_a_newer_one_does_not_cover(self) -> None:
+        # dispatch(manifest) covers Foo; a later worker handoff covers Foo only;
+        # a still later dispatch covers Foo + Other → Other from #6, Foo from #6;
+        # then a handoff covering Foo only at #7 → Foo from #7, Other stays #6
+        prior = self.make_prior(handoff=self.handoff())
+        other = os.path.join(self.project, "Other.txt")
+        with open(other, "w", encoding="utf-8") as f:
+            f.write("accepted\n")
+        _c, both, _e = rr._baseline_cmd(["record", "--", self.foo, other], None)
+        d = self.dispatch()
+        d["owned_files"] = [self.foo, other]
+        d["file_baseline"] = both
+        rs.op_append(self.root, prior, "dispatch", d)
+        rs.op_append(self.root, prior, "handoff", self.handoff())
+        _rc, rep = self.preview(prior, owned=[self.foo, other])
+        self.assertEqual(
+            rep["selection"]["baseline_origins"],
+            {self.foo: f"{prior}#7", other: f"{prior}#6"},
+        )
+        self.assertEqual(rep["drift"]["result"], "match")
+
+    def test_scope_is_part_of_the_binding(self) -> None:
+        prior = self.make_prior(
+            handoff=self.handoff(
+                status="stuck",
+                blocker_kind="proof",
+                blocker_class="arithmetic",
+                blocker_signature="unchanged-proof-blocker",
+                new_evidence_required_for_rerun="a new arithmetic lemma",
+            )
+        )
+        _rc, rep = self.preview(prior)  # scope sorry
+        d = self.dispatch(
+            scope="file", prior_blocker="unchanged-proof-blocker", evidence_delta=[]
+        )
+        self.assertEqual(rc.validate_dispatch(d), [])
+        code, res = self._start(prior, rep, d)
+        self.assertEqual(
+            (code, res["code"]), (rp.EXIT_STARTUP, "reuse_report_mismatch")
+        )
+        self.assertIn("scope", res["detail"])
+        self.assertEqual(
+            [
+                r
+                for r in os.listdir(os.path.join(self.root, "runs"))
+                if rs.valid_run_id(r)
+            ],
+            [prior],
+        )
+        # the matching scope is the guarded path: same task, same blocker,
+        # empty delta → rerun_forbidden, still nothing created
+        d = self.dispatch(prior_blocker="unchanged-proof-blocker", evidence_delta=[])
+        code, res = self._start(prior, rep, d)
+        self.assertEqual((code, res["code"]), (rp.EXIT_STARTUP, "rerun_forbidden"))
+
+
 if __name__ == "__main__":
     unittest.main()
