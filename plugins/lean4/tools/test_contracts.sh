@@ -2544,6 +2544,7 @@ else
                   '`--evidence-justification`' \
                   '**per-file merged baseline**' '**actual journal order**' 'must never read as a match' \
                   'target, **scope**, mode and owned files' \
+                  '**Content-bound approval covers the intended ownership set**' \
                   '**bound to the invocation**' '`reuse_report_mismatch`' '`bad_reuse_report`' \
                   'never copied from the report' '**with their recommendations**' \
                   '**with their source**' 'explicit `uncovered` outcome' \
