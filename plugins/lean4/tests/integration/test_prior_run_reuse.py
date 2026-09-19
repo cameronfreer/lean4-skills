@@ -1248,8 +1248,187 @@ class SmokeFollowups(_Env):
             fa,
             [
                 {"text": "exact foo_lemma: type mismatch", "cite": f"{prior}#1"},
+                {"text": "exact tendsto_atTop_mono h", "cite": f"{prior}#4"},  # Replan
                 {"text": "prose: tried ring_nf; no progress", "cite": f"{prior}#5"},
             ],
+        )
+
+
+@unittest.skipUnless(POSIX, "the store's mutation hosts")
+class ReviewRound3(_Env):
+    """PR #206 review round 3: start re-derives custody; Replan failed
+    approaches and handoff candidates delivered; path-semantic targets."""
+
+    def _start(
+        self,
+        prior: str,
+        rep: dict[str, Any],
+        d: dict[str, Any],
+        approve: str | None = None,
+    ) -> tuple[int, dict[str, Any]]:
+        args = [
+            "start",
+            "--dispatch",
+            "-",
+            "--prior-run",
+            prior,
+            "--reuse-report",
+            self.write_report(rep),
+            "--now",
+            "2026-09-10T12:00:00Z",
+        ]
+        if approve is not None:
+            args += ["--approve", approve]
+        return self.persist(*args, stdin=json.dumps(d))
+
+    def _drifted_prior(self) -> str:
+        prior = self.make_prior(handoff=self.handoff())
+        with open(self.foo, "a", encoding="utf-8") as f:
+            f.write("-- external change\n")
+        return prior
+
+    # --- 1. start cannot bypass drift reconciliation
+
+    def test_autonomous_start_cannot_bypass_drift_reconciliation(self) -> None:
+        prior = self._drifted_prior()
+        _rc, rep = self.preview(prior, mode="autoprove")
+        self.assertEqual(rep["drift"]["result"], "drift")
+        # custody deliberately skipped; dispatch() records the CURRENT bytes
+        code, res = self._start(prior, rep, self.dispatch(mode="autoprove"))
+        self.assertEqual(
+            (code, res["action"], res["code"]),
+            (rp.EXIT_STARTUP, "startup-error", "drift_unreconciled"),
+            res,
+        )
+        # not even with a token: autonomous mode never accepts drift
+        code, res = self._start(
+            prior, rep, self.dispatch(mode="autoprove"), rep["drift"]["approval_token"]
+        )
+        self.assertEqual((code, res["code"]), (rp.EXIT_STARTUP, "drift_unreconciled"))
+        self.assertEqual(
+            [
+                r
+                for r in os.listdir(os.path.join(self.root, "runs"))
+                if rs.valid_run_id(r)
+            ],
+            [prior],
+        )
+        self.assertFalse(os.path.exists(self.state))
+
+    def test_guided_start_requires_the_token_and_the_fresh_baseline(self) -> None:
+        prior = self._drifted_prior()
+        _rc, rep = self.preview(prior)
+        tok = rep["drift"]["approval_token"]
+        code, res = self._start(prior, rep, self.dispatch())
+        self.assertEqual((code, res["code"]), (rp.EXIT_STARTUP, "drift_unapproved"))
+        code, res = self._start(prior, rep, self.dispatch(), "0" * 64)
+        self.assertEqual((code, res["code"]), (rp.EXIT_STARTUP, "approval_mismatch"))
+        # approved, but the dispatch carries the PRIOR baseline (pre-change bytes)
+        stale = self.dispatch()
+        stale["file_baseline"] = rr.select(rs.op_load(self.root, prior))["baseline"]
+        code, res = self._start(prior, rep, stale, tok)
+        self.assertEqual((code, res["code"]), (rp.EXIT_STARTUP, "baseline_mismatch"))
+        # approved with the fresh baseline: the run starts and its source-note
+        # records the reconciled drift
+        code, res = self._start(prior, rep, self.dispatch(), tok)
+        self.assertEqual((code, res["action"]), (0, "continue"), res)
+        note = json.loads(
+            rs.op_load(self.root, res["run_id"])["events"][0]["payload"]["text"]
+        )
+        self.assertEqual(note["drift"], {"result": "drift", "approval_token": tok})
+
+    def test_start_refuses_a_file_changed_again_after_approval(self) -> None:
+        prior = self._drifted_prior()
+        _rc, rep = self.preview(prior)
+        tok = rep["drift"]["approval_token"]
+        with open(self.foo, "a", encoding="utf-8") as f:
+            f.write("-- changed again\n")
+        code, res = self._start(prior, rep, self.dispatch(), tok)
+        self.assertEqual((code, res["code"]), (rp.EXIT_STARTUP, "custody_mismatch"))
+
+    # --- 2. Replan failed approaches and handoff candidates reach the new run
+
+    def test_replan_failed_approaches_and_handoff_candidates_are_delivered(
+        self,
+    ) -> None:
+        h = self.handoff()
+        h["best_candidates"] = [
+            {
+                "candidate": "UNIQUE_CANDIDATE: nlinarith [sq_nonneg x]",
+                "outcome": "compiles but 8 s; not adopted",
+            }
+        ]
+        prior = self.make_prior(handoff=h)  # the fixture Replan (#4) carries
+        _rc, rep = self.preview(prior)  # "exact tendsto_atTop_mono h"
+        hist = rep["historical"]
+        self.assertIn(
+            {"text": "exact tendsto_atTop_mono h", "cite": f"{prior}#4"},
+            hist["failed_avenues"],
+        )
+        self.assertEqual(
+            hist["candidates"],
+            [
+                {
+                    "candidate": "UNIQUE_CANDIDATE: nlinarith [sq_nonneg x]",
+                    "outcome": "compiles but 8 s; not adopted",
+                    "cite": f"{prior}#5",
+                    "verified": False,
+                }
+            ],
+        )
+        code, res = self._start(prior, rep, self.dispatch())
+        self.assertEqual((code, res["action"]), (0, "continue"), res)
+        text = rs.op_load(self.root, res["run_id"])["events"][0]["payload"]["text"]
+        self.assertIn("exact tendsto_atTop_mono h", text)
+        self.assertIn("UNIQUE_CANDIDATE: nlinarith [sq_nonneg x]", text)
+        self.assertIn(
+            "historical, unverified", json.loads(text)["presentation"]["candidates"]
+        )
+
+    # --- 3. target compatibility has path semantics
+
+    def _compat(self, prior_target: str, target: str, scope: str) -> str | None:
+        sel = {
+            "dispatch": {"mode": "prove", "target": prior_target, "owned_files": []},
+            "baseline_origins": {},
+        }
+        try:
+            rr.check_compat(
+                sel,
+                target=target,
+                scope=scope,
+                mode="prove",
+                project_root=self.project,
+                owned_files=[self.foo],
+            )
+        except rr.ReuseError as ex:
+            return ex.code
+        return None
+
+    def test_target_compatibility_uses_path_semantics(self) -> None:
+        # intended widening: a line task reused for the whole file
+        self.assertIsNone(self._compat("/repo/Foo.lean:42", "/repo/Foo.lean", "file"))
+        self.assertIsNone(self._compat("/repo/Foo.lean:42", "/repo/Foo.lean:7", "file"))
+        # neighbouring names are different files
+        self.assertEqual(
+            self._compat("/repo/Foo.lean.extra.lean:1", "/repo/Foo.lean", "file"),
+            "incompatible_target",
+        )
+        # directory targets contain by whole components
+        self.assertIsNone(self._compat("/repo/Foo/X.lean:1", "/repo/Foo", "project"))
+        self.assertIsNone(self._compat("/repo/Foo/X.lean:1", "/repo/Foo/", "changed"))
+        self.assertEqual(
+            self._compat("/repo/Foobar/X.lean:1", "/repo/Foo", "project"),
+            "incompatible_target",
+        )
+        # sorry scope: the identical target only
+        self.assertEqual(
+            self._compat("/repo/Foo.lean:42", "/repo/Foo.lean:43", "sorry"),
+            "incompatible_target",
+        )
+        # only a trailing :<line> is a location suffix
+        self.assertEqual(
+            rr._target_path("C:/repo/Foo.lean:3"), rr._target_path("C:/repo/Foo.lean")
         )
 
 

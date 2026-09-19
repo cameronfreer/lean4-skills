@@ -239,6 +239,7 @@ def select(loaded: dict[str, Any]) -> dict[str, Any]:
             }
         )
     failed: list[dict[str, str]] = []
+    candidates: list[dict[str, Any]] = []
     notes: list[dict[str, Any]] = []
     snippets: list[dict[str, Any]] = []
     for e in events:
@@ -274,6 +275,24 @@ def select(loaded: dict[str, Any]) -> dict[str, Any]:
                 for t in e["payload"]["failed_avenues"]
                 if t not in listed
             )
+            candidates.extend(
+                {
+                    "candidate": c["candidate"],
+                    "outcome": c["outcome"],
+                    "cite": f"{rid}#{e['seq']}",
+                    "verified": False,
+                }
+                for c in e["payload"].get("best_candidates", [])
+            )
+        elif e["kind"] == "replan":
+            # a Replan's failed_approaches are prose; same text already listed
+            # (from a note or handoff) is not repeated, provenance kept otherwise
+            seen = {f["text"] for f in failed}
+            failed.extend(
+                {"text": t, "cite": f"{rid}#{e['seq']}"}
+                for t in e["payload"].get("failed_approaches", [])
+                if t not in seen
+            )
 
     carry: dict[str, Any] = {
         "prior_blocker": handoff.get("blocker_signature") if handoff else None,
@@ -306,6 +325,7 @@ def select(loaded: dict[str, Any]) -> dict[str, Any]:
             "next_steps": (last_replan or {}).get("next_steps", []),
             "plan_cite": f"{rid}#{replans[-1]['seq']}" if replans else None,
             "failed_avenues": failed,
+            "candidates": candidates,  # handoff best_candidates: historical, unverified
             "reviews": reviews,
             "notes": notes,
             "snippets": snippets,
@@ -318,6 +338,24 @@ def select(loaded: dict[str, Any]) -> dict[str, Any]:
 # --------------------------------------------------------------------------
 
 _MODE_FAMILY = {"prove": "proving", "autoprove": "proving", "golf": "golf"}
+
+
+_LINE_SUFFIX = re.compile(r"^(.*?)(?::(\d+))?$")
+
+
+def _target_path(target: str) -> str:
+    """The path part of a target (`file` or `file:line`), normalized. Only a
+    trailing `:<line>` is a location suffix — a Windows drive prefix is not."""
+    m = _LINE_SUFFIX.match(target)
+    path = m.group(1) if m else target
+    return os.path.normcase(os.path.normpath(os.path.abspath(path)))
+
+
+def _path_within(path: str, directory: str) -> bool:
+    """`path` equals `directory` or lies under it by whole path components."""
+    if path == directory:
+        return True
+    return path.startswith(directory.rstrip(os.sep) + os.sep)
 
 
 def _inside(path: str, real_root: str) -> bool:
@@ -343,8 +381,13 @@ def check_compat(
             "incompatible_mode", f"prior mode {d.get('mode')!r} vs current {mode!r}"
         )
     pt = str(d.get("target"))
-    if scope in ("file", "project", "changed"):
-        ok = pt == target or pt.startswith(target.split(":", 1)[0])
+    if scope == "file":
+        # the same FILE (a prior `Foo.lean:42` task widens to all of Foo.lean;
+        # a neighbouring name never matches)
+        ok = _target_path(pt) == _target_path(target)
+    elif scope in ("project", "changed"):
+        # the prior file inside the current directory target, by components
+        ok = _path_within(_target_path(pt), _target_path(target))
     else:
         ok = pt == target
     if not ok:
@@ -399,6 +442,19 @@ def _baseline_cmd(args: list[str], stdin: bytes | None) -> tuple[int, Any, str]:
         )
     except (UnicodeDecodeError, ValueError):
         return p.returncode, None, p.stderr.decode("utf-8", "replace")
+
+
+def baseline_digest(baseline: Any) -> str | None:
+    """{path: (exists, sha256)} of a file-baseline/v1 record, digested; None
+    if the record is not one."""
+    if not isinstance(baseline, dict) or not isinstance(baseline.get("files"), list):
+        return None
+    entries = {}
+    for e in baseline["files"]:
+        if not isinstance(e, dict) or not isinstance(e.get("path"), str):
+            return None
+        entries[os.path.abspath(e["path"])] = [e.get("exists"), e.get("sha256")]
+    return _digest(entries)
 
 
 def _norm_files(owned_files: list[str]) -> list[str]:
@@ -481,6 +537,7 @@ def source_note(
             "failed_avenues": "known dead ends under the prior assumptions — evidence, not prohibitions",
             "reviews": "recorded as completed; not known to have been applied — reassess",
             "snippets": "historical, unverified",
+            "candidates": "the prior handoffs' best candidates — historical, unverified",
         },
     }
 

@@ -686,6 +686,35 @@ def cmd_start(ns: argparse.Namespace, root: str) -> int:
                 project_root=project_root,
                 owned_files=[str(f) for f in dispatch.get("owned_files", [])],
             )
+            # custody is re-derived HERE, at the final boundary before anything
+            # is created: the drift check runs again over the dispatch's owned
+            # files, approval stays bound to the token, autonomous startup
+            # refuses any drift/uncovered file, and the dispatch's baseline
+            # must be the fresh one custody hands back — a caller cannot skip
+            # `custody` and dispatch on a re-recorded baseline
+            owned = [str(f) for f in dispatch.get("owned_files", [])]
+            autonomous = dispatch.get("mode") == "autoprove"
+            cus = run_reuse.custody(
+                report=report,
+                owned_files=owned,
+                # autonomous mode has no approver: the result itself is judged below
+                approve=str(report["drift"]["approval_token"])
+                if autonomous
+                else ns.approve,
+                selection=selection,
+            )
+            if cus["result"] != "match" and autonomous:
+                raise run_reuse.ReuseError(
+                    "drift_unreconciled",
+                    f"{cus['result']}: autonomous startup never accepts drift or an uncovered file; reconcile the source and re-run reuse",
+                )
+            if run_reuse.baseline_digest(
+                dispatch.get("file_baseline")
+            ) != run_reuse.baseline_digest(cus["fresh_baseline"]):
+                raise run_reuse.ReuseError(
+                    "baseline_mismatch",
+                    "the first dispatch's file_baseline is not the fresh baseline custody returned for these owned files",
+                )
             guard = run_reuse.guard_decision(
                 dispatch, selection, ns.evidence_justification
             )
@@ -708,7 +737,10 @@ def cmd_start(ns: argparse.Namespace, root: str) -> int:
                 observed_seq=seq,
                 prefix_digest_=digest,
                 sel=selection,
-                drift=report["drift"],
+                drift={
+                    "result": cus["result"],
+                    "approval_token": cus["approval_token"],
+                },
             )
             note["evidence_justification"] = ns.evidence_justification
             note["guard"] = guard
@@ -910,6 +942,10 @@ def main(argv: list[str]) -> int:
     s.add_argument("--prior-run")
     s.add_argument(
         "--reuse-report", help="the `reuse` preview JSON (required with --prior-run)"
+    )
+    s.add_argument(
+        "--approve",
+        help="the approval token from the `reuse` preview (guided prove; required when the drift report is not a match)",
     )
     s.add_argument(
         "--evidence-justification",
