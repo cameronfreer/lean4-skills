@@ -953,7 +953,8 @@ def main(argv: list[str]) -> int:
         ns = ap.parse_args(argv)
     except SystemExit as ex:
         return EXIT_USAGE if ex.code else EXIT_OK
-    if not ns.state:
+    if not ns.state and ns.cmd not in ("reuse", "custody"):
+        # the read-only previews touch neither the store nor any invocation state
         _emit(
             {
                 "action": "usage",

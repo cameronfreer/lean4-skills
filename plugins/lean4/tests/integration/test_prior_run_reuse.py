@@ -1216,5 +1216,42 @@ class ReviewRound2(_Env):
         self.assertEqual((code, res["code"]), (rp.EXIT_STARTUP, "rerun_forbidden"))
 
 
+@unittest.skipUnless(POSIX, "the store's mutation hosts")
+class SmokeFollowups(_Env):
+    """Live-smoke follow-ups: previews need no invocation state; a handoff's
+    citation-form failed_avenues are not repeated as text."""
+
+    def test_reuse_and_custody_need_no_invocation_state(self) -> None:
+        prior = self.make_prior(handoff=self.handoff())
+        self.env.pop("LEAN4_RUN_PERSIST_STATE", None)
+        rc_, rep = self.preview(prior)
+        self.assertEqual((rc_, rep["action"]), (0, "preview"), rep)
+        rc_, cus = self.persist(
+            "custody", "--report", self.write_report(rep), "--owned-file", self.foo
+        )
+        self.assertEqual((rc_, cus["action"]), (0, "custody"), cus)
+        self.assertFalse(os.path.exists(self.state))
+        # start still requires it
+        rc_, res = self.persist(
+            "start", "--dispatch", "-", stdin=json.dumps(self.dispatch())
+        )
+        self.assertEqual((rc_, res["action"]), (rp.EXIT_USAGE, "usage"), res)
+
+    def test_handoff_citations_of_listed_notes_are_not_repeated(self) -> None:
+        prior = self.make_prior(handoff=None)
+        h = self.handoff()
+        h["failed_avenues"] = [f"{prior}#1", "prose: tried ring_nf; no progress"]
+        rs.op_set_handoff(self.root, prior, h)
+        _rc, rep = self.preview(prior)
+        fa = rep["historical"]["failed_avenues"]
+        self.assertEqual(
+            fa,
+            [
+                {"text": "exact foo_lemma: type mismatch", "cite": f"{prior}#1"},
+                {"text": "prose: tried ring_nf; no progress", "cite": f"{prior}#5"},
+            ],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

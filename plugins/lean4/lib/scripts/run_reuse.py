@@ -266,9 +266,13 @@ def select(loaded: dict[str, Any]) -> dict[str, Any]:
                     }
                 )
         elif e["kind"] == "handoff":
+            # a handoff's failed_avenues are citations (`<rid>#<seq>`) or prose;
+            # a citation of a note already listed above is not repeated as text
+            listed = {f["cite"] for f in failed}
             failed.extend(
                 {"text": t, "cite": f"{rid}#{e['seq']}"}
                 for t in e["payload"]["failed_avenues"]
+                if t not in listed
             )
 
     carry: dict[str, Any] = {
