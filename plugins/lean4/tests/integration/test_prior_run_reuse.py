@@ -1432,5 +1432,102 @@ class ReviewRound3(_Env):
         )
 
 
+@unittest.skipUnless(POSIX, "the store's mutation hosts")
+class ReviewRound4(_Env):
+    """PR #206 review round 4: the dispatch/custody baseline comparison keeps
+    resolved-path identity (a symlink retargeted to identical bytes)."""
+
+    _start = ReviewRound3._start
+
+    def setUp(self) -> None:
+        super().setUp()
+        # Foo.lean becomes a symlink to A; B has identical bytes
+        with open(self.foo, "rb") as f:
+            data = f.read()
+        self.a = os.path.join(self.project, "A.lean")
+        self.b = os.path.join(self.project, "B.lean")
+        for p in (self.a, self.b):
+            with open(p, "wb") as f:
+                f.write(data)
+        os.remove(self.foo)
+        os.symlink(self.a, self.foo)
+
+    def _retarget(self, to: str) -> None:
+        os.remove(self.foo)
+        os.symlink(to, self.foo)
+
+    def test_stale_entry_with_identical_bytes_but_other_realpath_is_refused(
+        self,
+    ) -> None:
+        prior = self.make_prior(handoff=self.handoff())  # baseline records A
+        stale = self.dispatch()  # its baseline still names A
+        self._retarget(self.b)
+        _rc, rep = self.preview(prior)
+        self.assertEqual(rep["drift"]["entries"][0]["status"], "retargeted")
+        tok = rep["drift"]["approval_token"]
+        # the user approves B; the dispatch mistakenly keeps the entry naming A
+        self.assertEqual(
+            stale["file_baseline"]["files"][0]["realpath"], os.path.realpath(self.a)
+        )
+        code, res = self._start(prior, rep, stale, tok)
+        self.assertEqual((code, res["code"]), (rp.EXIT_STARTUP, "baseline_mismatch"))
+        self.assertEqual(
+            [
+                r
+                for r in os.listdir(os.path.join(self.root, "runs"))
+                if rs.valid_run_id(r)
+            ],
+            [prior],
+        )
+        self.assertFalse(os.path.exists(self.state))
+        # the ACTUAL fresh baseline (naming B) starts the run ...
+        fresh = self.dispatch()
+        self.assertEqual(
+            fresh["file_baseline"]["files"][0]["realpath"], os.path.realpath(self.b)
+        )
+        code, res = self._start(prior, rep, fresh, tok)
+        self.assertEqual((code, res["action"]), (0, "continue"), res)
+        # ... and a later retarget back to A is detected against it
+        self._retarget(self.a)
+        _c, chk, _e = rr._baseline_cmd(
+            ["check", "--baseline", "-"], rr._canon(fresh["file_baseline"])
+        )
+        self.assertEqual(
+            (chk["result"], chk["entries"][0]["status"]), ("drift", "retargeted")
+        )
+        _c, stale_chk, _e = rr._baseline_cmd(
+            ["check", "--baseline", "-"], rr._canon(stale["file_baseline"])
+        )
+        self.assertEqual(stale_chk["result"], "match")  # what the bug would have hidden
+
+    def test_baseline_digest_is_order_independent_and_identity_complete(self) -> None:
+        e1 = {
+            "path": "/p/a",
+            "realpath": "/r/a",
+            "exists": True,
+            "sha256": "x",
+            "size": 1,
+        }
+        e2 = {
+            "path": "/p/b",
+            "realpath": "/r/b",
+            "exists": True,
+            "sha256": "y",
+            "size": 2,
+        }
+        base = {"schema": "file-baseline/v1", "files": [e1, e2]}
+        swapped = {"schema": "file-baseline/v1", "files": [e2, e1]}
+        self.assertEqual(rr.baseline_digest(base), rr.baseline_digest(swapped))
+        for k, v in (
+            ("realpath", "/r/z"),
+            ("size", 9),
+            ("exists", False),
+            ("sha256", "q"),
+        ):
+            other = {"schema": "file-baseline/v1", "files": [dict(e1, **{k: v}), e2]}
+            self.assertNotEqual(rr.baseline_digest(base), rr.baseline_digest(other), k)
+        self.assertIsNone(rr.baseline_digest({"files": [{"nope": 1}]}))
+
+
 if __name__ == "__main__":
     unittest.main()

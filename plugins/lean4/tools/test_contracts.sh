@@ -2545,7 +2545,7 @@ else
                   '**per-file merged baseline**' '**actual journal order**' 'must never read as a match' \
                   'target, **scope**, mode and owned files' \
                   '**Content-bound approval covers the intended ownership set**' \
-                  '**re-derives custody at the final boundary**' '`baseline_mismatch`' '`drift_unreconciled`' \
+                  '**re-derives custody at the final boundary**' '`baseline_mismatch`' 'realpath as recorded' '`drift_unreconciled`' \
                   '**and every Replan'"'"'s `failed_approaches`**' '**`best_candidates` as historical, unverified candidates**' \
                   'a neighbouring name never matches' 'whole path components' \
                   '**bound to the invocation**' '`reuse_report_mismatch`' '`bad_reuse_report`' \

@@ -445,15 +445,23 @@ def _baseline_cmd(args: list[str], stdin: bytes | None) -> tuple[int, Any, str]:
 
 
 def baseline_digest(baseline: Any) -> str | None:
-    """{path: (exists, sha256)} of a file-baseline/v1 record, digested; None
-    if the record is not one."""
+    """Order-independent digest of the full identity of a file-baseline/v1
+    record: per path its RECORDED realpath (never re-resolved — the historical
+    identity is what is compared; a symlink retargeted to identical bytes is a
+    different baseline), existence, content hash and size. None if the
+    record is not one."""
     if not isinstance(baseline, dict) or not isinstance(baseline.get("files"), list):
         return None
     entries = {}
     for e in baseline["files"]:
         if not isinstance(e, dict) or not isinstance(e.get("path"), str):
             return None
-        entries[os.path.abspath(e["path"])] = [e.get("exists"), e.get("sha256")]
+        entries[os.path.abspath(e["path"])] = [
+            e.get("realpath"),
+            e.get("exists"),
+            e.get("sha256"),
+            e.get("size"),
+        ]
     return _digest(entries)
 
 
