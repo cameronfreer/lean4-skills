@@ -177,6 +177,29 @@ _HIST_LISTS = (
 )
 
 
+_ITEM_FIELDS: dict[str, tuple[str, ...]] = {
+    # the fields inheritance indexes or hashes, per historical list
+    "failed_avenues": ("cite", "text"),
+    "candidates": ("cite", "candidate", "outcome"),
+    "notes": ("cite", "kind", "text"),
+    "snippets": ("cite", "kind"),
+    "reviews": ("cite",),
+    "inherited": ("cite",),
+}
+
+
+def _valid_item(key: str, item: Any) -> bool:
+    """A historical item with every field inheritance will touch present as
+    a string (extra fields are fine); `inherited_via`, if present, a string."""
+    if not isinstance(item, dict):
+        return False
+    for f in _ITEM_FIELDS[key]:
+        if not isinstance(item.get(f), str):
+            return False
+    via = item.get("inherited_via")
+    return via is None or isinstance(via, str)
+
+
 def _parse_reuse_note(text: str) -> dict[str, Any] | None:
     """A helper-generated reuse source-note (see `source_note`): it must carry
     the explicit `schema` discriminator AND validate in shape. Anything else —
@@ -199,7 +222,7 @@ def _parse_reuse_note(text: str) -> dict[str, Any] | None:
         return None
     for key in _HIST_LISTS:
         v = h.get(key, [])
-        if not isinstance(v, list) or not all(isinstance(x, dict) for x in v):
+        if not isinstance(v, list) or not all(_valid_item(key, x) for x in v):
             return None
     if h.get("plan") is not None and not isinstance(h["plan"], str):
         return None

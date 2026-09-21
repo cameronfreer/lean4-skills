@@ -1698,6 +1698,42 @@ class JsonShapedUserNotes(_Env):
                     "carry": "x",
                 }
             ),
+            # a GENUINE-looking helper note whose items lack the fields
+            # inheritance hashes or indexes
+            json.dumps(
+                {
+                    "schema": "run-persist-source-note/v1",
+                    "prior_run": rid,
+                    "historical": {
+                        "notes": [{"cite": [], "kind": "candidate", "text": "x"}]
+                    },
+                }
+            ),
+            json.dumps(
+                {
+                    "schema": "run-persist-source-note/v1",
+                    "prior_run": rid,
+                    "historical": {"failed_avenues": [{"cite": f"{rid}#1"}]},
+                }
+            ),  # missing text; the fixture prior has a Replan after it
+            json.dumps(
+                {
+                    "schema": "run-persist-source-note/v1",
+                    "prior_run": rid,
+                    "historical": {"inherited": [{"prior_run": rid}]},
+                }
+            ),  # link without a cite
+            json.dumps(
+                {
+                    "schema": "run-persist-source-note/v1",
+                    "prior_run": rid,
+                    "historical": {
+                        "failed_avenues": [
+                            {"cite": f"{rid}#1", "text": "t", "inherited_via": 3}
+                        ]
+                    },
+                }
+            ),
             "{not json",
             "see Mathlib PR #1234 for the lemma",
         ):
