@@ -188,6 +188,12 @@ _ITEM_FIELDS: dict[str, tuple[str, ...]] = {
 }
 
 
+def _item_key(key: str, item: dict[str, Any]) -> tuple[Any, ...]:
+    """Deduplication identity of a historical item: exactly its validated
+    fields for that list (all strings), nothing else."""
+    return tuple(item.get(f) for f in _ITEM_FIELDS[key])
+
+
 def _valid_item(key: str, item: Any) -> bool:
     """A historical item with every field inheritance will touch present as
     a string (extra fields are fine); `inherited_via`, if present, a string."""
@@ -277,11 +283,11 @@ def _inherit(
         ("snippets", snippets),
         ("reviews", reviews),
     ):
-        seen = {(x.get("cite"), x.get("text"), x.get("candidate")) for x in target}
+        # the identity key is built ONLY from the validated per-kind fields
+        # (`_ITEM_FIELDS`), so validation and deduplication cannot disagree
+        seen = {_item_key(key, x) for x in target}
         for item in h.get(key, []):
-            if not isinstance(item, dict):
-                continue
-            k = (item.get("cite"), item.get("text"), item.get("candidate"))
+            k = _item_key(key, item)
             if k in seen:
                 continue
             seen.add(k)

@@ -24,7 +24,7 @@ import sys
 import tempfile
 import unittest
 from itertools import pairwise
-from typing import Any
+from typing import Any, ClassVar
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _PLUGIN = os.path.dirname(os.path.dirname(_HERE))
@@ -1776,6 +1776,85 @@ class JsonShapedUserNotes(_Env):
         )
         # historical only: the current carry is the selected handoff's
         self.assertNotEqual(rep["carry"]["prior_blocker"], "ancestor-blocker")
+
+
+@unittest.skipUnless(POSIX, "the store's mutation hosts")
+class ItemFieldTable(_Env):
+    """PR #206 review round 8: validation and deduplication share one per-kind
+    field table; unhashable values in validated fields keep the note as text,
+    unhashable values in OTHER fields never reach the identity key."""
+
+    RID = "20260101T000000Z-0badc0de"
+    VALID: ClassVar[dict[str, dict[str, Any]]] = {
+        "failed_avenues": {"cite": f"{RID}#1", "text": "t"},
+        "candidates": {"cite": f"{RID}#2", "candidate": "c", "outcome": "o"},
+        "notes": {"cite": f"{RID}#3", "kind": "candidate", "text": "n"},
+        "snippets": {"cite": f"{RID}#4", "kind": "candidate", "text": "s", "lean": "l"},
+        "reviews": {"cite": f"{RID}#5", "status": "completed"},
+        "inherited": {"cite": f"{RID}#6", "prior_run": RID},
+    }
+
+    def _preview_with(self, hist: dict[str, Any]) -> tuple[dict[str, Any], str, str]:
+        prior = self.make_prior(handoff=self.handoff())
+        text = json.dumps(
+            {
+                "schema": "run-persist-source-note/v1",
+                "prior_run": self.RID,
+                "historical": hist,
+            }
+        )
+        rs.op_append(
+            self.root,
+            prior,
+            "note",
+            {"kind": "source-note", "text": text, "lean": None},
+        )
+        rc_, rep = self.preview(prior)
+        self.assertEqual((rc_, rep["action"]), (0, "preview"), rep)
+        shutil.rmtree(self.root)
+        return rep, text, prior
+
+    def test_table_validation_and_dedupe_fields_agree(self) -> None:
+        self.assertEqual(set(rr._ITEM_FIELDS), set(self.VALID))
+        for key, fields in rr._ITEM_FIELDS.items():
+            # every validated field: a list or dict there keeps the note as TEXT
+            for f in fields:
+                for bad in ([], {}):
+                    hist = {key: [dict(self.VALID[key], **{f: bad})]}
+                    rep, text, _p = self._preview_with(hist)
+                    self.assertEqual(rep["historical"]["inherited"], [], (key, f, bad))
+                    self.assertIn(
+                        text,
+                        [n["text"] for n in rep["historical"]["notes"]],
+                        (key, f, bad),
+                    )
+            # an UNVALIDATED extra field with a list/dict value never reaches
+            # the identity key: the note is flattened, the item delivered
+            for extra in ("candidate", "text", "cite2", "outcome"):
+                if extra in fields:
+                    continue
+                for val in ([], {"x": 1}):
+                    hist = {key: [dict(self.VALID[key], **{extra: val})]}
+                    rep, _t, _p = self._preview_with(hist)
+                    # (the reuse note itself contributes one link; an inherited
+                    # link item adds a second)
+                    self.assertEqual(
+                        len(rep["historical"]["inherited"]),
+                        2 if key == "inherited" else 1,
+                        (key, extra),
+                    )
+                    items = [
+                        x
+                        for x in rep["historical"][key]
+                        if x.get("cite") == self.VALID[key]["cite"]
+                    ]
+                    self.assertEqual(len(items), 1, (key, extra, val))
+                    self.assertEqual(items[0].get(extra), val)
+                    # and it deduplicates on the validated fields only
+                    self.assertEqual(
+                        rr._item_key(key, items[0]),
+                        rr._item_key(key, self.VALID[key]),
+                    )
 
 
 if __name__ == "__main__":
