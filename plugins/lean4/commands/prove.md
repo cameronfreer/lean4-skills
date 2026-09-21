@@ -47,7 +47,11 @@ Startup requirements:
    `lean4-skills-run-persist start` **before any proof edit**; a `startup-error`
    is a startup validation error. Report the `run_id` in Resolved Inputs and
    follow [Run Persistence](../skills/lean4/references/cycle-engine.md#run-persistence)
-   at every review, cycle boundary, and stop.
+   at every review, cycle boundary, and stop. With `--prior-run`, first run
+   `run-persist reuse`, show the drift report (drift and uncovered files), obtain approval of **that report**
+   (its token), `run-persist custody`, and pass `--reuse-report` (and, when the
+   report was not a match, `--approve <token>`) to `start`, which re-derives custody
+   ([Prior-Run Reuse](../skills/lean4/references/cycle-engine.md#prior-run-reuse)).
 
 ## Inputs
 
@@ -74,6 +78,7 @@ Startup requirements:
 | --golf | No | prompt | `prompt`, `auto`, or `never` |
 | --persist | No | false | Write this run to the run store (dispatches, handoffs, notes, reviews, Replan summaries; one run per invocation). Off by default — existing invocations are unchanged. Platform support is a startup capability check. See [cycle-engine: Run Persistence](../skills/lean4/references/cycle-engine.md#run-persistence). |
 | --run-store | No | — | Storage root override; requires `--persist` (`--run-store` without `--persist` → startup validation error). Precedence: `--run-store` → `$LEAN4_RUN_STORE` → `<project-root>/.lean4-skills`. |
+| --prior-run | No | — | Reuse a selected prior run's history (explicit id; never "latest"; resolved within the selected store); requires `--persist` (`--prior-run` without `--persist` → startup validation error). See [cycle-engine: Prior-Run Reuse](../skills/lean4/references/cycle-engine.md#prior-run-reuse). |
 
 ## Startup Behavior
 

@@ -2514,6 +2514,85 @@ if [[ "$check44_ok" -eq 1 ]]; then
     ok "Check 44: run persistence integration pinned (#82B: default-off flags + companion rule, startup order, sole writer, review/replan per cycle boundary, <run_id>#<seq> citations, stop-on-indeterminate, visible fallback never claimed stored; helper + tests wired)"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 45: prior-run reuse (#82C; Refs #82). Behaviour is established by
+# tests/integration/test_prior_run_reuse.py; this pins that the commands and
+# the engine prescribe that policy and that the wiring exists.
+# ---------------------------------------------------------------------------
+check45_ok=1
+_c45_sec=$(extract_section "$PLUGIN_ROOT/skills/lean4/references/cycle-engine.md" "## Prior-Run Reuse")
+if [[ -z "$_c45_sec" ]]; then
+    fail "Check 45: cycle-engine.md missing '## Prior-Run Reuse'"
+    check45_ok=0
+else
+    for _c45_s in 'never "latest"' 'This is not resume' \
+                  'latest recorded handoff' 'finality is **unknown**' \
+                  'never affects selection, eligibility, or the rerun decision' \
+                  '**supplement** them and never replace them' \
+                  '`guard_evaluable: false`' 'never manufactures a clean result' \
+                  'never reads past the valid prefix and never repairs' \
+                  '`prior_run_active`' '**Absence of a lock proves nothing**' \
+                  'particular observed journal prefix' 'never claims to have frozen' \
+                  'evidence, not prohibitions' 'disposition unknown' '**unverified**' \
+                  'Replan `cites` stay same-run only' 'one local `source-note`' \
+                  '`<run_id>#manifest`' \
+                  'content-bound' '`custody_mismatch`' \
+                  'approve **that report**' 'stops before any edit and before custody' \
+                  'never accepts drift automatically' \
+                  '`blocker_cleared`' \
+                  'A new run id, approved drift, or a freshly recorded baseline is not evidence' \
+                  '`--evidence-justification`' \
+                  '**per-file merged baseline**' '**actual journal order**' 'must never read as a match' \
+                  'target, **scope**, mode and owned files' \
+                  '**Content-bound approval covers the intended ownership set**' \
+                  '**re-derives custody at the final boundary**' '`baseline_mismatch`' 'realpath as recorded' '`drift_unreconciled`' \
+                  '**and every Replan'"'"'s `failed_approaches`**' '**`best_candidates` as historical, unverified candidates**' \
+                  'a neighbouring name never matches' 'whole path components' \
+                  '**Chained reuse stays flat:**' '**inherited as structured data**' 'never nested as serialized text' \
+                  '`schema: run-persist-source-note/v1`' 'never promoted into the current guard' \
+                  '**bound to the invocation**' '`reuse_report_mismatch`' '`bad_reuse_report`' \
+                  'never copied from the report' '**with their recommendations**' \
+                  '**with their source**' 'explicit `uncovered` outcome' \
+                  'never a silent exception'; do
+        if ! grep -qF -- "$_c45_s" <<<"$_c45_sec"; then
+            fail "Check 45: Prior-Run Reuse must state: $_c45_s"
+            check45_ok=0
+        fi
+    done
+fi
+for _c45_cmd in prove autoprove; do
+    _c45_f="$PLUGIN_ROOT/commands/$_c45_cmd.md"
+    if ! grep -qE '^\| --prior-run \| No \|' "$_c45_f" || ! grep -qF 'cycle-engine.md#prior-run-reuse' "$_c45_f"; then
+        fail "Check 45: $_c45_cmd.md must carry --prior-run and link Prior-Run Reuse"
+        check45_ok=0
+    fi
+    if ! grep -qF 'prior_run_flag()' "$PLUGIN_ROOT/lib/command_args/specs/$_c45_cmd.py"; then
+        fail "Check 45: command_args spec for $_c45_cmd lacks --prior-run"
+        check45_ok=0
+    fi
+done
+if ! grep -qF 'on drift or an uncovered file **stop before any edit and before custody**' "$PLUGIN_ROOT/commands/autoprove.md"; then
+    fail "Check 45: autoprove.md must stop before edits and custody on drift"
+    check45_ok=0
+fi
+for _c45_f in lib/scripts/run_reuse.py tests/integration/test_prior_run_reuse.py; do
+    if [[ ! -f "$PLUGIN_ROOT/$_c45_f" ]]; then
+        fail "Check 45: $_c45_f missing"
+        check45_ok=0
+    fi
+done
+if ! grep -qF 'tests/integration/test_prior_run_reuse.py' "$PLUGIN_ROOT/../../.github/workflows/lint.yml"; then
+    fail "Check 45: lint.yml must run test_prior_run_reuse.py"
+    check45_ok=0
+fi
+if grep -qE 'os\.unlink\([^)]*lock|remove\([^)]*\.lock' "$PLUGIN_ROOT/lib/scripts/run_reuse.py"; then
+    fail "Check 45: run_reuse.py must never remove a lock"
+    check45_ok=0
+fi
+if [[ "$check45_ok" -eq 1 ]]; then
+    ok "Check 45: prior-run reuse pinned (#82C: explicit selection, finality unknown, blocker preserved, content-bound approval, autoprove stops on drift, local source-note bridge, guard before creation; no resume/repair/lock recovery)"
+fi
+
 if [[ "$check39_ok" -eq 1 ]]; then
     ok "Check 39: file-gate scope pinned (#166: canonical section w/ both failure directions + both recovery paths, cited sites corrected, cross-file editors routed, disprove REFUTED licensed by lake lean <target-file>, no naive module-name derivation)"
 fi

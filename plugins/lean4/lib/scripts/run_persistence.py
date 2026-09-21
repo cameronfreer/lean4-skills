@@ -69,6 +69,7 @@ from typing import Any
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import run_contract_validate as rc  # noqa: E402
+import run_reuse  # noqa: E402
 
 STORE = os.path.join(HERE, "run_store.py")
 RESULT_SCHEMA = "run-persist-result/v1"
@@ -637,6 +638,116 @@ def cmd_start(ns: argparse.Namespace, root: str) -> int:
             }
         )
         return EXIT_STARTUP
+    reuse_note: str | None = None
+    guard: dict[str, Any] | None = None
+    if ns.prior_run:
+        # #82C: revalidate the observed prefix, apply the rerun guard, and
+        # prepare the local source-note — all BEFORE creating anything.
+        if not ns.reuse_report:
+            _emit(
+                {
+                    "action": "startup-error",
+                    "code": "reuse_report_required",
+                    "detail": "--prior-run needs --reuse-report (the `reuse` preview)",
+                }
+            )
+            return EXIT_STARTUP
+        project_root = os.path.abspath(ns.project_root or os.getcwd())
+        try:
+            report = run_reuse.validate_report(_read_json(ns.reuse_report))
+            if report["prior_run"] != ns.prior_run:
+                raise run_reuse.ReuseError(
+                    "reuse_report_mismatch",
+                    f"the reuse report names prior run {report['prior_run']!r}, not {ns.prior_run!r}",
+                )
+            # the report must be THIS invocation's: project, task, mode, ownership
+            run_reuse.bind_invocation(
+                report,
+                project_root=project_root,
+                target=str(dispatch.get("target")),
+                scope=str(dispatch.get("scope")),
+                mode=str(dispatch.get("mode")),
+                owned_files=[str(f) for f in dispatch.get("owned_files", [])],
+            )
+            loaded = run_reuse.load_prior(root, ns.prior_run)
+            seq, digest = run_reuse.prefix_digest(loaded)
+            if digest != report["prefix_digest"]:
+                raise run_reuse.ReuseError(
+                    "prior_run_changed",
+                    f"the prior run's journal prefix changed since the preview (observed {report['observed_seq']} events, now {seq}); re-run reuse",
+                )
+            selection = run_reuse.select(loaded)
+            # compatibility is re-checked against the ACTUAL startup dispatch
+            run_reuse.check_compat(
+                selection,
+                target=str(dispatch.get("target")),
+                scope=str(dispatch.get("scope")),
+                mode=str(dispatch.get("mode")),
+                project_root=project_root,
+                owned_files=[str(f) for f in dispatch.get("owned_files", [])],
+            )
+            # custody is re-derived HERE, at the final boundary before anything
+            # is created: the drift check runs again over the dispatch's owned
+            # files, approval stays bound to the token, autonomous startup
+            # refuses any drift/uncovered file, and the dispatch's baseline
+            # must be the fresh one custody hands back — a caller cannot skip
+            # `custody` and dispatch on a re-recorded baseline
+            owned = [str(f) for f in dispatch.get("owned_files", [])]
+            autonomous = dispatch.get("mode") == "autoprove"
+            cus = run_reuse.custody(
+                report=report,
+                owned_files=owned,
+                # autonomous mode has no approver: the result itself is judged below
+                approve=str(report["drift"]["approval_token"])
+                if autonomous
+                else ns.approve,
+                selection=selection,
+            )
+            if cus["result"] != "match" and autonomous:
+                raise run_reuse.ReuseError(
+                    "drift_unreconciled",
+                    f"{cus['result']}: autonomous startup never accepts drift or an uncovered file; reconcile the source and re-run reuse",
+                )
+            if run_reuse.baseline_digest(
+                dispatch.get("file_baseline")
+            ) != run_reuse.baseline_digest(cus["fresh_baseline"]):
+                raise run_reuse.ReuseError(
+                    "baseline_mismatch",
+                    "the first dispatch's file_baseline is not the fresh baseline custody returned for these owned files",
+                )
+            guard = run_reuse.guard_decision(
+                dispatch, selection, ns.evidence_justification
+            )
+            if guard["forbidden"]:
+                _emit(
+                    {
+                        "action": "startup-error",
+                        "code": "rerun_forbidden",
+                        "detail": guard["reason"],
+                        "new_evidence_required_for_rerun": guard.get(
+                            "new_evidence_required_for_rerun"
+                        ),
+                        "guard": guard,
+                    }
+                )
+                return EXIT_STARTUP
+            # rebuilt from the validated records, never copied from the report
+            note = run_reuse.source_note(
+                prior_run=ns.prior_run,
+                observed_seq=seq,
+                prefix_digest_=digest,
+                sel=selection,
+                drift={
+                    "result": cus["result"],
+                    "approval_token": cus["approval_token"],
+                },
+            )
+            note["evidence_justification"] = ns.evidence_justification
+            note["guard"] = guard
+            reuse_note = json.dumps(note, ensure_ascii=False, sort_keys=True)
+        except run_reuse.ReuseError as ex:
+            _emit({"action": "startup-error", "code": ex.code, "detail": ex.detail})
+            return EXIT_STARTUP
     args = ["create", "--dispatch", "-", "--event-schema", EVENT_SCHEMA_V2]
     if ns.tracker_session_id:
         args += ["--tracker-session-id", ns.tracker_session_id]
@@ -658,6 +769,8 @@ def cmd_start(ns: argparse.Namespace, root: str) -> int:
         )
         return EXIT_STARTUP
     st = _new_state(root, str(res["run_id"]), str(res["run_directory"]), dispatch)
+    if ns.prior_run:
+        st["prior_run"] = ns.prior_run
     try:
         _save_state(ns.state, st, exclusive=True)
     except OSError as ex:
@@ -669,15 +782,83 @@ def cmd_start(ns: argparse.Namespace, root: str) -> int:
             }
         )
         return EXIT_STARTUP
-    _emit(
-        {
-            "action": "continue",
-            "run_id": st["run_id"],
-            "run_directory": st["run_directory"],
-            "state": ns.state,
-        }
-    )
+    out: dict[str, Any] = {
+        "action": "continue",
+        "run_id": st["run_id"],
+        "run_directory": st["run_directory"],
+        "state": ns.state,
+    }
+    if reuse_note is not None:
+        # the local source-note is the new run's first event; later Replans cite it
+        res_note, code = _mutate(
+            ns,
+            st,
+            "append",
+            "note",
+            {"kind": "source-note", "text": reuse_note, "lean": None},
+        )
+        # _mutate resolved its own bookkeeping; its result (committed cite,
+        # refusal, or indeterminate — with the fallback handoff) is emitted as is
+        if res_note["action"] != "continue":
+            res_note["run_created"] = True
+            res_note["prior_run"] = ns.prior_run
+            _emit(res_note)
+            return code
+        out["source_note_cite"] = res_note["cite"]
+        out["prior_run"] = ns.prior_run
+        out["guard"] = guard
+    _emit(out)
     return EXIT_OK
+
+
+def cmd_reuse(ns: argparse.Namespace) -> int:
+    """Read-only: `reuse` previews; `custody` re-derives the drift report and
+    returns the fresh baseline to record. Neither touches the store."""
+    project_root = os.path.abspath(ns.project_root or os.getcwd())
+    if ns.root:
+        root = os.path.abspath(ns.root)
+    elif os.environ.get("LEAN4_RUN_STORE"):
+        root = os.path.abspath(os.environ["LEAN4_RUN_STORE"])
+    else:
+        root = os.path.join(project_root, ".lean4-skills")
+    try:
+        if ns.cmd == "reuse":
+            rep = run_reuse.preview(
+                root=root,
+                prior_run=ns.prior_run,
+                target=ns.target,
+                scope=ns.scope,
+                mode=ns.mode,
+                project_root=project_root,
+                owned_files=list(ns.owned_file),
+            )
+            _emit({"action": "preview", **rep})
+            return EXIT_OK
+        report = run_reuse.validate_report(_read_json(ns.report))
+        if os.path.realpath(project_root) != report["invocation"]["project_root"]:
+            raise run_reuse.ReuseError(
+                "reuse_report_mismatch",
+                "the reuse report was made for another project root; re-run reuse",
+            )
+        loaded = run_reuse.load_prior(root, str(report["prior_run"]))
+        _seq, digest = run_reuse.prefix_digest(loaded)
+        if digest != report["prefix_digest"]:
+            raise run_reuse.ReuseError(
+                "prior_run_changed",
+                "the prior run's journal prefix changed since the preview; re-run reuse",
+            )
+        sel = run_reuse.select(loaded)
+        res = run_reuse.custody(
+            report=report,
+            owned_files=list(ns.owned_file),
+            approve=ns.approve,
+            selection=sel,
+        )
+        _emit({"action": "custody", **res})
+        return EXIT_OK
+    except run_reuse.ReuseError as ex:
+        _emit({"action": "startup-error", "code": ex.code, "detail": ex.detail})
+        return EXIT_STARTUP
 
 
 def cmd_append(ns: argparse.Namespace, kind: str) -> int:
@@ -759,7 +940,41 @@ def main(argv: list[str]) -> int:
     s.add_argument("--dispatch", required=True)
     s.add_argument("--tracker-session-id")
     s.add_argument("--prior-run")
+    s.add_argument(
+        "--reuse-report", help="the `reuse` preview JSON (required with --prior-run)"
+    )
+    s.add_argument(
+        "--approve",
+        help="the approval token from the `reuse` preview (guided prove; required when the drift report is not a match)",
+    )
+    s.add_argument(
+        "--evidence-justification",
+        help="how the evidence delta addresses an operational prior stop",
+    )
     s.add_argument("--now")
+    ru = sub.add_parser(
+        "reuse", help="read-only preview of a prior run for reuse (#82C)"
+    )
+    ru.add_argument("--prior-run", required=True)
+    ru.add_argument("--target", required=True)
+    ru.add_argument("--scope", required=True)
+    ru.add_argument("--mode", required=True)
+    ru.add_argument(
+        "--owned-file",
+        action="append",
+        default=[],
+        help="intended owned file (repeatable)",
+    )
+    cu = sub.add_parser(
+        "custody",
+        help="re-derive the drift report and return the fresh baseline to record",
+    )
+    cu.add_argument("--report", required=True, help="the `reuse` preview JSON")
+    cu.add_argument("--owned-file", action="append", default=[])
+    cu.add_argument(
+        "--approve",
+        help="the approval token from the preview (required when drift is present)",
+    )
     for k in ("dispatch", "handoff", "review", "replan"):
         p = sub.add_parser(k)
         p.add_argument("--payload", required=True)
@@ -774,7 +989,8 @@ def main(argv: list[str]) -> int:
         ns = ap.parse_args(argv)
     except SystemExit as ex:
         return EXIT_USAGE if ex.code else EXIT_OK
-    if not ns.state:
+    if not ns.state and ns.cmd not in ("reuse", "custody"):
+        # the read-only previews touch neither the store nor any invocation state
         _emit(
             {
                 "action": "usage",
@@ -795,6 +1011,8 @@ def main(argv: list[str]) -> int:
         if ns.cmd == "status":
             _emit({"action": "status", "state": _load_state(ns.state)})
             return EXIT_OK
+        if ns.cmd in ("reuse", "custody"):
+            return cmd_reuse(ns)
         if ns.cmd == "finish":
             return cmd_finish(ns)
         return cmd_append(ns, ns.cmd)

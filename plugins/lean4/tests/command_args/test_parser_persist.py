@@ -69,6 +69,28 @@ class TestPersistFlags(unittest.TestCase):
                 len([e for e in result.errors if "--run-store" in e]), 1, result.errors
             )
 
+    def test_prior_run_requires_persist_on_resolved_value(self):
+        for command in ("prove", "autoprove"):
+            ok = self._parse(
+                command, "Foo.lean --persist --prior-run 20260909T120000Z-7484bfa8"
+            )
+            self.assertEqual(ok.errors, [])
+            self.assertEqual(
+                ok.options["--prior-run"].value, "20260909T120000Z-7484bfa8"
+            )
+            for tail in (
+                "Foo.lean --prior-run 20260909T120000Z-7484bfa8",
+                "Foo.lean --persist=false --prior-run x",
+            ):
+                bad = self._parse(command, tail)
+                self.assertTrue(
+                    any("--prior-run requires --persist" in e for e in bad.errors),
+                    bad.errors,
+                )
+            self.assertIsNone(
+                self._parse(command, "Foo.lean").options["--prior-run"].value
+            )
+
     def test_unknown_persist_like_flag_rejected(self):
         result = self._parse("autoprove", "Foo.lean --persist-to /x")
         self.assertTrue(result.errors)

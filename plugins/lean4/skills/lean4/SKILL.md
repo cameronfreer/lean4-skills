@@ -410,7 +410,7 @@ lean4-skills-sorry-analyzer . --report-only
 
 **Handoff Contract:** [handoff-contract](references/handoff-contract.md) — `run-contract/v1` dispatch + handoff records and the rerun guard (don't relaunch the same mode on the same `blocker_signature` without new evidence; route to `review --mode=stuck`, `formalize`, or human handoff)
 
-**Run Store:** [run-store](references/run-store.md) — `run-store/v1`, the storage primitive for those records (`lean4-skills-run-store`: immutable manifest, append-only journal, disposable handoff cache; historical evidence, never certification). `prove`/`autoprove --persist` write runs through `lean4-skills-run-persist` per [cycle-engine § Run Persistence](references/cycle-engine.md#run-persistence) (#82B); prior-run reuse is open under #82.
+**Run Store:** [run-store](references/run-store.md) — `run-store/v1`, the storage primitive for those records (`lean4-skills-run-store`: immutable manifest, append-only journal, disposable handoff cache; historical evidence, never certification). `prove`/`autoprove --persist` write runs through `lean4-skills-run-persist` per [cycle-engine § Run Persistence](references/cycle-engine.md#run-persistence) (#82B); prior-run reuse: `--prior-run` (#82C) per [cycle-engine § Prior-Run Reuse](references/cycle-engine.md#prior-run-reuse); resume/inspect remain open under #82.
 
 **LSP Tools:** [lean-lsp-server](references/lean-lsp-server.md) (quick start), [lean-lsp-tools-api](references/lean-lsp-tools-api.md) (full API — grep `^##` for tool names)
 
