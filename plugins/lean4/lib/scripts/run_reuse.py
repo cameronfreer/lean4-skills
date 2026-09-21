@@ -53,6 +53,7 @@ sys.path.insert(0, HERE)
 import run_contract_validate as rc  # noqa: E402
 
 REUSE_SCHEMA = "run-persist-reuse/v1"
+SOURCE_NOTE_SCHEMA = "run-persist-source-note/v1"
 CUSTODY_SCHEMA = "run-persist-custody/v1"
 STORE = os.path.join(HERE, "run_store.py")
 BASELINE = os.path.join(HERE, "file_baseline.py")
@@ -166,23 +167,46 @@ def prefix_digest(loaded: dict[str, Any]) -> tuple[int, str]:
 # selection
 # --------------------------------------------------------------------------
 
-_REUSE_NOTE_KEYS = {"prior_run", "prefix_digest", "historical", "presentation"}
+_HIST_LISTS = (
+    "failed_avenues",
+    "candidates",
+    "notes",
+    "snippets",
+    "reviews",
+    "inherited",
+)
 
 
 def _parse_reuse_note(text: str) -> dict[str, Any] | None:
-    """A helper-generated reuse source-note (see `source_note`), or None for
-    any other source-note text (which stays ordinary prose)."""
+    """A helper-generated reuse source-note (see `source_note`): it must carry
+    the explicit `schema` discriminator AND validate in shape. Anything else —
+    a user-written note, JSON-shaped or not, or a malformed record — is None
+    and stays ordinary prose (never discarded, never a crash)."""
     if not text.startswith("{"):
         return None
     try:
         obj = json.loads(text)
     except ValueError:
         return None
-    if (
-        not isinstance(obj, dict)
-        or not set(obj) >= _REUSE_NOTE_KEYS
-        or not isinstance(obj.get("historical"), dict)
-    ):
+    if not isinstance(obj, dict) or obj.get("schema") != SOURCE_NOTE_SCHEMA:
+        return None
+    from run_store import valid_run_id
+
+    if not valid_run_id(obj.get("prior_run")):
+        return None
+    h = obj.get("historical")
+    if not isinstance(h, dict):
+        return None
+    for key in _HIST_LISTS:
+        v = h.get(key, [])
+        if not isinstance(v, list) or not all(isinstance(x, dict) for x in v):
+            return None
+    if h.get("plan") is not None and not isinstance(h["plan"], str):
+        return None
+    ns = h.get("next_steps", [])
+    if not isinstance(ns, list) or not all(isinstance(x, str) for x in ns):
+        return None
+    if obj.get("carry") is not None and not isinstance(obj["carry"], dict):
         return None
     return obj
 
@@ -212,6 +236,10 @@ def _inherit(
             "handoff": note.get("handoff"),
             "plan": h.get("plan"),
             "plan_cite": h.get("plan_cite"),
+            "next_steps": list(h.get("next_steps", [])),
+            # the ancestor's carried blocker / stop fields and Replan blockers:
+            # HISTORICAL only — never promoted into the current rerun guard
+            "carry": dict(note.get("carry") or {}),
         }
     )
     known = {x["cite"] for x in inherited}
@@ -629,6 +657,7 @@ def source_note(
     """The local source-note: the selected material with its ORIGINAL
     citations, rebuilt from validated records (never copied from a report)."""
     return {
+        "schema": SOURCE_NOTE_SCHEMA,
         "prior_run": prior_run,
         "observed_seq": observed_seq,
         "prefix_digest": prefix_digest_,

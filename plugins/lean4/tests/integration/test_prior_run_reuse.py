@@ -1588,7 +1588,17 @@ class ChainedReuse(_Env):
         self.assertIn("inherited_via", first[0])
         # one flattened link per earlier reuse, oldest included, none nested
         self.assertEqual(len(hist["inherited"]), self.GENERATIONS - 1)
-        self.assertEqual(hist["inherited"][-1]["prior_run"], a)
+        oldest = hist["inherited"][-1]
+        self.assertEqual(oldest["prior_run"], a)
+        # A's next steps and Replan blocker survive in the oldest link, as
+        # HISTORICAL data — the current carry is B's own, not an ancestor's
+        self.assertEqual(oldest["next_steps"], ["try Tendsto.comp"])
+        self.assertEqual(oldest["plan_cite"], f"{a}#4")
+        self.assertEqual(
+            oldest["carry"]["replan_blockers"][0]["blocker_signature"], "replan-sig"
+        )
+        self.assertEqual(note["carry"]["replan_blockers"], [])
+        self.assertIsNone(note["carry"]["prior_blocker"])
         self.assertNotIn("historical", json.dumps(hist["inherited"]))
         self.assertFalse(
             any(n["kind"] == "source-note" for n in hist["notes"]),
@@ -1618,6 +1628,118 @@ class ChainedReuse(_Env):
                 if n["kind"] == "source-note"
             ],
         )
+
+
+@unittest.skipUnless(POSIX, "the store's mutation hosts")
+class JsonShapedUserNotes(_Env):
+    """PR #206 review round 6: only a helper-generated reuse note (explicit
+    schema, valid shape) is flattened; JSON-shaped user notes stay text."""
+
+    def _note_and_preview(self, text: str) -> tuple[dict[str, Any], list[str]]:
+        prior = self.make_prior(handoff=self.handoff())
+        rs.op_append(
+            self.root,
+            prior,
+            "note",
+            {"kind": "source-note", "text": text, "lean": None},
+        )
+        rc_, rep = self.preview(prior)
+        self.assertEqual((rc_, rep["action"]), (0, "preview"), rep)
+        texts = [
+            n["text"] for n in rep["historical"]["notes"] if n["kind"] == "source-note"
+        ]
+        return rep, texts
+
+    def test_json_shaped_user_notes_stay_ordinary_text(self) -> None:
+        rid = "20260101T000000Z-0badc0de"
+        for text in (
+            json.dumps(
+                {
+                    "prior_run": rid,
+                    "prefix_digest": "x",
+                    "presentation": {},
+                    "historical": {"notes": None},
+                }
+            ),
+            json.dumps(
+                {
+                    "prior_run": rid,
+                    "prefix_digest": "x",
+                    "presentation": {},
+                    "historical": {},
+                }
+            ),
+            json.dumps(
+                {
+                    "schema": "run-persist-source-note/v1",
+                    "prior_run": "not-a-run-id",
+                    "historical": {},
+                }
+            ),
+            json.dumps(
+                {
+                    "schema": "run-persist-source-note/v1",
+                    "prior_run": rid,
+                    "historical": {"failed_avenues": "nope"},
+                }
+            ),
+            json.dumps(
+                {
+                    "schema": "run-persist-source-note/v1",
+                    "prior_run": rid,
+                    "historical": {"notes": [1, 2]},
+                }
+            ),
+            json.dumps(
+                {
+                    "schema": "run-persist-source-note/v1",
+                    "prior_run": rid,
+                    "historical": {},
+                    "carry": "x",
+                }
+            ),
+            "{not json",
+            "see Mathlib PR #1234 for the lemma",
+        ):
+            rep, texts = self._note_and_preview(text)
+            self.assertEqual(texts, [text])  # kept verbatim, never discarded
+            self.assertEqual(rep["historical"]["inherited"], [])
+            shutil.rmtree(self.root)
+
+    def test_only_the_helper_schema_is_flattened(self) -> None:
+        rid = "20260101T000000Z-0badc0de"
+        text = json.dumps(
+            {
+                "schema": "run-persist-source-note/v1",
+                "prior_run": rid,
+                "prefix_digest": "d" * 64,
+                "historical": {
+                    "plan": "ancestor plan",
+                    "next_steps": ["ancestor step"],
+                    "failed_avenues": [
+                        {"text": "ANCESTOR_DEAD_END", "cite": f"{rid}#1"}
+                    ],
+                },
+                "carry": {"prior_blocker": "ancestor-blocker", "replan_blockers": []},
+            }
+        )
+        rep, texts = self._note_and_preview(text)
+        self.assertEqual(texts, [])
+        link = rep["historical"]["inherited"][0]
+        self.assertEqual(
+            (link["prior_run"], link["next_steps"]), (rid, ["ancestor step"])
+        )
+        self.assertEqual(link["carry"]["prior_blocker"], "ancestor-blocker")
+        self.assertIn(
+            {
+                "text": "ANCESTOR_DEAD_END",
+                "cite": f"{rid}#1",
+                "inherited_via": link["cite"],
+            },
+            rep["historical"]["failed_avenues"],
+        )
+        # historical only: the current carry is the selected handoff's
+        self.assertNotEqual(rep["carry"]["prior_blocker"], "ancestor-blocker")
 
 
 if __name__ == "__main__":

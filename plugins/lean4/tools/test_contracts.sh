@@ -2549,6 +2549,7 @@ else
                   '**and every Replan'"'"'s `failed_approaches`**' '**`best_candidates` as historical, unverified candidates**' \
                   'a neighbouring name never matches' 'whole path components' \
                   '**Chained reuse stays flat:**' '**inherited as structured data**' 'never nested as serialized text' \
+                  '`schema: run-persist-source-note/v1`' 'never promoted into the current guard' \
                   '**bound to the invocation**' '`reuse_report_mismatch`' '`bad_reuse_report`' \
                   'never copied from the report' '**with their recommendations**' \
                   '**with their source**' 'explicit `uncovered` outcome' \
