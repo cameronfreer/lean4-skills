@@ -23,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from itertools import pairwise
 from typing import Any
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -1527,6 +1528,96 @@ class ReviewRound4(_Env):
             other = {"schema": "file-baseline/v1", "files": [dict(e1, **{k: v}), e2]}
             self.assertNotEqual(rr.baseline_digest(base), rr.baseline_digest(other), k)
         self.assertIsNone(rr.baseline_digest({"files": [{"nope": 1}]}))
+
+
+@unittest.skipUnless(POSIX, "the store's mutation hosts")
+class ChainedReuse(_Env):
+    """PR #206 review round 5: successive reuses A → B → C → … must not nest
+    serialized history; the earliest evidence survives with its citation."""
+
+    GENERATIONS = 12
+
+    def _finish(self) -> None:
+        rc_, fin = self.persist(
+            "finish", "--payload", "-", stdin=json.dumps(self.handoff())
+        )
+        self.assertEqual((rc_, fin["stored"]), (0, True), fin)
+
+    def _reuse_once(self, prior: str, gen: int) -> tuple[str, str]:
+        """A fresh invocation reusing `prior`; returns (run_id, source-note text)."""
+        self.state = os.path.join(self.tmp, f"state-{gen}.json")
+        self.env["LEAN4_RUN_PERSIST_STATE"] = self.state
+        rc_, rep = self.preview(prior)
+        self.assertEqual((rc_, rep["action"]), (0, "preview"), rep)
+        self.assertEqual(rep["drift"]["result"], "match")
+        rc_, res = self.persist(
+            "start",
+            "--dispatch",
+            "-",
+            "--prior-run",
+            prior,
+            "--reuse-report",
+            self.write_report(rep),
+            "--now",
+            f"2026-09-{10 + gen:02d}T12:00:00Z",
+            stdin=json.dumps(self.dispatch()),
+        )
+        self.assertEqual((rc_, res["action"]), (0, "continue"), res)
+        self._finish()
+        text = str(rs.op_load(self.root, res["run_id"])["events"][0]["payload"]["text"])
+        return str(res["run_id"]), text
+
+    def test_chained_reuse_is_flat_and_keeps_the_earliest_evidence(self) -> None:
+        a = self.make_prior(handoff=self.handoff())  # one failed-avenue note at #1
+        sizes: list[int] = []
+        prior = a
+        last = ""
+        for gen in range(1, self.GENERATIONS + 1):
+            prior, last = self._reuse_once(prior, gen)
+            sizes.append(len(last))
+            self.assertLess(last.count("\\\\"), 10, f"gen {gen}: nested escaping")
+        # linear, not exponential: every generation adds about one link record
+        increments = [b - a_ for a_, b in pairwise(sizes)]
+        self.assertLess(max(increments), 3 * min(increments) + 200, sizes)
+        self.assertLess(sizes[-1], 4 * sizes[0] + 20 * self.GENERATIONS * 60, sizes)
+        note = json.loads(last)
+        hist = note["historical"]
+        # the earliest substantive evidence and its ORIGINAL citation survive
+        first = [f for f in hist["failed_avenues"] if f["cite"] == f"{a}#1"]
+        self.assertEqual(first[0]["text"], "exact foo_lemma: type mismatch")
+        self.assertIn("inherited_via", first[0])
+        # one flattened link per earlier reuse, oldest included, none nested
+        self.assertEqual(len(hist["inherited"]), self.GENERATIONS - 1)
+        self.assertEqual(hist["inherited"][-1]["prior_run"], a)
+        self.assertNotIn("historical", json.dumps(hist["inherited"]))
+        self.assertFalse(
+            any(n["kind"] == "source-note" for n in hist["notes"]),
+            "a reuse note must not be carried as text",
+        )
+        self.assertIn(
+            "nothing inherited is current certification",
+            note["presentation"]["inherited"],
+        )
+        # a USER-written source-note stays ordinary text
+        rs.op_append(
+            self.root,
+            prior,
+            "note",
+            {
+                "kind": "source-note",
+                "text": "see Mathlib PR #1234 for the lemma",
+                "lean": None,
+            },
+        )
+        _rc, rep = self.preview(prior)
+        self.assertIn(
+            "see Mathlib PR #1234 for the lemma",
+            [
+                n["text"]
+                for n in rep["historical"]["notes"]
+                if n["kind"] == "source-note"
+            ],
+        )
 
 
 if __name__ == "__main__":

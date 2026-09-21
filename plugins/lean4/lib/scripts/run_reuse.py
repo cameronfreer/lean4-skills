@@ -166,6 +166,76 @@ def prefix_digest(loaded: dict[str, Any]) -> tuple[int, str]:
 # selection
 # --------------------------------------------------------------------------
 
+_REUSE_NOTE_KEYS = {"prior_run", "prefix_digest", "historical", "presentation"}
+
+
+def _parse_reuse_note(text: str) -> dict[str, Any] | None:
+    """A helper-generated reuse source-note (see `source_note`), or None for
+    any other source-note text (which stays ordinary prose)."""
+    if not text.startswith("{"):
+        return None
+    try:
+        obj = json.loads(text)
+    except ValueError:
+        return None
+    if (
+        not isinstance(obj, dict)
+        or not set(obj) >= _REUSE_NOTE_KEYS
+        or not isinstance(obj.get("historical"), dict)
+    ):
+        return None
+    return obj
+
+
+def _inherit(
+    note: dict[str, Any],
+    cite: str,
+    *,
+    inherited: list[dict[str, Any]],
+    failed: list[dict[str, str]],
+    candidates: list[dict[str, Any]],
+    notes: list[dict[str, Any]],
+    snippets: list[dict[str, Any]],
+    reviews: list[dict[str, Any]],
+) -> None:
+    """Flatten a prior reuse note: one link record for the note itself, plus
+    its (already flat) evidence merged into the current lists, deduplicated
+    by original citation. Its own `inherited` links are carried too."""
+    h = note["historical"]
+    inherited.append(
+        {
+            "cite": cite,  # the source-note in the run being reused
+            "prior_run": note.get("prior_run"),
+            "observed_seq": note.get("observed_seq"),
+            "prefix_digest": note.get("prefix_digest"),
+            "dispatch": note.get("dispatch"),
+            "handoff": note.get("handoff"),
+            "plan": h.get("plan"),
+            "plan_cite": h.get("plan_cite"),
+        }
+    )
+    known = {x["cite"] for x in inherited}
+    for link in h.get("inherited", []):
+        if isinstance(link, dict) and link.get("cite") not in known:
+            inherited.append(link)
+            known.add(link.get("cite"))
+    for key, target in (
+        ("failed_avenues", failed),
+        ("candidates", candidates),
+        ("notes", notes),
+        ("snippets", snippets),
+        ("reviews", reviews),
+    ):
+        seen = {(x.get("cite"), x.get("text"), x.get("candidate")) for x in target}
+        for item in h.get(key, []):
+            if not isinstance(item, dict):
+                continue
+            k = (item.get("cite"), item.get("text"), item.get("candidate"))
+            if k in seen:
+                continue
+            seen.add(k)
+            target.append(dict(item, inherited_via=cite))
+
 
 def _merge_baselines(
     layers: list[tuple[dict[str, Any] | None, str | None]],
@@ -249,10 +319,30 @@ def select(loaded: dict[str, Any]) -> dict[str, Any]:
     candidates: list[dict[str, Any]] = []
     notes: list[dict[str, Any]] = []
     snippets: list[dict[str, Any]] = []
+    inherited: list[dict[str, Any]] = []
     for e in events:
         if e["kind"] == "note":
             p = e["payload"]
             cite = f"{rid}#{e['seq']}"
+            prior_note = (
+                _parse_reuse_note(p["text"]) if p["kind"] == "source-note" else None
+            )
+            if prior_note is not None:
+                # a helper-generated reuse note (this run was itself a reuse):
+                # its evidence is inherited as STRUCTURED data with the original
+                # citations — never nested as serialized text, so chained reuse
+                # stays linear in the unique evidence it carries
+                _inherit(
+                    prior_note,
+                    cite,
+                    inherited=inherited,
+                    failed=failed,
+                    candidates=candidates,
+                    notes=notes,
+                    snippets=snippets,
+                    reviews=reviews,
+                )
+                continue
             notes.append(
                 {
                     "cite": cite,
@@ -333,6 +423,7 @@ def select(loaded: dict[str, Any]) -> dict[str, Any]:
             "plan_cite": f"{rid}#{replans[-1]['seq']}" if replans else None,
             "failed_avenues": failed,
             "candidates": candidates,  # handoff best_candidates: historical, unverified
+            "inherited": inherited,  # earlier reuse links, flattened (no nesting)
             "reviews": reviews,
             "notes": notes,
             "snippets": snippets,
@@ -553,6 +644,10 @@ def source_note(
             "reviews": "recorded as completed; not known to have been applied — reassess",
             "snippets": "historical, unverified",
             "candidates": "the prior handoffs' best candidates — historical, unverified",
+            "inherited": (
+                "evidence carried through earlier reuse links, with its original "
+                "citations — historical; nothing inherited is current certification"
+            ),
         },
     }
 
