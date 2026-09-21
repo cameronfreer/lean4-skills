@@ -13,17 +13,24 @@ Selection (no finality assumption):
     (cited as `<run_id>#manifest`);
   * prior handoff = the LATEST recorded handoff in the validated prefix, or
     none — its finality is UNKNOWN (the cache is disposable and irrelevant);
-  * prior baseline = the selected handoff's `file_baseline` when present,
-    else the dispatch's; origin recorded either way;
+  * prior baseline = a PER-FILE merge of every recorded baseline in journal
+    order (the manifest's dispatch, then each dispatch/handoff event by seq):
+    the newest entry for a path wins and older records fill the paths it does
+    not cover — a redispatch may be newer than the last handoff, a worker
+    handoff may cover fewer files than its dispatch — with the origin cite
+    kept per path (`baseline_origins`); an intended file no record covers is
+    an explicit `uncovered` outcome, never an implicit match;
   * the selected handoff's blocker / stop fields are preserved as historical
     evidence and drive the rerun guard; the last Replan's blockers SUPPLEMENT
     them; with no usable handoff the handoff-based guard is not evaluable.
 
 Drift: `file-baseline check` against the prior baseline over its files, plus a
 `record` of the CURRENT content of the intended owned files. The approval
-token is the digest of both — existence, resolved path, and content hash per
-file — so approval binds to exact content, and custody re-derives the same
-token before recording (any further change aborts).
+token is the digest of both (plus the uncovered list) — existence, resolved
+path, and content hash per file — so approval binds to exact content, and
+custody re-derives the same token before recording (any further change
+aborts); `start` re-derives it once more at the final boundary and requires
+the first dispatch's baseline to be the fresh one by full recorded identity.
 
 Observation: the preview names the observed prefix (`observed_seq`,
 `prefix_digest`); startup revalidates it. Absence of `.lock` proves nothing
