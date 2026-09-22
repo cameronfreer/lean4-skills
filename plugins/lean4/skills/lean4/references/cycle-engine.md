@@ -99,7 +99,7 @@ After review → enter planner mode → produce/update action plan. Work phase f
 
 ## Run Persistence
 
-`prove` and `autoprove` can write the run to the [run store](run-store.md) (`--persist`; default **off** — existing invocations are unchanged). Everything below goes through `lean4-skills-run-persist`, which drives `lean4-skills-run-store` and encodes the failure policy; the command follows the helper's `action` field. Refs #82: this is command integration; prior-run reuse and restart reconciliation are later work.
+`prove` and `autoprove` can write the run to the [run store](run-store.md) (`--persist`; default **off** — existing invocations are unchanged). Everything below goes through `lean4-skills-run-persist`, which drives `lean4-skills-run-store` and encodes the failure policy; the command follows the helper's `action` field. Refs #82: command integration and explicit prior-run reuse are implemented; inspect/resume remain separately scoped.
 
 **Activation and startup.** Storage root precedence: `--run-store` → `$LEAN4_RUN_STORE` → `<project-root>/.lean4-skills`. With persistence off, neither configuration source triggers any storage activity. Platform support is a **startup capability check**, not a parser rule: `run-persist start` runs after inputs are validated, after the tracker is initialized (autoprove) and **after a valid first dispatch record with its `file_baseline` exists, but before any proof edit**; a `startup-error` result (e.g. `unsupported_platform` on Windows) is a startup validation error — requested persistence never silently disappears. `tracker_session_id` is nullable (guided `prove` has no tracker). The `run_id` is session state and appears in the Resolved Inputs block.
 
