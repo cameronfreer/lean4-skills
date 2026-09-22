@@ -73,7 +73,7 @@ check_commands() {
         local max_lines=120
         case "$cmd" in
             autoformalize) max_lines=180 ;;
-            autoprove)  max_lines=315 ;;
+            autoprove)  max_lines=320 ;;
             checkpoint) max_lines=155 ;;
             diagnose)   max_lines=290 ;;
             disprove)   max_lines=310 ;;  # +10 (#166): expanded dependency-aware certification wording

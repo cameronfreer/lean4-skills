@@ -19,6 +19,7 @@ startup-refusal case only.
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import shutil
@@ -1565,6 +1566,506 @@ class FinishTerminalReporting(_Env):
         self.assertIn("injected terminal-state save failure", res["warning"])
         self.assertNotIn("cannot be guaranteed", res["warning"])
         self._next_note(rid, blocked=True, events_before=1)
+
+
+@unittest.skipUnless(POSIX, "the store's mutation hosts")
+class InlineProgress(_Env):
+    """v4.11.1: an inline (worker-less) controller reports progress; the
+    fallback reflects reported knowledge; the custody chain is enforced;
+    finish is absorbed by set semantics; failure stages are distinct."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.a = os.path.join(self.project, "A.lean")
+        self.b = os.path.join(self.project, "B.lean")
+        for p, body in (
+            (self.a, "theorem a : True := by\n  sorry\n"),
+            (self.b, "theorem b : True := trivial\n"),
+        ):
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(body)
+
+    def _fb(self, *args: str, stdin: str | None = None) -> dict[str, Any]:
+        p = subprocess.run(
+            [sys.executable, os.path.join(_LIB, "file_baseline.py"), *args],
+            input=stdin,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertIn(p.returncode, (0, 3), p.stderr)
+        return json.loads(p.stdout)
+
+    def _started(self) -> tuple[str, dict[str, Any]]:
+        base = self._fb("record", "--", self.a, self.b)
+        d = valid_dispatch(
+            target=f"{self.a}:1", owned_files=[self.a, self.b], worker=None
+        )
+        d["file_baseline"] = base
+        d["parameters"] = {}  # an inline dispatch (worker null) has none
+        rc_, res = self.persist(
+            "start", "--dispatch", "-", "--now", NOW, stdin=json.dumps(d)
+        )
+        self.assertEqual((rc_, res["action"]), (0, "continue"), res)
+        return str(res["run_id"]), base
+
+    def _edit_a(self, base: dict[str, Any]) -> dict[str, Any]:
+        """the shipped chain: check → edit A → advance A only"""
+        self.assertEqual(
+            self._fb("check", "--baseline", "-", stdin=json.dumps(base))["result"],
+            "match",
+        )
+        with open(self.a, "w", encoding="utf-8") as f:
+            f.write("theorem a : True := trivial\n")
+        return self._fb(
+            "advance", "--baseline", "-", "--", self.a, stdin=json.dumps(base)
+        )
+
+    def _progress(self, **fields: Any) -> tuple[int, dict[str, Any]]:
+        payload = {"schema": rp.PROGRESS_SCHEMA, **fields}
+        return self.persist("progress", "--payload", "-", stdin=json.dumps(payload))
+
+    def _fake_store(self, on_append: str, when: str = "append") -> None:
+        fake = os.path.join(self.tmp, "fake_store.py")
+        with open(fake, "w", encoding="utf-8") as f:
+            f.write(
+                "import json, os, sys\nargs = sys.argv[1:]\n"
+                + f"sys.path.insert(0, {_LIB!r})\n"
+                + "import run_store as rs\n"
+                + f"if {when!r} in args:\n"
+                + "".join("    " + line + "\n" for line in on_append.splitlines())
+                + "sys.exit(rs.main(args))\n"
+            )
+        self.env["LEAN4_RUN_STORE_ARGV"] = json.dumps([sys.executable, fake])
+
+    # --- the fallback reflects reported progress
+
+    def test_fallback_after_refusal_reflects_reported_progress(self) -> None:
+        _rid, base = self._started()
+        adv = self._edit_a(base)
+        rc_, res = self._progress(
+            files_changed=[self.a],
+            file_baseline=adv,
+            attempted_tools=["lean_multi_attempt"],
+            best_candidates=[{"candidate": "trivial", "outcome": "closes the goal"}],
+        )
+        self.assertEqual(
+            (rc_, res["action"], res["progress_recorded"]), (0, "continue", True), res
+        )
+        self._fake_store(
+            "def bad_fsync(fd):\n"
+            "    import os as _os, stat as _stat\n"
+            "    if _stat.S_ISDIR(_os.fstat(fd).st_mode): raise OSError(5, 'injected barrier failure')\n"
+            "    _os.fsync(fd)\n"
+            "rs._fsync = bad_fsync"
+        )
+        rc_, stop = self.persist("note", "--kind", "candidate", "--text", "x")
+        self.assertEqual(
+            (rc_, stop["outcome"]), (rp.EXIT_STOP, "refused:publish_unsynced"), stop
+        )
+        h = stop["handoff"]
+        self.assertEqual(h["files_changed"], [self.a])
+        self.assertEqual(
+            h["file_baseline"], adv
+        )  # the ADVANCED baseline, not the dispatch's
+        self.assertEqual(h["attempted_tools"], ["lean_multi_attempt"])
+        self.assertEqual(
+            h["best_candidates"],
+            [{"candidate": "trivial", "outcome": "closes the goal"}],
+        )
+        self.assertEqual(rc.validate_handoff(h), [])
+
+    def test_fallback_after_indeterminate_reflects_reported_progress(self) -> None:
+        _rid, base = self._started()
+        adv = self._edit_a(base)
+        rc_, _res = self._progress(files_changed=[self.a], file_baseline=adv)
+        self.assertEqual(rc_, 0)
+        self._fake_store(BAD_JOURNAL_FSYNC)
+        rc_, stop = self.persist("note", "--kind", "candidate", "--text", "x")
+        self.assertEqual((rc_, stop["outcome"]), (rp.EXIT_STOP, "indeterminate"), stop)
+        self.assertEqual(stop["handoff"]["files_changed"], [self.a])
+        self.assertEqual(stop["handoff"]["file_baseline"], adv)
+
+    def test_tool_only_progress_reports_evidence_without_changes(self) -> None:
+        self._started()
+        rc_, res = self._progress(
+            attempted_tools=["lean_loogle"],
+            evidence={
+                "queries": ["True"],
+                "top_candidates": ["trivial"],
+                "attempts": [{"snippet": "exact trivial", "result": "ok"}],
+            },
+        )
+        self.assertEqual((rc_, res["files_changed"]), (0, []), res)
+        rc_, st = self.persist("status")
+        self.assertEqual(st["state"]["evidence"]["queries"], ["True"])
+        self.assertEqual(st["state"]["attempted_tools"], ["lean_loogle"])
+
+    # --- the custody chain is enforced (two-file regression)
+
+    def test_external_drift_on_b_is_never_blessed_while_a_is_edited(self) -> None:
+        _rid, base = self._started()
+        adv = self._edit_a(base)  # A advanced only
+        with open(self.b, "a", encoding="utf-8") as f:
+            f.write("-- external change\n")  # B drifts externally
+        # a baseline that (wrongly) advanced B too → refused, state unchanged
+        blessed = self._fb(
+            "advance", "--baseline", "-", "--", self.a, self.b, stdin=json.dumps(base)
+        )
+        rc_, res = self._progress(files_changed=[self.a], file_baseline=blessed)
+        self.assertEqual((rc_, res["code"]), (rp.EXIT_STARTUP, "invalid_progress"), res)
+        self.assertTrue(
+            any(
+                "baseline_outside_reported_changes" in e and "B.lean" in e
+                for e in res["errors"]
+            ),
+            res,
+        )
+        rc_, st = self.persist("status")
+        self.assertEqual(st["state"]["files_changed"], [])
+        self.assertEqual(st["state"]["current"]["file_baseline"], base)
+        # A only → accepted; a later check against the current baseline reports B's drift
+        rc_, res = self._progress(files_changed=[self.a], file_baseline=adv)
+        self.assertEqual((rc_, res["action"]), (0, "continue"), res)
+        chk = self._fb("check", "--baseline", "-", stdin=json.dumps(adv))
+        self.assertEqual(chk["result"], "drift")
+        self.assertEqual(
+            [e["status"] for e in chk["entries"] if e["path"] == self.b], ["modified"]
+        )
+
+    def test_invalid_progress_records_nothing(self) -> None:
+        _rid, base = self._started()
+        adv = self._edit_a(base)
+        outside = os.path.join(self.project, "C.lean")
+        cases = [
+            {"files_changed": [outside], "file_baseline": adv},  # ownership
+            {"files_changed": [self.a]},  # baseline required
+            {"best_candidates": [{"candidate": "x"}]},  # typed shape
+            {"artifacts": [{"kind": "diff"}]},
+            {"evidence": {"queries": "not-a-list"}},
+            {
+                "files_changed": [self.a],
+                "file_baseline": {
+                    "schema": "file-baseline/v1",
+                    "files": adv["files"][:1],
+                },
+            },  # partial cover
+        ]
+        cases += [
+            {"evidence": {"goal_delta": []}},  # review round 1: deltas
+            {"evidence": {"diagnostic_delta": {}}},
+            {"evidence": {"queries": [], "extra": 1}},  # unknown evidence field
+            {"failed_avenues": None},  # unsupported top-level field
+            {"attempted_tools": None},  # null where a list is consumed
+            {"best_candidates": None},
+            {"files_changed": None},
+        ]
+        for fields in cases:
+            rc_, res = self._progress(**fields)
+            self.assertEqual(
+                (rc_, res["code"]), (rp.EXIT_STARTUP, "invalid_progress"), (fields, res)
+            )
+        # a mismatched --root is refused before any change
+        p = subprocess.run(
+            [
+                *PERSIST_CMD,
+                "--root",
+                os.path.join(self.tmp, "other-root"),
+                "progress",
+                "--payload",
+                "-",
+            ],
+            input=json.dumps(
+                {"schema": rp.PROGRESS_SCHEMA, "attempted_tools": ["lean_goal"]}
+            ),
+            capture_output=True,
+            text=True,
+            env=self.env,
+            check=False,
+        )
+        self.assertEqual(
+            (p.returncode, json.loads(p.stdout)["action"]), (rp.EXIT_USAGE, "usage")
+        )
+        rc_, st = self.persist("status")
+        self.assertEqual(st["state"]["files_changed"], [])
+        self.assertEqual(st["state"]["attempted_tools"], [])
+        self.assertIsNone(st["state"]["inflight"])
+        # ... and the fallback path still works afterwards (nothing was absorbed)
+        self._fake_store(BAD_JOURNAL_FSYNC)
+        rc_, stop = self.persist("note", "--kind", "candidate", "--text", "x")
+        self.assertEqual((rc_, stop["outcome"]), (rp.EXIT_STOP, "indeterminate"), stop)
+        self.assertEqual(rc.validate_handoff(stop["handoff"]), [])
+        self.env.pop("LEAN4_RUN_STORE_ARGV")
+        self.setUp()
+        _rid, base = self._started()
+        adv = self._edit_a(base)
+        # a terminal state stops it without recording
+        rc_, fin = self.persist(
+            "finish", "--payload", "-", stdin=json.dumps(self._final(adv))
+        )
+        self.assertEqual((rc_, fin["stored"]), (0, True))
+        rc_, res = self._progress(files_changed=[self.a], file_baseline=adv)
+        self.assertEqual(
+            (rc_, res["action"], res["outcome"]), (rp.EXIT_STOP, "stop", "terminal")
+        )
+
+    def test_accepted_progress_always_yields_a_valid_fallback(self) -> None:
+        _rid, base = self._started()
+        adv = self._edit_a(base)
+        payloads = [
+            {"files_changed": [self.a], "file_baseline": adv},
+            {
+                "attempted_tools": ["lean_goal"],
+                "evidence": {"goal_delta": "⊢ True", "diagnostic_delta": None},
+            },
+            {
+                "evidence": {
+                    "queries": ["q"],
+                    "top_candidates": ["c"],
+                    "attempts": [{"snippet": "s", "result": "r"}],
+                }
+            },
+            {
+                "best_candidates": [{"candidate": "trivial", "outcome": "ok"}],
+                "artifacts": [{"kind": "diff", "content": "x"}],
+            },
+            {},
+        ]
+        for fields in payloads:
+            rc_, res = self._progress(**fields)
+            self.assertEqual((rc_, res["progress_recorded"]), (0, True), (fields, res))
+        self._fake_store(BAD_JOURNAL_FSYNC)
+        rc_, stop = self.persist("note", "--kind", "candidate", "--text", "x")
+        self.assertEqual((rc_, stop["outcome"]), (rp.EXIT_STOP, "indeterminate"), stop)
+        h = stop["handoff"]
+        self.assertEqual(rc.validate_handoff(h), [])
+        self.assertEqual(h["evidence"]["goal_delta"], "⊢ True")
+        self.assertEqual(h["files_changed"], [self.a])
+
+    # --- bookkeeping stages
+
+    def _frozen_dir(self) -> str:
+        d = os.path.join(self.tmp, "st")
+        os.makedirs(d)
+        new = os.path.join(d, "state.json")
+        shutil.move(self.state, new)
+        self.state = new
+        self.env["LEAN4_RUN_PERSIST_STATE"] = new
+        return d
+
+    def test_inflight_save_failure_says_will_not_survive(self) -> None:
+        _rid, base = self._started()
+        adv = self._edit_a(base)
+        d = self._frozen_dir()
+        os.chmod(d, 0o500)
+        try:
+            rc_, res = self._progress(files_changed=[self.a], file_baseline=adv)
+        finally:
+            os.chmod(d, 0o700)
+        self.assertEqual(
+            (rc_, res["action"], res["outcome"]),
+            (rp.EXIT_STOP, "stop", "progress_unsaved"),
+            res,
+        )
+        self.assertEqual(res["unpersisted"]["status"], "control-state-unsaved")
+        self.assertIn("will not survive another invocation", res["unpersisted"]["note"])
+        self.assertIn(
+            "no journal event and no citation by design", res["unpersisted"]["note"]
+        )
+        self.assertEqual(res["handoff"]["files_changed"], [self.a])  # folded once
+        self.assertEqual(res["handoff"]["file_baseline"], adv)
+        self.assertFalse(res["terminal_enforced"])
+        with open(self.state, encoding="utf-8") as f:
+            self.assertIsNone(json.load(f)["inflight"])  # nothing survived
+
+    def test_resolution_save_failure_says_pending_knowledge_survives(self) -> None:
+        rid, base = self._started()
+        adv = self._edit_a(base)
+        d = self._frozen_dir()
+        # freeze the directory AFTER the in-flight record is written: a
+        # store-less operation, so patch the resolution save through a
+        # sitecustomize-free route — chmod between the two saves via a
+        # watcher thread would race; instead run the helper in-process
+        payload = {
+            "schema": rp.PROGRESS_SCHEMA,
+            "files_changed": [self.a],
+            "file_baseline": adv,
+        }
+        pf = os.path.join(self.tmp, "progress.json")
+        with open(pf, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+        saves: list[int] = []
+        real_save = rp._save_state
+
+        def save(path: str, st: dict[str, Any], **kw: Any) -> None:
+            saves.append(1)
+            if len(saves) == 2:  # the resolution save
+                raise PermissionError("injected: resolution unwritable")
+            real_save(path, st, **kw)
+
+        ns = argparse.Namespace(state=self.state, payload=pf, root=self.root)
+        emitted: list[dict[str, Any]] = []
+        with (
+            patch.object(rp, "_save_state", side_effect=save),
+            patch.object(rp, "_emit", side_effect=emitted.append),
+        ):
+            code = rp.cmd_progress(ns)
+        self.assertEqual(code, rp.EXIT_STOP)
+        res = emitted[-1]
+        self.assertEqual(
+            (res["action"], res["outcome"], res["progress_recorded"]),
+            ("stop", "state_unwritable", False),
+            res,
+        )
+        self.assertEqual(res["unpersisted"]["status"], "control-state-saved")
+        self.assertIn("WAS saved", res["unpersisted"]["note"])
+        self.assertEqual(res["handoff"]["files_changed"], [self.a])
+        # on disk: the in-flight record with the submission survives ...
+        with open(self.state, encoding="utf-8") as f:
+            st = json.load(f)
+        self.assertEqual(st["inflight"]["pending"]["kind"], "progress")
+        # ... so the next helper process stops and reports it in ITS fallback
+        os.chmod(d, 0o700)
+        rc_, nxt = self.persist("note", "--kind", "candidate", "--text", "after")
+        self.assertEqual((rc_, nxt["outcome"]), (rp.EXIT_STOP, "terminal"), nxt)
+        self.assertEqual(nxt["handoff"]["files_changed"], [self.a])
+        self.assertEqual(nxt["unpersisted"]["kind"], "progress")
+        self.assertEqual(rs.op_load(self.root, rid)["events"], [])
+
+    # --- finish absorbed by set semantics; final_handoff in status
+
+    def _final(self, adv: dict[str, Any]) -> dict[str, Any]:
+        h = valid_handoff(
+            target=f"{self.a}:1", files_owned=[self.a, self.b], files_changed=[self.a]
+        )
+        h["file_baseline"] = adv
+        h["attempted_tools"] = ["lean_multi_attempt", "lean_goal"]
+        h["best_candidates"] = [
+            {
+                "candidate": "trivial",
+                "outcome": "closes the goal",
+            },  # repeated from progress
+            {"candidate": "decide", "outcome": "also closes"},
+        ]
+        h["artifacts"] = [{"kind": "diff", "content": "--- a\n+++ b\n"}]
+        h["evidence"]["attempts"] = [{"snippet": "exact trivial", "result": "ok"}]
+        return h
+
+    def test_progress_then_finish_then_status_counts_once(self) -> None:
+        rid, base = self._started()
+        adv = self._edit_a(base)
+        rc_, _r = self._progress(
+            files_changed=[self.a],
+            file_baseline=adv,
+            attempted_tools=["lean_multi_attempt"],
+            best_candidates=[{"candidate": "trivial", "outcome": "closes the goal"}],
+            artifacts=[{"kind": "diff", "content": "--- a\n+++ b\n"}],
+            evidence={
+                "queries": [],
+                "top_candidates": [],
+                "attempts": [{"snippet": "exact trivial", "result": "ok"}],
+            },
+        )
+        self.assertEqual(rc_, 0)
+        rc_, fin = self.persist(
+            "finish", "--payload", "-", stdin=json.dumps(self._final(adv))
+        )
+        self.assertEqual((rc_, fin["stored"], fin["cite"]), (0, True, f"{rid}#1"), fin)
+        rc_, st = self.persist("status")
+        s = st["state"]
+        self.assertEqual(s["finished"], "stored")
+        self.assertEqual(s["final_handoff"]["cite"], f"{rid}#1")
+        self.assertEqual(
+            s["final_handoff"]["handoff"], self._final(adv)
+        )  # exactly as stored
+        self.assertEqual(s["files_changed"], [self.a])
+        self.assertEqual(s["current"]["file_baseline"], adv)
+        self.assertEqual(s["attempted_tools"], ["lean_multi_attempt", "lean_goal"])
+        self.assertEqual(len(s["best_candidates"]), 2)  # 'trivial' once
+        self.assertEqual(len(s["artifacts"]), 1)
+        self.assertEqual(len(s["evidence"]["attempts"]), 1)
+
+    def test_journal_only_finish_is_absorbed_with_the_warning(self) -> None:
+        rid, base = self._started()
+        adv = self._edit_a(base)
+        self._fake_store(
+            "def bad_rename(*a, **k): raise OSError(5, 'injected rename failure')\n"
+            "rs._rename = bad_rename",
+            when="set-handoff",
+        )
+        rc_, fin = self.persist(
+            "finish", "--payload", "-", stdin=json.dumps(self._final(adv))
+        )
+        self.assertEqual((rc_, fin["stored"]), (0, True), fin)
+        self.assertIn("handoff cache not confirmed", fin.get("warning", ""))
+        rc_, st = self.persist("status")
+        self.assertEqual(st["state"]["final_handoff"]["cite"], f"{rid}#1")
+        self.assertEqual(st["state"]["final_handoff"]["outcome"], "journal_only")
+        self.assertEqual(st["state"]["files_changed"], [self.a])
+
+    def test_committed_finish_with_failed_bookkeeping_stays_committed(self) -> None:
+        _rid, base = self._started()
+        adv = self._edit_a(base)
+        d = self._frozen_dir()
+        self._fake_store(
+            ""
+        )  # real store; freeze the state dir after the in-flight record
+        fake = os.path.join(self.tmp, "fake_store.py")
+        with open(fake, "a", encoding="utf-8") as f:
+            pass
+        with open(fake, "w", encoding="utf-8") as f:
+            f.write(
+                "import json, os, sys\nargs = sys.argv[1:]\n"
+                + f"sys.path.insert(0, {_LIB!r})\n"
+                + "import run_store as rs\n"
+                + f"os.chmod({d!r}, 0o500)\n"
+                + "sys.exit(rs.main(args))\n"
+            )
+        try:
+            rc_, fin = self.persist(
+                "finish", "--payload", "-", stdin=json.dumps(self._final(adv))
+            )
+        finally:
+            os.chmod(d, 0o700)
+        # never downgraded: done, stored, cite, warning
+        self.assertEqual((rc_, fin["action"], fin["stored"]), (0, "done", True), fin)
+        self.assertTrue(fin["cite"].endswith("#1"))
+        self.assertIn("could not be updated after a committed finish", fin["warning"])
+        rc_, st = self.persist("status")
+        self.assertNotEqual(
+            st["state"].get("finished"), "stored"
+        )  # stale/unresolved, and says so
+        self.assertNotIn("final_handoff", st["state"])
+        self.assertIsNotNone(st["state"]["inflight"])
+
+    def test_refused_and_indeterminate_finish_absorb_nothing(self) -> None:
+        for on_append, persistence in (
+            (
+                "def bad_fsync(fd):\n"
+                "    import os as _os, stat as _stat\n"
+                "    if _stat.S_ISDIR(_os.fstat(fd).st_mode): raise OSError(5, 'injected barrier failure')\n"
+                "    _os.fsync(fd)\n"
+                "rs._fsync = bad_fsync",
+                "not-stored",
+            ),
+            (BAD_JOURNAL_FSYNC, "unconfirmed"),
+        ):
+            self.setUp()
+            _rid, base = self._started()
+            adv = self._edit_a(base)
+            self._fake_store(on_append, when="set-handoff")
+            rc_, fin = self.persist(
+                "finish", "--payload", "-", stdin=json.dumps(self._final(adv))
+            )
+            self.assertEqual(
+                (rc_, fin["stored"], fin["persistence"]),
+                (rp.EXIT_STOP, False, persistence),
+                fin,
+            )
+            rc_, st = self.persist("status")
+            self.assertNotIn("final_handoff", st["state"])
+            self.assertEqual(st["state"]["files_changed"], [])  # nothing absorbed
+            self.tearDown()
 
 
 if __name__ == "__main__":

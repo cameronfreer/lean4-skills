@@ -1,5 +1,15 @@
 # Changelog
 
+## v4.11.1 (September 2026)
+
+Reliability follow-up to the persistence MVP (Refs #82): an inline (worker-less) controller's progress now reaches the helper's parent context, so a mid-run operational-error fallback reflects the changes and evidence actually reported, and `status` after `finish` is no longer stale.
+
+### Added
+
+- **`lean4-skills-run-persist progress --payload`** (`run-persist-progress/v1`): parent knowledge of an inline pass — `files_changed`, `file_baseline` (required when files changed), `attempted_tools`, `best_candidates`, `artifacts`, `evidence` — validated completely before any state change. No journal event, no citation, by design. The shipped custody chain is enforced: the baseline must cover exactly the owned files and no entry may advance outside the reported changed set (`baseline_outside_reported_changes`); paths must be owned (`progress_outside_ownership`). Bookkeeping follows the in-flight discipline with the two save stages reported distinctly (`progress_unsaved`: the submission will not survive another invocation; `state_unwritable`: the in-flight record was saved and a later process stops and reports it). `progress_recorded: true` means only that this update's control-state save was acknowledged; fallbacks reflect reported knowledge only.
+- **`finish` absorbed; `final_handoff` in `status`.** A stored final handoff is exposed exactly as stored, and the accumulated context is reconciled from it by set semantics per list (typed items by exact equality — no double-counting after `progress`). Failure reporting keeps the shipped distinctions: a failed state save never downgrades a confirmed journal commit.
+- Commands: for each inline edit, `check` → edit → `advance` (changed entries only) → `progress`. Cycle-engine § Run Persistence "Inline passes" and "`finish` and terminal `status`" paragraphs; Check 44 pins; integration tests (two-file custody regression, both bookkeeping stages, progress → finish → status exact counts, the four finish rows).
+
 ## v4.11.0 (September 2026)
 
 Explicit prior-run reuse for the proving commands (#82C; Refs #82 — this completes the persistence MVP; inspect/resume remain separate criteria and #82 stays open).

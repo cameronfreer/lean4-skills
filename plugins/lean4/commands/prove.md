@@ -47,7 +47,9 @@ Startup requirements:
    `lean4-skills-run-persist start` **before any proof edit**; a `startup-error`
    is a startup validation error. Report the `run_id` in Resolved Inputs and
    follow [Run Persistence](../skills/lean4/references/cycle-engine.md#run-persistence)
-   at every review, cycle boundary, and stop. With `--prior-run`, first run
+   at every review, cycle boundary, and stop; for each inline edit: `check` →
+   edit → `advance` (changed entries only) → `run-persist progress --payload`
+   (parent knowledge, no citation; fallbacks reflect reported knowledge only). With `--prior-run`, first run
    `run-persist reuse`, show the drift report (drift and uncovered files), obtain approval of **that report**
    (its token), `run-persist custody`, and pass `--reuse-report` (and, when the
    report was not a match, `--approve <token>`) to `start`, which re-derives custody
