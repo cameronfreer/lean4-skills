@@ -296,30 +296,39 @@ def _new_state(
     }
 
 
+def _extend_unique(target: list[Any], items: list[Any]) -> None:
+    for item in items:
+        if item not in target:
+            target.append(item)
+
+
 def _absorb(st: dict[str, Any], kind: str, payload: dict[str, Any]) -> None:
     """Fold an event into the parent context (committed history when called
     on the real state; parent KNOWLEDGE when called on a copy with a pending,
     unpersisted submission — see `_knowledge`)."""
     if kind == "dispatch":
         st["current"] = _context_from_dispatch(payload)
-    elif kind == "handoff":
-        for f in payload["files_changed"]:
+    elif kind in ("handoff", "progress"):
+        # set semantics per list: strings by value, typed items by exact
+        # equality — a cumulative final handoff repeating items already
+        # reported through `progress` does not double-count them
+        for f in payload.get("files_changed", []):
             if f not in st["files_changed"]:
                 st["files_changed"].append(f)
         if payload.get("file_baseline") is not None:
             st["current"]["file_baseline"] = payload["file_baseline"]
         for k in ("attempted_tools", "failed_avenues"):
-            for x in payload[k]:
+            for x in payload.get(k, []):
                 if x not in st[k]:
                     st[k].append(x)
-        st["best_candidates"].extend(payload["best_candidates"])
-        ev = payload["evidence"]
+        _extend_unique(st["best_candidates"], payload.get("best_candidates", []))
+        ev = payload.get("evidence") or {}
         for k in ("queries", "top_candidates"):
-            for x in ev[k]:
+            for x in ev.get(k, []):
                 if x not in st["evidence"][k]:
                     st["evidence"][k].append(x)
-        st["evidence"]["attempts"].extend(ev["attempts"])
-        st.setdefault("artifacts", []).extend(payload.get("artifacts", []))
+        _extend_unique(st["evidence"]["attempts"], ev.get("attempts", []))
+        _extend_unique(st.setdefault("artifacts", []), payload.get("artifacts", []))
         if ev.get("goal_delta") is not None:
             st["evidence"]["goal_delta"] = ev["goal_delta"]
         if ev.get("diagnostic_delta") is not None:
@@ -355,7 +364,12 @@ def _knowledge(st: dict[str, Any]) -> dict[str, Any]:
     work that HAPPENED even though its journal write did not commit."""
     k: dict[str, Any] = json.loads(json.dumps(st))
     pend = (st.get("inflight") or {}).get("pending")
-    if isinstance(pend, dict) and pend.get("kind") in ("dispatch", "handoff", "note"):
+    if isinstance(pend, dict) and pend.get("kind") in (
+        "dispatch",
+        "handoff",
+        "note",
+        "progress",
+    ):
         _absorb(k, str(pend["kind"]), pend["payload"])
     return k
 
@@ -409,6 +423,25 @@ def _stop_result(
         "handoff": _operational_handoff(st, detail),
     }
     pend = (st.get("inflight") or {}).get("pending")
+    if isinstance(pend, dict) and pend.get("kind") == "progress":
+        # parent knowledge by design (no journal event, no citation): report
+        # its CONTROL-STATE persistence, never a journal-write failure
+        saved = outcome != "progress_unsaved"
+        res["unpersisted"] = {
+            "kind": "progress",
+            "seq": None,
+            "status": "control-state-saved" if saved else "control-state-unsaved",
+            "note": (
+                "this progress submission informed the handoff above; the in-flight record "
+                "holding it WAS saved — a later helper process finds it unresolved, stops, and "
+                "reports it (it has no journal event and no citation by design)"
+                if saved
+                else "this progress submission informed the handoff above but could NOT be "
+                "saved to the invocation state and will not survive another invocation "
+                "(it has no journal event and no citation by design)"
+            ),
+        }
+        return res
     if isinstance(pend, dict):
         # A pre-write refusal (or a store never called) is KNOWN non-storage;
         # an indeterminate / malformed / unresolved write is only unconfirmed.
@@ -532,6 +565,14 @@ def _mutate(
         st["last_seq"] = seq
         if op == "finish":
             st["finished"] = "stored"
+            # the exact stored record, separate from the accumulated context,
+            # which is reconciled from it by set semantics (no double-counting)
+            st["final_handoff"] = {
+                "cite": f"{st['run_id']}#{seq}",
+                "outcome": outcome,
+                "handoff": payload,
+            }
+            _absorb(st, "handoff", payload)
         else:
             _absorb(st, kind, payload)
         result: dict[str, Any] = {
@@ -876,6 +917,160 @@ def cmd_append(ns: argparse.Namespace, kind: str) -> int:
     return code
 
 
+PROGRESS_SCHEMA = "run-persist-progress/v1"
+
+
+def _baseline_identity(baseline: dict[str, Any]) -> dict[str, list[Any]]:
+    return {
+        os.path.abspath(str(e["path"])): [
+            e.get("realpath"),
+            e.get("exists"),
+            e.get("sha256"),
+            e.get("size"),
+        ]
+        for e in baseline.get("files", [])
+    }
+
+
+def _validate_progress(payload: Any, st: dict[str, Any]) -> list[str]:
+    """The complete submission is validated BEFORE any state change."""
+    e: list[str] = []
+    if not isinstance(payload, dict) or payload.get("schema") != PROGRESS_SCHEMA:
+        return [f"schema must be {PROGRESS_SCHEMA}"]
+    owned = [os.path.abspath(str(f)) for f in st["current"]["files_owned"]]
+    changed = payload.get("files_changed", [])
+    if not rc._str_list(changed):
+        e.append("files_changed must be a list of strings")
+        changed = []
+    for f in changed:
+        if os.path.abspath(f) not in owned:
+            e.append(f"progress_outside_ownership: {f!r} is not an owned file")
+    fb = payload.get("file_baseline")
+    if changed and fb is None:
+        e.append("file_baseline is required when files_changed is non-empty")
+    if fb is not None:
+        if not rc._valid_baseline(fb) or not rc._baseline_covers(
+            fb, st["current"]["files_owned"]
+        ):
+            e.append(
+                "file_baseline must be a valid file-baseline/v1 covering exactly files_owned"
+            )
+        elif len(fb.get("files", [])) != len(owned):
+            e.append("file_baseline must cover exactly files_owned (no extra entries)")
+        else:
+            # the shipped custody chain: only intentionally changed entries
+            # may advance — an entry that differs from the current context
+            # baseline outside the reported set would bless external drift
+            before = _baseline_identity(st["current"]["file_baseline"])
+            after = _baseline_identity(fb)
+            reported = {os.path.abspath(f) for f in changed}
+            for path, ident in after.items():
+                if path not in reported and before.get(path) != ident:
+                    e.append(
+                        f"baseline_outside_reported_changes: {path!r} advanced but is not in files_changed"
+                    )
+    if not rc._str_list(payload.get("attempted_tools", [])):
+        e.append("attempted_tools must be a list of strings")
+    if not rc._typed_dicts(
+        payload.get("best_candidates", []),
+        {"candidate": rc._is_str, "outcome": rc._is_str},
+    ):
+        e.append("best_candidates items must be {candidate:str, outcome:str}")
+    if not rc._typed_dicts(
+        payload.get("artifacts", []), {"kind": rc._is_str, "content": rc._is_str}
+    ):
+        e.append("artifacts items must be {kind:str, content:str}")
+    ev = payload.get("evidence")
+    if ev is not None and (
+        not isinstance(ev, dict)
+        or not rc._str_list(ev.get("queries", []))
+        or not rc._str_list(ev.get("top_candidates", []))
+        or not rc._typed_dicts(
+            ev.get("attempts", []), {"snippet": rc._is_str, "result": rc._is_str}
+        )
+    ):
+        e.append(
+            "evidence shape invalid (str-list queries/top_candidates, {snippet:str,result:str} attempts)"
+        )
+    return e
+
+
+def cmd_progress(ns: argparse.Namespace) -> int:
+    """Parent KNOWLEDGE of an inline pass — control state only: no store
+    write, no journal event, no citation (by design). Reported under the
+    existing in-flight discipline, with the two save stages distinguished."""
+    st = _load_state(ns.state)
+    payload = _read_json(ns.payload)
+    reason = _terminal_reason(st)
+    if reason:
+        if not st.get("stopped"):
+            st["stopped"] = reason
+            _try_save(ns.state, st)
+        _emit(_stop_result(st, "progress", "terminal", reason))
+        return EXIT_STOP
+    errs = _validate_progress(payload, st)
+    if errs:
+        _emit(
+            {
+                "action": "invalid",
+                "run_id": st["run_id"],
+                "kind": "progress",
+                "code": "invalid_progress",
+                "errors": errs,
+                "note": "nothing was recorded; the invocation state is unchanged",
+            }
+        )
+        return EXIT_STARTUP
+    # stage 1: the in-flight record carrying the validated submission
+    st["inflight"] = {
+        "op": "progress",
+        "kind": "progress",
+        "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "pending": {"kind": "progress", "payload": payload},
+    }
+    err = _try_save(ns.state, st)
+    if err:
+        detail = f"invocation state unwritable before recording progress: {err}"
+        early = _stop_result(st, "progress", "progress_unsaved", detail)
+        st["inflight"] = None
+        st["stopped"] = detail
+        stop_err = _try_save(ns.state, st)
+        _report_terminal_save(early, stop_err)
+        _emit(early)
+        return EXIT_STOP
+    # stage 2: resolve
+    inflight = st["inflight"]
+    st["inflight"] = None
+    _absorb(st, "progress", payload)
+    save_err = _try_save(ns.state, st)
+    if save_err:
+        # the in-flight record (with the submission) IS on disk: pending
+        # knowledge survives; the run must stop now
+        st["inflight"] = inflight
+        detail = (
+            f"invocation state could not be updated after recording progress ({save_err}); "
+            "bookkeeping is unresolved"
+        )
+        stop = _stop_result(st, "progress", "state_unwritable", detail)
+        stop["progress_recorded"] = False
+        _emit(stop)
+        return EXIT_STOP
+    _emit(
+        {
+            "action": "continue",
+            "run_id": st["run_id"],
+            "kind": "progress",
+            "progress_recorded": True,
+            "files_changed": list(st["files_changed"]),
+            "note": (
+                "this update's control-state save was acknowledged (parent knowledge; no "
+                "journal event, no citation by design). Fallbacks reflect REPORTED knowledge only"
+            ),
+        }
+    )
+    return EXIT_OK
+
+
 def cmd_finish(ns: argparse.Namespace) -> int:
     st = _load_state(ns.state)
     handoff = _read_json(ns.payload)
@@ -984,6 +1179,13 @@ def main(argv: list[str]) -> int:
     n.add_argument("--lean", help="file whose contents become the note's lean field")
     f = sub.add_parser("finish")
     f.add_argument("--payload", required=True)
+    pr = sub.add_parser(
+        "progress",
+        help="record an inline pass's progress in the invocation state (no journal event)",
+    )
+    pr.add_argument(
+        "--payload", required=True, help="run-persist-progress/v1 JSON (file or -)"
+    )
     sub.add_parser("status")
     try:
         ns = ap.parse_args(argv)
@@ -1015,6 +1217,8 @@ def main(argv: list[str]) -> int:
             return cmd_reuse(ns)
         if ns.cmd == "finish":
             return cmd_finish(ns)
+        if ns.cmd == "progress":
+            return cmd_progress(ns)
         return cmd_append(ns, ns.cmd)
     except UsageError as ex:
         _emit({"action": "usage", "detail": str(ex)})
