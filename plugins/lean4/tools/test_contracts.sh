@@ -2458,7 +2458,13 @@ else
                   '`persistence: not-stored' \
                   'terminal_enforced: false' \
                   'source: none` is valid only for a skipped review' \
-                  'do not assume `TMPDIR` is set'; do
+                  'do not assume `TMPDIR` is set' \
+                  'for each inline edit: `check` → edit → `advance` (changed entries only) → `run-persist progress --payload`' \
+                  '**Updating only at `finish` is insufficient**' 'reflects **reported knowledge only**' \
+                  'writes no journal event and yields no citation' '`progress_outside_ownership`' \
+                  '`baseline_outside_reported_changes`' '**never `record` over all owned files**' \
+                  'will not survive another invocation' '**was saved — a later helper process finds it unresolved, stops, and reports it**' \
+                  '`final_handoff`' '**by set semantics per list**' '**never downgrades a confirmed journal commit**'; do
         if ! grep -qF -- "$_c44_s" <<<"$_c44_sec"; then
             fail "Check 44: Run Persistence must state: $_c44_s"
             check44_ok=0
@@ -2484,6 +2490,12 @@ if ! grep -qF 'fallback_handoff' "$PLUGIN_ROOT/commands/autoprove.md" || ! grep 
     fail "Check 44: autoprove.md stop summary must print the fallback handoff in full and distinguish not-stored from unconfirmed"
     check44_ok=0
 fi
+for _c44_cmd in prove autoprove; do
+    if ! grep -qF 'run-persist progress --payload' "$PLUGIN_ROOT/commands/$_c44_cmd.md" || ! grep -qF 'for each inline edit' "$PLUGIN_ROOT/commands/$_c44_cmd.md"; then
+        fail "Check 44: $_c44_cmd.md must prescribe the inline-pass progress step"
+        check44_ok=0
+    fi
+done
 if ! grep -qF 'lean4-skills-run-persist start' "$PLUGIN_ROOT/commands/autoprove.md"; then
     fail "Check 44: autoprove.md startup requirements must include the persistence start gate"
     check44_ok=0
