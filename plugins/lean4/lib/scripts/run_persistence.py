@@ -932,11 +932,33 @@ def _baseline_identity(baseline: dict[str, Any]) -> dict[str, list[Any]]:
     }
 
 
+_PROGRESS_FIELDS = {
+    "schema",
+    "files_changed",
+    "file_baseline",
+    "attempted_tools",
+    "best_candidates",
+    "artifacts",
+    "evidence",
+}
+_PROGRESS_EVIDENCE_FIELDS = {
+    "queries",
+    "top_candidates",
+    "attempts",
+    "goal_delta",
+    "diagnostic_delta",
+}
+
+
 def _validate_progress(payload: Any, st: dict[str, Any]) -> list[str]:
-    """The complete submission is validated BEFORE any state change."""
+    """The complete submission is validated BEFORE any state change: every
+    field `_absorb` consumes is checked, and no other field is accepted."""
     e: list[str] = []
     if not isinstance(payload, dict) or payload.get("schema") != PROGRESS_SCHEMA:
         return [f"schema must be {PROGRESS_SCHEMA}"]
+    unknown = sorted(set(payload) - _PROGRESS_FIELDS)
+    if unknown:
+        e.append(f"unsupported field(s): {unknown!r}")
     owned = [os.path.abspath(str(f)) for f in st["current"]["files_owned"]]
     changed = payload.get("files_changed", [])
     if not rc._str_list(changed):
@@ -981,18 +1003,57 @@ def _validate_progress(payload: Any, st: dict[str, Any]) -> list[str]:
     ):
         e.append("artifacts items must be {kind:str, content:str}")
     ev = payload.get("evidence")
-    if ev is not None and (
-        not isinstance(ev, dict)
-        or not rc._str_list(ev.get("queries", []))
-        or not rc._str_list(ev.get("top_candidates", []))
-        or not rc._typed_dicts(
-            ev.get("attempts", []), {"snippet": rc._is_str, "result": rc._is_str}
-        )
-    ):
-        e.append(
-            "evidence shape invalid (str-list queries/top_candidates, {snippet:str,result:str} attempts)"
-        )
+    if ev is not None:
+        if not isinstance(ev, dict):
+            e.append("evidence must be an object")
+        else:
+            unknown_ev = sorted(set(ev) - _PROGRESS_EVIDENCE_FIELDS)
+            if unknown_ev:
+                e.append(f"unsupported evidence field(s): {unknown_ev!r}")
+            if (
+                not rc._str_list(ev.get("queries", []))
+                or not rc._str_list(ev.get("top_candidates", []))
+                or not rc._typed_dicts(
+                    ev.get("attempts", []),
+                    {"snippet": rc._is_str, "result": rc._is_str},
+                )
+            ):
+                e.append(
+                    "evidence shape invalid (str-list queries/top_candidates, {snippet:str,result:str} attempts)"
+                )
+            for k in ("goal_delta", "diagnostic_delta"):
+                if ev.get(k) is not None and not rc._is_str(ev.get(k)):
+                    e.append(f"evidence.{k} must be a string or null")
+    if e:
+        return e
+    # invariant: accepted progress can always produce a valid operational
+    # handoff — simulate the absorption on a copy and validate the fallback
+    trial = json.loads(json.dumps(st))
+    _absorb(trial, "progress", _normalize_progress(payload))
+    try:
+        _operational_handoff(trial, "trial")
+    except RuntimeError as ex:
+        e.append(f"accepted progress would make the fallback handoff invalid: {ex}")
     return e
+
+
+def _normalize_progress(payload: dict[str, Any]) -> dict[str, Any]:
+    """Exactly the validated fields, in the shape `_absorb` consumes."""
+    ev = payload.get("evidence") or {}
+    return {
+        "files_changed": list(payload.get("files_changed", [])),
+        "file_baseline": payload.get("file_baseline"),
+        "attempted_tools": list(payload.get("attempted_tools", [])),
+        "best_candidates": list(payload.get("best_candidates", [])),
+        "artifacts": list(payload.get("artifacts", [])),
+        "evidence": {
+            "queries": list(ev.get("queries", [])),
+            "top_candidates": list(ev.get("top_candidates", [])),
+            "attempts": list(ev.get("attempts", [])),
+            "goal_delta": ev.get("goal_delta"),
+            "diagnostic_delta": ev.get("diagnostic_delta"),
+        },
+    }
 
 
 def cmd_progress(ns: argparse.Namespace) -> int:
@@ -1000,6 +1061,7 @@ def cmd_progress(ns: argparse.Namespace) -> int:
     write, no journal event, no citation (by design). Reported under the
     existing in-flight discipline, with the two save stages distinguished."""
     st = _load_state(ns.state)
+    _bind_root(st, ns.root)  # a different --root is refused before any change
     payload = _read_json(ns.payload)
     reason = _terminal_reason(st)
     if reason:
@@ -1026,7 +1088,7 @@ def cmd_progress(ns: argparse.Namespace) -> int:
         "op": "progress",
         "kind": "progress",
         "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "pending": {"kind": "progress", "payload": payload},
+        "pending": {"kind": "progress", "payload": _normalize_progress(payload)},
     }
     err = _try_save(ns.state, st)
     if err:
@@ -1041,7 +1103,7 @@ def cmd_progress(ns: argparse.Namespace) -> int:
     # stage 2: resolve
     inflight = st["inflight"]
     st["inflight"] = None
-    _absorb(st, "progress", payload)
+    _absorb(st, "progress", _normalize_progress(payload))
     save_err = _try_save(ns.state, st)
     if save_err:
         # the in-flight record (with the submission) IS on disk: pending

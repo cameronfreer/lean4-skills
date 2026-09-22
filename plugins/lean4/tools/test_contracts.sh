@@ -2461,7 +2461,7 @@ else
                   'do not assume `TMPDIR` is set' \
                   'for each inline edit: `check` → edit → `advance` (changed entries only) → `run-persist progress --payload`' \
                   '**Updating only at `finish` is insufficient**' 'reflects **reported knowledge only**' \
-                  'writes no journal event and yields no citation' '`progress_outside_ownership`' \
+                  'writes no journal event and yields no citation' '`progress_outside_ownership`' '**no unsupported field**' \
                   '`baseline_outside_reported_changes`' '**never `record` over all owned files**' \
                   'will not survive another invocation' '**was saved — a later helper process finds it unresolved, stops, and reports it**' \
                   '`final_handoff`' '**by set semantics per list**' '**never downgrades a confirmed journal commit**'; do

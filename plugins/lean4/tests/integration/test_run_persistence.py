@@ -1751,14 +1751,54 @@ class InlineProgress(_Env):
                 },
             },  # partial cover
         ]
+        cases += [
+            {"evidence": {"goal_delta": []}},  # review round 1: deltas
+            {"evidence": {"diagnostic_delta": {}}},
+            {"evidence": {"queries": [], "extra": 1}},  # unknown evidence field
+            {"failed_avenues": None},  # unsupported top-level field
+            {"attempted_tools": None},  # null where a list is consumed
+            {"best_candidates": None},
+            {"files_changed": None},
+        ]
         for fields in cases:
             rc_, res = self._progress(**fields)
             self.assertEqual(
                 (rc_, res["code"]), (rp.EXIT_STARTUP, "invalid_progress"), (fields, res)
             )
+        # a mismatched --root is refused before any change
+        p = subprocess.run(
+            [
+                *PERSIST_CMD,
+                "--root",
+                os.path.join(self.tmp, "other-root"),
+                "progress",
+                "--payload",
+                "-",
+            ],
+            input=json.dumps(
+                {"schema": rp.PROGRESS_SCHEMA, "attempted_tools": ["lean_goal"]}
+            ),
+            capture_output=True,
+            text=True,
+            env=self.env,
+            check=False,
+        )
+        self.assertEqual(
+            (p.returncode, json.loads(p.stdout)["action"]), (rp.EXIT_USAGE, "usage")
+        )
         rc_, st = self.persist("status")
         self.assertEqual(st["state"]["files_changed"], [])
+        self.assertEqual(st["state"]["attempted_tools"], [])
         self.assertIsNone(st["state"]["inflight"])
+        # ... and the fallback path still works afterwards (nothing was absorbed)
+        self._fake_store(BAD_JOURNAL_FSYNC)
+        rc_, stop = self.persist("note", "--kind", "candidate", "--text", "x")
+        self.assertEqual((rc_, stop["outcome"]), (rp.EXIT_STOP, "indeterminate"), stop)
+        self.assertEqual(rc.validate_handoff(stop["handoff"]), [])
+        self.env.pop("LEAN4_RUN_STORE_ARGV")
+        self.setUp()
+        _rid, base = self._started()
+        adv = self._edit_a(base)
         # a terminal state stops it without recording
         rc_, fin = self.persist(
             "finish", "--payload", "-", stdin=json.dumps(self._final(adv))
@@ -1768,6 +1808,39 @@ class InlineProgress(_Env):
         self.assertEqual(
             (rc_, res["action"], res["outcome"]), (rp.EXIT_STOP, "stop", "terminal")
         )
+
+    def test_accepted_progress_always_yields_a_valid_fallback(self) -> None:
+        _rid, base = self._started()
+        adv = self._edit_a(base)
+        payloads = [
+            {"files_changed": [self.a], "file_baseline": adv},
+            {
+                "attempted_tools": ["lean_goal"],
+                "evidence": {"goal_delta": "⊢ True", "diagnostic_delta": None},
+            },
+            {
+                "evidence": {
+                    "queries": ["q"],
+                    "top_candidates": ["c"],
+                    "attempts": [{"snippet": "s", "result": "r"}],
+                }
+            },
+            {
+                "best_candidates": [{"candidate": "trivial", "outcome": "ok"}],
+                "artifacts": [{"kind": "diff", "content": "x"}],
+            },
+            {},
+        ]
+        for fields in payloads:
+            rc_, res = self._progress(**fields)
+            self.assertEqual((rc_, res["progress_recorded"]), (0, True), (fields, res))
+        self._fake_store(BAD_JOURNAL_FSYNC)
+        rc_, stop = self.persist("note", "--kind", "candidate", "--text", "x")
+        self.assertEqual((rc_, stop["outcome"]), (rp.EXIT_STOP, "indeterminate"), stop)
+        h = stop["handoff"]
+        self.assertEqual(rc.validate_handoff(h), [])
+        self.assertEqual(h["evidence"]["goal_delta"], "⊢ True")
+        self.assertEqual(h["files_changed"], [self.a])
 
     # --- bookkeeping stages
 
