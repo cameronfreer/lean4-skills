@@ -371,10 +371,16 @@ _strip_wrappers() {
 # applies explicit heredoc semantics:
 #   * `cmd <<'EOF' … EOF` / `<<"EOF"` / `<<E'OF'` / `<<\EOF` (any quoting in
 #     the delimiter word): the body is literal data — skipped, unless the
-#     RECEIVING PIPELINE has a shell as a command word (`bash <<'EOF'`,
-#     `/bin/bash <<'EOF'`, `cat <<'EOF' | sh`; a `bash` elsewhere on the line,
-#     e.g. `echo bash; cat <<'EOF'`, does not count): then the body is
-#     executable input and is tokenized like any command text;
+#     RECEIVING PIPELINE (bounded by the real `;`/`&&`/`||`/newline
+#     separators) has a shell as its normalized COMMAND WORD in some stage
+#     (`bash <<'EOF'`, `bash<<'EOF'`, `'bash' <<'EOF'`, `/bin/bash <<'EOF'`,
+#     `cat <<'EOF' | sudo bash`; NOT an argument named bash (`cat - bash
+#     <<'EOF'`) and NOT a separate command (`cat <<'EOF'; bash -c true`)):
+#     then the body is executable input and is tokenized like any command;
+#   * a shell comment (`# …` at a word boundary) runs to the newline and
+#     contains no operators — `echo hi # <<EOF` opens no heredoc;
+#   * a double-quoted delimiter follows double-quote escape rules (`"E\OF"`
+#     names `E\OF`);
 #   * `cmd <<EOF … EOF` (unquoted delimiter): the body undergoes expansion, so
 #     its $(…) and `…` substitutions are executable — those are tokenized
 #     (quote-aware: a quoted `)` does not end a substitution); the rest of the
@@ -429,15 +435,83 @@ function subst_scan(body,   i, len, c, depth, start) {
     i++
   }
 }
-function pipeline_feeds_shell(text) {
-  # the pipeline that receives the heredoc: a shell as a command word in any
-  # of its stages (bare or path-qualified, after sudo/env/VAR= prefixes)
-  return text ~ /(^|[|&;( \t])([^ \t|&;()]*\/)?(bash|sh|zsh|dash|ksh)([ \t]|$)/
+function is_shell_word(w) {
+  sub(/.*\//, "", w)                       # /bin/bash -> bash
+  return (w == "bash" || w == "sh" || w == "zsh" || w == "dash" || w == "ksh")
 }
-function tokenize(cmd,   i, len, c, nc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hdash, k, w, q, line_start, pipe_start, hd_pipe_start, body, rest, term, t, nl, lstart, found, hd) {
-  len = length(cmd); i = 1; seg = ""; in_sq = 0; in_dq = 0; in_bt = 0; paren = 0; hn = 0; line_start = 1; pipe_start = 1; hd_pipe_start = 1
+function stage_cmd_word(stage,   i, len, c, w, q, bw, j, nw, nb) {
+  # the normalized command word of one pipeline stage: skip leading
+  # whitespace, VAR=value assignments and the sudo/env/command wrappers (with
+  # their -flags); unquote the word ("bash", \047bash\047); stop at operators
+  len = length(stage); i = 1
+  while (i <= len) {
+    while (i <= len && substr(stage, i, 1) ~ /[ \t]/) i++
+    w = ""; q = 0
+    while (i <= len) {
+      c = substr(stage, i, 1)
+      if (c ~ /[ \t|&;<>()]/) break
+      if (c == "\047") { q = 1; i++; while (i <= len && substr(stage, i, 1) != "\047") { w = w substr(stage, i, 1); i++ }; i++; continue }
+      if (c == "\"") { q = 1; i++; while (i <= len && substr(stage, i, 1) != "\"") { if (substr(stage, i, 1) == "\\") i++; w = w substr(stage, i, 1); i++ }; i++; continue }
+      if (c == "\\") { i++; w = w substr(stage, i, 1); i++; continue }
+      w = w c; i++
+    }
+    if (w == "") return ""
+    if (!q && w ~ /^[A-Za-z_][A-Za-z0-9_]*=/) continue           # VAR=value prefix
+    bw = w; sub(/.*\//, "", bw)                                  # /usr/bin/env -> env
+    if (!q && (bw == "sudo" || bw == "env" || bw == "command")) {
+      # wrappers: skip their -flags; for sudo also the argument of a flag
+      # (sudo -u me bash), mirroring _strip_wrappers: a following word that is
+      # not a flag, not VAR=, and not a known command word is the argument
+      while (i <= len) {
+        while (i <= len && substr(stage, i, 1) ~ /[ \t]/) i++
+        if (substr(stage, i, 1) != "-") break
+        while (i <= len && substr(stage, i, 1) !~ /[ \t|&;<>()]/) i++
+        if (bw == "sudo") {
+          j = i; while (j <= len && substr(stage, j, 1) ~ /[ \t]/) j++
+          nw = ""; while (j <= len && substr(stage, j, 1) !~ /[ \t|&;<>()]/) { nw = nw substr(stage, j, 1); j++ }
+          nb = nw; sub(/.*\//, "", nb)
+          if (nw != "" && nw !~ /^-/ && nw !~ /^[A-Za-z_][A-Za-z0-9_]*=/ && !is_shell_word(nb) && nb != "git" && nb != "gh" && nb != "lake" && nb != "env" && nb != "sudo" && nb != "command") i = j
+        }
+      }
+      continue
+    }
+    return w
+  }
+  return ""
+}
+function pipeline_feeds_shell(text,   n, parts, k, i, len, c, stage, in_sq, in_dq) {
+  # the pipeline that RECEIVES the heredoc (its real boundaries: from the
+  # previous ; && || or line start to the next ; && || or newline): true iff
+  # the command word of any stage is a shell — `bash<<EOF`, a quoted bash word,
+  # `/bin/bash <<EOF`, `cat <<EOF | sudo bash`; not `cat - bash <<EOF` (an
+  # argument) and not a separate command after `;`
+  len = length(text); stage = ""; in_sq = 0; in_dq = 0
+  for (i = 1; i <= len; i++) {
+    c = substr(text, i, 1)
+    if (in_sq) { stage = stage c; if (c == "\047") in_sq = 0; continue }
+    if (in_dq) { if (c == "\\") { stage = stage c substr(text, i + 1, 1); i++; continue }; stage = stage c; if (c == "\"") in_dq = 0; continue }
+    if (c == "\047") { in_sq = 1; stage = stage c; continue }
+    if (c == "\"") { in_dq = 1; stage = stage c; continue }
+    if (c == "\\") { stage = stage c substr(text, i + 1, 1); i++; continue }
+    if (c == "|" && substr(text, i + 1, 1) != "|") { if (is_shell_word(stage_cmd_word(stage))) return 1; stage = ""; continue }
+    stage = stage c
+  }
+  return is_shell_word(stage_cmd_word(stage))
+}
+function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hdash, k, w, q, line_start, pipe_start, hd_pipe_start, hd_pipe_end, body, rest, term, t, nl, lstart, found, hd) {
+  len = length(cmd); i = 1; seg = ""; in_sq = 0; in_dq = 0; in_bt = 0; paren = 0; hn = 0; line_start = 1; pipe_start = 1; hd_pipe_start = 1; hd_pipe_end = 0
   while (i <= len) {
     c = substr(cmd, i, 1); nc = substr(cmd, i + 1, 1)
+    if (c == "#" && !in_sq && !in_dq && !in_bt && paren == 0) {
+      # a shell comment starts at a word boundary (line/segment start or after
+      # whitespace/operators) and runs to the newline — nothing in it is an
+      # operator; a # inside a word (a#b) or inside quotes is literal
+      pc = (i > 1) ? substr(cmd, i - 1, 1) : ""
+      if (pc == "" || pc ~ /[ \t\n;|&(]/) {
+        while (i <= len && substr(cmd, i, 1) != "\n") i++
+        continue
+      }
+    }
     if (in_sq) { seg = seg c; if (c == "\047") in_sq = 0; i++; continue }
     if (in_dq) {
       if (c == "\\" && nc != "") { seg = seg c nc; i += 2; continue }
@@ -465,7 +539,7 @@ function tokenize(cmd,   i, len, c, nc, seg, in_sq, in_dq, in_bt, paren, hn, hw,
     if (c == "<" && nc == "<") {
       # heredoc operator: parse the delimiter word with shell quote removal
       # (EOF, "EOF", E"OF", \EOF, E\OF … all name EOF; any quoting => literal body)
-      if (hn == 0) hd_pipe_start = pipe_start
+      if (hn == 0) { hd_pipe_start = pipe_start; hd_pipe_end = 0 }
       seg = seg "<<"; i += 2
       hd = 0; if (substr(cmd, i, 1) == "-") { hd = 1; seg = seg "-"; i++ }
       while (substr(cmd, i, 1) == " " || substr(cmd, i, 1) == "\t") { seg = seg " "; i++ }
@@ -473,7 +547,16 @@ function tokenize(cmd,   i, len, c, nc, seg, in_sq, in_dq, in_bt, paren, hn, hw,
       while (i <= len) {
         c = substr(cmd, i, 1)
         if (c == "\047") { q = 1; i++; while (i <= len && substr(cmd, i, 1) != "\047") { w = w substr(cmd, i, 1); i++ }; i++; continue }
-        if (c == "\"") { q = 1; i++; while (i <= len && substr(cmd, i, 1) != "\"") { if (substr(cmd, i, 1) == "\\") i++; w = w substr(cmd, i, 1); i++ }; i++; continue }
+        if (c == "\"") {
+          # double-quote escape rules: a backslash is removed only before
+          # \\ " $ ` (and a newline); otherwise it is part of the delimiter
+          q = 1; i++
+          while (i <= len && substr(cmd, i, 1) != "\"") {
+            if (substr(cmd, i, 1) == "\\" && substr(cmd, i + 1, 1) ~ /[\\"$`\n]/) i++
+            w = w substr(cmd, i, 1); i++
+          }
+          i++; continue
+        }
         if (c == "\\") { q = 1; i++; w = w substr(cmd, i, 1); i++; continue }
         if (c ~ /[ \t\n;|&<>()]/) break
         w = w c; i++
@@ -485,7 +568,7 @@ function tokenize(cmd,   i, len, c, nc, seg, in_sq, in_dq, in_bt, paren, hn, hw,
     if (c == "\n") {
       if (hn > 0) {
         emit(seg); seg = ""
-        t = substr(cmd, hd_pipe_start, i - hd_pipe_start)   # the receiving pipeline
+        t = substr(cmd, hd_pipe_start, (hd_pipe_end ? hd_pipe_end : i) - hd_pipe_start)   # the receiving pipeline
         rest = substr(cmd, i + 1)
         for (k = 1; k <= hn; k++) {
           # consume body lines up to the terminator (or the end of input)
@@ -502,14 +585,14 @@ function tokenize(cmd,   i, len, c, nc, seg, in_sq, in_dq, in_bt, paren, hn, hw,
           rest = substr(rest, lstart)
         }
         hn = 0
-        cmd = rest; len = length(cmd); i = 1; line_start = 1; pipe_start = 1
+        cmd = rest; len = length(cmd); i = 1; line_start = 1; pipe_start = 1; hd_pipe_end = 0
         continue
       }
       emit(seg); seg = ""; i++; line_start = i; pipe_start = i; continue
     }
-    if (c == "&" && nc == "&") { emit(seg); seg = ""; i += 2; pipe_start = i; continue }
-    if (c == "|" && nc == "|") { emit(seg); seg = ""; i += 2; pipe_start = i; continue }
-    if (c == ";") { emit(seg); seg = ""; i++; pipe_start = i; continue }
+    if (c == "&" && nc == "&") { if (hn > 0 && !hd_pipe_end) hd_pipe_end = i; emit(seg); seg = ""; i += 2; pipe_start = i; continue }
+    if (c == "|" && nc == "|") { if (hn > 0 && !hd_pipe_end) hd_pipe_end = i; emit(seg); seg = ""; i += 2; pipe_start = i; continue }
+    if (c == ";") { if (hn > 0 && !hd_pipe_end) hd_pipe_end = i; emit(seg); seg = ""; i++; pipe_start = i; continue }
     if (c == "|") { emit(seg); seg = ""; i++; continue }   # same pipeline continues
     seg = seg c; i++
   }

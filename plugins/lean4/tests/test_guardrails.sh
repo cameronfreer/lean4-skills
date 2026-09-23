@@ -891,6 +891,23 @@ run_test "208 quoted \") in \$( ) then blocked" $'cat > n.md <<EOF\n$(echo ")"; 
 run_test "208 a shell word elsewhere on the line is not the receiver" $'echo bash example; cat <<\'EOF\'\ngit reset --hard\nEOF' 0
 run_test "208 shell in an earlier && stage is not the receiver" $'bash -c true && cat <<\'EOF\'\ngit reset --hard\nEOF' 0
 run_test "208 shell in a later pipeline stage is the receiver" $'cat <<\'EOF\' | /usr/bin/env bash\ngit reset --hard\nEOF' 2
+# review round 2: comments, command-word receiver parsing, double-quote escapes
+run_test "208 a comment cannot open a heredoc" $'echo hello # <<EOF\ngit reset --hard' 2
+run_test "208 a comment cannot open a heredoc (quoted delimiter)" $'echo hello # <<\'EOF\'\ngit reset --hard' 2
+run_test "208 # inside quotes is not a comment" $'echo "# <<EOF"; git reset --hard' 2
+run_test "208 # inside a word is not a comment" $'echo a#b <<\'EOF\'\ngit reset --hard\nEOF\ngit status' 0
+run_test "208 a comment line before a real heredoc" $'# note <<EOF\ncat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 receiver: bash<<EOF without a space" $'bash<<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: quoted command word \'bash\'" $'\'bash\' <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: double-quoted command word" $'"bash" <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: VAR= prefix then bash" $'X=1 bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 not a receiver: bash as an argument" $'cat - bash <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 not a receiver: a separate command after ;" $'cat <<\'EOF\'; bash -c true\ngit reset --hard\nEOF' 0
+run_test "208 not a receiver: a separate command after &&" $'cat <<\'EOF\' && bash -c true\ngit reset --hard\nEOF' 0
+run_test "208 receiver: later pipe stage after ; boundary" $'true; cat <<\'EOF\' | sudo -u me bash\ngit reset --hard\nEOF' 2
+run_test "208 double-quoted delimiter keeps its backslash" $'cat <<"E\\OF"\ndocument text\nE\\OF\ngit reset --hard' 2
+run_test "208 double-quoted delimiter body is data" $'cat <<"E\\OF"\ngit reset --hard\nE\\OF' 0
+run_test "208 double-quoted delimiter with escaped quote" $'cat <<"E\\"OF"\nx\nE"OF\ngit reset --hard' 2
 
 echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
 # Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,
