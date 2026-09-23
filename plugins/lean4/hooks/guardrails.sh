@@ -375,9 +375,12 @@ _strip_wrappers() {
 #     separators) has a shell as its normalized COMMAND WORD in some stage
 #     (`bash <<'EOF'`, `bash<<'EOF'`, `'bash' <<'EOF'`, `/bin/bash <<'EOF'`,
 #     `cat <<'EOF' | sudo bash`, `X='one two' bash <<'EOF'`, `env -u X bash
-#     <<'EOF'`; NOT an argument named bash (`cat - bash <<'EOF'`) and NOT a
-#     separate command (`cat <<'EOF'; bash -c true`)): then the body is
-#     executable input and is tokenized like any command; several heredocs
+#     <<'EOF'`, `2>/dev/null bash <<'EOF'`, `env -S 'bash -x' <<'EOF'`; NOT
+#     an argument named bash (`cat - bash <<'EOF'`) and NOT a separate command
+#     (`cat <<'EOF'; bash -c true`)); a receiver that cannot be identified
+#     (`"$SHELL" <<'EOF'`, `$(which bash) <<'EOF'`) is treated as executable —
+#     failing to identify it is never proof that the body is data; then the
+#     body is tokenized like any command; several heredocs
 #     queued on one line each keep their own receiver (`cat <<'A'; bash <<'B'`
 #     checks the B body and keeps the A body as data);
 #   * a shell comment (`# …` at a word boundary) runs to the newline and
@@ -445,45 +448,65 @@ function is_shell_word(w) {
 function wrapper_takes_operand(wrapper, flag) {
   # options of the supported wrappers that take a separate operand
   if (wrapper == "sudo") return flag ~ /^-(u|g|p|C|h|U|r|t|D|R|T)$/
-  if (wrapper == "env") return flag ~ /^(-u|-C|-S|--unset|--chdir|--split-string)$/
+  if (wrapper == "env") return flag ~ /^(-u|-C|--unset|--chdir)$/
   return 0
 }
-function stage_cmd_word(stage,   i, len, c, w, q, qname, eqpos, bw, flag) {
-  # the normalized command word of one pipeline stage: skip leading
-  # whitespace, VAR=value assignments (recognized by the syntax of the NAME=
-  # part — a quoted value, X=\047one two\047, is still an assignment), and the
-  # sudo/env/command wrappers with their options AND those options\047
-  # operands (env -u X, sudo -u me); unquote the word; stop at operators
+function next_word(stage, i,   len, c, w) {
+  # one complete shell word starting at i (leading blanks skipped): quotes
+  # and backslashes removed; stops at blanks and operators. Side channels:
+  # _nw_i = index after the word, _nw_q = any quoting, _nw_qname = quoting
+  # before the first "=" (so X=\047a b\047 is still an assignment)
+  len = length(stage); _nw_q = 0; _nw_qname = 0; _nw_eq = 0; w = ""
+  while (i <= len && substr(stage, i, 1) ~ /[ \t]/) i++
+  while (i <= len) {
+    c = substr(stage, i, 1)
+    if (c ~ /[ \t|&;<>()]/) break
+    if (c == "\047") { _nw_q = 1; if (!_nw_eq) _nw_qname = 1; i++; while (i <= len && substr(stage, i, 1) != "\047") { w = w substr(stage, i, 1); i++ }; i++; continue }
+    if (c == "\"") { _nw_q = 1; if (!_nw_eq) _nw_qname = 1; i++; while (i <= len && substr(stage, i, 1) != "\"") { if (substr(stage, i, 1) == "\\") i++; w = w substr(stage, i, 1); i++ }; i++; continue }
+    if (c == "\\") { _nw_q = 1; if (!_nw_eq) _nw_qname = 1; i++; w = w substr(stage, i, 1); i++; continue }
+    if (c == "=" && !_nw_eq) _nw_eq = length(w) + 1
+    w = w c; i++
+  }
+  _nw_i = i
+  return w
+}
+function stage_cmd_word(stage,   len, i, c, w, bw, flag, op) {
+  # the normalized command word of one pipeline stage: leading redirections
+  # ([n]>file, [n]>>file, [n]<file, <<WORD, <<<word, [n]>&m, &>file) and
+  # VAR=value assignments are skipped; the sudo/env/command wrappers are
+  # skipped with their options and the options\047 operands (one complete
+  # shell word each); env -S / --split-string SUPPLY the command through
+  # their operand, which is parsed as the command text. Returns "" when no
+  # command word can be identified (the caller treats that conservatively).
   len = length(stage); i = 1
   while (i <= len) {
     while (i <= len && substr(stage, i, 1) ~ /[ \t]/) i++
-    w = ""; q = 0; qname = 0; eqpos = 0
-    while (i <= len) {
-      c = substr(stage, i, 1)
-      if (c ~ /[ \t|&;<>()]/) break
-      if (c == "\047" || c == "\"") {
-        q = 1; if (!eqpos) qname = 1
-        if (c == "\047") { i++; while (i <= len && substr(stage, i, 1) != "\047") { w = w substr(stage, i, 1); i++ }; i++ }
-        else { i++; while (i <= len && substr(stage, i, 1) != "\"") { if (substr(stage, i, 1) == "\\") i++; w = w substr(stage, i, 1); i++ }; i++ }
-        continue
-      }
-      if (c == "\\") { q = 1; if (!eqpos) qname = 1; i++; w = w substr(stage, i, 1); i++; continue }
-      if (c == "=" && !eqpos) eqpos = length(w) + 1
-      w = w c; i++
+    if (i > len) return ""
+    c = substr(stage, i, 1)
+    if (c ~ /[0-9]/ && substr(stage, i) ~ /^[0-9]+[<>]/) { while (substr(stage, i, 1) ~ /[0-9]/) i++; c = substr(stage, i, 1) }
+    if (c == "<" || c == ">" || (c == "&" && substr(stage, i + 1, 1) == ">")) {
+      # a redirection: skip the operator, then its target (a dup target
+      # &N / &- has no word; a file, or a heredoc/here-string word, has one)
+      if (c == "&") i++
+      while (i <= len && substr(stage, i, 1) ~ /[<>]/) i++
+      if (substr(stage, i, 1) == "-" && substr(stage, i - 1, 2) == "<-") i++   # <<-
+      if (substr(stage, i, 1) == "&") { i++; while (i <= len && substr(stage, i, 1) ~ /[0-9-]/) i++ }
+      else { w = next_word(stage, i); i = _nw_i }
+      continue
     }
+    if (c ~ /[|&;()]/) return ""
+    w = next_word(stage, i); i = _nw_i
     if (w == "") return ""
-    if (!qname && w ~ /^[A-Za-z_][A-Za-z0-9_]*=/) continue        # VAR=value prefix
+    if (!_nw_qname && w ~ /^[A-Za-z_][A-Za-z0-9_]*=/) continue        # VAR=value prefix
     bw = w; sub(/.*\//, "", bw)                                  # /usr/bin/env -> env
-    if (!q && (bw == "sudo" || bw == "env" || bw == "command")) {
-      # skip the wrapper options; an option that takes an operand consumes it
+    if (!_nw_q && (bw == "sudo" || bw == "env" || bw == "command")) {
       while (i <= len) {
         while (i <= len && substr(stage, i, 1) ~ /[ \t]/) i++
         if (substr(stage, i, 1) != "-") break
-        flag = ""; while (i <= len && substr(stage, i, 1) !~ /[ \t|&;<>()]/) { flag = flag substr(stage, i, 1); i++ }
-        if (wrapper_takes_operand(bw, flag)) {
-          while (i <= len && substr(stage, i, 1) ~ /[ \t]/) i++
-          while (i <= len && substr(stage, i, 1) !~ /[ \t|&;<>()]/) i++
-        }
+        flag = next_word(stage, i); i = _nw_i
+        if (bw == "env" && (flag == "-S" || flag == "--split-string")) { op = next_word(stage, i); return stage_cmd_word(op) }
+        if (bw == "env" && flag ~ /^--split-string=/) { sub(/^--split-string=/, "", flag); return stage_cmd_word(flag) }
+        if (wrapper_takes_operand(bw, flag)) { op = next_word(stage, i); i = _nw_i }
       }
       continue
     }
@@ -505,10 +528,20 @@ function pipeline_feeds_shell(text,   n, parts, k, i, len, c, stage, in_sq, in_d
     if (c == "\047") { in_sq = 1; stage = stage c; continue }
     if (c == "\"") { in_dq = 1; stage = stage c; continue }
     if (c == "\\") { stage = stage c substr(text, i + 1, 1); i++; continue }
-    if (c == "|" && substr(text, i + 1, 1) != "|") { if (is_shell_word(stage_cmd_word(stage))) return 1; stage = ""; continue }
+    if (c == "|" && substr(text, i + 1, 1) != "|") { if (stage_is_receiver(stage)) return 1; stage = ""; continue }
     stage = stage c
   }
-  return is_shell_word(stage_cmd_word(stage))
+  return stage_is_receiver(stage)
+}
+function stage_is_receiver(stage,   cw) {
+  # a stage receives executable input iff its command word is a shell — or
+  # cannot be identified at all (an empty word in a non-blank stage, or a
+  # word produced by expansion such as "$SHELL" / $(which bash)): failing
+  # to identify the receiver is never taken as proof that the body is data
+  if (stage !~ /[^ 	]/) return 0
+  cw = stage_cmd_word(stage)
+  if (cw == "" || cw ~ /^\$/) return 1
+  return is_shell_word(cw)
 }
 function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hdash, hstart, hend, k, w, q, line_start, pipe_start, body, rest, term, t, nl, lstart, found, hd) {
   len = length(cmd); i = 1; seg = ""; in_sq = 0; in_dq = 0; in_bt = 0; paren = 0; hn = 0; line_start = 1; pipe_start = 1

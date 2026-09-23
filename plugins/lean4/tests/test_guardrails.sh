@@ -920,6 +920,22 @@ run_test "208 queued heredocs: cat then bash — second body executable" $'cat <
 run_test "208 queued heredocs: bash then cat — second body is data" $'bash <<\'A\'; cat <<\'B\'\necho ok\nA\ngit reset --hard\nB' 0
 run_test "208 queued heredocs: bash then cat — first body executable" $'bash <<\'A\'; cat <<\'B\'\ngit reset --hard\nA\ndoc\nB' 2
 run_test "208 queued heredocs via && — receivers kept apart" $'cat <<\'A\' && bash <<\'B\'\nx\nA\ngit clean -fd\nB' 2
+# review round 4: leading redirections; wrapper operands as shell words; env -S; unidentified receivers
+run_test "208 receiver: leading 2>/dev/null before bash" $'2>/dev/null bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: heredoc operator before the command word" $'<<\'EOF\' bash\ngit reset --hard\nEOF' 2
+run_test "208 receiver: 2>&1 dup then bash" $'2>&1 bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: >out.txt then bash" $'>out.txt bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 not a receiver: leading redirection then cat" $'2>/dev/null cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 not a receiver: 2>&1 then cat" $'2>&1 cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 receiver: env -u \'A B\' bash (quoted operand)" $'env -u \'A B\' bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 not a receiver: env -u \'A B\' cat" $'env -u \'A B\' cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 receiver: env -S bash" $'env -S bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: env -S \'bash -x\'" $'env -S \'bash -x\' <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: env --split-string=bash" $'env --split-string=bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 not a receiver: env -S cat" $'env -S cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 unidentified receiver \"\$SHELL\" is treated as executable" $'"$SHELL" <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 unidentified receiver \$(which bash) is treated as executable" $'$(which bash) <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 unidentified receiver \${SH} is treated as executable" $'${SH} <<\'EOF\'\ngit reset --hard\nEOF' 2
 
 echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
 # Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,
