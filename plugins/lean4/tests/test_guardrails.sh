@@ -964,8 +964,20 @@ run_test "208 quoted heredoc compares physical lines (no join)" $'cat <<\'EOF\'\
 run_test "208 ANSI-C delimiter \$\'EOF\' names EOF" $'cat <<$\'EOF\'\ndata\nEOF\ngit reset --hard' 2
 run_test "208 ANSI-C delimiter body is data" $'cat <<$\'EOF\'\ngit reset --hard\nEOF' 0
 run_test "208 ANSI-C delimiter with \\\\ escape names E\\\\OF" $'cat <<$\'E\\\\OF\'\ndata\nE\\OF\ngit reset --hard' 2
-run_test "208 unsupported ANSI-C escape consumes no body (conservative)" $'cat <<$\'E\\x4fF\'\ngit reset --hard\nEOF' 2
+run_test "208 unsupported ANSI-C escape (\\c) checks the remainder (conservative)" $'cat <<$\'E\\cAF\'\ngit reset --hard\nEOF' 2
 run_test "208 locale-quoted delimiter \$\\"EOF\\" names EOF" $'cat <<$"EOF"\ndata\nEOF\ngit reset --hard' 2
+# review round 7: exec/time options and quoting; ANSI-C escapes decoded; unsupported delimiter checked line by line
+run_test "208 receiver: exec -a custom bash" $'exec -a custom bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: quoted \'exec\' bash" $'\'exec\' bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: time -p bash" $'time -p bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: quoted \'time\' bash (/usr/bin/time)" $'\'time\' bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 not a receiver: exec -a x cat" $'exec -a x cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 not a receiver: time -p cat" $'time -p cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 ANSI-C \\\\x escape decoded: \$\'E\\\\x4fF\' names EOF" $'cat <<$\'E\\x4fF\'\ndon\'t do this\nEOF\ngit reset --hard' 2
+run_test "208 ANSI-C \\\\x-decoded delimiter body is data" $'cat <<$\'E\\x4fF\'\ngit reset --hard\nEOF' 0
+run_test "208 ANSI-C octal escape decoded: \$\'E\\\\117F\' names EOF" $'cat <<$\'E\\117F\'\ndata\nEOF\ngit reset --hard' 2
+run_test "208 unsupported ANSI-C escape: quote in body cannot hide later lines" $'cat <<$\'E\\u004fF\'\ndon\'t do this\nEOF\ngit reset --hard' 2
+run_test "208 unsupported ANSI-C escape: guarded line inside is checked too" $'cat <<$\'E\\u004fF\'\nx\ngit reset --hard\nEOF' 2
 
 echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
 # Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,

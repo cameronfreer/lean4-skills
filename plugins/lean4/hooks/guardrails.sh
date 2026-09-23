@@ -389,16 +389,19 @@ _strip_wrappers() {
 #     names `E\OF`); a backslash-newline inside an unquoted or double-quoted
 #     delimiter is a line continuation (`<<EO\` + newline + `F` names `EOF`,
 #     still unquoted); an ANSI-C-quoted delimiter (`<<$'EOF'`) names `EOF`
-#     (quoted); a delimiter with an unsupported escape consumes NO body — the
-#     following lines stay checkable rather than being taken as data;
+#     (quoted; \\ \' \" \? \a \b \e \f \n \r \t \v \xHH and octal escapes are
+#     decoded); a delimiter with another escape (\u, \U, \c) is unsupported:
+#     every remaining line is then checked as a command on its own, so an
+#     unbalanced quote in one line cannot hide the lines after it;
 #   * in an unquoted heredoc body a backslash-newline joins physical lines
 #     before the terminator is compared (`EO\` + newline + `F` terminates an
 #     unquoted `<<EOF`); a quoted heredoc is compared line by line;
-#   * `exec` and the compound-command keywords a command may follow (`then`,
-#     `do`, `else`, `elif`, `if`, `while`, `until`, `time`, `!`, `{`) are
-#     transparent when finding the receiver (`exec bash <<'EOF'`, `if true;
-#     then bash <<'EOF'`); other compound keywords make the receiver
-#     unidentifiable, i.e. conservatively executable;
+#   * `exec` / `time` (with their options: `exec -a name bash`, `time -p
+#     bash`, quoted or not) are wrappers, and the compound-command keywords a
+#     command may follow (`then`, `do`, `else`, `elif`, `if`, `while`,
+#     `until`, `!`, `{`) are transparent when finding the receiver; other
+#     compound keywords make the receiver unidentifiable, i.e.
+#     conservatively executable;
 #   * `cmd <<EOF … EOF` (unquoted delimiter): the body undergoes expansion, so
 #     its $(…) and `…` substitutions are executable — those are tokenized
 #     (quote-aware: a quoted `)` does not end a substitution); the rest of the
@@ -411,6 +414,23 @@ _strip_wrappers() {
 # a segment (quoted) become spaces so every pattern below sees one line.
 # POSIX awk only (BSD awk on macOS, mawk, gawk); Bash 3.2 reads with `read -d`.
 _GR_AWK='
+function ansic_simple(c) {
+  if (c == "a") return sprintf("%c", 7); if (c == "b") return sprintf("%c", 8)
+  if (c == "e") return sprintf("%c", 27); if (c == "f") return sprintf("%c", 12)
+  if (c == "n") return "\n"; if (c == "r") return sprintf("%c", 13)
+  if (c == "t") return "\t"; if (c == "v") return sprintf("%c", 11)
+  return c
+}
+function hexval(h,   i, v, d) {
+  v = 0
+  for (i = 1; i <= length(h); i++) { d = index("0123456789abcdef", tolower(substr(h, i, 1))) - 1; v = v * 16 + d }
+  return v
+}
+function octval(o,   i, v) {
+  v = 0
+  for (i = 1; i <= length(o); i++) v = v * 8 + (substr(o, i, 1) + 0)
+  return v
+}
 function emit(seg) {
   gsub(/\n/, " ", seg)
   sub(/^[ \t]+/, "", seg)
@@ -461,6 +481,7 @@ function wrapper_takes_operand(wrapper, flag) {
   # options of the supported wrappers that take a separate operand
   if (wrapper == "sudo") return flag ~ /^-(u|g|p|C|h|U|r|t|D|R|T)$/
   if (wrapper == "env") return flag ~ /^(-u|-C|--unset|--chdir)$/
+  if (wrapper == "exec") return flag == "-a"
   return 0
 }
 function next_word(stage, i,   len, c, w) {
@@ -525,9 +546,9 @@ function stage_cmd_word(stage,   len, i, c, w, bw, flag, op) {
     w = next_word(stage, i); i = _nw_i; _cw_exp = _nw_exp
     if (w == "") return ""
     if (!_nw_q && !_nw_exp) {
-      # shell prefixes that are transparent to the command word: exec and
-      # the compound-command keywords a command may directly follow
-      if (w == "exec" || w == "then" || w == "do" || w == "else" || w == "elif" || w == "if" || w == "while" || w == "until" || w == "time" || w == "!" || w == "{") continue
+      # compound-command keywords a command may directly follow are
+      # transparent to the command word (keywords are only such unquoted)
+      if (w == "then" || w == "do" || w == "else" || w == "elif" || w == "if" || w == "while" || w == "until" || w == "!" || w == "{") continue
       # other compound keywords: the receiver is not identifiable here — the
       # caller treats that conservatively (executable), never as data
       # (the last keyword is the bash-4 coprocess one, matched by regex so the
@@ -537,7 +558,9 @@ function stage_cmd_word(stage,   len, i, c, w, bw, flag, op) {
     }
     if (!_nw_qname && !_nw_exp && w ~ /^[A-Za-z_][A-Za-z0-9_]*=/) continue   # VAR=value prefix
     bw = w; sub(/.*\//, "", bw)                                  # /usr/bin/env -> env
-    if (!_nw_exp && (bw == "sudo" || bw == "env" || bw == "command")) {
+    if (!_nw_exp && (bw == "sudo" || bw == "env" || bw == "command" || bw == "exec" || bw == "time")) {
+      # exec (builtin; -a NAME -c -l) and time (-p; a quoted time runs
+      # /usr/bin/time, which still runs its command) are wrappers too
       # a literal wrapper name — quoted or not (\047env\047 names env) — but
       # never an expanded one
       while (i <= len) {
@@ -585,7 +608,7 @@ function stage_is_receiver(stage,   cw) {
   if (cw == "" || _cw_exp) return 1          # unidentified, or produced by expansion anywhere in the word
   return is_shell_word(cw)
 }
-function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hdash, hunsup, hstart, hend, k, w, q, line_start, pipe_start, body, rest, term, t, nl, lstart, found, hd, hbad, joined) {
+function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hdash, hunsup, hstart, hend, k, w, q, line_start, pipe_start, body, rest, term, t, nl, lstart, found, hd, hbad, joined, hx, oc, j2) {
   len = length(cmd); i = 1; seg = ""; in_sq = 0; in_dq = 0; in_bt = 0; paren = 0; hn = 0; line_start = 1; pipe_start = 1
   while (i <= len) {
     c = substr(cmd, i, 1); nc = substr(cmd, i + 1, 1)
@@ -642,8 +665,19 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
             c = substr(cmd, i, 1)
             if (c == "\\") {
               nc = substr(cmd, i + 1, 1)
-              if (nc == "\\" || nc == "\047") { w = w nc; i += 2; continue }
-              hbad = 1
+              if (nc == "\\" || nc == "\047" || nc == "\"" || nc == "?") { w = w nc; i += 2; continue }
+              if (nc ~ /[abefnrtv]/) { w = w ansic_simple(nc); i += 2; continue }
+              if (nc == "x" && substr(cmd, i + 2, 1) ~ /[0-9A-Fa-f]/) {
+                hx = substr(cmd, i + 2, 1); j2 = 3
+                if (substr(cmd, i + 3, 1) ~ /[0-9A-Fa-f]/) { hx = hx substr(cmd, i + 3, 1); j2 = 4 }
+                w = w sprintf("%c", hexval(hx)); i += j2; continue
+              }
+              if (nc ~ /[0-7]/) {
+                oc = nc; j2 = 2
+                while (j2 < 4 && substr(cmd, i + j2, 1) ~ /[0-7]/) { oc = oc substr(cmd, i + j2, 1); j2++ }
+                w = w sprintf("%c", octval(oc)); i += j2; continue
+              }
+              hbad = 1   # \u \U \c … : not decoded here -> conservative handling
             }
             w = w c; i++
           }
@@ -684,7 +718,16 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
           t = substr(cmd, hstart[k], (hend[k] ? hend[k] : i) - hstart[k])   # the receiving pipeline of THIS heredoc
           # consume body lines up to the terminator (or the end of input)
           body = ""; found = 0; lstart = 1
-          if (hunsup[k]) { continue }   # unsupported delimiter syntax: consume nothing
+          if (hunsup[k]) {
+            # unsupported delimiter syntax: the terminator is unknown, so every
+            # remaining physical line is checked as a command ON ITS OWN (an
+            # unbalanced quote in one line cannot hide the lines after it)
+            while (length(rest) > 0) {
+              nl = index(rest, "\n")
+              if (nl == 0) { tokenize(rest); rest = "" } else { tokenize(substr(rest, 1, nl - 1)); rest = substr(rest, nl + 1) }
+            }
+            continue
+          }
           while (lstart <= length(rest)) {
             # one logical line: in an UNQUOTED heredoc a backslash-newline
             # joins physical lines before the terminator is compared (and
