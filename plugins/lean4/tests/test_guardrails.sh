@@ -908,6 +908,18 @@ run_test "208 receiver: later pipe stage after ; boundary" $'true; cat <<\'EOF\'
 run_test "208 double-quoted delimiter keeps its backslash" $'cat <<"E\\OF"\ndocument text\nE\\OF\ngit reset --hard' 2
 run_test "208 double-quoted delimiter body is data" $'cat <<"E\\OF"\ngit reset --hard\nE\\OF' 0
 run_test "208 double-quoted delimiter with escaped quote" $'cat <<"E\\"OF"\nx\nE"OF\ngit reset --hard' 2
+# review round 3: assignment syntax vs value quoting; wrapper operands; per-heredoc receivers
+run_test "208 receiver: quoted assignment value then bash" $'X=\'one two\' bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: double-quoted assignment value then bash" $'X="a b" Y=1 bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: env -u X bash" $'env -u X bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: env --unset X -i bash" $'env --unset X -i bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: sudo -u me -g grp bash" $'sudo -u me -g grp bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 not a receiver: env -u X cat - bash (argument)" $'env -u X cat - bash <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 not a receiver: quoted assignment then cat" $'X=\'one two\' cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 queued heredocs: cat then bash — second body executable" $'cat <<\'A\'; bash <<\'B\'\ndocument text\nA\ngit reset --hard\nB' 2
+run_test "208 queued heredocs: bash then cat — second body is data" $'bash <<\'A\'; cat <<\'B\'\necho ok\nA\ngit reset --hard\nB' 0
+run_test "208 queued heredocs: bash then cat — first body executable" $'bash <<\'A\'; cat <<\'B\'\ngit reset --hard\nA\ndoc\nB' 2
+run_test "208 queued heredocs via && — receivers kept apart" $'cat <<\'A\' && bash <<\'B\'\nx\nA\ngit clean -fd\nB' 2
 
 echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
 # Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,
