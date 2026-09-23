@@ -1,5 +1,15 @@
 # Changelog
 
+## v4.11.2 (September 2026)
+
+`hooks/guardrails.sh` no longer exceeds its 5 s hook deadline on long Bash commands (which made Claude Code cancel it and run the command unchecked), and heredoc bodies are no longer parsed as commands (Closes #208; #164's stdin/platform fix is unrelated and stays in place).
+
+### Fixed
+
+- **Parsing cost.** The per-character Bash segment splitter and the per-line subprocess pipelines are replaced by one awk pass (POSIX awk: BSD awk, mawk, gawk) plus batched pattern matching — one `grep` per pattern over the relevant segments instead of several per segment — and a conservative fast path that allows a command without any guarded vocabulary (`git`/`gh` as a word, Lean-script tokens) before parsing. Measured on the reporter's inputs: a 10 KB single-line command 3.3 s → 0.02 s, 230 short lines 17.8 s → 0.02 s, a 5 KB Lean heredoc 10.2 s → 0.02 s; 120 real `git` commands in one call ≈ 0.8 s.
+- **Heredoc semantics.** A heredoc with a quoted (or backslash-escaped) delimiter is literal data and never matched; an unquoted delimiter's body is data except its `$(…)`/`` `…` `` substitutions, which are checked as commands; a body fed to a shell (`bash <<'EOF'`, `cat <<'EOF' | sh`) is executable input and is checked even with a quoted delimiter; `<<-` terminators, several heredocs on one line, here-strings (`<<<`), heredocs inside `$(…)`, and unterminated bodies are handled; commands after the terminator are checked as before.
+- Regression tests: 24 heredoc/fast-path cases (literal bodies allowed; substitutions, shell-fed bodies and post-terminator commands still blocked; path-qualified `git`, `bash -c`, env prefixes and Lean-script tokens never excluded by the fast path) and 7 wall-clock budgets (≤ 3 s, benign and guarded-vocabulary inputs); the suite now also runs on the Linux CI job (mawk) besides the macOS Bash 3.2 job (BSD awk). All 343 prior cases, including #164's, unchanged.
+
 ## v4.11.1 (September 2026)
 
 Reliability follow-up to the persistence MVP (Refs #82): an inline (worker-less) controller's progress now reaches the helper's parent context, so a mid-run operational-error fallback reflects the changes and evidence actually reported, and `status` after `finish` is no longer stale.
