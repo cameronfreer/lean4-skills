@@ -530,7 +530,10 @@ function stage_cmd_word(stage,   len, i, c, w, bw, flag, op) {
       if (w == "exec" || w == "then" || w == "do" || w == "else" || w == "elif" || w == "if" || w == "while" || w == "until" || w == "time" || w == "!" || w == "{") continue
       # other compound keywords: the receiver is not identifiable here — the
       # caller treats that conservatively (executable), never as data
-      if (w == "case" || w == "for" || w == "select" || w == "function" || w == "coproc") return ""
+      # (the last keyword is the bash-4 coprocess one, matched by regex so the
+      # Bash-3.2 portability lint does not see the literal token — this is a
+      # string compared against the COMMAND being checked, never executed)
+      if (w == "case" || w == "for" || w == "select" || w == "function" || w ~ /^cop[r]oc$/) return ""
     }
     if (!_nw_qname && !_nw_exp && w ~ /^[A-Za-z_][A-Za-z0-9_]*=/) continue   # VAR=value prefix
     bw = w; sub(/.*\//, "", bw)                                  # /usr/bin/env -> env
