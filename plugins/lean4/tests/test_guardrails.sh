@@ -948,6 +948,24 @@ run_test "208 continued delimiter EO\\<nl>F names EOF" $'cat <<EO\\\nF\ndocument
 run_test "208 continued delimiter stays unquoted (substitution scanned)" $'cat <<EO\\\nF\n$(git reset --hard)\nEOF' 2
 run_test "208 continued delimiter body literal is data" $'cat <<EO\\\nF\ngit reset --hard\nEOF' 0
 run_test "208 double-quoted continued delimiter names EOF" $'cat <<"EO\\\nF"\ndocument text\nEOF\ngit reset --hard' 2
+# review round 6: exec/compound prefixes; continued terminator lines; ANSI-C delimiters
+run_test "208 receiver: exec bash" $'exec bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 not a receiver: exec cat" $'exec cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 receiver: if true; then bash" $'if true; then bash <<\'EOF\'\ngit reset --hard\nEOF\nfi' 2
+run_test "208 not a receiver: if true; then cat" $'if true; then cat <<\'EOF\'\ngit reset --hard\nEOF\nfi' 0
+run_test "208 receiver: while …; do bash" $'while true; do bash <<\'EOF\'\ngit reset --hard\nEOF\ndone' 2
+run_test "208 receiver: for …; do sudo bash" $'for f in x; do sudo bash <<\'EOF\'\ngit reset --hard\nEOF\ndone' 2
+run_test "208 receiver: { bash" $'{ bash <<\'EOF\'\ngit reset --hard\nEOF\n}' 2
+run_test "208 unsupported compound keyword is conservative" $'case x in y) cat <<\'EOF\'\ngit reset --hard\nEOF\nesac' 2
+run_test "208 continued terminator line ends an unquoted heredoc" $'cat <<EOF\nEO\\\nF\ngit reset --hard' 2
+run_test "208 continued line joins inside an unquoted body (data)" $'cat <<EOF\nline one \\\ngit reset --hard\nEOF' 0
+run_test "208 continued line joins a substitution in an unquoted body" $'cat <<EOF\n$(git reset \\\n--hard)\nEOF' 2
+run_test "208 quoted heredoc compares physical lines (no join)" $'cat <<\'EOF\'\nEO\\\nF\ngit reset --hard\nEOF' 0
+run_test "208 ANSI-C delimiter \$\'EOF\' names EOF" $'cat <<$\'EOF\'\ndata\nEOF\ngit reset --hard' 2
+run_test "208 ANSI-C delimiter body is data" $'cat <<$\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 ANSI-C delimiter with \\\\ escape names E\\\\OF" $'cat <<$\'E\\\\OF\'\ndata\nE\\OF\ngit reset --hard' 2
+run_test "208 unsupported ANSI-C escape consumes no body (conservative)" $'cat <<$\'E\\x4fF\'\ngit reset --hard\nEOF' 2
+run_test "208 locale-quoted delimiter \$\\"EOF\\" names EOF" $'cat <<$"EOF"\ndata\nEOF\ngit reset --hard' 2
 
 echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
 # Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,

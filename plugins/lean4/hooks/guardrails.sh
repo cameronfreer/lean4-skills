@@ -388,7 +388,17 @@ _strip_wrappers() {
 #   * a double-quoted delimiter follows double-quote escape rules (`"E\OF"`
 #     names `E\OF`); a backslash-newline inside an unquoted or double-quoted
 #     delimiter is a line continuation (`<<EO\` + newline + `F` names `EOF`,
-#     still unquoted);
+#     still unquoted); an ANSI-C-quoted delimiter (`<<$'EOF'`) names `EOF`
+#     (quoted); a delimiter with an unsupported escape consumes NO body — the
+#     following lines stay checkable rather than being taken as data;
+#   * in an unquoted heredoc body a backslash-newline joins physical lines
+#     before the terminator is compared (`EO\` + newline + `F` terminates an
+#     unquoted `<<EOF`); a quoted heredoc is compared line by line;
+#   * `exec` and the compound-command keywords a command may follow (`then`,
+#     `do`, `else`, `elif`, `if`, `while`, `until`, `time`, `!`, `{`) are
+#     transparent when finding the receiver (`exec bash <<'EOF'`, `if true;
+#     then bash <<'EOF'`); other compound keywords make the receiver
+#     unidentifiable, i.e. conservatively executable;
 #   * `cmd <<EOF … EOF` (unquoted delimiter): the body undergoes expansion, so
 #     its $(…) and `…` substitutions are executable — those are tokenized
 #     (quote-aware: a quoted `)` does not end a substitution); the rest of the
@@ -514,6 +524,14 @@ function stage_cmd_word(stage,   len, i, c, w, bw, flag, op) {
     if (c ~ /[|&;()]/) return ""
     w = next_word(stage, i); i = _nw_i; _cw_exp = _nw_exp
     if (w == "") return ""
+    if (!_nw_q && !_nw_exp) {
+      # shell prefixes that are transparent to the command word: exec and
+      # the compound-command keywords a command may directly follow
+      if (w == "exec" || w == "then" || w == "do" || w == "else" || w == "elif" || w == "if" || w == "while" || w == "until" || w == "time" || w == "!" || w == "{") continue
+      # other compound keywords: the receiver is not identifiable here — the
+      # caller treats that conservatively (executable), never as data
+      if (w == "case" || w == "for" || w == "select" || w == "function" || w == "coproc") return ""
+    }
     if (!_nw_qname && !_nw_exp && w ~ /^[A-Za-z_][A-Za-z0-9_]*=/) continue   # VAR=value prefix
     bw = w; sub(/.*\//, "", bw)                                  # /usr/bin/env -> env
     if (!_nw_exp && (bw == "sudo" || bw == "env" || bw == "command")) {
@@ -564,7 +582,7 @@ function stage_is_receiver(stage,   cw) {
   if (cw == "" || _cw_exp) return 1          # unidentified, or produced by expansion anywhere in the word
   return is_shell_word(cw)
 }
-function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hdash, hstart, hend, k, w, q, line_start, pipe_start, body, rest, term, t, nl, lstart, found, hd) {
+function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hdash, hunsup, hstart, hend, k, w, q, line_start, pipe_start, body, rest, term, t, nl, lstart, found, hd, hbad, joined) {
   len = length(cmd); i = 1; seg = ""; in_sq = 0; in_dq = 0; in_bt = 0; paren = 0; hn = 0; line_start = 1; pipe_start = 1
   while (i <= len) {
     c = substr(cmd, i, 1); nc = substr(cmd, i + 1, 1)
@@ -608,9 +626,27 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
       seg = seg "<<"; i += 2
       hd = 0; if (substr(cmd, i, 1) == "-") { hd = 1; seg = seg "-"; i++ }
       while (substr(cmd, i, 1) == " " || substr(cmd, i, 1) == "\t") { seg = seg " "; i++ }
-      q = 0; w = ""
+      q = 0; w = ""; hbad = 0
       while (i <= len) {
         c = substr(cmd, i, 1)
+        if (c == "$" && substr(cmd, i + 1, 1) == "\047") {
+          # ANSI-C quoting (dollar-single-quote): quoted delimiter; an escaped
+          # backslash and an escaped quote are translated,
+          # any other escape is unsupported -> the heredoc is handled
+          # conservatively (no body is consumed: everything stays checkable)
+          q = 1; i += 2
+          while (i <= len && substr(cmd, i, 1) != "\047") {
+            c = substr(cmd, i, 1)
+            if (c == "\\") {
+              nc = substr(cmd, i + 1, 1)
+              if (nc == "\\" || nc == "\047") { w = w nc; i += 2; continue }
+              hbad = 1
+            }
+            w = w c; i++
+          }
+          i++; continue
+        }
+        if (c == "$" && substr(cmd, i + 1, 1) == "\"") { i++; continue }   # $"…" (locale): as "…"
         if (c == "\047") { q = 1; i++; while (i <= len && substr(cmd, i, 1) != "\047") { w = w substr(cmd, i, 1); i++ }; i++; continue }
         if (c == "\"") {
           # double-quote escape rules: a backslash is removed only before
@@ -632,7 +668,7 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
         if (c ~ /[ \t\n;|&<>()]/) break
         w = w c; i++
       }
-      hn++; hw[hn] = w; hq[hn] = q; hdash[hn] = hd
+      hn++; hw[hn] = w; hq[hn] = q; hdash[hn] = hd; hunsup[hn] = hbad
       hstart[hn] = pipe_start; hend[hn] = 0      # each heredoc keeps ITS receiving pipeline
       seg = seg (q ? "\047" w "\047" : w)
       continue
@@ -645,12 +681,24 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
           t = substr(cmd, hstart[k], (hend[k] ? hend[k] : i) - hstart[k])   # the receiving pipeline of THIS heredoc
           # consume body lines up to the terminator (or the end of input)
           body = ""; found = 0; lstart = 1
+          if (hunsup[k]) { continue }   # unsupported delimiter syntax: consume nothing
           while (lstart <= length(rest)) {
-            nl = index(substr(rest, lstart), "\n")
-            if (nl == 0) { term = substr(rest, lstart); nl = length(rest) - lstart + 2 } else term = substr(rest, lstart, nl - 1)
-            w = term; if (hdash[k]) sub(/^\t+/, "", w)
-            if (w == hw[k]) { found = 1; lstart += nl; break }
-            body = body term "\n"; lstart += nl
+            # one logical line: in an UNQUOTED heredoc a backslash-newline
+            # joins physical lines before the terminator is compared (and
+            # vanishes from the body, as bash does); a quoted heredoc is
+            # compared line by line
+            joined = ""
+            while (1) {
+              nl = index(substr(rest, lstart), "\n")
+              if (nl == 0) { term = substr(rest, lstart); nl = length(rest) - lstart + 2 } else term = substr(rest, lstart, nl - 1)
+              lstart += nl
+              if (!hq[k] && term ~ /\\$/ && term !~ /\\\\$/ && lstart <= length(rest)) { joined = joined substr(term, 1, length(term) - 1); continue }
+              joined = joined term
+              break
+            }
+            w = joined; if (hdash[k]) sub(/^\t+/, "", w)
+            if (w == hw[k]) { found = 1; break }
+            body = body joined "\n"
           }
           if (pipeline_feeds_shell(t)) tokenize(body)
           else if (!hq[k]) subst_scan(body)
