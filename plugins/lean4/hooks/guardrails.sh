@@ -104,6 +104,20 @@ fi
 # If no command, allow
 [ -z "$COMMAND" ] && exit 0
 
+# Fast rejection of irrelevant input (issue #208). Every guarded operation
+# below needs one of these spellings SOMEWHERE in the raw command text —
+# `git`/`gh` as a word (also after `/usr/bin/`, inside `bash -c '…'`, after
+# `sudo`/`env`/VAR= prefixes: normalization only removes text, never
+# creates these words), or a Lean-script token (the stderr-suppression
+# guard). A command with none of them cannot match any check, so it is
+# allowed without parsing. This is a superset filter — a large document
+# that merely mentions `git` still goes through the full, heredoc-aware
+# parser below (which treats literal heredoc bodies as data).
+_GUARDED_VOCAB='(^|[^[:alnum:]_])(git|gh)([^[:alnum:]_]|$)|LEAN4_SCRIPTS|plugins/lean4/|(^|[[:space:]/])(lib/scripts|scripts)/|lean4-skills-'
+if ! [[ "$COMMAND" =~ $_GUARDED_VOCAB ]]; then
+  exit 0
+fi
+
 if command -v jq >/dev/null 2>&1; then
   TOOL_CWD=$(echo "$INPUT" | jq -r '(.cwd // .tool_input.cwd // .tool_input.workdir) // empty' 2>/dev/null) || TOOL_CWD=""
 fi
@@ -351,60 +365,147 @@ _strip_wrappers() {
   echo "$s"
 }
 
-# Quote-aware segment splitting: split on unquoted &&, ||, ;, |.
-# Tracks $() nesting and backticks so separators inside them don't split.
-_split_segments() {
-  local cmd="$1"
-  local i=0 len=${#cmd} seg="" c="" nc="" in_sq=0 in_dq=0 paren_depth=0 in_bt=0
-  while [[ $i -lt $len ]]; do
-    c="${cmd:i:1}"
-    nc="${cmd:i+1:1}"
-    if [[ $in_sq -eq 1 ]]; then
-      seg+="$c"
-      if [[ "$c" == "'" ]]; then in_sq=0; fi
-    elif [[ $in_dq -eq 1 ]]; then
-      if [[ "$c" == "\\" && -n "$nc" ]]; then
-        seg+="$c$nc"; i=$((i + 2)); continue
-      fi
-      seg+="$c"
-      if [[ "$c" == '"' ]]; then in_dq=0; fi
-    elif [[ $in_bt -eq 1 ]]; then
-      seg+="$c"
-      if [[ "$c" == "\\" && -n "$nc" ]]; then
-        seg+="$nc"; i=$((i + 2)); continue
-      fi
-      if [[ "$c" == '`' ]]; then in_bt=0; fi
-    elif [[ $paren_depth -gt 0 ]]; then
-      seg+="$c"
-      if [[ "$c" == "\\" && -n "$nc" ]]; then
-        seg+="$nc"; i=$((i + 2)); continue
-      fi
-      if [[ "$c" == "'" ]]; then in_sq=1;
-      elif [[ "$c" == '"' ]]; then in_dq=1;
-      elif [[ "$c" == '(' ]]; then paren_depth=$((paren_depth + 1));
-      elif [[ "$c" == ')' ]]; then paren_depth=$((paren_depth - 1)); fi
-    elif [[ "$c" == "\\" && -n "$nc" ]]; then
-      seg+="$c$nc"; i=$((i + 2)); continue
-    elif [[ "$c" == "'" ]]; then
-      in_sq=1; seg+="$c"
-    elif [[ "$c" == '"' ]]; then
-      in_dq=1; seg+="$c"
-    elif [[ "$c" == '$' && "$nc" == '(' ]]; then
-      paren_depth=$((paren_depth + 1)); seg+="$c$nc"; i=$((i + 2)); continue
-    elif [[ "$c" == '`' ]]; then
-      in_bt=1; seg+="$c"
-    elif [[ "$c" == "&" && "$nc" == "&" ]]; then
-      echo "$seg"; seg=""; i=$((i + 2)); continue
-    elif [[ "$c" == "|" && "$nc" == "|" ]]; then
-      echo "$seg"; seg=""; i=$((i + 2)); continue
-    elif [[ "$c" == ";" || "$c" == "|" ]]; then
-      echo "$seg"; seg=""
-    else
-      seg+="$c"
-    fi
-    i=$((i + 1))
-  done
-  if [[ -n "$seg" ]]; then echo "$seg"; fi
+# Quote-aware segment splitting (issue #208): ONE awk pass over the whole
+# command (no per-character Bash loop, no per-line subprocesses) that splits
+# on unquoted &&, ||, ;, | and newlines, tracks '…', "…", $(…), `…`, and
+# applies explicit heredoc semantics:
+#   * `cmd <<'EOF' … EOF` / `<<"EOF"` (quoted delimiter): the body is literal
+#     data — skipped, unless the LINE feeds a shell (`bash <<'EOF'`,
+#     `cat <<'EOF' | sh`): then the body is executable input and is tokenized
+#     like any command text;
+#   * `cmd <<EOF … EOF` (unquoted delimiter): the body undergoes expansion, so
+#     its $(…) and `…` substitutions are executable — those are tokenized;
+#     the rest of the body is data;
+#   * `<<-` strips leading tabs from the terminator; `<<<` is a here-string,
+#     not a heredoc; several heredocs on one line are consumed in order; an
+#     unterminated body runs to the end of the input;
+#   * the command after the terminator line is checked as usual.
+# Segments are emitted separated by \036 (record separator); newlines inside
+# a segment (quoted) become spaces so every pattern below sees one line.
+# POSIX awk only (BSD awk on macOS, mawk, gawk); Bash 3.2 reads with `read -d`.
+_GR_AWK='
+function emit(seg) {
+  gsub(/\n/, " ", seg)
+  sub(/^[ \t]+/, "", seg)
+  if (seg != "") printf "%s\036", seg
+}
+function subst_scan(body,   i, len, c, depth, start, s) {
+  # tokenize the $(…) and `…` substitutions of an unquoted heredoc body
+  len = length(body); i = 1
+  while (i <= len) {
+    c = substr(body, i, 1)
+    if (c == "\\") { i += 2; continue }
+    if (c == "$" && substr(body, i + 1, 1) == "(") {
+      depth = 1; start = i + 2; i += 2
+      while (i <= len && depth > 0) {
+        c = substr(body, i, 1)
+        if (c == "\\") { i += 2; continue }
+        if (c == "(") depth++
+        else if (c == ")") depth--
+        i++
+      }
+      tokenize(substr(body, start, i - 1 - start))
+      continue
+    }
+    if (c == "`") {
+      start = i + 1; i++
+      while (i <= len && substr(body, i, 1) != "`") { if (substr(body, i, 1) == "\\") i++; i++ }
+      tokenize(substr(body, start, i - start))
+      i++
+      continue
+    }
+    i++
+  }
+}
+function line_feeds_shell(line) {
+  return line ~ /(^|[|&;( \t])(bash|sh|zsh|dash|ksh)([ \t]|$)/
+}
+function tokenize(cmd,   i, len, c, nc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hd, k, w, q, line_start, line, body, rest, term, nl, lstart, found) {
+  len = length(cmd); i = 1; seg = ""; in_sq = 0; in_dq = 0; in_bt = 0; paren = 0; hn = 0; line_start = 1
+  while (i <= len) {
+    c = substr(cmd, i, 1); nc = substr(cmd, i + 1, 1)
+    if (in_sq) { seg = seg c; if (c == "\047") in_sq = 0; i++; continue }
+    if (in_dq) {
+      if (c == "\\" && nc != "") { seg = seg c nc; i += 2; continue }
+      seg = seg c; if (c == "\"") in_dq = 0; i++; continue
+    }
+    if (in_bt) {
+      if (c == "\\" && nc != "") { seg = seg c nc; i += 2; continue }
+      seg = seg c; if (c == "`") in_bt = 0; i++; continue
+    }
+    if (paren > 0) {
+      if (c == "\\" && nc != "") { seg = seg c nc; i += 2; continue }
+      seg = seg c
+      if (c == "\047") in_sq = 1; else if (c == "\"") in_dq = 1
+      else if (c == "(") paren++; else if (c == ")") paren--
+      i++; continue
+    }
+    if (c == "\\" && nc != "") { seg = seg c nc; i += 2; continue }
+    if (c == "\047") { in_sq = 1; seg = seg c; i++; continue }
+    if (c == "\"") { in_dq = 1; seg = seg c; i++; continue }
+    if (c == "$" && nc == "(") { paren++; seg = seg c nc; i += 2; continue }
+    if (c == "`") { in_bt = 1; seg = seg c; i++; continue }
+    if (c == "<" && nc == "<" && substr(cmd, i + 2, 1) != "<") {
+      # heredoc operator: record the delimiter for this line
+      seg = seg "<<"; i += 2
+      hd = 0; if (substr(cmd, i, 1) == "-") { hd = 1; seg = seg "-"; i++ }
+      while (substr(cmd, i, 1) == " " || substr(cmd, i, 1) == "\t") { seg = seg " "; i++ }
+      q = 0; w = ""
+      c = substr(cmd, i, 1)
+      if (c == "\047" || c == "\"") {
+        q = 1; k = c; i++
+        while (i <= len && substr(cmd, i, 1) != k) { w = w substr(cmd, i, 1); i++ }
+        i++
+      } else {
+        if (c == "\\") { q = 1; i++ }
+        while (i <= len) {
+          c = substr(cmd, i, 1)
+          if (c ~ /[ \t\n;|&<>()]/) break
+          if (c == "\\") { q = 1; i++; c = substr(cmd, i, 1) }
+          w = w c; i++
+        }
+      }
+      hn++; hw[hn] = w; hq[hn] = q; hdash[hn] = hd
+      seg = seg (q ? "\047" w "\047" : w)
+      continue
+    }
+    if (c == "\n") {
+      if (hn > 0) {
+        line = substr(cmd, line_start, i - line_start)
+        emit(seg); seg = ""
+        rest = substr(cmd, i + 1)
+        for (k = 1; k <= hn; k++) {
+          # consume body lines up to the terminator (or the end of input)
+          body = ""; found = 0; lstart = 1
+          while (lstart <= length(rest)) {
+            nl = index(substr(rest, lstart), "\n")
+            if (nl == 0) { term = substr(rest, lstart); nl = length(rest) - lstart + 2 } else term = substr(rest, lstart, nl - 1)
+            t = term; if (hdash[k]) sub(/^\t+/, "", t)
+            if (t == hw[k]) { found = 1; lstart += nl; break }
+            body = body term "\n"; lstart += nl
+          }
+          if (line_feeds_shell(line)) tokenize(body)
+          else if (!hq[k]) subst_scan(body)
+          rest = substr(rest, lstart)
+        }
+        hn = 0
+        cmd = rest; len = length(cmd); i = 1; line_start = 1
+        continue
+      }
+      emit(seg); seg = ""; i++; line_start = i; continue
+    }
+    if (c == "&" && nc == "&") { emit(seg); seg = ""; i += 2; continue }
+    if (c == "|" && nc == "|") { emit(seg); seg = ""; i += 2; continue }
+    if (c == ";" || c == "|") { emit(seg); seg = ""; i++; continue }
+    seg = seg c; i++
+  }
+  if (hn > 0 && seg != "") { emit(seg) } else emit(seg)
+}
+{ _all = _all $0 "\n" }
+END { tokenize(_all) }
+'
+_tokenize() {
+  printf '%s' "$1" | awk "$_GR_AWK"
 }
 
 # Strip known text-value option pairs (-m "msg", --body "text", etc.) so
@@ -428,15 +529,31 @@ _unquote_tokens() {
   echo "$s"
 }
 
+# _strip_optvals + _unquote_tokens in ONE sed process (issue #208): the
+# same expressions, in the same order, applied per segment.
+_normalize_tokens() {
+  echo "$1" | sed -E \
+    -e "s/(^|[[:space:]])-[a-zA-Z]*[mF][[:space:]]*(\"[^\"]*\"|'[^']*'|[^[:space:]]+)/\1/g" \
+    -e "s/(^|[[:space:]])--(message|file|body|title)(=(\"[^\"]*\"|'[^']*'|[^[:space:]]+)|[[:space:]]+(\"[^\"]*\"|'[^']*'|[^[:space:]]+))/\1/g" \
+    -e 's/"([^"[:space:]]*)"/ \1 /g' -e 's/"([^"\\]|\\.)*"//g' \
+    -e "s/'([^'[:space:]]*)'/ \1 /g" -e "s/'[^']*'//g"
+}
+
 # Normalization pipeline: strip wrappers → strip option values → unquote tokens.
 # Also detects bypass token: _strip_wrappers consumes env-var prefixes, so the
 # prefix zone is raw minus stripped suffix.  A whitespace-bounded match there
 # confirms a standalone assignment (not buried inside another var's quoted value).
+# Only segments carrying guarded vocabulary can match a check (see the fast
+# path above): the others are kept out of SEGMENTS/RAW_SEGMENTS entirely, so
+# the per-segment normalization forks are paid only where they can matter.
 SEGMENTS=()
 RAW_SEGMENTS=()
-while IFS= read -r _seg; do
+GIT_SEGMENTS=()
+GH_SEGMENTS=()
+while IFS= read -r -d $'\036' _seg; do
   _seg="${_seg#"${_seg%%[![:space:]]*}"}"
   [[ -z "$_seg" ]] && continue
+  [[ "$_seg" =~ $_GUARDED_VOCAB ]] || continue
   RAW_SEGMENTS+=("$_seg")
   _stripped=$(_strip_wrappers "$_seg")
   if [[ $BYPASS -eq 0 ]]; then
@@ -445,22 +562,33 @@ while IFS= read -r _seg; do
       BYPASS=1
     fi
   fi
-  _stripped=$(_strip_optvals "$_stripped")
-  _stripped=$(_unquote_tokens "$_stripped")
+  _stripped=$(_normalize_tokens "$_stripped")
   SEGMENTS+=("$_stripped")
-done < <(_split_segments "$COMMAND")
+  case "$_stripped" in
+    git|git[[:space:]]*) GIT_SEGMENTS+=("$_stripped") ;;
+    gh|gh[[:space:]]*) GH_SEGMENTS+=("$_stripped") ;;
+  esac
+done < <(_tokenize "$COMMAND")
 
 # Helper: true if any segment starts with $1 and matches $2.
 # Optional $3: skip segments matching this pattern (scoped exemption).
+# Batched (issue #208): the segments whose command word is `exe` are matched
+# in ONE grep per pattern (segments are single-line, so per-line == per-
+# segment), then the exclusion is applied to the matching lines.
 seg_match() {
-  local exe="$1" pattern="$2" exclude="${3:-}" _sm_seg
-  for _sm_seg in "${SEGMENTS[@]}"; do
-    echo "$_sm_seg" | grep -qE -- "^${exe}\b" || continue
-    echo "$_sm_seg" | grep -qE -- "$pattern" || continue
-    [[ -n "$exclude" ]] && echo "$_sm_seg" | grep -qE -- "$exclude" && continue
-    return 0
-  done
-  return 1
+  local exe="$1" pattern="$2" exclude="${3:-}" _sm_hits
+  case "$exe" in
+    git) [[ ${#GIT_SEGMENTS[@]} -gt 0 ]] || return 1
+         _sm_hits=$(printf '%s\n' "${GIT_SEGMENTS[@]}" | grep -E -- "$pattern") || return 1 ;;
+    gh)  [[ ${#GH_SEGMENTS[@]} -gt 0 ]] || return 1
+         _sm_hits=$(printf '%s\n' "${GH_SEGMENTS[@]}" | grep -E -- "$pattern") || return 1 ;;
+    *)   [[ ${#SEGMENTS[@]} -gt 0 ]] || return 1
+         _sm_hits=$(printf '%s\n' "${SEGMENTS[@]}" | grep -E -- "^${exe}\b" | grep -E -- "$pattern") || return 1 ;;
+  esac
+  if [[ -n "$exclude" ]]; then
+    printf '%s\n' "$_sm_hits" | grep -qvE -- "$exclude" || return 1
+  fi
+  return 0
 }
 
 # Lean script invocation + stderr suppression guard.
@@ -501,7 +629,8 @@ _has_stderr_null_redirect() {
   return 1
 }
 
-for _seg in "${RAW_SEGMENTS[@]}"; do
+for _seg in "${RAW_SEGMENTS[@]+"${RAW_SEGMENTS[@]}"}"; do
+  [[ "$_seg" == */dev/null* ]] || continue
   if _has_lean_script_token "$_seg" && _has_stderr_null_redirect "$_seg"; then
     echo "BLOCKED (Lean guardrail): suppressed stderr on Lean script invocation hides real errors. Remove '/dev/null' redirection and rerun." >&2
     exit 2
@@ -716,9 +845,8 @@ fi
 # be checked first, otherwise commands like `git restore --staged .`
 # (legitimate "unstage everything") would be hard-blocked incorrectly.
 # Flag detection covers long and short forms via _classify_restore_flags.
-for _seg in "${SEGMENTS[@]}"; do
-  echo "$_seg" | grep -qE '^git\b' || continue
-  echo "$_seg" | grep -qE '\brestore\b' || continue
+for _seg in "${GIT_SEGMENTS[@]+"${GIT_SEGMENTS[@]}"}"; do
+  [[ "$_seg" == *restore* ]] || continue
   _classify_restore_flags "$_seg"
   # Pure unstaging — always allowed, must come first.
   if [[ $_restore_staged -eq 1 && $_restore_worktree -eq 0 ]]; then
@@ -782,9 +910,8 @@ fi
 # `/`, `.`, or `:` after the leading non-flag char. With a path-like
 # positional (`-p file.lean`, `-p HEAD docs/foo.lean`), defers to the
 # pathspec-oriented flag soft-gate below.
-for _seg in "${SEGMENTS[@]}"; do
-  echo "$_seg" | grep -qE '^git\b' || continue
-  echo "$_seg" | grep -qE '\bcheckout\b' || continue
+for _seg in "${GIT_SEGMENTS[@]+"${GIT_SEGMENTS[@]}"}"; do
+  [[ "$_seg" == *checkout* ]] || continue
   echo "$_seg" | grep -qE '\s(-p|--patch)(\s|$)' || continue
   # Path-like positional present → defer to soft-gate.
   if echo "$_seg" | grep -qE '(^|\s)[^-\s]\S*[/.:]\S*(\s|$)'; then
@@ -821,9 +948,8 @@ done
 # soft-gated. The trade-off prefers fewer false-positive hard-blocks
 # over ref-name exhaustiveness; operators can still opt in via
 # DESTRUCTIVE_POLICY=allow or the bypass token.
-for _seg in "${SEGMENTS[@]}"; do
-  echo "$_seg" | grep -qE '^git\b' || continue
-  echo "$_seg" | grep -qE '\bcheckout\b' || continue
+for _seg in "${GIT_SEGMENTS[@]+"${GIT_SEGMENTS[@]}"}"; do
+  [[ "$_seg" == *checkout* ]] || continue
   echo "$_seg" | grep -qE '\s(-f|--force)(\s|$)' || continue
   # (a) `--` separator: defer to general soft-gate.
   if echo "$_seg" | grep -qE '\s--(\s|$)'; then
@@ -872,9 +998,8 @@ fi
 #
 # Whole-worktree pathspec variants were hard-blocked earlier, so this
 # only catches bounded paths.
-for _seg in "${SEGMENTS[@]}"; do
-  echo "$_seg" | grep -qE '^git\b' || continue
-  echo "$_seg" | grep -qE '\bcheckout\b' || continue
+for _seg in "${GIT_SEGMENTS[@]+"${GIT_SEGMENTS[@]}"}"; do
+  [[ "$_seg" == *checkout* ]] || continue
   # Branch-creation / detach forms — not path-restore.
   if echo "$_seg" | grep -qE '\s(-b|-B|--orphan|--detach)(\s|$)'; then
     continue
@@ -960,9 +1085,8 @@ if seg_match git '\bcheckout\b\s+(-\S+\s+)*(\.{1,2}/|:/?)[^\s]+'; then
 fi
 
 # git restore <path…>       (worktree-only; pure --staged/-S unstaging is allowed)
-for _seg in "${SEGMENTS[@]}"; do
-  echo "$_seg" | grep -qE '^git\b' || continue
-  echo "$_seg" | grep -qE '\brestore\b' || continue
+for _seg in "${GIT_SEGMENTS[@]+"${GIT_SEGMENTS[@]}"}"; do
+  [[ "$_seg" == *restore* ]] || continue
   _classify_restore_flags "$_seg"
   if [[ $_restore_staged -eq 1 && $_restore_worktree -eq 0 ]]; then
     continue  # pure unstaging — always allowed

@@ -842,6 +842,66 @@ project"
   if (( _rc == 2 )); then p193 "jq-absent: newline-in-cwd Lean project enforced"; else f193 "jq-absent: newline-in-cwd Lean project not enforced (rc=$_rc)"; fi
 fi
 rm -rf "$_j"
+# ---------------------------------------------------------------------------
+# Issue #208: heredoc semantics and parsing cost. The hook must (a) treat a
+# quoted heredoc body as data, (b) still check executable heredoc input —
+# a shell-fed body (even with a quoted delimiter) and the $(…)/`…`
+# substitutions of an unquoted body — (c) keep checking commands after the
+# terminator, and (d) stay far inside the 5 s hook deadline on large input.
+# ---------------------------------------------------------------------------
+echo ""
+echo "--- #208: heredoc bodies are data; executable heredoc input is checked ---"
+_TAB=$'\t'
+run_test "208 quoted heredoc body: literal reset --hard is data" $'cat > notes.md <<\'EOF\'\nDo not do this:\ngit reset --hard\nEOF' 0
+run_test "208 double-quoted delimiter body is data" $'cat > n.md <<"EOF"\ngit reset --hard\nEOF' 0
+run_test "208 backslash-escaped delimiter body is data" $'cat > n.md <<\\EOF\ngit reset --hard\nEOF' 0
+run_test "208 unquoted body: literal text is data" $'cat > n.md <<EOF\ngit reset --hard\nEOF' 0
+run_test "208 unquoted body: \$(…) substitution is executable" $'cat > n.md <<EOF\nx $(git reset --hard)\nEOF' 2
+run_test "208 unquoted body: backtick substitution is executable" $'cat > n.md <<EOF\nx `git clean -fd`\nEOF' 2
+run_test "208 unquoted body: \$(git push) soft-gated (policy ask)" $'cat > n.md <<EOF\nx $(git push origin main)\nEOF' 2
+run_test "208 bash-fed quoted body is executable input" $'bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 sh-fed via pipe, quoted body is executable input" $'cat <<\'EOF\' | sh\ngit reset --hard\nEOF' 2
+run_test "208 guarded command after the terminator is checked" $'cat > n.md <<\'EOF\'\nhello\nEOF\ngit reset --hard' 2
+run_test "208 allowed command after the terminator" $'cat > n.md <<\'EOF\'\ngit reset --hard\nEOF\ngit status' 0
+run_test "208 <<- tab-indented terminator ends the body" "cat <<-'EOF'"$'\n'"${_TAB}git reset --hard"$'\n'"${_TAB}EOF"$'\n'"git status" 0
+run_test "208 <<- body then a blocked command" "cat <<-'EOF'"$'\n'"${_TAB}doc"$'\n'"${_TAB}EOF"$'\n'"git reset --hard" 2
+run_test "208 two heredocs on one line: both bodies are data" $'diff <(cat <<\'A\') <(cat <<\'B\')\ngit reset --hard\nA\ngit clean -f\nB' 0
+run_test "208 two heredocs on one line, then a blocked command" $'diff <(cat <<\'A\') <(cat <<\'B\')\nx\nA\ny\nB\ngit reset --hard' 2
+run_test "208 unterminated quoted heredoc: body to EOF is data" $'cat > n.md <<\'EOF\'\ngit reset --hard\nno terminator' 0
+run_test "208 unterminated unquoted heredoc: substitution still checked" $'cat > n.md <<EOF\n$(git reset --hard)\nno terminator' 2
+run_test "208 here-string is not a heredoc (quoted literal)" $'cat <<< "git reset --hard"' 0
+run_test "208 heredoc inside \$( ), then a blocked command" $'x=$(cat <<\'EOF\'\ndoc\nEOF\n); git reset --hard' 2
+run_test "208 fast path never excludes a path-qualified git" $'/usr/bin/git reset --hard' 2
+run_test "208 fast path never excludes bash -c" $'bash -c \'git reset --hard\'' 2
+run_test "208 fast path never excludes env prefixes" $'env FOO=1 git reset --hard' 2
+run_test "208 fast path never excludes VAR= prefixes" $'FOO=1 git reset --hard' 2
+run_test "208 fast path never excludes a Lean-script token" $'lean4-skills-run-store load 2>/dev/null' 2
+run_test "208 fast path allows unrelated input" $'echo hello; ls -la; python3 -c "print(1)"' 0
+
+echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
+# Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,
+# so the bound discriminates even on a slow CI runner). Integer seconds:
+# BSD date has no %N. Each input is run through the SAME run_test path.
+_t208() { # $1 desc, $2 command, $3 expected rc
+  local _s _e
+  _s=$(date +%s)
+  run_test "$1" "$2" "$3"
+  _e=$(date +%s)
+  if (( _e - _s <= 3 )); then echo "  PASS: $1 — $(( _e - _s ))s"; (( ++PASS )); else echo "  FAIL: $1 — $(( _e - _s ))s (> 3 s)"; (( ++FAIL )); fi
+}
+_lean208=$(python3 -c "print(('theorem foo : 1 + 1 = 2 := by norm_num -- x\n'*240)[:10000])" 2>/dev/null || printf 'theorem foo : 1 + 1 = 2 := by norm_num -- x\n%.0s' $(seq 1 240))
+_doc208=$(python3 -c "print(('Do not run git reset --hard here; git clean -f is bad too.\n'*200))" 2>/dev/null || printf 'Do not run git reset --hard here; git clean -f is bad too.\n%.0s' $(seq 1 200))
+_line208=$(printf 'x%.0s' $(seq 1 10000))
+_many208=$(printf 'echo hi\n%.0s' $(seq 1 230))
+_manygit208=$(printf 'git status\n%.0s' $(seq 1 120))
+_t208 "208 perf: 10 KB quoted Lean heredoc (benign)" "$(printf "cat > x.lean <<'EOF'\n%s\nEOF" "$_lean208")" 0
+_t208 "208 perf: 10 KB single-line command (benign)" "echo $_line208" 0
+_t208 "208 perf: 230 short lines (benign)" "$_many208" 0
+_t208 "208 perf: 10 KB unquoted doc full of guarded words (data)" "$(printf "cat > doc.md <<EOF\n%s\nEOF" "$_doc208")" 0
+_t208 "208 perf: 10 KB quoted doc, then a real blocked op" "$(printf "cat > doc.md <<'EOF'\n%s\nEOF\ngit reset --hard" "$_doc208")" 2
+_t208 "208 perf: 120 git commands (all relevant segments)" "$_manygit208" 0
+_t208 "208 perf: 120 git commands, last one blocked" "${_manygit208}git reset --hard" 2
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]
