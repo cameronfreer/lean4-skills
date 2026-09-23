@@ -279,7 +279,7 @@ run_test_destructive_policy "allow: checkout -b newbranch start-point"      ""  
 # destructive policy.
 run_test_destructive_policy "unset: checkout --ours file (block=ask)"       "" "git checkout --ours file.lean"                          2
 run_test_destructive_policy "unset: checkout --theirs file (block=ask)"     "" "git checkout --theirs file.lean"                        2
-# --merge is the long form of -m. Unlike short -m (which _strip_optvals
+# --merge is the long form of -m. Unlike short -m (which _normalize_tokens
 # removes pre-emptively to support `git commit -m "msg"`), the long
 # form survives normalization and IS gated here.
 run_test_destructive_policy "unset: checkout --merge file (block=ask)"      "" "git checkout --merge file.lean"                         2
@@ -297,7 +297,7 @@ run_test_destructive_policy "unset: checkout -3 file (block=ask)"           "" "
 run_test_destructive_policy "allow: checkout -2 file"                       allow "git checkout -2 file.lean"                          0
 run_test_destructive_policy "allow: checkout -3 file"                       allow "git checkout -3 file.lean"                          0
 run_test_destructive_policy "bypass: checkout -2 file"                      "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout -2 file.lean"   0
-# Note: -m is not covered — see _strip_optvals limitation comment in guardrails.sh
+# Note: -m is not covered — see the _normalize_tokens limitation comment in guardrails.sh
 run_test_destructive_policy "allow: checkout --ours file"                   allow "git checkout --ours file.lean"                      0
 run_test_destructive_policy "allow: checkout --theirs src/foo.lean"         allow "git checkout --theirs src/foo.lean"                  0
 run_test_destructive_policy "bypass: checkout --ours file"                  "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout --ours file.lean" 0
@@ -434,7 +434,7 @@ run_test_destructive_policy "git checkout -f .                (always block)" al
 run_test_destructive_policy "git checkout --force ./          (always block)" allow "git checkout --force ./"                           2
 run_test_destructive_policy "git checkout --ours .            (always block)" allow "git checkout --ours ."                             2
 run_test_destructive_policy "git checkout --theirs :/         (always block)" allow "git checkout --theirs :/"                          2
-# Note: -m is not covered — see _strip_optvals limitation comment in guardrails.sh
+# Note: -m is not covered — see the _normalize_tokens limitation comment in guardrails.sh
 # --pathspec-from-file always hard-blocks (paths hidden in a file)
 run_test_destructive_policy "git checkout --pathspec-from-file (always block)" allow "git checkout --pathspec-from-file=paths.txt"      2
 run_test_destructive_policy "git checkout HEAD --pathspec-from-file (always block)" allow "git checkout HEAD --pathspec-from-file=paths.txt" 2

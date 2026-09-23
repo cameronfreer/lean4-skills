@@ -508,29 +508,15 @@ _tokenize() {
   printf '%s' "$1" | awk "$_GR_AWK"
 }
 
-# Strip known text-value option pairs (-m "msg", --body "text", etc.) so
-# argument content doesn't contribute to pattern matching.
-# Anchored to token boundaries so patterns don't match inside quoted strings.
-_strip_optvals() {
-  local s="$1"
-  # Short options with text values: -m "msg", -m'msg', -mmsg, -am "msg", -F file
-  s=$(echo "$s" | sed -E "s/(^|[[:space:]])-[a-zA-Z]*[mF][[:space:]]*(\"[^\"]*\"|'[^']*'|[^[:space:]]+)/\1/g")
-  # Long options with text values: --message/--file/--body/--title (= or space)
-  s=$(echo "$s" | sed -E "s/(^|[[:space:]])--(message|file|body|title)(=(\"[^\"]*\"|'[^']*'|[^[:space:]]+)|[[:space:]]+(\"[^\"]*\"|'[^']*'|[^[:space:]]+))/\1/g")
-  echo "$s"
-}
-
-# Unquote single-token quoted strings ("--hard" → --hard), remove
-# multi-token ones ("mention git push" → removed).
-_unquote_tokens() {
-  local s="$1"
-  s=$(echo "$s" | sed -E 's/"([^"[:space:]]*)"/ \1 /g; s/"([^"\\]|\\.)*"//g')
-  s=$(echo "$s" | sed -E "s/'([^'[:space:]]*)'/ \1 /g; s/'[^']*'//g")
-  echo "$s"
-}
-
-# _strip_optvals + _unquote_tokens in ONE sed process (issue #208): the
-# same expressions, in the same order, applied per segment.
+# Segment normalization in ONE sed process (issue #208; formerly the two
+# functions _strip_optvals + _unquote_tokens, whose expressions are kept
+# verbatim and in the same order):
+#   1. strip known text-value option pairs (-m "msg", -m'msg', -mmsg,
+#      -am "msg", -F file; --message/--file/--body/--title with = or space)
+#      so argument content doesn't contribute to pattern matching — anchored
+#      to token boundaries so patterns don't match inside quoted strings;
+#   2. unquote single-token quoted strings ("--hard" → --hard) and remove
+#      multi-token ones ("mention git push" → removed).
 _normalize_tokens() {
   echo "$1" | sed -E \
     -e "s/(^|[[:space:]])-[a-zA-Z]*[mF][[:space:]]*(\"[^\"]*\"|'[^']*'|[^[:space:]]+)/\1/g" \
@@ -1025,13 +1011,13 @@ done
 # but git would error on it anyway, so acceptable.
 #
 # Limitation: short-form `-m` is NOT included here. The shared
-# _strip_optvals normalization (needed for `git commit -m "msg"`
+# _normalize_tokens option-value stripping (needed for `git commit -m "msg"`
 # false-positive avoidance in the collab checks) strips `-m <value>`
 # from segments before pattern matching, so `git checkout -m <path>`
 # arrives at the checkout checks with `-m <path>` already removed.
 # Catching `-m` in checkout context would require splitting the
 # normalization pipeline per-command; deferred. The long form
-# `--merge` IS covered (below) — _strip_optvals only handles
+# `--merge` IS covered (below) — the option-value stripping only handles
 # `--(message|file|body|title)` long flags, not `--merge`.
 if seg_match git '\bcheckout\b.*\s(--ours|--theirs|-2|-3|--merge|--conflict(=\S+)?)(\s|$)'; then
   _check_destructive_op "git checkout <restore-flag>" "restores the named path(s) from the merge-conflict side, discarding uncommitted edits"
