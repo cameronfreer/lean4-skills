@@ -877,6 +877,20 @@ run_test "208 fast path never excludes env prefixes" $'env FOO=1 git reset --har
 run_test "208 fast path never excludes VAR= prefixes" $'FOO=1 git reset --hard' 2
 run_test "208 fast path never excludes a Lean-script token" $'lean4-skills-run-store load 2>/dev/null' 2
 run_test "208 fast path allows unrelated input" $'echo hello; ls -la; python3 -c "print(1)"' 0
+# review round 1: lexer corrections
+run_test "208 path-qualified shell receiving a heredoc is executable" $'/bin/bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 sudo-prefixed shell receiving a heredoc is executable" $'sudo bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 partially quoted delimiter E\'OF\' names EOF" $'cat <<E\'OF\'\ndocument text\nEOF\ngit reset --hard' 2
+run_test "208 partially quoted delimiter body is data" $'cat <<E\'OF\'\ngit reset --hard\nEOF' 0
+run_test "208 delimiter with \"quoted\" middle names EOF" $'cat <<"E"OF\nx\nEOF\ngit reset --hard' 2
+run_test "208 escaped-middle delimiter E\\OF names EOF" $'cat <<E\\OF\nx\nEOF\ngit reset --hard' 2
+run_test "208 here-string then a guarded command" $'cat <<< "git status"\ngit reset --hard' 2
+run_test "208 here-string on the same line as a guarded command" $'cat <<< "x"; git reset --hard' 2
+run_test "208 quoted ) inside \$( ) in an unquoted body" $'cat > n.md <<EOF\n$(printf \')\'; git reset --hard)\nEOF' 2
+run_test "208 quoted \") in \$( ) then blocked" $'cat > n.md <<EOF\n$(echo ")"; git clean -fd)\nEOF' 2
+run_test "208 a shell word elsewhere on the line is not the receiver" $'echo bash example; cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 shell in an earlier && stage is not the receiver" $'bash -c true && cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 shell in a later pipeline stage is the receiver" $'cat <<\'EOF\' | /usr/bin/env bash\ngit reset --hard\nEOF' 2
 
 echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
 # Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,

@@ -369,13 +369,16 @@ _strip_wrappers() {
 # command (no per-character Bash loop, no per-line subprocesses) that splits
 # on unquoted &&, ||, ;, | and newlines, tracks '…', "…", $(…), `…`, and
 # applies explicit heredoc semantics:
-#   * `cmd <<'EOF' … EOF` / `<<"EOF"` (quoted delimiter): the body is literal
-#     data — skipped, unless the LINE feeds a shell (`bash <<'EOF'`,
-#     `cat <<'EOF' | sh`): then the body is executable input and is tokenized
-#     like any command text;
+#   * `cmd <<'EOF' … EOF` / `<<"EOF"` / `<<E'OF'` / `<<\EOF` (any quoting in
+#     the delimiter word): the body is literal data — skipped, unless the
+#     RECEIVING PIPELINE has a shell as a command word (`bash <<'EOF'`,
+#     `/bin/bash <<'EOF'`, `cat <<'EOF' | sh`; a `bash` elsewhere on the line,
+#     e.g. `echo bash; cat <<'EOF'`, does not count): then the body is
+#     executable input and is tokenized like any command text;
 #   * `cmd <<EOF … EOF` (unquoted delimiter): the body undergoes expansion, so
-#     its $(…) and `…` substitutions are executable — those are tokenized;
-#     the rest of the body is data;
+#     its $(…) and `…` substitutions are executable — those are tokenized
+#     (quote-aware: a quoted `)` does not end a substitution); the rest of the
+#     body is data;
 #   * `<<-` strips leading tabs from the terminator; `<<<` is a here-string,
 #     not a heredoc; several heredocs on one line are consumed in order; an
 #     unterminated body runs to the end of the input;
@@ -389,8 +392,16 @@ function emit(seg) {
   sub(/^[ \t]+/, "", seg)
   if (seg != "") printf "%s\036", seg
 }
-function subst_scan(body,   i, len, c, depth, start, s) {
-  # tokenize the $(…) and `…` substitutions of an unquoted heredoc body
+function skip_quoted(body, i, len,   c) {
+  # body[i] is an opening quote; return the index just past its closing quote
+  c = substr(body, i, 1); i++
+  if (c == "\047") { while (i <= len && substr(body, i, 1) != "\047") i++ }
+  else { while (i <= len && substr(body, i, 1) != "\"") { if (substr(body, i, 1) == "\\") i++; i++ } }
+  return i + 1
+}
+function subst_scan(body,   i, len, c, depth, start) {
+  # tokenize the $(…) and `…` substitutions of an unquoted heredoc body;
+  # quote-aware inside $(…) so a quoted ")" does not end the substitution
   len = length(body); i = 1
   while (i <= len) {
     c = substr(body, i, 1)
@@ -400,6 +411,7 @@ function subst_scan(body,   i, len, c, depth, start, s) {
       while (i <= len && depth > 0) {
         c = substr(body, i, 1)
         if (c == "\\") { i += 2; continue }
+        if (c == "\047" || c == "\"") { i = skip_quoted(body, i, len); continue }
         if (c == "(") depth++
         else if (c == ")") depth--
         i++
@@ -417,11 +429,13 @@ function subst_scan(body,   i, len, c, depth, start, s) {
     i++
   }
 }
-function line_feeds_shell(line) {
-  return line ~ /(^|[|&;( \t])(bash|sh|zsh|dash|ksh)([ \t]|$)/
+function pipeline_feeds_shell(text) {
+  # the pipeline that receives the heredoc: a shell as a command word in any
+  # of its stages (bare or path-qualified, after sudo/env/VAR= prefixes)
+  return text ~ /(^|[|&;( \t])([^ \t|&;()]*\/)?(bash|sh|zsh|dash|ksh)([ \t]|$)/
 }
-function tokenize(cmd,   i, len, c, nc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hd, k, w, q, line_start, line, body, rest, term, nl, lstart, found) {
-  len = length(cmd); i = 1; seg = ""; in_sq = 0; in_dq = 0; in_bt = 0; paren = 0; hn = 0; line_start = 1
+function tokenize(cmd,   i, len, c, nc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hdash, k, w, q, line_start, pipe_start, hd_pipe_start, body, rest, term, t, nl, lstart, found, hd) {
+  len = length(cmd); i = 1; seg = ""; in_sq = 0; in_dq = 0; in_bt = 0; paren = 0; hn = 0; line_start = 1; pipe_start = 1; hd_pipe_start = 1
   while (i <= len) {
     c = substr(cmd, i, 1); nc = substr(cmd, i + 1, 1)
     if (in_sq) { seg = seg c; if (c == "\047") in_sq = 0; i++; continue }
@@ -445,25 +459,24 @@ function tokenize(cmd,   i, len, c, nc, seg, in_sq, in_dq, in_bt, paren, hn, hw,
     if (c == "\"") { in_dq = 1; seg = seg c; i++; continue }
     if (c == "$" && nc == "(") { paren++; seg = seg c nc; i += 2; continue }
     if (c == "`") { in_bt = 1; seg = seg c; i++; continue }
-    if (c == "<" && nc == "<" && substr(cmd, i + 2, 1) != "<") {
-      # heredoc operator: record the delimiter for this line
+    if (c == "<" && nc == "<" && substr(cmd, i + 2, 1) == "<") {
+      seg = seg "<<<"; i += 3; continue   # here-string: a complete operator, not a heredoc
+    }
+    if (c == "<" && nc == "<") {
+      # heredoc operator: parse the delimiter word with shell quote removal
+      # (EOF, "EOF", E"OF", \EOF, E\OF … all name EOF; any quoting => literal body)
+      if (hn == 0) hd_pipe_start = pipe_start
       seg = seg "<<"; i += 2
       hd = 0; if (substr(cmd, i, 1) == "-") { hd = 1; seg = seg "-"; i++ }
       while (substr(cmd, i, 1) == " " || substr(cmd, i, 1) == "\t") { seg = seg " "; i++ }
       q = 0; w = ""
-      c = substr(cmd, i, 1)
-      if (c == "\047" || c == "\"") {
-        q = 1; k = c; i++
-        while (i <= len && substr(cmd, i, 1) != k) { w = w substr(cmd, i, 1); i++ }
-        i++
-      } else {
-        if (c == "\\") { q = 1; i++ }
-        while (i <= len) {
-          c = substr(cmd, i, 1)
-          if (c ~ /[ \t\n;|&<>()]/) break
-          if (c == "\\") { q = 1; i++; c = substr(cmd, i, 1) }
-          w = w c; i++
-        }
+      while (i <= len) {
+        c = substr(cmd, i, 1)
+        if (c == "\047") { q = 1; i++; while (i <= len && substr(cmd, i, 1) != "\047") { w = w substr(cmd, i, 1); i++ }; i++; continue }
+        if (c == "\"") { q = 1; i++; while (i <= len && substr(cmd, i, 1) != "\"") { if (substr(cmd, i, 1) == "\\") i++; w = w substr(cmd, i, 1); i++ }; i++; continue }
+        if (c == "\\") { q = 1; i++; w = w substr(cmd, i, 1); i++; continue }
+        if (c ~ /[ \t\n;|&<>()]/) break
+        w = w c; i++
       }
       hn++; hw[hn] = w; hq[hn] = q; hdash[hn] = hd
       seg = seg (q ? "\047" w "\047" : w)
@@ -471,8 +484,8 @@ function tokenize(cmd,   i, len, c, nc, seg, in_sq, in_dq, in_bt, paren, hn, hw,
     }
     if (c == "\n") {
       if (hn > 0) {
-        line = substr(cmd, line_start, i - line_start)
         emit(seg); seg = ""
+        t = substr(cmd, hd_pipe_start, i - hd_pipe_start)   # the receiving pipeline
         rest = substr(cmd, i + 1)
         for (k = 1; k <= hn; k++) {
           # consume body lines up to the terminator (or the end of input)
@@ -480,26 +493,27 @@ function tokenize(cmd,   i, len, c, nc, seg, in_sq, in_dq, in_bt, paren, hn, hw,
           while (lstart <= length(rest)) {
             nl = index(substr(rest, lstart), "\n")
             if (nl == 0) { term = substr(rest, lstart); nl = length(rest) - lstart + 2 } else term = substr(rest, lstart, nl - 1)
-            t = term; if (hdash[k]) sub(/^\t+/, "", t)
-            if (t == hw[k]) { found = 1; lstart += nl; break }
+            w = term; if (hdash[k]) sub(/^\t+/, "", w)
+            if (w == hw[k]) { found = 1; lstart += nl; break }
             body = body term "\n"; lstart += nl
           }
-          if (line_feeds_shell(line)) tokenize(body)
+          if (pipeline_feeds_shell(t)) tokenize(body)
           else if (!hq[k]) subst_scan(body)
           rest = substr(rest, lstart)
         }
         hn = 0
-        cmd = rest; len = length(cmd); i = 1; line_start = 1
+        cmd = rest; len = length(cmd); i = 1; line_start = 1; pipe_start = 1
         continue
       }
-      emit(seg); seg = ""; i++; line_start = i; continue
+      emit(seg); seg = ""; i++; line_start = i; pipe_start = i; continue
     }
-    if (c == "&" && nc == "&") { emit(seg); seg = ""; i += 2; continue }
-    if (c == "|" && nc == "|") { emit(seg); seg = ""; i += 2; continue }
-    if (c == ";" || c == "|") { emit(seg); seg = ""; i++; continue }
+    if (c == "&" && nc == "&") { emit(seg); seg = ""; i += 2; pipe_start = i; continue }
+    if (c == "|" && nc == "|") { emit(seg); seg = ""; i += 2; pipe_start = i; continue }
+    if (c == ";") { emit(seg); seg = ""; i++; pipe_start = i; continue }
+    if (c == "|") { emit(seg); seg = ""; i++; continue }   # same pipeline continues
     seg = seg c; i++
   }
-  if (hn > 0 && seg != "") { emit(seg) } else emit(seg)
+  emit(seg)
 }
 { _all = _all $0 "\n" }
 END { tokenize(_all) }
