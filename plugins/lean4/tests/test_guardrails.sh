@@ -936,6 +936,18 @@ run_test "208 not a receiver: env -S cat" $'env -S cat <<\'EOF\'\ngit reset --ha
 run_test "208 unidentified receiver \"\$SHELL\" is treated as executable" $'"$SHELL" <<\'EOF\'\ngit reset --hard\nEOF' 2
 run_test "208 unidentified receiver \$(which bash) is treated as executable" $'$(which bash) <<\'EOF\'\ngit reset --hard\nEOF' 2
 run_test "208 unidentified receiver \${SH} is treated as executable" $'${SH} <<\'EOF\'\ngit reset --hard\nEOF' 2
+# review round 5: expansion anywhere in the word; quoted wrapper names; delimiter continuations
+run_test "208 expanded receiver /bin/\$SH is treated as executable" $'SH=bash; /bin/$SH <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 backtick-produced receiver is treated as executable" $'`printf bash` <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 expansion inside double quotes is active" $'"/bin/$SH" <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 literal \$ in single quotes is not expansion (data)" $'\'cat$x\' <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 quoted wrapper name \'env\' still normalizes" $'\'env\' bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 quoted wrapper name \"env\" -u X still normalizes" $'"env" -u X bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 quoted non-wrapper command stays data" $'\'cat\' <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 continued delimiter EO\\<nl>F names EOF" $'cat <<EO\\\nF\ndocument text\nEOF\ngit reset --hard' 2
+run_test "208 continued delimiter stays unquoted (substitution scanned)" $'cat <<EO\\\nF\n$(git reset --hard)\nEOF' 2
+run_test "208 continued delimiter body literal is data" $'cat <<EO\\\nF\ngit reset --hard\nEOF' 0
+run_test "208 double-quoted continued delimiter names EOF" $'cat <<"EO\\\nF"\ndocument text\nEOF\ngit reset --hard' 2
 
 echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
 # Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,

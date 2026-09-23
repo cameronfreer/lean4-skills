@@ -386,7 +386,9 @@ _strip_wrappers() {
 #   * a shell comment (`# …` at a word boundary) runs to the newline and
 #     contains no operators — `echo hi # <<EOF` opens no heredoc;
 #   * a double-quoted delimiter follows double-quote escape rules (`"E\OF"`
-#     names `E\OF`);
+#     names `E\OF`); a backslash-newline inside an unquoted or double-quoted
+#     delimiter is a line continuation (`<<EO\` + newline + `F` names `EOF`,
+#     still unquoted);
 #   * `cmd <<EOF … EOF` (unquoted delimiter): the body undergoes expansion, so
 #     its $(…) and `…` substitutions are executable — those are tokenized
 #     (quote-aware: a quoted `)` does not end a substitution); the rest of the
@@ -455,15 +457,30 @@ function next_word(stage, i,   len, c, w) {
   # one complete shell word starting at i (leading blanks skipped): quotes
   # and backslashes removed; stops at blanks and operators. Side channels:
   # _nw_i = index after the word, _nw_q = any quoting, _nw_qname = quoting
-  # before the first "=" (so X=\047a b\047 is still an assignment)
-  len = length(stage); _nw_q = 0; _nw_qname = 0; _nw_eq = 0; w = ""
+  # before the first "=" (so X=\047a b\047 is still an assignment), _nw_exp =
+  # the word contains ACTIVE expansion ($ or backtick outside single quotes)
+  # — never resolved, only recorded
+  len = length(stage); _nw_q = 0; _nw_qname = 0; _nw_eq = 0; _nw_exp = 0; w = ""
   while (i <= len && substr(stage, i, 1) ~ /[ \t]/) i++
   while (i <= len) {
     c = substr(stage, i, 1)
     if (c ~ /[ \t|&;<>()]/) break
     if (c == "\047") { _nw_q = 1; if (!_nw_eq) _nw_qname = 1; i++; while (i <= len && substr(stage, i, 1) != "\047") { w = w substr(stage, i, 1); i++ }; i++; continue }
-    if (c == "\"") { _nw_q = 1; if (!_nw_eq) _nw_qname = 1; i++; while (i <= len && substr(stage, i, 1) != "\"") { if (substr(stage, i, 1) == "\\") i++; w = w substr(stage, i, 1); i++ }; i++; continue }
-    if (c == "\\") { _nw_q = 1; if (!_nw_eq) _nw_qname = 1; i++; w = w substr(stage, i, 1); i++; continue }
+    if (c == "\"") {
+      _nw_q = 1; if (!_nw_eq) _nw_qname = 1; i++
+      while (i <= len && substr(stage, i, 1) != "\"") {
+        c = substr(stage, i, 1)
+        if (c == "\\") { if (substr(stage, i + 1, 1) == "\n") { i += 2; continue }; i++; w = w substr(stage, i, 1); i++; continue }
+        if (c == "$" || c == "`") _nw_exp = 1        # active inside double quotes
+        w = w c; i++
+      }
+      i++; continue
+    }
+    if (c == "\\") {
+      if (substr(stage, i + 1, 1) == "\n") { i += 2; continue }   # line continuation: no characters
+      _nw_q = 1; if (!_nw_eq) _nw_qname = 1; i++; w = w substr(stage, i, 1); i++; continue
+    }
+    if (c == "$" || c == "`") _nw_exp = 1            # active expansion (unquoted)
     if (c == "=" && !_nw_eq) _nw_eq = length(w) + 1
     w = w c; i++
   }
@@ -495,16 +512,18 @@ function stage_cmd_word(stage,   len, i, c, w, bw, flag, op) {
       continue
     }
     if (c ~ /[|&;()]/) return ""
-    w = next_word(stage, i); i = _nw_i
+    w = next_word(stage, i); i = _nw_i; _cw_exp = _nw_exp
     if (w == "") return ""
-    if (!_nw_qname && w ~ /^[A-Za-z_][A-Za-z0-9_]*=/) continue        # VAR=value prefix
+    if (!_nw_qname && !_nw_exp && w ~ /^[A-Za-z_][A-Za-z0-9_]*=/) continue   # VAR=value prefix
     bw = w; sub(/.*\//, "", bw)                                  # /usr/bin/env -> env
-    if (!_nw_q && (bw == "sudo" || bw == "env" || bw == "command")) {
+    if (!_nw_exp && (bw == "sudo" || bw == "env" || bw == "command")) {
+      # a literal wrapper name — quoted or not (\047env\047 names env) — but
+      # never an expanded one
       while (i <= len) {
         while (i <= len && substr(stage, i, 1) ~ /[ \t]/) i++
         if (substr(stage, i, 1) != "-") break
         flag = next_word(stage, i); i = _nw_i
-        if (bw == "env" && (flag == "-S" || flag == "--split-string")) { op = next_word(stage, i); return stage_cmd_word(op) }
+        if (bw == "env" && (flag == "-S" || flag == "--split-string")) { op = next_word(stage, i); if (_nw_exp) { _cw_exp = 1; return op }; return stage_cmd_word(op) }
         if (bw == "env" && flag ~ /^--split-string=/) { sub(/^--split-string=/, "", flag); return stage_cmd_word(flag) }
         if (wrapper_takes_operand(bw, flag)) { op = next_word(stage, i); i = _nw_i }
       }
@@ -536,11 +555,13 @@ function pipeline_feeds_shell(text,   n, parts, k, i, len, c, stage, in_sq, in_d
 function stage_is_receiver(stage,   cw) {
   # a stage receives executable input iff its command word is a shell — or
   # cannot be identified at all (an empty word in a non-blank stage, or a
-  # word produced by expansion such as "$SHELL" / $(which bash)): failing
+  # word with active expansion ANYWHERE: "$SHELL", /bin/$SH, $(which bash),
+  # `printf bash` — recorded by next_word, never resolved): failing
   # to identify the receiver is never taken as proof that the body is data
-  if (stage !~ /[^ 	]/) return 0
+  if (stage !~ /[^ \t]/) return 0
+  _cw_exp = 0
   cw = stage_cmd_word(stage)
-  if (cw == "" || cw ~ /^\$/) return 1
+  if (cw == "" || _cw_exp) return 1          # unidentified, or produced by expansion anywhere in the word
   return is_shell_word(cw)
 }
 function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hdash, hstart, hend, k, w, q, line_start, pipe_start, body, rest, term, t, nl, lstart, found, hd) {
@@ -596,12 +617,18 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
           # \\ " $ ` (and a newline); otherwise it is part of the delimiter
           q = 1; i++
           while (i <= len && substr(cmd, i, 1) != "\"") {
-            if (substr(cmd, i, 1) == "\\" && substr(cmd, i + 1, 1) ~ /[\\"$`\n]/) i++
+            if (substr(cmd, i, 1) == "\\" && substr(cmd, i + 1, 1) == "\n") { i += 2; continue }   # continuation
+            if (substr(cmd, i, 1) == "\\" && substr(cmd, i + 1, 1) ~ /[\\"$`]/) i++
             w = w substr(cmd, i, 1); i++
           }
           i++; continue
         }
-        if (c == "\\") { q = 1; i++; w = w substr(cmd, i, 1); i++; continue }
+        if (c == "\\") {
+          # backslash-newline is a line continuation: both characters vanish
+          # and the delimiter stays UNQUOTED (body substitutions stay active)
+          if (substr(cmd, i + 1, 1) == "\n") { i += 2; continue }
+          q = 1; i++; w = w substr(cmd, i, 1); i++; continue
+        }
         if (c ~ /[ \t\n;|&<>()]/) break
         w = w c; i++
       }
