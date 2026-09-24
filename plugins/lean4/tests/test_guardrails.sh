@@ -985,6 +985,18 @@ run_test "208 ANSI-C \\\\x00 escape ends the delimiter" $'cat <<$\'EOF\\x00x\'\n
 run_test "208 ANSI-C UTF-8 byte escapes name é (bytewise)" $'cat <<$\'\\xc3\\xa9\'\ndata\n\xc3\xa9\ngit reset --hard' 2
 run_test "208 ANSI-C UTF-8 byte-escape delimiter body is data" $'cat <<$\'\\xc3\\xa9\'\ngit reset --hard\n\xc3\xa9' 0
 run_test "208 fallback: continued command after an unsupported delimiter" $'cat <<$\'E\\u004fF\'\ndata\nEOF\ngit reset \\\n--hard' 2
+# review round 9: octal escapes keep the low byte (bash semantics); NUL only when the reduced value is 0
+run_test "208 ANSI-C octal \\\\505 is E (low byte): \$\'\\\\505OF\' names EOF" $'cat <<$\'\\505OF\'\ndata\nEOF\ngit reset --hard' 2
+run_test "208 ANSI-C octal \\\\505 delimiter body is data" $'cat <<$\'\\505OF\'\ngit reset --hard\nEOF' 0
+# (a terminator line cannot carry a lone 0xff byte through the JSON hook
+# channel — jq/JSON replace it with U+FFFD — so byte values are proven with
+# valid UTF-8 targets: \303\251 and the wrapped \703\251 both name é)
+run_test "208 ANSI-C octal \\\\303\\\\251 names é (bytewise)" $'cat <<$\'\\303\\251\'\ndata\n\xc3\xa9\ngit reset --hard' 2
+run_test "208 ANSI-C octal \\\\400 is NUL: ends the delimiter at E" $'cat <<$\'E\\400F\'\ndata\nE\ngit reset --hard' 2
+run_test "208 ANSI-C octal \\\\401 is byte 0x01" $'cat <<$\'E\\401F\'\ndata\nE\001F\ngit reset --hard' 2
+run_test "208 ANSI-C octal \\\\703 wraps to 0xc3: \\\\703\\\\251 names é" $'cat <<$\'\\703\\251\'\ndata\n\xc3\xa9\ngit reset --hard' 2
+run_test "208 ANSI-C octal wrapped delimiter body is data" $'cat <<$\'\\703\\251\'\ngit reset --hard\n\xc3\xa9' 0
+run_test "208 ANSI-C \\\\377 delimiter never terminates via JSON (all data, as bash)" $'cat <<$\'E\\377F\'\ngit reset --hard\nE\xef\xbf\xbdF' 0
 
 echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
 # Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,

@@ -681,8 +681,8 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
               if (nc ~ /[0-7]/) {
                 oc = nc; j2 = 2
                 while (j2 < 4 && substr(cmd, i + j2, 1) ~ /[0-7]/) { oc = oc substr(cmd, i + j2, 1); j2++ }
-                v = octval(oc); i += j2
-                if (v == 0 || v > 255) hnul = 1; else w = w sprintf("%c", v)   # \0 ends the string
+                v = octval(oc) % 256; i += j2                       # bash keeps the low byte (\505 -> E)
+                if (v == 0) hnul = 1; else w = w sprintf("%c", v)   # a NUL (\0, \400) ends the string
                 continue
               }
               hbad = 1   # \u \U \c … : not decoded here -> conservative handling
