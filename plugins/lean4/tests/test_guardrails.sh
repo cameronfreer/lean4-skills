@@ -978,6 +978,13 @@ run_test "208 ANSI-C \\\\x-decoded delimiter body is data" $'cat <<$\'E\\x4fF\'\
 run_test "208 ANSI-C octal escape decoded: \$\'E\\\\117F\' names EOF" $'cat <<$\'E\\117F\'\ndata\nEOF\ngit reset --hard' 2
 run_test "208 unsupported ANSI-C escape: quote in body cannot hide later lines" $'cat <<$\'E\\u004fF\'\ndon\'t do this\nEOF\ngit reset --hard' 2
 run_test "208 unsupported ANSI-C escape: guarded line inside is checked too" $'cat <<$\'E\\u004fF\'\nx\ngit reset --hard\nEOF' 2
+# review round 8: byte semantics (NUL, UTF-8 byte escapes) across awks; continued lines in the fallback
+run_test "208 ANSI-C NUL escape ends the delimiter (EOF)" $'cat <<$\'EOF\\0ignored\'\ndata\nEOF\ngit reset --hard' 2
+run_test "208 ANSI-C NUL-terminated delimiter body is data" $'cat <<$\'EOF\\0ignored\'\ngit reset --hard\nEOF' 0
+run_test "208 ANSI-C \\\\x00 escape ends the delimiter" $'cat <<$\'EOF\\x00x\'\ndata\nEOF\ngit reset --hard' 2
+run_test "208 ANSI-C UTF-8 byte escapes name é (bytewise)" $'cat <<$\'\\xc3\\xa9\'\ndata\n\xc3\xa9\ngit reset --hard' 2
+run_test "208 ANSI-C UTF-8 byte-escape delimiter body is data" $'cat <<$\'\\xc3\\xa9\'\ngit reset --hard\n\xc3\xa9' 0
+run_test "208 fallback: continued command after an unsupported delimiter" $'cat <<$\'E\\u004fF\'\ndata\nEOF\ngit reset \\\n--hard' 2
 
 echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
 # Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,

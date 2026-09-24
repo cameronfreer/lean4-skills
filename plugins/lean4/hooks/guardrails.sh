@@ -390,9 +390,12 @@ _strip_wrappers() {
 #     delimiter is a line continuation (`<<EO\` + newline + `F` names `EOF`,
 #     still unquoted); an ANSI-C-quoted delimiter (`<<$'EOF'`) names `EOF`
 #     (quoted; \\ \' \" \? \a \b \e \f \n \r \t \v \xHH and octal escapes are
-#     decoded); a delimiter with another escape (\u, \U, \c) is unsupported:
-#     every remaining line is then checked as a command on its own, so an
-#     unbalanced quote in one line cannot hide the lines after it;
+#     decoded as BYTES, and a NUL escape ends the delimiter as it ends a C
+#     string); a delimiter with another escape (\u, \U, \c) is unsupported:
+#     every remaining logical line (backslash-continuations joined) is then
+#     checked as a command on its own, so an unbalanced quote in one line
+#     cannot hide the lines after it — this fallback is conservative for
+#     line-shaped commands, not a general fail-closed guarantee;
 #   * in an unquoted heredoc body a backslash-newline joins physical lines
 #     before the terminator is compared (`EO\` + newline + `F` terminates an
 #     unquoted `<<EOF`); a quoted heredoc is compared line by line;
@@ -608,7 +611,7 @@ function stage_is_receiver(stage,   cw) {
   if (cw == "" || _cw_exp) return 1          # unidentified, or produced by expansion anywhere in the word
   return is_shell_word(cw)
 }
-function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hdash, hunsup, hstart, hend, k, w, q, line_start, pipe_start, body, rest, term, t, nl, lstart, found, hd, hbad, joined, hx, oc, j2) {
+function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hdash, hunsup, hstart, hend, k, w, q, line_start, pipe_start, body, rest, term, t, nl, lstart, found, hd, hbad, joined, hx, oc, j2, v, hnul) {
   len = length(cmd); i = 1; seg = ""; in_sq = 0; in_dq = 0; in_bt = 0; paren = 0; hn = 0; line_start = 1; pipe_start = 1
   while (i <= len) {
     c = substr(cmd, i, 1); nc = substr(cmd, i + 1, 1)
@@ -660,9 +663,10 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
           # backslash and an escaped quote are translated,
           # any other escape is unsupported -> the heredoc is handled
           # conservatively (no body is consumed: everything stays checkable)
-          q = 1; i += 2
+          q = 1; i += 2; hnul = 0
           while (i <= len && substr(cmd, i, 1) != "\047") {
             c = substr(cmd, i, 1)
+            if (hnul) { i += (c == "\\") ? 2 : 1; continue }   # after a NUL: consumed, never part of the word
             if (c == "\\") {
               nc = substr(cmd, i + 1, 1)
               if (nc == "\\" || nc == "\047" || nc == "\"" || nc == "?") { w = w nc; i += 2; continue }
@@ -670,12 +674,16 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
               if (nc == "x" && substr(cmd, i + 2, 1) ~ /[0-9A-Fa-f]/) {
                 hx = substr(cmd, i + 2, 1); j2 = 3
                 if (substr(cmd, i + 3, 1) ~ /[0-9A-Fa-f]/) { hx = hx substr(cmd, i + 3, 1); j2 = 4 }
-                w = w sprintf("%c", hexval(hx)); i += j2; continue
+                v = hexval(hx); i += j2
+                if (v == 0) hnul = 1; else w = w sprintf("%c", v)   # \x00: a NUL ends the C string
+                continue
               }
               if (nc ~ /[0-7]/) {
                 oc = nc; j2 = 2
                 while (j2 < 4 && substr(cmd, i + j2, 1) ~ /[0-7]/) { oc = oc substr(cmd, i + j2, 1); j2++ }
-                w = w sprintf("%c", octval(oc)); i += j2; continue
+                v = octval(oc); i += j2
+                if (v == 0 || v > 255) hnul = 1; else w = w sprintf("%c", v)   # \0 ends the string
+                continue
               }
               hbad = 1   # \u \U \c … : not decoded here -> conservative handling
             }
@@ -723,8 +731,18 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
             # remaining physical line is checked as a command ON ITS OWN (an
             # unbalanced quote in one line cannot hide the lines after it)
             while (length(rest) > 0) {
-              nl = index(rest, "\n")
-              if (nl == 0) { tokenize(rest); rest = "" } else { tokenize(substr(rest, 1, nl - 1)); rest = substr(rest, nl + 1) }
+              # one LOGICAL line: a trailing backslash joins the next physical
+              # line (bash line continuation), so `git reset \` + newline +
+              # `--hard` is checked whole; quotes still do not span lines
+              joined = ""
+              while (1) {
+                nl = index(rest, "\n")
+                if (nl == 0) { term = rest; rest = "" } else { term = substr(rest, 1, nl - 1); rest = substr(rest, nl + 1) }
+                if (term ~ /\\$/ && term !~ /\\\\$/ && length(rest) > 0) { joined = joined substr(term, 1, length(term) - 1); continue }
+                joined = joined term
+                break
+              }
+              tokenize(joined)
             }
             continue
           }
@@ -767,8 +785,12 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
 { _all = _all $0 "\n" }
 END { tokenize(_all) }
 '
+# LC_ALL=C: the tokenizer works on BYTES, like bash does when it compares a
+# heredoc terminator — under a UTF-8 locale gawk would encode sprintf("%c",
+# 195) as a code point (two bytes) and count multibyte characters as one,
+# so a $'\xc3\xa9' delimiter would never equal the literal terminator line.
 _tokenize() {
-  printf '%s' "$1" | awk "$_GR_AWK"
+  printf '%s' "$1" | LC_ALL=C awk "$_GR_AWK"
 }
 
 # Segment normalization in ONE sed process (issue #208; formerly the two
