@@ -370,9 +370,12 @@ _strip_wrappers() {
 # on unquoted &&, ||, ;, | and newlines, tracks '…', "…", $(…), `…`, and
 # applies explicit heredoc semantics:
 #   * `cmd <<'EOF' … EOF` / `<<"EOF"` / `<<E'OF'` / `<<\EOF` (any quoting in
-#     the delimiter word): the body is literal data — skipped, unless the
-#     RECEIVING PIPELINE (bounded by the real `;`/`&&`/`||`/newline
-#     separators) has a shell as its normalized COMMAND WORD in some stage
+#     the delimiter word): the body is literal data — skipped ONLY when every
+#     stage of the RECEIVING PIPELINE (bounded by the real `;`/`&&`/`||`/`&`/
+#     newline separators; a pipeline left open at `|` continues on the line
+#     after the body) has a normalized COMMAND WORD in the known DATA-SINK set
+#     (cat, tee, wc, grep, sed, jq, diff, tar, echo, …). Any other receiver —
+#     a shell in some stage
 #     (`bash <<'EOF'`, `bash<<'EOF'`, `'bash' <<'EOF'`, `/bin/bash <<'EOF'`,
 #     `cat <<'EOF' | sudo bash`, `X='one two' bash <<'EOF'`, `env -u X bash
 #     <<'EOF'`, `2>/dev/null bash <<'EOF'`, `env -S 'bash -x' <<'EOF'`; NOT
@@ -459,6 +462,12 @@ function subst_scan(body,   i, len, c, depth, start) {
         c = substr(body, i, 1)
         if (c == "\\") { i += 2; continue }
         if (c == "\047" || c == "\"") { i = skip_quoted(body, i, len); continue }
+        if (c == "#" && (i == start || substr(body, i - 1, 1) ~ /[ \t\n;|&(]/)) {
+          # a shell comment inside the substitution runs to the newline; a
+          # ")" in it does not close the substitution
+          while (i <= len && substr(body, i, 1) != "\n") i++
+          continue
+        }
         if (c == "(") depth++
         else if (c == ")") depth--
         i++
@@ -480,11 +489,23 @@ function is_shell_word(w) {
   sub(/.*\//, "", w)                       # /bin/bash -> bash
   return (w == "bash" || w == "sh" || w == "zsh" || w == "dash" || w == "ksh")
 }
+function is_data_sink(w) {
+  # commands KNOWN to treat their standard input as data (never as shell or
+  # program text): only a heredoc whose whole receiving pipeline consists
+  # of these is discarded. Anything else — a shell, an interpreter
+  # (python, perl, node, lean …), xargs, ssh, an unknown tool, an expanded
+  # word — keeps the body checkable ("unknown receiver" is never "data").
+  sub(/.*\//, "", w)
+  return w ~ /^(cat|tee|head|tail|wc|grep|egrep|fgrep|sort|uniq|cut|tr|sed|awk|gawk|mawk|nawk|less|more|od|hexdump|xxd|md5sum|sha1sum|sha256sum|sha512sum|shasum|cksum|base64|cmp|diff|dd|file|jq|nl|tac|rev|fold|column|paste|iconv|gzip|gunzip|zcat|bzip2|xz|zstd|tar|true|false|:|echo|printf|test|sleep|read|map[f]ile|read[a]rray|comm|join|expand|unexpand|split|strings|yes|seq|fmt|pr)$/
+}
 function wrapper_takes_operand(wrapper, flag) {
   # options of the supported wrappers that take a separate operand
   if (wrapper == "sudo") return flag ~ /^-(u|g|p|C|h|U|r|t|D|R|T)$/
   if (wrapper == "env") return flag ~ /^(-u|-C|--unset|--chdir)$/
   if (wrapper == "exec") return flag == "-a"
+  if (wrapper == "timeout") return flag ~ /^(-k|-s|--kill-after|--signal)$/
+  if (wrapper == "nice") return flag ~ /^(-n|--adjustment)$/
+  if (wrapper == "stdbuf") return flag ~ /^(-i|-o|-e)$/
   return 0
 }
 function next_word(stage, i,   len, c, w) {
@@ -535,6 +556,7 @@ function stage_cmd_word(stage,   len, i, c, w, bw, flag, op) {
     if (i > len) return ""
     c = substr(stage, i, 1)
     if (c ~ /[0-9]/ && substr(stage, i) ~ /^[0-9]+[<>]/) { while (substr(stage, i, 1) ~ /[0-9]/) i++; c = substr(stage, i, 1) }
+    if (c == "{" && substr(stage, i) ~ /^\{[A-Za-z_][A-Za-z0-9_]*\}[<>]/) { i += index(substr(stage, i), "}"); c = substr(stage, i, 1) }   # {fd}>file
     if (c == "<" || c == ">" || (c == "&" && substr(stage, i + 1, 1) == ">")) {
       # a redirection: skip the operator, then its target (a dup target
       # &N / &- has no word; a file, or a heredoc/here-string word, has one)
@@ -561,7 +583,7 @@ function stage_cmd_word(stage,   len, i, c, w, bw, flag, op) {
     }
     if (!_nw_qname && !_nw_exp && w ~ /^[A-Za-z_][A-Za-z0-9_]*=/) continue   # VAR=value prefix
     bw = w; sub(/.*\//, "", bw)                                  # /usr/bin/env -> env
-    if (!_nw_exp && (bw == "sudo" || bw == "env" || bw == "command" || bw == "exec" || bw == "time")) {
+    if (!_nw_exp && (bw == "sudo" || bw == "env" || bw == "command" || bw == "exec" || bw == "time" || bw == "timeout" || bw == "nice" || bw == "nohup" || bw == "setsid" || bw == "stdbuf")) {
       # exec (builtin; -a NAME -c -l) and time (-p; a quoted time runs
       # /usr/bin/time, which still runs its command) are wrappers too
       # a literal wrapper name — quoted or not (\047env\047 names env) — but
@@ -574,18 +596,20 @@ function stage_cmd_word(stage,   len, i, c, w, bw, flag, op) {
         if (bw == "env" && flag ~ /^--split-string=/) { sub(/^--split-string=/, "", flag); return stage_cmd_word(flag) }
         if (wrapper_takes_operand(bw, flag)) { op = next_word(stage, i); i = _nw_i }
       }
+      if (bw == "timeout") { op = next_word(stage, i); i = _nw_i }   # the DURATION operand precedes the command
       continue
     }
     return w
   }
   return ""
 }
-function pipeline_feeds_shell(text,   n, parts, k, i, len, c, stage, in_sq, in_dq) {
+function pipeline_is_data_sink(text,   n, parts, k, i, len, c, stage, in_sq, in_dq) {
   # the pipeline that RECEIVES the heredoc (its real boundaries: from the
-  # previous ; && || or line start to the next ; && || or newline): true iff
-  # the command word of any stage is a shell — `bash<<EOF`, a quoted bash word,
-  # `/bin/bash <<EOF`, `cat <<EOF | sudo bash`; not `cat - bash <<EOF` (an
-  # argument) and not a separate command after `;`
+  # previous ; && || & or line start to the next one or newline): true iff
+  # EVERY stage is a known data sink — `cat <<EOF`, `cat <<EOF | wc -l`,
+  # `cat - bash <<EOF` (bash is an argument); false for `bash <<EOF`,
+  # `cat <<EOF | sudo bash`, `timeout 30 bash <<EOF`, `python3 <<EOF`, an
+  # unknown tool, an expanded word, or an incomplete pipeline
   len = length(text); stage = ""; in_sq = 0; in_dq = 0
   for (i = 1; i <= len; i++) {
     c = substr(text, i, 1)
@@ -594,24 +618,23 @@ function pipeline_feeds_shell(text,   n, parts, k, i, len, c, stage, in_sq, in_d
     if (c == "\047") { in_sq = 1; stage = stage c; continue }
     if (c == "\"") { in_dq = 1; stage = stage c; continue }
     if (c == "\\") { stage = stage c substr(text, i + 1, 1); i++; continue }
-    if (c == "|" && substr(text, i + 1, 1) != "|") { if (stage_is_receiver(stage)) return 1; stage = ""; continue }
+    if (c == "|" && substr(text, i + 1, 1) == "&") { if (!stage_is_data_sink(stage)) return 0; stage = ""; i++; continue }
+    if (c == "|" && substr(text, i + 1, 1) != "|") { if (!stage_is_data_sink(stage)) return 0; stage = ""; continue }
     stage = stage c
   }
-  return stage_is_receiver(stage)
+  return stage_is_data_sink(stage)
 }
-function stage_is_receiver(stage,   cw) {
-  # a stage receives executable input iff its command word is a shell — or
-  # cannot be identified at all (an empty word in a non-blank stage, or a
-  # word with active expansion ANYWHERE: "$SHELL", /bin/$SH, $(which bash),
-  # `printf bash` — recorded by next_word, never resolved): failing
-  # to identify the receiver is never taken as proof that the body is data
+function stage_is_data_sink(stage,   cw) {
+  # a stage is a data sink iff its command word is identified, literal (no
+  # active expansion anywhere: "$SHELL", /bin/$SH, `printf bash` …) and in
+  # the known-sink set; a blank stage (an incomplete pipeline) is NOT a sink
   if (stage !~ /[^ \t]/) return 0
   _cw_exp = 0
   cw = stage_cmd_word(stage)
-  if (cw == "" || _cw_exp) return 1          # unidentified, or produced by expansion anywhere in the word
-  return is_shell_word(cw)
+  if (cw == "" || _cw_exp) return 0
+  return is_data_sink(cw)
 }
-function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hdash, hunsup, hstart, hend, k, w, q, line_start, pipe_start, body, rest, term, t, nl, lstart, found, hd, hbad, joined, hx, oc, j2, v, hnul) {
+function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hdash, hunsup, hstart, hend, k, w, q, line_start, pipe_start, body, rest, term, t, nl, lstart, found, hd, hbad, joined, hx, oc, j2, v, hnul, cont, r2, nl2) {
   len = length(cmd); i = 1; seg = ""; in_sq = 0; in_dq = 0; in_bt = 0; paren = 0; hn = 0; line_start = 1; pipe_start = 1
   while (i <= len) {
     c = substr(cmd, i, 1); nc = substr(cmd, i + 1, 1)
@@ -764,7 +787,11 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
             if (w == hw[k]) { found = 1; break }
             body = body joined "\n"
           }
-          if (pipeline_feeds_shell(t)) tokenize(body)
+          # a pipeline left open at the newline (`cat <<EOF |`) continues on
+          # the line after the body: include that line before deciding
+          cont = ""
+          if (t ~ /\|&?[ \t]*$/) { r2 = substr(rest, lstart); nl2 = index(r2, "\n"); cont = (nl2 ? substr(r2, 1, nl2 - 1) : r2) }
+          if (!pipeline_is_data_sink(t " " cont)) tokenize(body)
           else if (!hq[k]) subst_scan(body)
           rest = substr(rest, lstart)
         }
@@ -777,7 +804,14 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
     if (c == "&" && nc == "&") { for (k = 1; k <= hn; k++) if (!hend[k]) hend[k] = i; emit(seg); seg = ""; i += 2; pipe_start = i; continue }
     if (c == "|" && nc == "|") { for (k = 1; k <= hn; k++) if (!hend[k]) hend[k] = i; emit(seg); seg = ""; i += 2; pipe_start = i; continue }
     if (c == ";") { for (k = 1; k <= hn; k++) if (!hend[k]) hend[k] = i; emit(seg); seg = ""; i++; pipe_start = i; continue }
+    if (c == "|" && nc == "&") { emit(seg); seg = ""; i += 2; continue }   # |& : same pipeline continues
     if (c == "|") { emit(seg); seg = ""; i++; continue }   # same pipeline continues
+    if (c == "&" && nc != ">" && (i == 1 || substr(cmd, i - 1, 1) !~ /[<>]/)) {
+      # a single & (not &>, >&, <&) ends the list element: what follows is a
+      # new command with its own receiving pipeline
+      for (k = 1; k <= hn; k++) if (!hend[k]) hend[k] = i
+      emit(seg); seg = ""; i++; pipe_start = i; continue
+    }
     seg = seg c; i++
   }
   emit(seg)

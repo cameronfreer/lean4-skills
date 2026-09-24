@@ -940,7 +940,7 @@ run_test "208 unidentified receiver \${SH} is treated as executable" $'${SH} <<\
 run_test "208 expanded receiver /bin/\$SH is treated as executable" $'SH=bash; /bin/$SH <<\'EOF\'\ngit reset --hard\nEOF' 2
 run_test "208 backtick-produced receiver is treated as executable" $'`printf bash` <<\'EOF\'\ngit reset --hard\nEOF' 2
 run_test "208 expansion inside double quotes is active" $'"/bin/$SH" <<\'EOF\'\ngit reset --hard\nEOF' 2
-run_test "208 literal \$ in single quotes is not expansion (data)" $'\'cat$x\' <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 unknown command word (\'cat\$x\') is retained, not data" $'\'cat$x\' <<\'EOF\'\ngit reset --hard\nEOF' 2
 run_test "208 quoted wrapper name \'env\' still normalizes" $'\'env\' bash <<\'EOF\'\ngit reset --hard\nEOF' 2
 run_test "208 quoted wrapper name \"env\" -u X still normalizes" $'"env" -u X bash <<\'EOF\'\ngit reset --hard\nEOF' 2
 run_test "208 quoted non-wrapper command stays data" $'\'cat\' <<\'EOF\'\ngit reset --hard\nEOF' 0
@@ -997,6 +997,27 @@ run_test "208 ANSI-C octal \\\\401 is byte 0x01" $'cat <<$\'E\\401F\'\ndata\nE\0
 run_test "208 ANSI-C octal \\\\703 wraps to 0xc3: \\\\703\\\\251 names é" $'cat <<$\'\\703\\251\'\ndata\n\xc3\xa9\ngit reset --hard' 2
 run_test "208 ANSI-C octal wrapped delimiter body is data" $'cat <<$\'\\703\\251\'\ngit reset --hard\n\xc3\xa9' 0
 run_test "208 ANSI-C \\\\377 delimiter never terminates via JSON (all data, as bash)" $'cat <<$\'E\\377F\'\ngit reset --hard\nE\xef\xbf\xbdF' 0
+# review round 10: data-sink policy (unknown receiver is never data); & separator; named fds;
+# timeout/nice/nohup/setsid/stdbuf wrappers; pipeline continuing after the body; comments inside $( )
+run_test "208 & starts a new receiving command: true & bash" $'true & bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 & separator control: true & cat is data" $'true & cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 &> and >& are redirections, not separators" $'cat <<\'EOF\' &>/dev/null\ngit reset --hard\nEOF' 0
+run_test "208 comment ) does not end a substitution" $'cat <<EOF\n$( # )\ngit reset --hard\n)\nEOF' 2
+run_test "208 comment inside a substitution (harmless) is data" $'cat <<EOF\n$( # git reset --hard\necho ok)\nEOF' 0
+run_test "208 timeout wraps a shell receiver" $'timeout 30 bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 timeout -k 5 30 bash" $'timeout -k 5 30 bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 timeout 30 cat is data" $'timeout 30 cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 nice -n 5 bash / nohup bash / stdbuf -oL bash" $'nice -n 5 nohup stdbuf -oL bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 stdbuf -oL cat is data" $'stdbuf -oL cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 named-fd redirection precedes a shell receiver" $'{fd}>/dev/null bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 named-fd redirection then cat is data" $'{fd}>/dev/null cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 receiving pipeline continues after the body: | bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\nbash' 2
+run_test "208 receiving pipeline continues after the body: | wc -l is data" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\nwc -l' 0
+run_test "208 unknown tool receiver is retained (policy)" $'mytool <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 interpreter receiver is retained: python3" $'python3 <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 xargs receiver is retained" $'xargs -n1 <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 sink pipeline: cat | grep | wc is data" $'cat <<\'EOF\' | grep x | wc -l\ngit reset --hard\nEOF' 0
+run_test "208 sink then shell stage: cat | sh is retained" $'cat <<\'EOF\' | sh\ngit reset --hard\nEOF' 2
 
 echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
 # Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,
