@@ -1018,6 +1018,16 @@ run_test "208 interpreter receiver is retained: python3" $'python3 <<\'EOF\'\ngi
 run_test "208 xargs receiver is retained" $'xargs -n1 <<\'EOF\'\ngit reset --hard\nEOF' 2
 run_test "208 sink pipeline: cat | grep | wc is data" $'cat <<\'EOF\' | grep x | wc -l\ngit reset --hard\nEOF' 0
 run_test "208 sink then shell stage: cat | sh is retained" $'cat <<\'EOF\' | sh\ngit reset --hard\nEOF' 2
+# review round 11: sed/awk are not sinks; continuation joined until the pipeline is complete
+run_test "208 awk system() executes its input: retained" $'awk \'{system($0)}\' <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 gawk receiver is retained" $'gawk \'{print}\' <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 GNU sed e executes its input: retained" $'sed e <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 cat | sed stage is retained" $'cat <<\'EOF\' | sed -n p\ngit reset --hard\nEOF' 2
+run_test "208 open pipeline continued over a backslash line: | bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat \\\n| bash' 2
+run_test "208 open pipeline continued over a backslash line: | wc -l is data" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat \\\n| wc -l' 0
+run_test "208 open pipeline continued over several pipe lines: bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat |\ncat |\nbash' 2
+run_test "208 open pipeline continued over several pipe lines: wc is data" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat |\ncat |\nwc -l' 0
+run_test "208 pipeline still open at end of input is retained" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat |' 2
 
 echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
 # Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,
