@@ -623,6 +623,8 @@ function pipeline_is_data_sink(text,   n, parts, k, i, len, c, stage, in_sq, in_
     if (c == "\047") { in_sq = 1; stage = stage c; continue }
     if (c == "\"") { in_dq = 1; stage = stage c; continue }
     if (c == "\\") { stage = stage c substr(text, i + 1, 1); i++; continue }
+    if (c == "#" && (i == 1 || substr(text, i - 1, 1) ~ /[ \t\n;|&(]/)) { while (i <= len && substr(text, i, 1) != "\n") i++; continue }
+    if (c == "\n") { stage = stage " "; continue }
     if (c == "|" && substr(text, i + 1, 1) == "&") { if (!stage_is_data_sink(stage)) return 0; stage = ""; i++; continue }
     if (c == "|" && substr(text, i + 1, 1) != "|") { if (!stage_is_data_sink(stage)) return 0; stage = ""; continue }
     stage = stage c
@@ -633,6 +635,7 @@ function pipeline_open(text,   i, len, c, in_sq, in_dq, in_bt, depth) {
   # is the pipeline text syntactically INCOMPLETE? — a trailing pipe or
   # backslash, or an unclosed quote, backtick, $( … ) or ( … ): a data-sink
   # classification is never made on an incomplete pipeline
+  # (newlines inside `text` are REAL line boundaries: a comment ends there)
   if (text ~ /(\|&?|\\)[ \t]*$/) return 1
   len = length(text); in_sq = 0; in_dq = 0; in_bt = 0; depth = 0
   for (i = 1; i <= len; i++) {
@@ -641,6 +644,11 @@ function pipeline_open(text,   i, len, c, in_sq, in_dq, in_bt, depth) {
     if (c == "\\") { i++; continue }
     if (in_dq) { if (c == "\"") in_dq = 0; continue }
     if (in_bt) { if (c == "`") in_bt = 0; continue }
+    if (c == "#" && (i == 1 || substr(text, i - 1, 1) ~ /[ \t\n;|&(]/)) {
+      # a shell comment runs to the newline: a ")" or quote in it is nothing
+      while (i <= len && substr(text, i, 1) != "\n") i++
+      continue
+    }
     if (c == "\047") in_sq = 1
     else if (c == "\"") in_dq = 1
     else if (c == "`") in_bt = 1
@@ -818,13 +826,14 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
           # pipeline is syntactically complete before deciding; if the input
           # ends while it is still open, the receiver is unknown (retained)
           cont = ""; r2 = substr(rest, lstart); hopen = 0
-          while (pipeline_open(t " " cont)) {
-            sub(/\\$/, "", cont)   # the previous line ended in a backslash: join
+          while (pipeline_open(t cont)) {
+            if (cont ~ /\\$/) sub(/\\$/, " ", cont)   # backslash-newline: the lines join
+            else cont = cont "\n"                     # otherwise a real line boundary (comments end here)
             if (length(r2) == 0) { hopen = 1; break }   # still open at end of input: receiver unknown
             nl2 = index(r2, "\n")
-            if (nl2 == 0) { cont = cont " " r2; r2 = "" } else { cont = cont " " substr(r2, 1, nl2 - 1); r2 = substr(r2, nl2 + 1) }
+            if (nl2 == 0) { cont = cont r2; r2 = "" } else { cont = cont substr(r2, 1, nl2 - 1); r2 = substr(r2, nl2 + 1) }
           }
-          if (hopen || !pipeline_is_data_sink(t " " cont)) tokenize(body)
+          if (hopen || !pipeline_is_data_sink(t cont)) tokenize(body)
           else if (!hq[k]) subst_scan(body)
           rest = substr(rest, lstart)
         }
