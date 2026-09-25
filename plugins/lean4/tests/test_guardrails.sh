@@ -1040,6 +1040,13 @@ run_test "208 open pipeline: comment ) inside \$( ) does not close it, then | ba
 run_test "208 open pipeline: comment ) inside \$( ), then | wc -l is data" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $( # )\ntrue\n) | wc -l' 0
 run_test "208 open pipeline: a comment line ends at its newline (next line counts)" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $( # comment | wc -l\ntrue\n) | bash' 2
 run_test "208 open pipeline: comment hides nothing after a real newline (data)" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $( # bash\ntrue\n) | wc -l' 0
+# review round 14: unclosed ${…} keeps the pipeline open; backslash-newline joins without a separator
+run_test "208 open pipeline: multi-line \${…} expansion then | bash" $'unset REVIEW_UNSET\ncat <<\'EOF\' |\ngit reset --hard\nEOF\ncat ${REVIEW_UNSET:+\nignored\n} | bash' 2
+run_test "208 open pipeline: multi-line \${…} expansion then | wc -l is data" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat ${X:+\nignored\n} | wc -l' 0
+run_test "208 open pipeline: \${…} inside double quotes then | bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat "${X:+\nignored\n}" | bash' 2
+run_test "208 unclosed \${ at end of input is retained" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat ${X:+' 2
+run_test "208 backslash-newline joins words: cat\\\\<nl>sh is the unknown command catsh" $'catsh() { bash; }\ncat <<\'EOF\' |\ngit reset --hard\nEOF\ncat\\\nsh' 2
+run_test "208 backslash-newline joins words: ca\\\\<nl>t is cat (data)" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\nca\\\nt' 0
 
 echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
 # Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,

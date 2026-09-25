@@ -631,18 +631,26 @@ function pipeline_is_data_sink(text,   n, parts, k, i, len, c, stage, in_sq, in_
   }
   return stage_is_data_sink(stage)
 }
-function pipeline_open(text,   i, len, c, in_sq, in_dq, in_bt, depth) {
+function pipeline_open(text,   i, len, c, in_sq, in_dq, in_bt, depth, bdepth) {
   # is the pipeline text syntactically INCOMPLETE? — a trailing pipe or
   # backslash, or an unclosed quote, backtick, $( … ) or ( … ): a data-sink
   # classification is never made on an incomplete pipeline
   # (newlines inside `text` are REAL line boundaries: a comment ends there)
   if (text ~ /(\|&?|\\)[ \t]*$/) return 1
-  len = length(text); in_sq = 0; in_dq = 0; in_bt = 0; depth = 0
+  len = length(text); in_sq = 0; in_dq = 0; in_bt = 0; depth = 0; bdepth = 0
   for (i = 1; i <= len; i++) {
     c = substr(text, i, 1)
     if (in_sq) { if (c == "\047") in_sq = 0; continue }
     if (c == "\\") { i++; continue }
-    if (in_dq) { if (c == "\"") in_dq = 0; continue }
+    if (in_dq) {
+      # inside double quotes ${…} and $(…) still open: track them there too
+      if (c == "\"") in_dq = 0
+      else if (c == "$" && substr(text, i + 1, 1) == "{") { bdepth++; i++ }
+      else if (c == "$" && substr(text, i + 1, 1) == "(") { depth++; i++ }
+      else if (c == "}" && bdepth > 0) bdepth--
+      else if (c == ")" && depth > 0) depth--
+      continue
+    }
     if (in_bt) { if (c == "`") in_bt = 0; continue }
     if (c == "#" && (i == 1 || substr(text, i - 1, 1) ~ /[ \t\n;|&(]/)) {
       # a shell comment runs to the newline: a ")" or quote in it is nothing
@@ -652,10 +660,14 @@ function pipeline_open(text,   i, len, c, in_sq, in_dq, in_bt, depth) {
     if (c == "\047") in_sq = 1
     else if (c == "\"") in_dq = 1
     else if (c == "`") in_bt = 1
+    else if (c == "$" && substr(text, i + 1, 1) == "{") { bdepth++; i++ }   # ${…} parameter expansion
     else if (c == "(") depth++
     else if (c == ")") depth--
+    else if (c == "}" && bdepth > 0) bdepth--
   }
-  return (in_sq || in_dq || in_bt || depth > 0)
+  # any unclosed construct — quote, backtick, ( … ), $( … ), ${ … } — means
+  # the pipeline is not complete; unmodeled syntax is never taken as complete
+  return (in_sq || in_dq || in_bt || depth > 0 || bdepth > 0)
 }
 function stage_is_data_sink(stage,   cw) {
   # a stage is a data sink iff its command word is identified, literal (no
@@ -827,7 +839,7 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
           # ends while it is still open, the receiver is unknown (retained)
           cont = ""; r2 = substr(rest, lstart); hopen = 0
           while (pipeline_open(t cont)) {
-            if (cont ~ /\\$/) sub(/\\$/, " ", cont)   # backslash-newline: the lines join
+            if (cont ~ /\\$/) sub(/\\$/, "", cont)    # backslash-newline: both vanish, NO separator (cat\ + sh = catsh)
             else cont = cont "\n"                     # otherwise a real line boundary (comments end here)
             if (length(r2) == 0) { hopen = 1; break }   # still open at end of input: receiver unknown
             nl2 = index(r2, "\n")
