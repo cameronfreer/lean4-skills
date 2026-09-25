@@ -372,8 +372,10 @@ _strip_wrappers() {
 #   * `cmd <<'EOF' … EOF` / `<<"EOF"` / `<<E'OF'` / `<<\EOF` (any quoting in
 #     the delimiter word): the body is literal data — skipped ONLY when every
 #     stage of the RECEIVING PIPELINE (bounded by the real `;`/`&&`/`||`/`&`/
-#     newline separators; a pipeline left open at `|` continues on the line
-#     after the body) has a normalized COMMAND WORD in the known DATA-SINK set
+#     newline separators; a pipeline left syntactically open — trailing `|`
+#     or `\`, an unclosed quote, backtick, `$(` or `(` — continues on the
+#     lines after the body and is never classified while open) has a
+#     normalized COMMAND WORD in the known DATA-SINK set
 #     (cat, tee, wc, grep, sed, jq, diff, tar, echo, …). Any other receiver —
 #     a shell in some stage
 #     (`bash <<'EOF'`, `bash<<'EOF'`, `'bash' <<'EOF'`, `/bin/bash <<'EOF'`,
@@ -627,6 +629,26 @@ function pipeline_is_data_sink(text,   n, parts, k, i, len, c, stage, in_sq, in_
   }
   return stage_is_data_sink(stage)
 }
+function pipeline_open(text,   i, len, c, in_sq, in_dq, in_bt, depth) {
+  # is the pipeline text syntactically INCOMPLETE? — a trailing pipe or
+  # backslash, or an unclosed quote, backtick, $( … ) or ( … ): a data-sink
+  # classification is never made on an incomplete pipeline
+  if (text ~ /(\|&?|\\)[ \t]*$/) return 1
+  len = length(text); in_sq = 0; in_dq = 0; in_bt = 0; depth = 0
+  for (i = 1; i <= len; i++) {
+    c = substr(text, i, 1)
+    if (in_sq) { if (c == "\047") in_sq = 0; continue }
+    if (c == "\\") { i++; continue }
+    if (in_dq) { if (c == "\"") in_dq = 0; continue }
+    if (in_bt) { if (c == "`") in_bt = 0; continue }
+    if (c == "\047") in_sq = 1
+    else if (c == "\"") in_dq = 1
+    else if (c == "`") in_bt = 1
+    else if (c == "(") depth++
+    else if (c == ")") depth--
+  }
+  return (in_sq || in_dq || in_bt || depth > 0)
+}
 function stage_is_data_sink(stage,   cw) {
   # a stage is a data sink iff its command word is identified, literal (no
   # active expansion anywhere: "$SHELL", /bin/$SH, `printf bash` …) and in
@@ -637,7 +659,7 @@ function stage_is_data_sink(stage,   cw) {
   if (cw == "" || _cw_exp) return 0
   return is_data_sink(cw)
 }
-function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hdash, hunsup, hstart, hend, k, w, q, line_start, pipe_start, body, rest, term, t, nl, lstart, found, hd, hbad, joined, hx, oc, j2, v, hnul, cont, r2, nl2) {
+function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hdash, hunsup, hstart, hend, k, w, q, line_start, pipe_start, body, rest, term, t, nl, lstart, found, hd, hbad, joined, hx, oc, j2, v, hnul, cont, r2, nl2, hopen) {
   len = length(cmd); i = 1; seg = ""; in_sq = 0; in_dq = 0; in_bt = 0; paren = 0; hn = 0; line_start = 1; pipe_start = 1
   while (i <= len) {
     c = substr(cmd, i, 1); nc = substr(cmd, i + 1, 1)
@@ -795,14 +817,14 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
           # backslash-newlines and further trailing pipes — until the
           # pipeline is syntactically complete before deciding; if the input
           # ends while it is still open, the receiver is unknown (retained)
-          cont = ""; r2 = substr(rest, lstart)
-          while (t " " cont ~ /(\|&?|\\)[ \t]*$/) {
+          cont = ""; r2 = substr(rest, lstart); hopen = 0
+          while (pipeline_open(t " " cont)) {
             sub(/\\$/, "", cont)   # the previous line ended in a backslash: join
-            if (length(r2) == 0) { cont = cont " $INCOMPLETE"; break }   # open at end of input: not a sink
+            if (length(r2) == 0) { hopen = 1; break }   # still open at end of input: receiver unknown
             nl2 = index(r2, "\n")
             if (nl2 == 0) { cont = cont " " r2; r2 = "" } else { cont = cont " " substr(r2, 1, nl2 - 1); r2 = substr(r2, nl2 + 1) }
           }
-          if (!pipeline_is_data_sink(t " " cont)) tokenize(body)
+          if (hopen || !pipeline_is_data_sink(t " " cont)) tokenize(body)
           else if (!hq[k]) subst_scan(body)
           rest = substr(rest, lstart)
         }

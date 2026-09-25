@@ -1028,6 +1028,13 @@ run_test "208 open pipeline continued over a backslash line: | wc -l is data" $'
 run_test "208 open pipeline continued over several pipe lines: bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat |\ncat |\nbash' 2
 run_test "208 open pipeline continued over several pipe lines: wc is data" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat |\ncat |\nwc -l' 0
 run_test "208 pipeline still open at end of input is retained" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat |' 2
+# review round 12: syntactic completeness — unclosed $( ), ( ), quotes, backticks
+run_test "208 open pipeline: continuation with a multi-line \$( ) then | bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $(\ntrue\n) | bash' 2
+run_test "208 open pipeline: multi-line \$( ) then | wc -l is data" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $(\ntrue\n) | wc -l' 0
+run_test "208 open pipeline: multi-line quoted argument then | bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ngrep "a\nb" | bash' 2
+run_test "208 open pipeline: multi-line backtick then | sh" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat `\ntrue\n` | sh' 2
+run_test "208 open pipeline: subshell continuation then | bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\n(\ncat\n) | bash' 2
+run_test "208 unclosed \$( ) at end of input is retained" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $(' 2
 
 echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
 # Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,
