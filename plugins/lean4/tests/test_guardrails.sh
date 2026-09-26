@@ -1063,6 +1063,14 @@ run_test "208 brace-group receiver of a direct heredoc" $'{ true; bash; } <<\'EO
 run_test "208 brace group with only sinks is still retained (conservative)" $'cat <<\'EOF\' | { true; cat; }\ngit reset --hard\nEOF' 2
 run_test "208 simple control kept: cat | wc -l" $'cat <<\'EOF\' | wc -l\ngit reset --hard\nEOF' 0
 run_test "208 simple control kept: cat > quoted-var file" $'f=x; cat > "$f" <<\'EOF\'\ngit reset --hard\nEOF' 0
+# review round 17: split --filter and tar -I execute their input — not sinks
+run_test "208 split --filter=bash is retained" $'split --filter=bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 cat | split --filter=bash is retained" $'cat <<\'EOF\' | split --filter=bash\ngit reset --hard\nEOF' 2
+run_test "208 plain split is retained too (no option analysis)" $'split -l 1 <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 tar -I \'bash -s --\' is retained" $'tar -I \'bash -s --\' -tf - <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 cat | tar -I bash is retained" $'cat <<\'EOF\' | tar -I \'bash -s --\' -tf -\ngit reset --hard\nEOF' 2
+run_test "208 plain tar -tf - is retained too (no option analysis)" $'tar -tf - <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 gzip stays a sink" $'cat <<\'EOF\' | gzip > out.gz\ngit reset --hard\nEOF' 0
 
 echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
 # Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,

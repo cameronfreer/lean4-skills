@@ -499,11 +499,13 @@ function is_data_sink(w) {
   # of these is discarded. Anything else — a shell, an interpreter
   # (python, perl, node, lean …), xargs, ssh, an unknown tool, an expanded
   # word — keeps the body checkable ("unknown receiver" is never "data").
-  # sed and the awk family are deliberately NOT here: awk system()/"|cmd"
-  # and GNU sed e can execute input lines, and no attempt is made to prove
-  # a sed/awk program harmless.
+  # sed, the awk family, split and tar are deliberately NOT here: awk
+  # system()/"|cmd" and GNU sed e can execute input lines, split --filter
+  # pipes its input through a shell command, and tar -I / --use-compress-
+  # program feeds its input to a supplied program; no attempt is made to
+  # prove their options harmless.
   sub(/.*\//, "", w)
-  return w ~ /^(cat|tee|head|tail|wc|grep|egrep|fgrep|sort|uniq|cut|tr|less|more|od|hexdump|xxd|md5sum|sha1sum|sha256sum|sha512sum|shasum|cksum|base64|cmp|diff|dd|file|jq|nl|tac|rev|fold|column|paste|iconv|gzip|gunzip|zcat|bzip2|xz|zstd|tar|true|false|:|echo|printf|test|sleep|read|map[f]ile|read[a]rray|comm|join|expand|unexpand|split|strings|yes|seq|fmt|pr)$/
+  return w ~ /^(cat|tee|head|tail|wc|grep|egrep|fgrep|sort|uniq|cut|tr|less|more|od|hexdump|xxd|md5sum|sha1sum|sha256sum|sha512sum|shasum|cksum|base64|cmp|diff|dd|file|jq|nl|tac|rev|fold|column|paste|iconv|gzip|gunzip|zcat|bzip2|xz|zstd|true|false|:|echo|printf|test|sleep|read|map[f]ile|read[a]rray|comm|join|expand|unexpand|strings|yes|seq|fmt|pr)$/
 }
 function wrapper_takes_operand(wrapper, flag) {
   # options of the supported wrappers that take a separate operand
