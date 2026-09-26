@@ -865,7 +865,7 @@ run_test "208 guarded command after the terminator is checked" $'cat > n.md <<\'
 run_test "208 allowed command after the terminator" $'cat > n.md <<\'EOF\'\ngit reset --hard\nEOF\ngit status' 0
 run_test "208 <<- tab-indented terminator ends the body" "cat <<-'EOF'"$'\n'"${_TAB}git reset --hard"$'\n'"${_TAB}EOF"$'\n'"git status" 0
 run_test "208 <<- body then a blocked command" "cat <<-'EOF'"$'\n'"${_TAB}doc"$'\n'"${_TAB}EOF"$'\n'"git reset --hard" 2
-run_test "208 two heredocs on one line: both bodies are data" $'diff <(cat <<\'A\') <(cat <<\'B\')\ngit reset --hard\nA\ngit clean -f\nB' 0
+run_test "208 two heredocs on one line inside <( ): nested ⇒ retained (conservative)" $'diff <(cat <<\'A\') <(cat <<\'B\')\ngit reset --hard\nA\ngit clean -f\nB' 2
 run_test "208 two heredocs on one line, then a blocked command" $'diff <(cat <<\'A\') <(cat <<\'B\')\nx\nA\ny\nB\ngit reset --hard' 2
 run_test "208 unterminated quoted heredoc: body to EOF is data" $'cat > n.md <<\'EOF\'\ngit reset --hard\nno terminator' 0
 run_test "208 unterminated unquoted heredoc: substitution still checked" $'cat > n.md <<EOF\n$(git reset --hard)\nno terminator' 2
@@ -1030,23 +1030,31 @@ run_test "208 open pipeline continued over several pipe lines: wc is data" $'cat
 run_test "208 pipeline still open at end of input is retained" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat |' 2
 # review round 12: syntactic completeness — unclosed $( ), ( ), quotes, backticks
 run_test "208 open pipeline: continuation with a multi-line \$( ) then | bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $(\ntrue\n) | bash' 2
-run_test "208 open pipeline: multi-line \$( ) then | wc -l is data" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $(\ntrue\n) | wc -l' 0
+run_test "208 open pipeline: multi-line \$( ) then | wc -l ⇒ nested, retained" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $(\ntrue\n) | wc -l' 2
 run_test "208 open pipeline: multi-line quoted argument then | bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ngrep "a\nb" | bash' 2
 run_test "208 open pipeline: multi-line backtick then | sh" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat `\ntrue\n` | sh' 2
 run_test "208 open pipeline: subshell continuation then | bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\n(\ncat\n) | bash' 2
 run_test "208 unclosed \$( ) at end of input is retained" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $(' 2
 # review round 13: comments inside the continuation are respected; line boundaries preserved
 run_test "208 open pipeline: comment ) inside \$( ) does not close it, then | bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $( # )\ntrue\n) | bash' 2
-run_test "208 open pipeline: comment ) inside \$( ), then | wc -l is data" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $( # )\ntrue\n) | wc -l' 0
+run_test "208 open pipeline: comment ) inside \$( ), then | wc -l ⇒ nested, retained" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $( # )\ntrue\n) | wc -l' 2
 run_test "208 open pipeline: a comment line ends at its newline (next line counts)" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $( # comment | wc -l\ntrue\n) | bash' 2
-run_test "208 open pipeline: comment hides nothing after a real newline (data)" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $( # bash\ntrue\n) | wc -l' 0
+run_test "208 open pipeline: \$( ) with a comment then | wc -l ⇒ nested, retained" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $( # bash\ntrue\n) | wc -l' 2
 # review round 14: unclosed ${…} keeps the pipeline open; backslash-newline joins without a separator
 run_test "208 open pipeline: multi-line \${…} expansion then | bash" $'unset REVIEW_UNSET\ncat <<\'EOF\' |\ngit reset --hard\nEOF\ncat ${REVIEW_UNSET:+\nignored\n} | bash' 2
-run_test "208 open pipeline: multi-line \${…} expansion then | wc -l is data" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat ${X:+\nignored\n} | wc -l' 0
+run_test "208 open pipeline: multi-line \${…} then | wc -l ⇒ nested, retained" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat ${X:+\nignored\n} | wc -l' 2
 run_test "208 open pipeline: \${…} inside double quotes then | bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat "${X:+\nignored\n}" | bash' 2
 run_test "208 unclosed \${ at end of input is retained" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat ${X:+' 2
 run_test "208 backslash-newline joins words: cat\\\\<nl>sh is the unknown command catsh" $'catsh() { bash; }\ncat <<\'EOF\' |\ngit reset --hard\nEOF\ncat\\\nsh' 2
 run_test "208 backslash-newline joins words: ca\\\\<nl>t is cat (data)" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\nca\\\nt' 0
+# review round 15: narrowed boundary — nested expansion in the receiving pipeline ⇒ unknown, retained
+run_test "208 comment inside \$( ) inside quotes then | bash (combined)" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat "$(printf \'%s\' - # )"\n)" | bash' 2
+run_test "208 receiver with \$( ) is never data-only (conservative)" $'cat "$(printf x)" <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver with backticks is never data-only" $'cat `printf x` <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver with a subshell is never data-only" $'( cat ) <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 simple receiver with \$var stays data" $'f=x; cat > "$f" <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 simple receiver with bare \${NAME} stays data" $'f=x; cat > "${f}.lean" <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 simple receiver: cat > file | tee stays data" $'cat <<\'EOF\' | tee out.txt\ngit reset --hard\nEOF' 0
 
 echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
 # Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,

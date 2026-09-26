@@ -372,9 +372,12 @@ _strip_wrappers() {
 #   * `cmd <<'EOF' … EOF` / `<<"EOF"` / `<<E'OF'` / `<<\EOF` (any quoting in
 #     the delimiter word): the body is literal data — skipped ONLY when every
 #     stage of the RECEIVING PIPELINE (bounded by the real `;`/`&&`/`||`/`&`/
-#     newline separators; a pipeline left syntactically open — trailing `|`
-#     or `\`, an unclosed quote, backtick, `$(` or `(` — continues on the
-#     lines after the body and is never classified while open) has a
+#     newline separators; a pipeline left open — trailing `|` or `\`, an
+#     unclosed quote — continues on the lines after the body and is never
+#     classified while open; a pipeline containing any NESTED expansion
+#     context — `$( … )`, backticks, `${ … }` beyond a bare `${NAME}`, a
+#     subshell or group `( … )` — is never classified at all: its receiver
+#     is unknown and the body is retained) has a
 #     normalized COMMAND WORD in the known DATA-SINK set
 #     (cat, tee, wc, grep, sed, jq, diff, tar, echo, …). Any other receiver —
 #     a shell in some stage
@@ -631,43 +634,37 @@ function pipeline_is_data_sink(text,   n, parts, k, i, len, c, stage, in_sq, in_
   }
   return stage_is_data_sink(stage)
 }
-function pipeline_open(text,   i, len, c, in_sq, in_dq, in_bt, depth, bdepth) {
-  # is the pipeline text syntactically INCOMPLETE? — a trailing pipe or
-  # backslash, or an unclosed quote, backtick, $( … ) or ( … ): a data-sink
-  # classification is never made on an incomplete pipeline
-  # (newlines inside `text` are REAL line boundaries: a comment ends there)
+function pipeline_open(text,   i, len, c, in_sq, in_dq) {
+  # Is the receiving pipeline still INCOMPLETE (keep joining lines), and is
+  # it SIMPLE enough to classify at all? Only plain quotes and comments are
+  # modeled here. Any nested expansion context — $( … ), backticks, ${ … }
+  # beyond a bare ${NAME}, a subshell/group ( … ) — sets _po_nested: such a
+  # pipeline is never classified as data-only (the receiver is UNKNOWN and
+  # the body is retained), so its inner syntax need not be parsed.
+  # Newlines inside `text` are real line boundaries (a comment ends there).
+  _po_nested = 0
   if (text ~ /(\|&?|\\)[ \t]*$/) return 1
-  len = length(text); in_sq = 0; in_dq = 0; in_bt = 0; depth = 0; bdepth = 0
+  len = length(text); in_sq = 0; in_dq = 0
   for (i = 1; i <= len; i++) {
     c = substr(text, i, 1)
     if (in_sq) { if (c == "\047") in_sq = 0; continue }
     if (c == "\\") { i++; continue }
-    if (in_dq) {
-      # inside double quotes ${…} and $(…) still open: track them there too
-      if (c == "\"") in_dq = 0
-      else if (c == "$" && substr(text, i + 1, 1) == "{") { bdepth++; i++ }
-      else if (c == "$" && substr(text, i + 1, 1) == "(") { depth++; i++ }
-      else if (c == "}" && bdepth > 0) bdepth--
-      else if (c == ")" && depth > 0) depth--
-      continue
+    if (c == "$" && substr(text, i + 1, 1) == "{") {
+      if (substr(text, i) ~ /^\$\{[A-Za-z_][A-Za-z0-9_]*\}/) { i += index(substr(text, i), "}") - 1; continue }   # bare ${NAME}
+      _po_nested = 1; return 0
     }
-    if (in_bt) { if (c == "`") in_bt = 0; continue }
+    if (c == "$" && substr(text, i + 1, 1) == "(") { _po_nested = 1; return 0 }
+    if (c == "`") { _po_nested = 1; return 0 }
+    if (in_dq) { if (c == "\"") in_dq = 0; continue }
     if (c == "#" && (i == 1 || substr(text, i - 1, 1) ~ /[ \t\n;|&(]/)) {
-      # a shell comment runs to the newline: a ")" or quote in it is nothing
-      while (i <= len && substr(text, i, 1) != "\n") i++
+      while (i <= len && substr(text, i, 1) != "\n") i++   # a comment runs to the newline
       continue
     }
+    if (c == "(" || c == ")") { _po_nested = 1; return 0 }
     if (c == "\047") in_sq = 1
     else if (c == "\"") in_dq = 1
-    else if (c == "`") in_bt = 1
-    else if (c == "$" && substr(text, i + 1, 1) == "{") { bdepth++; i++ }   # ${…} parameter expansion
-    else if (c == "(") depth++
-    else if (c == ")") depth--
-    else if (c == "}" && bdepth > 0) bdepth--
   }
-  # any unclosed construct — quote, backtick, ( … ), $( … ), ${ … } — means
-  # the pipeline is not complete; unmodeled syntax is never taken as complete
-  return (in_sq || in_dq || in_bt || depth > 0 || bdepth > 0)
+  return (in_sq || in_dq)
 }
 function stage_is_data_sink(stage,   cw) {
   # a stage is a data sink iff its command word is identified, literal (no
@@ -837,7 +834,7 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
           # backslash-newlines and further trailing pipes — until the
           # pipeline is syntactically complete before deciding; if the input
           # ends while it is still open, the receiver is unknown (retained)
-          cont = ""; r2 = substr(rest, lstart); hopen = 0
+          cont = ""; r2 = substr(rest, lstart); hopen = 0; _po_nested = 0
           while (pipeline_open(t cont)) {
             if (cont ~ /\\$/) sub(/\\$/, "", cont)    # backslash-newline: both vanish, NO separator (cat\ + sh = catsh)
             else cont = cont "\n"                     # otherwise a real line boundary (comments end here)
@@ -845,7 +842,10 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
             nl2 = index(r2, "\n")
             if (nl2 == 0) { cont = cont r2; r2 = "" } else { cont = cont substr(r2, 1, nl2 - 1); r2 = substr(r2, nl2 + 1) }
           }
-          if (hopen || !pipeline_is_data_sink(t cont)) tokenize(body)
+          # retained unless the receiver is a COMPLETE, SIMPLE, all-data-sink
+          # pipeline: still open at end of input, nested expansion contexts,
+          # or any non-sink stage ⇒ the body is checked as command text
+          if (hopen || _po_nested || !pipeline_is_data_sink(t cont)) tokenize(body)
           else if (!hq[k]) subst_scan(body)
           rest = substr(rest, lstart)
         }
