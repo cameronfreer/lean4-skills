@@ -279,7 +279,7 @@ run_test_destructive_policy "allow: checkout -b newbranch start-point"      ""  
 # destructive policy.
 run_test_destructive_policy "unset: checkout --ours file (block=ask)"       "" "git checkout --ours file.lean"                          2
 run_test_destructive_policy "unset: checkout --theirs file (block=ask)"     "" "git checkout --theirs file.lean"                        2
-# --merge is the long form of -m. Unlike short -m (which _strip_optvals
+# --merge is the long form of -m. Unlike short -m (which _normalize_tokens
 # removes pre-emptively to support `git commit -m "msg"`), the long
 # form survives normalization and IS gated here.
 run_test_destructive_policy "unset: checkout --merge file (block=ask)"      "" "git checkout --merge file.lean"                         2
@@ -297,7 +297,7 @@ run_test_destructive_policy "unset: checkout -3 file (block=ask)"           "" "
 run_test_destructive_policy "allow: checkout -2 file"                       allow "git checkout -2 file.lean"                          0
 run_test_destructive_policy "allow: checkout -3 file"                       allow "git checkout -3 file.lean"                          0
 run_test_destructive_policy "bypass: checkout -2 file"                      "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout -2 file.lean"   0
-# Note: -m is not covered — see _strip_optvals limitation comment in guardrails.sh
+# Note: -m is not covered — see the _normalize_tokens limitation comment in guardrails.sh
 run_test_destructive_policy "allow: checkout --ours file"                   allow "git checkout --ours file.lean"                      0
 run_test_destructive_policy "allow: checkout --theirs src/foo.lean"         allow "git checkout --theirs src/foo.lean"                  0
 run_test_destructive_policy "bypass: checkout --ours file"                  "" "LEAN4_GUARDRAILS_BYPASS=1 git checkout --ours file.lean" 0
@@ -434,7 +434,7 @@ run_test_destructive_policy "git checkout -f .                (always block)" al
 run_test_destructive_policy "git checkout --force ./          (always block)" allow "git checkout --force ./"                           2
 run_test_destructive_policy "git checkout --ours .            (always block)" allow "git checkout --ours ."                             2
 run_test_destructive_policy "git checkout --theirs :/         (always block)" allow "git checkout --theirs :/"                          2
-# Note: -m is not covered — see _strip_optvals limitation comment in guardrails.sh
+# Note: -m is not covered — see the _normalize_tokens limitation comment in guardrails.sh
 # --pathspec-from-file always hard-blocks (paths hidden in a file)
 run_test_destructive_policy "git checkout --pathspec-from-file (always block)" allow "git checkout --pathspec-from-file=paths.txt"      2
 run_test_destructive_policy "git checkout HEAD --pathspec-from-file (always block)" allow "git checkout HEAD --pathspec-from-file=paths.txt" 2
@@ -842,6 +842,252 @@ project"
   if (( _rc == 2 )); then p193 "jq-absent: newline-in-cwd Lean project enforced"; else f193 "jq-absent: newline-in-cwd Lean project not enforced (rc=$_rc)"; fi
 fi
 rm -rf "$_j"
+# ---------------------------------------------------------------------------
+# Issue #208: heredoc semantics and parsing cost. The hook must (a) treat a
+# quoted heredoc body as data, (b) still check executable heredoc input —
+# a shell-fed body (even with a quoted delimiter) and the $(…)/`…`
+# substitutions of an unquoted body — (c) keep checking commands after the
+# terminator, and (d) stay far inside the 5 s hook deadline on large input.
+# ---------------------------------------------------------------------------
+echo ""
+echo "--- #208: heredoc bodies are data; executable heredoc input is checked ---"
+_TAB=$'\t'
+run_test "208 quoted heredoc body: literal reset --hard is data" $'cat > notes.md <<\'EOF\'\nDo not do this:\ngit reset --hard\nEOF' 0
+run_test "208 double-quoted delimiter body is data" $'cat > n.md <<"EOF"\ngit reset --hard\nEOF' 0
+run_test "208 backslash-escaped delimiter body is data" $'cat > n.md <<\\EOF\ngit reset --hard\nEOF' 0
+run_test "208 unquoted body: literal text is data" $'cat > n.md <<EOF\ngit reset --hard\nEOF' 0
+run_test "208 unquoted body: \$(…) substitution is executable" $'cat > n.md <<EOF\nx $(git reset --hard)\nEOF' 2
+run_test "208 unquoted body: backtick substitution is executable" $'cat > n.md <<EOF\nx `git clean -fd`\nEOF' 2
+run_test "208 unquoted body: \$(git push) soft-gated (policy ask)" $'cat > n.md <<EOF\nx $(git push origin main)\nEOF' 2
+run_test "208 bash-fed quoted body is executable input" $'bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 sh-fed via pipe, quoted body is executable input" $'cat <<\'EOF\' | sh\ngit reset --hard\nEOF' 2
+run_test "208 guarded command after the terminator is checked" $'cat > n.md <<\'EOF\'\nhello\nEOF\ngit reset --hard' 2
+run_test "208 allowed command after the terminator" $'cat > n.md <<\'EOF\'\ngit reset --hard\nEOF\ngit status' 0
+run_test "208 <<- tab-indented terminator ends the body" "cat <<-'EOF'"$'\n'"${_TAB}git reset --hard"$'\n'"${_TAB}EOF"$'\n'"git status" 0
+run_test "208 <<- body then a blocked command" "cat <<-'EOF'"$'\n'"${_TAB}doc"$'\n'"${_TAB}EOF"$'\n'"git reset --hard" 2
+run_test "208 two heredocs on one line inside <( ): nested ⇒ retained (conservative)" $'diff <(cat <<\'A\') <(cat <<\'B\')\ngit reset --hard\nA\ngit clean -f\nB' 2
+run_test "208 two heredocs on one line, then a blocked command" $'diff <(cat <<\'A\') <(cat <<\'B\')\nx\nA\ny\nB\ngit reset --hard' 2
+run_test "208 unterminated quoted heredoc: body to EOF is data" $'cat > n.md <<\'EOF\'\ngit reset --hard\nno terminator' 0
+run_test "208 unterminated unquoted heredoc: substitution still checked" $'cat > n.md <<EOF\n$(git reset --hard)\nno terminator' 2
+run_test "208 here-string is not a heredoc (quoted literal)" $'cat <<< "git reset --hard"' 0
+run_test "208 heredoc inside \$( ), then a blocked command" $'x=$(cat <<\'EOF\'\ndoc\nEOF\n); git reset --hard' 2
+run_test "208 fast path never excludes a path-qualified git" $'/usr/bin/git reset --hard' 2
+run_test "208 fast path never excludes bash -c" $'bash -c \'git reset --hard\'' 2
+run_test "208 fast path never excludes env prefixes" $'env FOO=1 git reset --hard' 2
+run_test "208 fast path never excludes VAR= prefixes" $'FOO=1 git reset --hard' 2
+run_test "208 fast path never excludes a Lean-script token" $'lean4-skills-run-store load 2>/dev/null' 2
+run_test "208 fast path allows unrelated input" $'echo hello; ls -la; python3 -c "print(1)"' 0
+# review round 1: lexer corrections
+run_test "208 path-qualified shell receiving a heredoc is executable" $'/bin/bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 sudo-prefixed shell receiving a heredoc is executable" $'sudo bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 partially quoted delimiter E\'OF\' names EOF" $'cat <<E\'OF\'\ndocument text\nEOF\ngit reset --hard' 2
+run_test "208 partially quoted delimiter body is data" $'cat <<E\'OF\'\ngit reset --hard\nEOF' 0
+run_test "208 delimiter with \"quoted\" middle names EOF" $'cat <<"E"OF\nx\nEOF\ngit reset --hard' 2
+run_test "208 escaped-middle delimiter E\\OF names EOF" $'cat <<E\\OF\nx\nEOF\ngit reset --hard' 2
+run_test "208 here-string then a guarded command" $'cat <<< "git status"\ngit reset --hard' 2
+run_test "208 here-string on the same line as a guarded command" $'cat <<< "x"; git reset --hard' 2
+run_test "208 quoted ) inside \$( ) in an unquoted body" $'cat > n.md <<EOF\n$(printf \')\'; git reset --hard)\nEOF' 2
+run_test "208 quoted \") in \$( ) then blocked" $'cat > n.md <<EOF\n$(echo ")"; git clean -fd)\nEOF' 2
+run_test "208 a shell word elsewhere on the line is not the receiver" $'echo bash example; cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 shell in an earlier && stage is not the receiver" $'bash -c true && cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 shell in a later pipeline stage is the receiver" $'cat <<\'EOF\' | /usr/bin/env bash\ngit reset --hard\nEOF' 2
+# review round 2: comments, command-word receiver parsing, double-quote escapes
+run_test "208 a comment cannot open a heredoc" $'echo hello # <<EOF\ngit reset --hard' 2
+run_test "208 a comment cannot open a heredoc (quoted delimiter)" $'echo hello # <<\'EOF\'\ngit reset --hard' 2
+run_test "208 # inside quotes is not a comment" $'echo "# <<EOF"; git reset --hard' 2
+run_test "208 # inside a word is not a comment" $'echo a#b <<\'EOF\'\ngit reset --hard\nEOF\ngit status' 0
+run_test "208 a comment line before a real heredoc" $'# note <<EOF\ncat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 receiver: bash<<EOF without a space" $'bash<<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: quoted command word \'bash\'" $'\'bash\' <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: double-quoted command word" $'"bash" <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: VAR= prefix then bash" $'X=1 bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 not a receiver: bash as an argument" $'cat - bash <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 not a receiver: a separate command after ;" $'cat <<\'EOF\'; bash -c true\ngit reset --hard\nEOF' 0
+run_test "208 not a receiver: a separate command after &&" $'cat <<\'EOF\' && bash -c true\ngit reset --hard\nEOF' 0
+run_test "208 receiver: later pipe stage after ; boundary" $'true; cat <<\'EOF\' | sudo -u me bash\ngit reset --hard\nEOF' 2
+run_test "208 double-quoted delimiter keeps its backslash" $'cat <<"E\\OF"\ndocument text\nE\\OF\ngit reset --hard' 2
+run_test "208 double-quoted delimiter body is data" $'cat <<"E\\OF"\ngit reset --hard\nE\\OF' 0
+run_test "208 double-quoted delimiter with escaped quote" $'cat <<"E\\"OF"\nx\nE"OF\ngit reset --hard' 2
+# review round 3: assignment syntax vs value quoting; wrapper operands; per-heredoc receivers
+run_test "208 receiver: quoted assignment value then bash" $'X=\'one two\' bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: double-quoted assignment value then bash" $'X="a b" Y=1 bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: env -u X bash" $'env -u X bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: env --unset X -i bash" $'env --unset X -i bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: sudo -u me -g grp bash" $'sudo -u me -g grp bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 not a receiver: env -u X cat - bash (argument)" $'env -u X cat - bash <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 not a receiver: quoted assignment then cat" $'X=\'one two\' cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 queued heredocs: cat then bash — second body executable" $'cat <<\'A\'; bash <<\'B\'\ndocument text\nA\ngit reset --hard\nB' 2
+run_test "208 queued heredocs: bash then cat — second body is data" $'bash <<\'A\'; cat <<\'B\'\necho ok\nA\ngit reset --hard\nB' 0
+run_test "208 queued heredocs: bash then cat — first body executable" $'bash <<\'A\'; cat <<\'B\'\ngit reset --hard\nA\ndoc\nB' 2
+run_test "208 queued heredocs via && — receivers kept apart" $'cat <<\'A\' && bash <<\'B\'\nx\nA\ngit clean -fd\nB' 2
+# review round 4: leading redirections; wrapper operands as shell words; env -S; unidentified receivers
+run_test "208 receiver: leading 2>/dev/null before bash" $'2>/dev/null bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: heredoc operator before the command word" $'<<\'EOF\' bash\ngit reset --hard\nEOF' 2
+run_test "208 receiver: 2>&1 dup then bash" $'2>&1 bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: >out.txt then bash" $'>out.txt bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 not a receiver: leading redirection then cat" $'2>/dev/null cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 not a receiver: 2>&1 then cat" $'2>&1 cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 receiver: env -u \'A B\' bash (quoted operand)" $'env -u \'A B\' bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 not a receiver: env -u \'A B\' cat" $'env -u \'A B\' cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 receiver: env -S bash" $'env -S bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: env -S \'bash -x\'" $'env -S \'bash -x\' <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: env --split-string=bash" $'env --split-string=bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 not a receiver: env -S cat" $'env -S cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 unidentified receiver \"\$SHELL\" is treated as executable" $'"$SHELL" <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 unidentified receiver \$(which bash) is treated as executable" $'$(which bash) <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 unidentified receiver \${SH} is treated as executable" $'${SH} <<\'EOF\'\ngit reset --hard\nEOF' 2
+# review round 5: expansion anywhere in the word; quoted wrapper names; delimiter continuations
+run_test "208 expanded receiver /bin/\$SH is treated as executable" $'SH=bash; /bin/$SH <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 backtick-produced receiver is treated as executable" $'`printf bash` <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 expansion inside double quotes is active" $'"/bin/$SH" <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 unknown command word (\'cat\$x\') is retained, not data" $'\'cat$x\' <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 quoted wrapper name \'env\' still normalizes" $'\'env\' bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 quoted wrapper name \"env\" -u X still normalizes" $'"env" -u X bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 quoted non-wrapper command stays data" $'\'cat\' <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 continued delimiter EO\\<nl>F names EOF" $'cat <<EO\\\nF\ndocument text\nEOF\ngit reset --hard' 2
+run_test "208 continued delimiter stays unquoted (substitution scanned)" $'cat <<EO\\\nF\n$(git reset --hard)\nEOF' 2
+run_test "208 continued delimiter body literal is data" $'cat <<EO\\\nF\ngit reset --hard\nEOF' 0
+run_test "208 double-quoted continued delimiter names EOF" $'cat <<"EO\\\nF"\ndocument text\nEOF\ngit reset --hard' 2
+# review round 6: exec/compound prefixes; continued terminator lines; ANSI-C delimiters
+run_test "208 receiver: exec bash" $'exec bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 not a receiver: exec cat" $'exec cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 receiver: if true; then bash" $'if true; then bash <<\'EOF\'\ngit reset --hard\nEOF\nfi' 2
+run_test "208 compound receiver (if … then cat) is retained (conservative)" $'if true; then cat <<\'EOF\'\ngit reset --hard\nEOF\nfi' 2
+run_test "208 receiver: while …; do bash" $'while true; do bash <<\'EOF\'\ngit reset --hard\nEOF\ndone' 2
+run_test "208 receiver: for …; do sudo bash" $'for f in x; do sudo bash <<\'EOF\'\ngit reset --hard\nEOF\ndone' 2
+run_test "208 receiver: { bash" $'{ bash <<\'EOF\'\ngit reset --hard\nEOF\n}' 2
+run_test "208 unsupported compound keyword is conservative" $'case x in y) cat <<\'EOF\'\ngit reset --hard\nEOF\nesac' 2
+run_test "208 continued terminator line ends an unquoted heredoc" $'cat <<EOF\nEO\\\nF\ngit reset --hard' 2
+run_test "208 continued line joins inside an unquoted body (data)" $'cat <<EOF\nline one \\\ngit reset --hard\nEOF' 0
+run_test "208 continued line joins a substitution in an unquoted body" $'cat <<EOF\n$(git reset \\\n--hard)\nEOF' 2
+run_test "208 quoted heredoc compares physical lines (no join)" $'cat <<\'EOF\'\nEO\\\nF\ngit reset --hard\nEOF' 0
+run_test "208 ANSI-C delimiter \$\'EOF\' names EOF" $'cat <<$\'EOF\'\ndata\nEOF\ngit reset --hard' 2
+run_test "208 ANSI-C delimiter body is data" $'cat <<$\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 ANSI-C delimiter with \\\\ escape names E\\\\OF" $'cat <<$\'E\\\\OF\'\ndata\nE\\OF\ngit reset --hard' 2
+run_test "208 unsupported ANSI-C escape (\\c) checks the remainder (conservative)" $'cat <<$\'E\\cAF\'\ngit reset --hard\nEOF' 2
+run_test "208 locale-quoted delimiter \$\\"EOF\\" names EOF" $'cat <<$"EOF"\ndata\nEOF\ngit reset --hard' 2
+# review round 7: exec/time options and quoting; ANSI-C escapes decoded; unsupported delimiter checked line by line
+run_test "208 receiver: exec -a custom bash" $'exec -a custom bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: quoted \'exec\' bash" $'\'exec\' bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: time -p bash" $'time -p bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver: quoted \'time\' bash (/usr/bin/time)" $'\'time\' bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 not a receiver: exec -a x cat" $'exec -a x cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 not a receiver: time -p cat" $'time -p cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 ANSI-C \\\\x escape decoded: \$\'E\\\\x4fF\' names EOF" $'cat <<$\'E\\x4fF\'\ndon\'t do this\nEOF\ngit reset --hard' 2
+run_test "208 ANSI-C \\\\x-decoded delimiter body is data" $'cat <<$\'E\\x4fF\'\ngit reset --hard\nEOF' 0
+run_test "208 ANSI-C octal escape decoded: \$\'E\\\\117F\' names EOF" $'cat <<$\'E\\117F\'\ndata\nEOF\ngit reset --hard' 2
+run_test "208 unsupported ANSI-C escape: quote in body cannot hide later lines" $'cat <<$\'E\\u004fF\'\ndon\'t do this\nEOF\ngit reset --hard' 2
+run_test "208 unsupported ANSI-C escape: guarded line inside is checked too" $'cat <<$\'E\\u004fF\'\nx\ngit reset --hard\nEOF' 2
+# review round 8: byte semantics (NUL, UTF-8 byte escapes) across awks; continued lines in the fallback
+run_test "208 ANSI-C NUL escape ends the delimiter (EOF)" $'cat <<$\'EOF\\0ignored\'\ndata\nEOF\ngit reset --hard' 2
+run_test "208 ANSI-C NUL-terminated delimiter body is data" $'cat <<$\'EOF\\0ignored\'\ngit reset --hard\nEOF' 0
+run_test "208 ANSI-C \\\\x00 escape ends the delimiter" $'cat <<$\'EOF\\x00x\'\ndata\nEOF\ngit reset --hard' 2
+run_test "208 ANSI-C UTF-8 byte escapes name é (bytewise)" $'cat <<$\'\\xc3\\xa9\'\ndata\n\xc3\xa9\ngit reset --hard' 2
+run_test "208 ANSI-C UTF-8 byte-escape delimiter body is data" $'cat <<$\'\\xc3\\xa9\'\ngit reset --hard\n\xc3\xa9' 0
+run_test "208 fallback: continued command after an unsupported delimiter" $'cat <<$\'E\\u004fF\'\ndata\nEOF\ngit reset \\\n--hard' 2
+# review round 9: octal escapes keep the low byte (bash semantics); NUL only when the reduced value is 0
+run_test "208 ANSI-C octal \\\\505 is E (low byte): \$\'\\\\505OF\' names EOF" $'cat <<$\'\\505OF\'\ndata\nEOF\ngit reset --hard' 2
+run_test "208 ANSI-C octal \\\\505 delimiter body is data" $'cat <<$\'\\505OF\'\ngit reset --hard\nEOF' 0
+# (a terminator line cannot carry a lone 0xff byte through the JSON hook
+# channel — jq/JSON replace it with U+FFFD — so byte values are proven with
+# valid UTF-8 targets: \303\251 and the wrapped \703\251 both name é)
+run_test "208 ANSI-C octal \\\\303\\\\251 names é (bytewise)" $'cat <<$\'\\303\\251\'\ndata\n\xc3\xa9\ngit reset --hard' 2
+run_test "208 ANSI-C octal \\\\400 is NUL: ends the delimiter at E" $'cat <<$\'E\\400F\'\ndata\nE\ngit reset --hard' 2
+run_test "208 ANSI-C octal \\\\401 is byte 0x01" $'cat <<$\'E\\401F\'\ndata\nE\001F\ngit reset --hard' 2
+run_test "208 ANSI-C octal \\\\703 wraps to 0xc3: \\\\703\\\\251 names é" $'cat <<$\'\\703\\251\'\ndata\n\xc3\xa9\ngit reset --hard' 2
+run_test "208 ANSI-C octal wrapped delimiter body is data" $'cat <<$\'\\703\\251\'\ngit reset --hard\n\xc3\xa9' 0
+run_test "208 ANSI-C \\\\377 delimiter never terminates via JSON (all data, as bash)" $'cat <<$\'E\\377F\'\ngit reset --hard\nE\xef\xbf\xbdF' 0
+# review round 10: data-sink policy (unknown receiver is never data); & separator; named fds;
+# timeout/nice/nohup/setsid/stdbuf wrappers; pipeline continuing after the body; comments inside $( )
+run_test "208 & starts a new receiving command: true & bash" $'true & bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 & separator control: true & cat is data" $'true & cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 &> and >& are redirections, not separators" $'cat <<\'EOF\' &>/dev/null\ngit reset --hard\nEOF' 0
+run_test "208 comment ) does not end a substitution" $'cat <<EOF\n$( # )\ngit reset --hard\n)\nEOF' 2
+run_test "208 comment inside a substitution (harmless) is data" $'cat <<EOF\n$( # git reset --hard\necho ok)\nEOF' 0
+run_test "208 timeout wraps a shell receiver" $'timeout 30 bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 timeout -k 5 30 bash" $'timeout -k 5 30 bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 timeout 30 cat is data" $'timeout 30 cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 nice -n 5 bash / nohup bash / stdbuf -oL bash" $'nice -n 5 nohup stdbuf -oL bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 stdbuf -oL cat is data" $'stdbuf -oL cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 named-fd redirection precedes a shell receiver" $'{fd}>/dev/null bash <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 named-fd redirection then cat is data" $'{fd}>/dev/null cat <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 receiving pipeline continues after the body: | bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\nbash' 2
+run_test "208 receiving pipeline continues after the body: | wc -l is data" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\nwc -l' 0
+run_test "208 unknown tool receiver is retained (policy)" $'mytool <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 interpreter receiver is retained: python3" $'python3 <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 xargs receiver is retained" $'xargs -n1 <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 sink pipeline: cat | grep | wc is data" $'cat <<\'EOF\' | grep x | wc -l\ngit reset --hard\nEOF' 0
+run_test "208 sink then shell stage: cat | sh is retained" $'cat <<\'EOF\' | sh\ngit reset --hard\nEOF' 2
+# review round 11: sed/awk are not sinks; continuation joined until the pipeline is complete
+run_test "208 awk system() executes its input: retained" $'awk \'{system($0)}\' <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 gawk receiver is retained" $'gawk \'{print}\' <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 GNU sed e executes its input: retained" $'sed e <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 cat | sed stage is retained" $'cat <<\'EOF\' | sed -n p\ngit reset --hard\nEOF' 2
+run_test "208 open pipeline continued over a backslash line: | bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat \\\n| bash' 2
+run_test "208 open pipeline continued over a backslash line: | wc -l is data" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat \\\n| wc -l' 0
+run_test "208 open pipeline continued over several pipe lines: bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat |\ncat |\nbash' 2
+run_test "208 open pipeline continued over several pipe lines: wc is data" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat |\ncat |\nwc -l' 0
+run_test "208 pipeline still open at end of input is retained" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat |' 2
+# review round 12: syntactic completeness — unclosed $( ), ( ), quotes, backticks
+run_test "208 open pipeline: continuation with a multi-line \$( ) then | bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $(\ntrue\n) | bash' 2
+run_test "208 open pipeline: multi-line \$( ) then | wc -l ⇒ nested, retained" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $(\ntrue\n) | wc -l' 2
+run_test "208 open pipeline: multi-line quoted argument then | bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ngrep "a\nb" | bash' 2
+run_test "208 open pipeline: multi-line backtick then | sh" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat `\ntrue\n` | sh' 2
+run_test "208 open pipeline: subshell continuation then | bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\n(\ncat\n) | bash' 2
+run_test "208 unclosed \$( ) at end of input is retained" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $(' 2
+# review round 13: comments inside the continuation are respected; line boundaries preserved
+run_test "208 open pipeline: comment ) inside \$( ) does not close it, then | bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $( # )\ntrue\n) | bash' 2
+run_test "208 open pipeline: comment ) inside \$( ), then | wc -l ⇒ nested, retained" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $( # )\ntrue\n) | wc -l' 2
+run_test "208 open pipeline: a comment line ends at its newline (next line counts)" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $( # comment | wc -l\ntrue\n) | bash' 2
+run_test "208 open pipeline: \$( ) with a comment then | wc -l ⇒ nested, retained" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat $( # bash\ntrue\n) | wc -l' 2
+# review round 14: unclosed ${…} keeps the pipeline open; backslash-newline joins without a separator
+run_test "208 open pipeline: multi-line \${…} expansion then | bash" $'unset REVIEW_UNSET\ncat <<\'EOF\' |\ngit reset --hard\nEOF\ncat ${REVIEW_UNSET:+\nignored\n} | bash' 2
+run_test "208 open pipeline: multi-line \${…} then | wc -l ⇒ nested, retained" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat ${X:+\nignored\n} | wc -l' 2
+run_test "208 open pipeline: \${…} inside double quotes then | bash" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat "${X:+\nignored\n}" | bash' 2
+run_test "208 unclosed \${ at end of input is retained" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat ${X:+' 2
+run_test "208 backslash-newline joins words: cat\\\\<nl>sh is the unknown command catsh" $'catsh() { bash; }\ncat <<\'EOF\' |\ngit reset --hard\nEOF\ncat\\\nsh' 2
+run_test "208 backslash-newline joins words: ca\\\\<nl>t is cat (data)" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\nca\\\nt' 0
+# review round 15: narrowed boundary — nested expansion in the receiving pipeline ⇒ unknown, retained
+run_test "208 comment inside \$( ) inside quotes then | bash (combined)" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\ncat "$(printf \'%s\' - # )"\n)" | bash' 2
+run_test "208 receiver with \$( ) is never data-only (conservative)" $'cat "$(printf x)" <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver with backticks is never data-only" $'cat `printf x` <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 receiver with a subshell is never data-only" $'( cat ) <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 simple receiver with \$var stays data" $'f=x; cat > "$f" <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 simple receiver with bare \${NAME} stays data" $'f=x; cat > "${f}.lean" <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 simple receiver: cat > file | tee stays data" $'cat <<\'EOF\' | tee out.txt\ngit reset --hard\nEOF' 0
+# review round 16: compound-command receivers are unknown, never their first simple command
+run_test "208 brace-group receiver: { true; bash; }" $'cat <<\'EOF\' | { true; bash; }\ngit reset --hard\nEOF' 2
+run_test "208 if-pipeline receiver: if true; then bash; fi" $'cat <<\'EOF\' | if true; then bash; fi\ngit reset --hard\nEOF' 2
+run_test "208 while-pipeline receiver: while true; do bash; break; done" $'cat <<\'EOF\' | while true; do bash; break; done\ngit reset --hard\nEOF' 2
+run_test "208 brace-group receiver of a direct heredoc" $'{ true; bash; } <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 brace group with only sinks is still retained (conservative)" $'cat <<\'EOF\' | { true; cat; }\ngit reset --hard\nEOF' 2
+run_test "208 simple control kept: cat | wc -l" $'cat <<\'EOF\' | wc -l\ngit reset --hard\nEOF' 0
+run_test "208 simple control kept: cat > quoted-var file" $'f=x; cat > "$f" <<\'EOF\'\ngit reset --hard\nEOF' 0
+
+echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
+# Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,
+# so the bound discriminates even on a slow CI runner). Integer seconds:
+# BSD date has no %N. Each input is run through the SAME run_test path.
+_t208() { # $1 desc, $2 command, $3 expected rc
+  local _s _e
+  _s=$(date +%s)
+  run_test "$1" "$2" "$3"
+  _e=$(date +%s)
+  if (( _e - _s <= 3 )); then echo "  PASS: $1 — $(( _e - _s ))s"; (( ++PASS )); else echo "  FAIL: $1 — $(( _e - _s ))s (> 3 s)"; (( ++FAIL )); fi
+}
+_lean208=$(python3 -c "print(('theorem foo : 1 + 1 = 2 := by norm_num -- x\n'*240)[:10000])" 2>/dev/null || printf 'theorem foo : 1 + 1 = 2 := by norm_num -- x\n%.0s' $(seq 1 240))
+_doc208=$(python3 -c "print(('Do not run git reset --hard here; git clean -f is bad too.\n'*200))" 2>/dev/null || printf 'Do not run git reset --hard here; git clean -f is bad too.\n%.0s' $(seq 1 200))
+_line208=$(printf 'x%.0s' $(seq 1 10000))
+_many208=$(printf 'echo hi\n%.0s' $(seq 1 230))
+_manygit208=$(printf 'git status\n%.0s' $(seq 1 120))
+_t208 "208 perf: 10 KB quoted Lean heredoc (benign)" "$(printf "cat > x.lean <<'EOF'\n%s\nEOF" "$_lean208")" 0
+_t208 "208 perf: 10 KB single-line command (benign)" "echo $_line208" 0
+_t208 "208 perf: 230 short lines (benign)" "$_many208" 0
+_t208 "208 perf: 10 KB unquoted doc full of guarded words (data)" "$(printf "cat > doc.md <<EOF\n%s\nEOF" "$_doc208")" 0
+_t208 "208 perf: 10 KB quoted doc, then a real blocked op" "$(printf "cat > doc.md <<'EOF'\n%s\nEOF\ngit reset --hard" "$_doc208")" 2
+_t208 "208 perf: 120 git commands (all relevant segments)" "$_manygit208" 0
+_t208 "208 perf: 120 git commands, last one blocked" "${_manygit208}git reset --hard" 2
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]
