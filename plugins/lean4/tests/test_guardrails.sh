@@ -952,7 +952,7 @@ run_test "208 double-quoted continued delimiter names EOF" $'cat <<"EO\\\nF"\ndo
 run_test "208 receiver: exec bash" $'exec bash <<\'EOF\'\ngit reset --hard\nEOF' 2
 run_test "208 not a receiver: exec cat" $'exec cat <<\'EOF\'\ngit reset --hard\nEOF' 0
 run_test "208 receiver: if true; then bash" $'if true; then bash <<\'EOF\'\ngit reset --hard\nEOF\nfi' 2
-run_test "208 not a receiver: if true; then cat" $'if true; then cat <<\'EOF\'\ngit reset --hard\nEOF\nfi' 0
+run_test "208 compound receiver (if … then cat) is retained (conservative)" $'if true; then cat <<\'EOF\'\ngit reset --hard\nEOF\nfi' 2
 run_test "208 receiver: while …; do bash" $'while true; do bash <<\'EOF\'\ngit reset --hard\nEOF\ndone' 2
 run_test "208 receiver: for …; do sudo bash" $'for f in x; do sudo bash <<\'EOF\'\ngit reset --hard\nEOF\ndone' 2
 run_test "208 receiver: { bash" $'{ bash <<\'EOF\'\ngit reset --hard\nEOF\n}' 2
@@ -1055,6 +1055,14 @@ run_test "208 receiver with a subshell is never data-only" $'( cat ) <<\'EOF\'\n
 run_test "208 simple receiver with \$var stays data" $'f=x; cat > "$f" <<\'EOF\'\ngit reset --hard\nEOF' 0
 run_test "208 simple receiver with bare \${NAME} stays data" $'f=x; cat > "${f}.lean" <<\'EOF\'\ngit reset --hard\nEOF' 0
 run_test "208 simple receiver: cat > file | tee stays data" $'cat <<\'EOF\' | tee out.txt\ngit reset --hard\nEOF' 0
+# review round 16: compound-command receivers are unknown, never their first simple command
+run_test "208 brace-group receiver: { true; bash; }" $'cat <<\'EOF\' | { true; bash; }\ngit reset --hard\nEOF' 2
+run_test "208 if-pipeline receiver: if true; then bash; fi" $'cat <<\'EOF\' | if true; then bash; fi\ngit reset --hard\nEOF' 2
+run_test "208 while-pipeline receiver: while true; do bash; break; done" $'cat <<\'EOF\' | while true; do bash; break; done\ngit reset --hard\nEOF' 2
+run_test "208 brace-group receiver of a direct heredoc" $'{ true; bash; } <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 brace group with only sinks is still retained (conservative)" $'cat <<\'EOF\' | { true; cat; }\ngit reset --hard\nEOF' 2
+run_test "208 simple control kept: cat | wc -l" $'cat <<\'EOF\' | wc -l\ngit reset --hard\nEOF' 0
+run_test "208 simple control kept: cat > quoted-var file" $'f=x; cat > "$f" <<\'EOF\'\ngit reset --hard\nEOF' 0
 
 echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
 # Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,

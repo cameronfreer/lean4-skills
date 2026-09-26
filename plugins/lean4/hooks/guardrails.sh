@@ -408,11 +408,10 @@ _strip_wrappers() {
 #     before the terminator is compared (`EO\` + newline + `F` terminates an
 #     unquoted `<<EOF`); a quoted heredoc is compared line by line;
 #   * `exec` / `time` (with their options: `exec -a name bash`, `time -p
-#     bash`, quoted or not) are wrappers, and the compound-command keywords a
-#     command may follow (`then`, `do`, `else`, `elif`, `if`, `while`,
-#     `until`, `!`, `{`) are transparent when finding the receiver; other
-#     compound keywords make the receiver unidentifiable, i.e.
-#     conservatively executable;
+#     bash`, quoted or not) and `timeout`/`nice`/`nohup`/`setsid`/`stdbuf` are
+#     wrappers; a COMPOUND command as the receiver (`{ …; }`, `if … fi`,
+#     `while … done`, `case`, `for`, …) is never reduced to its first simple
+#     command — the receiver is unidentifiable and the body is retained;
 #   * `cmd <<EOF … EOF` (unquoted delimiter): the body undergoes expansion, so
 #     its $(…) and `…` substitutions are executable — those are tokenized
 #     (quote-aware: a quoted `)` does not end a substitution); the rest of the
@@ -579,15 +578,14 @@ function stage_cmd_word(stage,   len, i, c, w, bw, flag, op) {
     w = next_word(stage, i); i = _nw_i; _cw_exp = _nw_exp
     if (w == "") return ""
     if (!_nw_q && !_nw_exp) {
-      # compound-command keywords a command may directly follow are
-      # transparent to the command word (keywords are only such unquoted)
-      if (w == "then" || w == "do" || w == "else" || w == "elif" || w == "if" || w == "while" || w == "until" || w == "!" || w == "{") continue
-      # other compound keywords: the receiver is not identifiable here — the
-      # caller treats that conservatively (executable), never as data
-      # (the last keyword is the bash-4 coprocess one, matched by regex so the
-      # Bash-3.2 portability lint does not see the literal token — this is a
-      # string compared against the COMMAND being checked, never executed)
-      if (w == "case" || w == "for" || w == "select" || w == "function" || w ~ /^cop[r]oc$/) return ""
+      # a COMPOUND command as the receiver (`{ true; bash; }`, `if …; then
+      # bash; fi`, `while …; do bash; done`, `case`, `for`, `until`, `!`,
+      # `select`, `function`, the bash-4 coprocess keyword — matched by regex
+      # so the Bash-3.2 portability lint does not see the literal token; all
+      # are strings compared against the COMMAND being checked, never
+      # executed) is never reduced to its first simple command: the
+      # receiver is not identifiable, and the caller retains the body
+      if (w == "if" || w == "then" || w == "elif" || w == "else" || w == "fi" || w == "while" || w == "until" || w == "do" || w == "done" || w == "case" || w == "esac" || w == "for" || w == "select" || w == "function" || w == "!" || w == "{" || w == "}" || w ~ /^cop[r]oc$/) return ""
     }
     if (!_nw_qname && !_nw_exp && w ~ /^[A-Za-z_][A-Za-z0-9_]*=/) continue   # VAR=value prefix
     bw = w; sub(/.*\//, "", bw)                                  # /usr/bin/env -> env
