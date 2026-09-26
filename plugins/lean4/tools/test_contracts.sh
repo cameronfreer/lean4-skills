@@ -2197,6 +2197,16 @@ if ! grep -qF 'MeasurableSpace.comap Z mβ' "$_c41_ip"; then
     fail "Check 41: instance-pollution.md must define the sub-σ-algebra as comap of the codomain structure (comap Z mβ)"
     check41_ok=0
 fi
+# #201: conditional kernels can be mapped across distinct measurable spaces.
+# Scope the forbidden names to the guide, not the tests that mention them.
+for _c41_bad in 'same measurable space structure' \
+                'Measurable.eval_condExpKernel' 'IsMarkovKernel.condExpKernel' \
+                'Always use Measure.map for pushforward, not Kernel.map'; do
+    if grep -qiF -- "$_c41_bad" "$_c41_mt"; then
+        fail "Check 41: measure-theory.md regained rejected kernel guidance: $_c41_bad"
+        check41_ok=0
+    fi
+done
 _c41_ce="$PLUGIN_ROOT/skills/lean4/references/compilation-errors.md"
 if grep -qF 'have := ⟨' "$_c41_ce"; then
     fail "Check 41: compilation-errors.md shows an untyped 'have := ⟨proof⟩' (the instance type must be stated: have : C := ⟨proof⟩)"

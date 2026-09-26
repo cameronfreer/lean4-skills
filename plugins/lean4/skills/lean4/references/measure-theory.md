@@ -461,10 +461,38 @@ have h : μ[ψ | m] = ... -- Error: Instance synthesis confused!
 ```
 
 **Why kernel form is better for complex cases:**
-- **No instance ambiguity:** `condExpKernel μ m` takes measure and sub-σ-algebra as explicit parameters
-- **Local bindings don't interfere:** No confusion with `let 𝔾 : MeasurableSpace Ω := ...`
-- **Multiple σ-algebras:** Work with several sub-σ-algebras without instance pollution
+- **Explicit parameters:** `condExpKernel μ m` names the measure and source σ-algebra
+- **Distinct source and target:** The source uses `m`; the target uses the ambient `mΩ`
+- **Instance selection still matters:** Later class-typed locals can interfere; use the binder order below
 - **Access to kernel lemmas:** Set integrals, measurability theorems, composition
+
+On Lean 4.34.0-rc1, the following binder order fails even without `Kernel.map`:
+
+```lean
+import Mathlib.Probability.Kernel.Condexp
+open MeasureTheory ProbabilityTheory
+
+example {Ω : Type*} [mΩ : MeasurableSpace Ω] [StandardBorelSpace Ω]
+    (μ : Measure Ω) [IsFiniteMeasure μ] (m : MeasurableSpace Ω) : Kernel Ω Ω :=
+  condExpKernel μ m
+```
+
+The diagnostic is:
+
+```text
+synthesized type class instance is not definitionally equal to expression inferred by typing rules, synthesized
+  m
+inferred
+  mΩ
+```
+
+`μ` was elaborated against `mΩ`, but fresh instance synthesis selects the newer
+class-typed local `m`. This is an instance-selection trap, not a restriction on
+mapping kernels. Follow mathlib's order `{m : MeasurableSpace Ω} [mΩ : MeasurableSpace Ω]`
+so the resulting kernel has source `m` and target `mΩ`.
+
+The working examples and a `#guard_msgs` check for this failure are in
+`tests/fixtures/reference_snippets/measure_theory_snippets.lean`.
 
 #### Axiom Elimination Pattern
 
@@ -536,11 +564,14 @@ have h : ∫ ω in s, φ ω * (∫ y, ψ y ∂(condExpKernel μ m ω)) ∂μ = .
 condExp_ae_eq_integral_condExpKernel : μ[f | m] =ᵐ[μ] (fun ω ↦ ∫ y, f y ∂(condExpKernel μ m ω))
 
 -- Kernel measurability
-Measurable.eval_condExpKernel : Measurable (fun ω ↦ condExpKernel μ m ω s)
+example : Measurable[m] (fun ω ↦ condExpKernel μ m ω s) :=
+  ProbabilityTheory.measurable_condExpKernel hs
 
 -- Markov kernel property
-IsMarkovKernel.condExpKernel : IsMarkovKernel (condExpKernel μ m)
+example : IsMarkovKernel (condExpKernel μ m) := inferInstance
 ```
+
+Here `hs : MeasurableSet s` uses the ambient space; the full context is in the fixture.
 
 **Bottom line:** `condExpKernel` is the explicit, principled alternative when you need fine-grained instance control or when you're tempted to axiomatize "functions returning measures."
 
@@ -564,17 +595,30 @@ condExpKernel μ (tailSigma X) : @Kernel Ω Ω (tailSigma X) inst
 -- Target uses ambient space
 ```
 
-**Problem:** Kernel.map requires source and target to have **the same measurable space structure**.
+`Kernel.map : Kernel α β → (β → γ) → Kernel α γ`
+preserves the source measurable space and uses `[MeasurableSpace γ]` for the
+new target. The source and target measurable spaces need not coincide.
 
 ```lean
--- ❌ WRONG: Can't use Kernel.map when measurable spaces don't align
-Kernel.map (condExpKernel μ m) f  -- Type error!
-
--- ✅ RIGHT: Evaluate kernel first, then map the resulting measure
-fun ω ↦ (condExpKernel μ m ω).map f
+noncomputable example {Ω β : Type*} {m : MeasurableSpace Ω} [mΩ : MeasurableSpace Ω]
+    [MeasurableSpace β] [StandardBorelSpace Ω]
+    (μ : Measure Ω) [IsFiniteMeasure μ] (f : Ω → β) : @Kernel Ω β m _ :=
+  Kernel.map (condExpKernel μ m) f
 ```
 
-**Lesson:** When your kernel changes measurable spaces (like `condExpKernel`), you can't use `Kernel.map`. Instead, evaluate the kernel at a point to get a `Measure`, then use `Measure.map`.
+For a measurable function, mapping the kernel and then evaluating it agrees
+with mapping the evaluated measure:
+
+```lean
+example {Ω β : Type*} {m : MeasurableSpace Ω} [mΩ : MeasurableSpace Ω]
+    [MeasurableSpace β] [StandardBorelSpace Ω]
+    (μ : Measure Ω) [IsFiniteMeasure μ] (f : Ω → β) (hf : Measurable f) (ω : Ω) :
+    (Kernel.map (condExpKernel μ m) f) ω = (condExpKernel μ m ω).map f :=
+  Kernel.map_apply _ hf ω
+```
+
+`Kernel.map` returns the zero kernel for a non-measurable `f`, so the
+pointwise equality above requires `Measurable f`.
 
 ### 2. Measure.map for Pushforward
 
@@ -594,13 +638,16 @@ isProbabilityMeasure_map : IsProbabilityMeasure μ → AEMeasurable f μ →
   IsProbabilityMeasure (μ.map f)
 ```
 
-**Pattern: Always use Measure.map for pushforward, not Kernel.map**
+- Use `Kernel.map κ f` to keep a measurable family of measures as a kernel.
+- Use `(κ ω).map f` when you only need one measure. Mapping each evaluated
+  measure does not by itself establish a measurable family; use
+  `Kernel.map_apply` with `Measurable f` to relate the two forms.
 
 ```lean
 -- Given: μ_ω : Ω → Measure α, f : α → β
 -- Want: Pushforward each μ_ω along f
 
--- Correct approach
+-- Pointwise measure construction (not itself a proof of kernel measurability)
 fun ω ↦ (μ_ω ω).map f
 
 -- Search with lean_leanfinder:
@@ -636,19 +683,15 @@ Kernel.measurable_coe : MeasurableSet s → Measurable (fun a ↦ κ a s)
 
 **What exists:**
 - `condExp_ae_eq_integral_condExpKernel` - conversion from scalar to kernel
-- `Measurable.eval_condExpKernel` - kernel evaluation measurability
-- `IsMarkovKernel.condExpKernel` - Markov kernel typeclass
+- `ProbabilityTheory.measurable_condExpKernel hs` - evaluation is `Measurable[m]` for an ambient measurable set
+- `inferInstance : IsMarkovKernel (condExpKernel μ m)` - under `[StandardBorelSpace Ω] [IsFiniteMeasure μ]`
 
-**What's missing/hard to find:**
-- No obvious `isProbability_condExpKernel` lemma
-- Limited discoverability of probabilistic properties
-- Need to derive from first principles
+The Markov instance supplies the probability-measure property at each point.
 
 **Search strategy when stuck:**
 1. Look for `condDistrib` lemmas (underlying construction)
 2. Search for `IsMarkovKernel` or `IsCondKernel` instances
 3. Use `lean_leanfinder` with "conditional kernel probability measure"
-4. Be prepared to prove basic properties yourself
 
 **Example searches:**
 ```python
@@ -806,8 +849,8 @@ sorry  -- TODO: Need measurableSet_preimage hf hs
 
 **Conditional expectation (kernel form):**
 - `condExp_ae_eq_integral_condExpKernel` - convert scalar to kernel form
-- `Measurable.eval_condExpKernel` - kernel evaluation is measurable
-- `IsMarkovKernel.condExpKernel` - kernel is Markov
+- `ProbabilityTheory.measurable_condExpKernel hs` - kernel evaluation is `Measurable[m]`
+- `inferInstance : IsMarkovKernel (condExpKernel μ m)` - kernel is Markov under the prerequisites above
 
 **Kernels and pushforward:**
 - `Kernel.measurable_coe` - kernel evaluation at measurable set is measurable

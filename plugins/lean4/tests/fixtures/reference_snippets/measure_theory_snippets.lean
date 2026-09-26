@@ -1,20 +1,65 @@
 -- Compile-check for the exact Lean snippets the references ship (#188 / #162
--- / the #200 reference audit). Requires a Mathlib project; run from one:
+-- / the #200 reference audit / #201 kernel corrections). Requires a Mathlib project; run from one:
 --
 --   lake env lean /path/to/lean4-skills/plugins/lean4/tests/fixtures/reference_snippets/measure_theory_snippets.lean
 --
 -- Not wired into CI (CI has no Mathlib). Last checked against Mathlib commit
 -- de5ce8a9a66a4aa68a9bdbb35b63a06d34d9ca11 (Lean 4.34.0-rc1, local checkout):
--- exit 0 — see the PR #200 body. If you change one of the documented snippets,
--- change it here too and re-run. Negative controls are `#guard_msgs` blocks: the
+-- The full file, including the #201 kernel examples, was rechecked locally
+-- with the command above (exit 0). PR #200 records only the earlier audit.
+-- If you change a documented snippet, change it here too and re-run.
+-- Negative controls are `#guard_msgs` blocks: the
 -- file fails if a documented failure stops failing or its message drifts.
 import Mathlib.MeasureTheory.Function.ConditionalExpectation.Basic
 import Mathlib.MeasureTheory.Measure.Typeclasses.Probability
 import Mathlib.MeasureTheory.Constructions.BorelSpace.Basic
+import Mathlib.Probability.Kernel.Condexp
 import Mathlib.Topology.Order
 import Mathlib.Tactic
 
 open MeasureTheory
+
+-- measure-theory.md § Kernel and Measure API Patterns (#201).
+section ConditionalKernel
+
+open ProbabilityTheory
+
+-- Mapping the target does not require it to share the source measurable space.
+noncomputable example {Ω β : Type*} {m : MeasurableSpace Ω} [mΩ : MeasurableSpace Ω]
+    [MeasurableSpace β] [StandardBorelSpace Ω]
+    (μ : Measure Ω) [IsFiniteMeasure μ] (f : Ω → β) : @Kernel Ω β m _ :=
+  Kernel.map (condExpKernel μ m) f
+
+example {Ω β : Type*} {m : MeasurableSpace Ω} [mΩ : MeasurableSpace Ω]
+    [MeasurableSpace β] [StandardBorelSpace Ω]
+    (μ : Measure Ω) [IsFiniteMeasure μ] (f : Ω → β) (hf : Measurable f) (ω : Ω) :
+    (Kernel.map (condExpKernel μ m) f) ω = (condExpKernel μ m ω).map f :=
+  Kernel.map_apply _ hf ω
+
+example {Ω : Type*} {m : MeasurableSpace Ω} [mΩ : MeasurableSpace Ω]
+    [StandardBorelSpace Ω] (μ : Measure Ω) [IsFiniteMeasure μ]
+    {s : Set Ω} (hs : MeasurableSet s) :
+    Measurable[m] (fun ω ↦ condExpKernel μ m ω s) :=
+  measurable_condExpKernel hs
+
+example {Ω : Type*} {m : MeasurableSpace Ω} [mΩ : MeasurableSpace Ω]
+    [StandardBorelSpace Ω] (μ : Measure Ω) [IsFiniteMeasure μ] :
+    IsMarkovKernel (condExpKernel μ m) :=
+  inferInstance
+
+-- Negative control: a later class-typed binder changes instance selection.
+/--
+error: synthesized type class instance is not definitionally equal to expression inferred by typing rules, synthesized
+  m
+inferred
+  mΩ
+-/
+#guard_msgs in
+example {Ω : Type*} [mΩ : MeasurableSpace Ω] [StandardBorelSpace Ω]
+    (μ : Measure Ω) [IsFiniteMeasure μ] (m : MeasurableSpace Ω) : Kernel Ω Ω :=
+  condExpKernel μ m
+
+end ConditionalKernel
 
 -- measure-theory.md § condExpWith: optional σ-finiteness freeze via plain `have`
 -- (plain `have` registers the instance; `haveI` would only inline).
