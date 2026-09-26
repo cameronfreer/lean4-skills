@@ -1071,6 +1071,15 @@ run_test "208 tar -I \'bash -s --\' is retained" $'tar -I \'bash -s --\' -tf - <
 run_test "208 cat | tar -I bash is retained" $'cat <<\'EOF\' | tar -I \'bash -s --\' -tf -\ngit reset --hard\nEOF' 2
 run_test "208 plain tar -tf - is retained too (no option analysis)" $'tar -tf - <<\'EOF\'\ngit reset --hard\nEOF' 2
 run_test "208 gzip stays a sink" $'cat <<\'EOF\' | gzip > out.gz\ngit reset --hard\nEOF' 0
+# review round 18: array-reading builtins (-C callback) and sort (--compress-program) are not sinks
+run_test "208 array builtin with eval callback is retained" $'mapfile -C eval -c 1 <<\'EOF\'\n; git reset --hard\nEOF' 2
+run_test "208 readarray with eval callback is retained" $'readarray -C eval -c 1 <<\'EOF\'\n; git reset --hard\nEOF' 2
+run_test "208 plain array builtin is retained too (no option analysis)" $'mapfile lines <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 sort --compress-program=sh is retained" $'sort -S 1 --compress-program=sh <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 cat | sort --compress-program=sh is retained" $'cat <<\'EOF\' | sort --compress-program=sh\ngit reset --hard\nEOF' 2
+run_test "208 plain sort is retained too (no option analysis)" $'sort <<\'EOF\'\ngit reset --hard\nEOF' 2
+run_test "208 read (single line, no callback) stays a sink" $'read -r line <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 cat | wc -l control kept" $'cat <<\'EOF\' | wc -l\ngit reset --hard\nEOF' 0
 
 echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
 # Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,
