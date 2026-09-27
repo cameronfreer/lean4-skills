@@ -1078,8 +1078,16 @@ run_test "208 plain array builtin is retained too (no option analysis)" $'mapfil
 run_test "208 sort --compress-program=sh is retained" $'sort -S 1 --compress-program=sh <<\'EOF\'\ngit reset --hard\nEOF' 2
 run_test "208 cat | sort --compress-program=sh is retained" $'cat <<\'EOF\' | sort --compress-program=sh\ngit reset --hard\nEOF' 2
 run_test "208 plain sort is retained too (no option analysis)" $'sort <<\'EOF\'\ngit reset --hard\nEOF' 2
-run_test "208 read (single line, no callback) stays a sink" $'read -r line <<\'EOF\'\ngit reset --hard\nEOF' 0
+run_test "208 read is retained (integer-attribute targets evaluate input)" $'read -r line <<\'EOF\'\ngit reset --hard\nEOF' 2
 run_test "208 cat | wc -l control kept" $'cat <<\'EOF\' | wc -l\ngit reset --hard\nEOF' 0
+# review round 19: retained bodies preserve guarded lines inside multi-line substitutions; read is not a sink
+run_test "208 retained body: multi-line \$( ) hides nothing" $'bash <<\'EOF\'\nx=$(\ngit reset --hard\n)\nEOF' 2
+run_test "208 retained body: quoted multi-line \$( ) in printf hides nothing" $'bash <<\'EOF\'\nprintf "%s" "$(\ngit reset --hard\n)"\nEOF' 2
+run_test "208 read -d into an integer variable is retained" $'declare -i n\nread -r -d \'\' n <<\'EOF\'\na[$(\ngit reset --hard\n)0]\nEOF' 2
+run_test "208 quoted cat control: multi-line \$( ) in a data body stays allowed" $'cat <<\'EOF\'\nx=$(\ngit reset --hard\n)\nEOF' 0
+run_test "208 top-level multi-line \$( ) hides nothing (base parity)" $'x=$(\ngit reset --hard\n)' 2
+run_test "208 top-level multi-line quoted string: benign lines allowed" $'echo "line one\nline two"' 0
+run_test "208 top-level multi-line quoted string containing a guarded line (base parity)" $'echo "note:\ngit reset --hard\n"' 2
 
 echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
 # Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,

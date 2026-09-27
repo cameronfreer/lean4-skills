@@ -420,8 +420,10 @@ _strip_wrappers() {
 #     not a heredoc; several heredocs on one line are consumed in order; an
 #     unterminated body runs to the end of the input;
 #   * the command after the terminator line is checked as usual.
-# Segments are emitted separated by \036 (record separator); newlines inside
-# a segment (quoted) become spaces so every pattern below sees one line.
+# Segments are emitted separated by \036 (record separator); a segment that
+# spans lines is emitted both joined (newlines → spaces) and as each of its
+# physical lines, so every pattern below sees one line and no guarded
+# command inside a multi-line substitution or quoted string is hidden.
 # POSIX awk only (BSD awk on macOS, mawk, gawk); Bash 3.2 reads with `read -d`.
 _GR_AWK='
 function ansic_simple(c) {
@@ -441,7 +443,16 @@ function octval(o,   i, v) {
   for (i = 1; i <= length(o); i++) v = v * 8 + (substr(o, i, 1) + 0)
   return v
 }
-function emit(seg) {
+function emit(seg,   n, parts, k, line) {
+  if (index(seg, "\n")) {
+    # a segment spanning lines (a substitution or quoted string that is
+    # not split structurally): besides the joined form, EVERY physical line
+    # is emitted on its own — line-preserving, like the pre-#209 splitter
+    # whose output was consumed line by line — so a guarded command inside
+    # `x=$(` … `)` or a quoted "$( … )" is never hidden from the matcher
+    n = split(seg, parts, "\n")
+    for (k = 1; k <= n; k++) { line = parts[k]; sub(/^[ \t]+/, "", line); if (line != "") printf "%s\036", line }
+  }
   gsub(/\n/, " ", seg)
   sub(/^[ \t]+/, "", seg)
   if (seg != "") printf "%s\036", seg
@@ -503,11 +514,12 @@ function is_data_sink(w) {
   # are deliberately NOT here: awk system()/"|cmd" and GNU sed e can execute
   # input lines, split --filter pipes its input through a shell command,
   # tar -I / --use-compress-program and sort --compress-program feed their
-  # input to a supplied program, and the array builtins run a -C callback
-  # with each input line as an argument; no attempt is made to prove their
-  # options harmless.
+  # input to a supplied program, the array builtins run a -C callback with
+  # each input line as an argument, and read into an integer-attribute
+  # variable evaluates the line as arithmetic (which may contain $(…)); no
+  # attempt is made to prove their options or targets harmless.
   sub(/.*\//, "", w)
-  return w ~ /^(cat|tee|head|tail|wc|grep|egrep|fgrep|uniq|cut|tr|less|more|od|hexdump|xxd|md5sum|sha1sum|sha256sum|sha512sum|shasum|cksum|base64|cmp|diff|dd|file|jq|nl|tac|rev|fold|column|paste|iconv|gzip|gunzip|zcat|bzip2|xz|zstd|true|false|:|echo|printf|test|sleep|read|comm|join|expand|unexpand|strings|yes|seq|fmt|pr)$/
+  return w ~ /^(cat|tee|head|tail|wc|grep|egrep|fgrep|uniq|cut|tr|less|more|od|hexdump|xxd|md5sum|sha1sum|sha256sum|sha512sum|shasum|cksum|base64|cmp|diff|dd|file|jq|nl|tac|rev|fold|column|paste|iconv|gzip|gunzip|zcat|bzip2|xz|zstd|true|false|:|echo|printf|test|sleep|comm|join|expand|unexpand|strings|yes|seq|fmt|pr)$/
 }
 function wrapper_takes_operand(wrapper, flag) {
   # options of the supported wrappers that take a separate operand
