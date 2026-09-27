@@ -416,9 +416,10 @@ _strip_wrappers() {
 #     its $(…) and `…` substitutions are executable — the extracted spans
 #     are tokenized (so an inline `$(git …)` is detected even beside data)
 #     AND, once any command substitution is present, the WHOLE body is
-#     checked line by line, so the scanner never needs to understand every
-#     construct a substitution may contain (case patterns, `${…:-)}`,
-#     nested heredocs, …); an unquoted body with no command substitution is
+#     emitted raw line by line (a non-discarding pass: heredoc-shaped text
+#     inside it suppresses nothing) as well as tokenized, so the scanner
+#     never needs to understand every construct a substitution may contain
+#     (case patterns, `${…:-)}`, nested heredocs, …); an unquoted body with no command substitution is
 #     data;
 #   * `<<-` strips leading tabs from the terminator; `<<<` is a here-string,
 #     not a heredoc; several heredocs on one line are consumed in order; an
@@ -509,7 +510,15 @@ function subst_scan(body,   i, len, c, depth, start, active) {
     }
     i++
   }
-  if (active) tokenize(body)   # the whole body, line-preserving
+  if (active) {
+    # the whole body: emitted RAW, line by line (emit never suppresses
+    # anything, so heredoc-shaped text inside the body — a literal cat <<INNER
+    # line and its apparent terminator —
+    # cannot swallow a later executable line), and tokenized as well for
+    # the structural view
+    emit(body)
+    tokenize(body)
+  }
 }
 function is_shell_word(w) {
   sub(/.*\//, "", w)                       # /bin/bash -> bash

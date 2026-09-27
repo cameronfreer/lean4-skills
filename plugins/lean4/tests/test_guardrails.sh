@@ -1099,6 +1099,11 @@ run_test "208 inline \$(git …) beside data is still detected (span)" $'cat <<O
 run_test "208 unquoted body without substitutions stays data" $'cat <<OUTER\n$HOME and ${USER} are fine\ngit reset --hard\nOUTER' 0
 run_test "208 quoted body with the same text stays data" $'cat <<\'OUTER\'\n$(case x in\nx) : ;;\nesac\ngit reset --hard\n)\nOUTER' 0
 run_test "208 unquoted body with a harmless substitution and harmless lines stays allowed" $'cat <<OUTER\ntoday: $(date)\nhello\nOUTER' 0
+# review round 22: the whole-body fallback is non-discarding (raw emission), not a re-entry into the tokenizer
+run_test "208 heredoc-shaped text inside an unquoted body cannot hide a substitution line" $'cat <<OUTER\ncat <<\'INNER\'\n$(case x in\nx) : ;;\nesac\ngit reset --hard\n)\nINNER\nOUTER' 2
+run_test "208 same shape with \${…:-)} inside the substitution" $'cat <<OUTER\ncat <<\'INNER\'\n$(printf \'%s\' ${GUARDRAIL_PROBE_UNSET:-)}\ngit reset --hard\n)\nINNER\nOUTER' 2
+run_test "208 same shape, quoted OUTER: all literal, allowed" $'cat <<\'OUTER\'\ncat <<\'INNER\'\n$(case x in\nx) : ;;\nesac\ngit reset --hard\n)\nINNER\nOUTER' 0
+run_test "208 heredoc-shaped text in a body without substitutions stays data" $'cat <<OUTER\ncat <<\'INNER\'\n$HOME\ngit reset --hard\nINNER\nOUTER' 0
 run_test "208 substitution left open at the end of an unquoted body: whole body checked" $'cat <<OUTER\n$(true\ngit reset --hard\nOUTER' 2
 run_test "208 unquoted body with a substitution: a guarded-looking note is retained (conservative)" $'cat <<OUTER\n$(echo ok)\ngit reset --hard is a note here\nOUTER' 2
 
