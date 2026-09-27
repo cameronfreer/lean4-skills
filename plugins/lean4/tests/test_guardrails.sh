@@ -1124,6 +1124,15 @@ run_test "208 continuation glued to a word keeps it open: # is literal" $'echo p
 run_test "208 continuation then # comment inside a receiving pipeline" $'cat <<\'EOF\' | wc \\\n# -l\ngit reset --hard\nEOF' 0
 run_test "208 continuation glued to the receiver word: unknown, retained" $'cat <<\'EOF\' | wc\\\n#x\ngit reset --hard\nEOF' 2
 run_test "208 continuation inside \$( ) in an unquoted body then # comment" $'cat <<EOF\n$(echo ok \\\n# )\ngit reset --hard\n)\nEOF' 2
+# review round 25: parent-shell expansion of an unquoted body is checked regardless of the receiver
+run_test "208 unquoted bash outer, quoted inner: the parent expands \$( )" $'bash <<OUTER\ncat <<\'INNER\'\n$(\ngit reset --hard\n)\nINNER\nOUTER' 2
+run_test "208 unquoted outer piped to bash: the parent expands \$( )" $'cat <<OUTER | bash\ncat <<\'INNER\'\n$(\ngit reset --hard\n)\nINNER\nOUTER' 2
+run_test "208 unquoted sh outer, quoted inner" $'sh <<OUTER\ncat <<\'INNER\'\n$(\ngit reset --hard\n)\nINNER\nOUTER' 2
+run_test "208 unquoted outer with an unknown receiver" $'mytool <<OUTER\ncat <<\'INNER\'\n$(\ngit reset --hard\n)\nINNER\nOUTER' 2
+run_test "208 quoted bash outer and quoted inner: literal (control)" $'bash <<\'OUTER\'\ncat <<\'INNER\'\n$(\ngit reset --hard\n)\nINNER\nOUTER' 0
+run_test "208 quoted outer piped to bash, quoted inner: literal (control)" $'cat <<\'OUTER\' | bash\ncat <<\'INNER\'\n$(\ngit reset --hard\n)\nINNER\nOUTER' 0
+run_test "208 unquoted data-sink outer catches the expansion too" $'cat <<OUTER\ncat <<\'INNER\'\n$(\ngit reset --hard\n)\nINNER\nOUTER' 2
+run_test "208 quoted data-sink outer: all literal (control)" $'cat <<\'OUTER\'\ncat <<\'INNER\'\n$(\ngit reset --hard\n)\nINNER\nOUTER' 0
 run_test "208 substitution left open at the end of an unquoted body: whole body checked" $'cat <<OUTER\n$(true\ngit reset --hard\nOUTER' 2
 run_test "208 unquoted body with a substitution: a guarded-looking note is retained (conservative)" $'cat <<OUTER\n$(echo ok)\ngit reset --hard is a note here\nOUTER' 2
 

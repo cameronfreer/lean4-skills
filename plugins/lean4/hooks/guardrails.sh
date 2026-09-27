@@ -413,7 +413,9 @@ _strip_wrappers() {
 #     `while … done`, `case`, `for`, …) is never reduced to its first simple
 #     command — the receiver is unidentifiable and the body is retained;
 #   * `cmd <<EOF … EOF` (unquoted delimiter): the body undergoes expansion, so
-#     its $(…) and `…` substitutions are executable — the extracted spans
+#     its $(…) and `…` substitutions are executed by the PARENT shell before
+#     any receiver sees the text (so this check is independent of the
+#     receiver and of any heredoc-shaped text inside the body) — the extracted spans
 #     are tokenized (so an inline `$(git …)` is detected even beside data)
 #     AND, once any command substitution is present, the WHOLE body is
 #     emitted raw line by line (a non-discarding pass: heredoc-shaped text
@@ -888,11 +890,17 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
             nl2 = index(r2, "\n")
             if (nl2 == 0) { cont = cont r2; r2 = "" } else { cont = cont substr(r2, 1, nl2 - 1); r2 = substr(r2, nl2 + 1) }
           }
-          # retained unless the receiver is a COMPLETE, SIMPLE, all-data-sink
-          # pipeline: still open at end of input, nested expansion contexts,
-          # or any non-sink stage ⇒ the body is checked as command text
+          # TWO independent execution stages, both checked:
+          #  1. the RECEIVER may interpret the body: retained (tokenized) unless
+          #     the receiving pipeline is a complete, simple, all-data-sink
+          #     pipeline — still open at end of input, nested expansion
+          #     contexts, or any non-sink stage ⇒ command text;
+          #  2. the PARENT shell expands an UNQUOTED body before the receiver
+          #     ever sees it: its command substitutions run whoever receives
+          #     the text (a quoted inner heredoc inside is no protection), so
+          #     subst_scan runs for every unquoted body regardless of stage 1
           if (hopen || _po_nested || !pipeline_is_data_sink(t cont)) tokenize(body)
-          else if (!hq[k]) subst_scan(body)
+          if (!hq[k]) subst_scan(body)
           rest = substr(rest, lstart)
         }
         hn = 0
