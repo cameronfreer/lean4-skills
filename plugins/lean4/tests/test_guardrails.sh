@@ -1104,6 +1104,19 @@ run_test "208 heredoc-shaped text inside an unquoted body cannot hide a substitu
 run_test "208 same shape with \${…:-)} inside the substitution" $'cat <<OUTER\ncat <<\'INNER\'\n$(printf \'%s\' ${GUARDRAIL_PROBE_UNSET:-)}\ngit reset --hard\n)\nINNER\nOUTER' 2
 run_test "208 same shape, quoted OUTER: all literal, allowed" $'cat <<\'OUTER\'\ncat <<\'INNER\'\n$(case x in\nx) : ;;\nesac\ngit reset --hard\n)\nINNER\nOUTER' 0
 run_test "208 heredoc-shaped text in a body without substitutions stays data" $'cat <<OUTER\ncat <<\'INNER\'\n$HOME\ngit reset --hard\nINNER\nOUTER' 0
+# review round 23: a comment starts only at a LEXICAL word boundary (escapes and continuations respected)
+run_test "208 escaped space before # is not a comment" $'echo path\\ #name; git reset --hard' 2
+run_test "208 escaped ; before # is not a comment" $'echo path\\;#name; git reset --hard' 2
+run_test "208 escaped | before # is not a comment" $'echo path\\|#name; git reset --hard' 2
+run_test "208 backslash-newline continues the word: # is not a comment" $'echo path\\\n#name; git reset --hard' 2
+run_test "208 control: two backslashes then space — # IS a comment" $'echo path\\\\ #name; git reset --hard' 0
+run_test "208 control: unescaped space then # is a comment" $'echo a #x; git reset --hard' 0
+run_test "208 control: comment after a quoted word" $'echo "a b" # ; git reset --hard' 0
+run_test "208 control: # inside a word is literal, command after ; checked" $'echo a#b; git reset --hard' 2
+run_test "208 control: literal heredoc body with the escaped-space shape stays data" $'cat <<\'EOF\'\necho path\\ #name; git reset --hard\nEOF' 0
+run_test "208 receiver word with an escaped space is unknown (retained)" $'cat <<\'EOF\' | wc\\ #x -l\ngit reset --hard\nEOF' 2
+run_test "208 receiver followed by a real comment stays data" $'cat <<\'EOF\' | wc -l #x\ngit reset --hard\nEOF' 0
+run_test "208 open pipeline: escaped space before # in the continuation" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\nwc\\ #x | bash' 2
 run_test "208 substitution left open at the end of an unquoted body: whole body checked" $'cat <<OUTER\n$(true\ngit reset --hard\nOUTER' 2
 run_test "208 unquoted body with a substitution: a guarded-looking note is retained (conservative)" $'cat <<OUTER\n$(echo ok)\ngit reset --hard is a note here\nOUTER' 2
 

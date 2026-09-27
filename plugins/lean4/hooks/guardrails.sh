@@ -469,7 +469,7 @@ function skip_quoted(body, i, len,   c) {
   else { while (i <= len && substr(body, i, 1) != "\"") { if (substr(body, i, 1) == "\\") i++; i++ } }
   return i + 1
 }
-function subst_scan(body,   i, len, c, depth, start, active) {
+function subst_scan(body,   i, len, c, depth, start, active, wo) {
   # An UNQUOTED heredoc body: its $(…) and `…` substitutions are executable.
   # Boundary (deliberately conservative): once the body contains ANY active
   # command substitution, the WHOLE body is checked line-preservingly — in
@@ -484,15 +484,16 @@ function subst_scan(body,   i, len, c, depth, start, active) {
     if (c == "\\") { i += 2; continue }
     if (c == "$" && substr(body, i + 1, 1) == "(") {
       active = 1
-      depth = 1; start = i + 2; i += 2
+      depth = 1; start = i + 2; i += 2; wo = 0
       while (i <= len && depth > 0) {
         c = substr(body, i, 1)
-        if (c == "\\") { i += 2; continue }
-        if (c == "\047" || c == "\"") { i = skip_quoted(body, i, len); continue }
-        if (c == "#" && (i == start || substr(body, i - 1, 1) ~ /[ \t\n;|&(]/)) {
+        if (c == "#" && !wo) {   # a comment at a lexical word boundary
           while (i <= len && substr(body, i, 1) != "\n") i++
           continue
         }
+        if (c == "\\") { wo = 1; i += 2; continue }
+        if (c == "\047" || c == "\"") { wo = 1; i = skip_quoted(body, i, len); continue }
+        wo = (c ~ /[ \t\n;|&(]/) ? 0 : 1
         if (c == "(") depth++
         else if (c == ")") depth--
         i++
@@ -645,22 +646,23 @@ function stage_cmd_word(stage,   len, i, c, w, bw, flag, op) {
   }
   return ""
 }
-function pipeline_is_data_sink(text,   n, parts, k, i, len, c, stage, in_sq, in_dq) {
+function pipeline_is_data_sink(text,   n, parts, k, i, len, c, stage, in_sq, in_dq, wo) {
   # the pipeline that RECEIVES the heredoc (its real boundaries: from the
   # previous ; && || & or line start to the next one or newline): true iff
   # EVERY stage is a known data sink — `cat <<EOF`, `cat <<EOF | wc -l`,
   # `cat - bash <<EOF` (bash is an argument); false for `bash <<EOF`,
   # `cat <<EOF | sudo bash`, `timeout 30 bash <<EOF`, `python3 <<EOF`, an
   # unknown tool, an expanded word, or an incomplete pipeline
-  len = length(text); stage = ""; in_sq = 0; in_dq = 0
+  len = length(text); stage = ""; in_sq = 0; in_dq = 0; wo = 0
   for (i = 1; i <= len; i++) {
     c = substr(text, i, 1)
+    if (c == "#" && !in_sq && !in_dq && !wo) { while (i <= len && substr(text, i, 1) != "\n") i++; wo = 0; continue }
+    if (in_sq || in_dq) wo = 1; else if (c == "\\") wo = 1; else if (c ~ /[ \t\n;|&]/) wo = 0; else wo = 1
     if (in_sq) { stage = stage c; if (c == "\047") in_sq = 0; continue }
     if (in_dq) { if (c == "\\") { stage = stage c substr(text, i + 1, 1); i++; continue }; stage = stage c; if (c == "\"") in_dq = 0; continue }
     if (c == "\047") { in_sq = 1; stage = stage c; continue }
     if (c == "\"") { in_dq = 1; stage = stage c; continue }
     if (c == "\\") { stage = stage c substr(text, i + 1, 1); i++; continue }
-    if (c == "#" && (i == 1 || substr(text, i - 1, 1) ~ /[ \t\n;|&(]/)) { while (i <= len && substr(text, i, 1) != "\n") i++; continue }
     if (c == "\n") { stage = stage " "; continue }
     if (c == "|" && substr(text, i + 1, 1) == "&") { if (!stage_is_data_sink(stage)) return 0; stage = ""; i++; continue }
     if (c == "|" && substr(text, i + 1, 1) != "|") { if (!stage_is_data_sink(stage)) return 0; stage = ""; continue }
@@ -668,7 +670,7 @@ function pipeline_is_data_sink(text,   n, parts, k, i, len, c, stage, in_sq, in_
   }
   return stage_is_data_sink(stage)
 }
-function pipeline_open(text,   i, len, c, in_sq, in_dq) {
+function pipeline_open(text,   i, len, c, in_sq, in_dq, wo) {
   # Is the receiving pipeline still INCOMPLETE (keep joining lines), and is
   # it SIMPLE enough to classify at all? Only plain quotes and comments are
   # modeled here. Any nested expansion context — $( … ), backticks, ${ … }
@@ -678,9 +680,14 @@ function pipeline_open(text,   i, len, c, in_sq, in_dq) {
   # Newlines inside `text` are real line boundaries (a comment ends there).
   _po_nested = 0
   if (text ~ /(\|&?|\\)[ \t]*$/) return 1
-  len = length(text); in_sq = 0; in_dq = 0
+  len = length(text); in_sq = 0; in_dq = 0; wo = 0
   for (i = 1; i <= len; i++) {
     c = substr(text, i, 1)
+    if (c == "#" && !in_sq && !in_dq && !wo) {
+      while (i <= len && substr(text, i, 1) != "\n") i++   # a comment (at a lexical word boundary) runs to the newline
+      wo = 0; continue
+    }
+    if (in_sq || in_dq) wo = 1; else if (c == "\\") wo = 1; else if (c ~ /[ \t\n;|&]/) wo = 0; else wo = 1
     if (in_sq) { if (c == "\047") in_sq = 0; continue }
     if (c == "\\") { i++; continue }
     if (c == "$" && substr(text, i + 1, 1) == "{") {
@@ -690,10 +697,6 @@ function pipeline_open(text,   i, len, c, in_sq, in_dq) {
     if (c == "$" && substr(text, i + 1, 1) == "(") { _po_nested = 1; return 0 }
     if (c == "`") { _po_nested = 1; return 0 }
     if (in_dq) { if (c == "\"") in_dq = 0; continue }
-    if (c == "#" && (i == 1 || substr(text, i - 1, 1) ~ /[ \t\n;|&(]/)) {
-      while (i <= len && substr(text, i, 1) != "\n") i++   # a comment runs to the newline
-      continue
-    }
     if (c == "(" || c == ")") { _po_nested = 1; return 0 }
     if (c == "\047") in_sq = 1
     else if (c == "\"") in_dq = 1
@@ -710,20 +713,25 @@ function stage_is_data_sink(stage,   cw) {
   if (cw == "" || _cw_exp) return 0
   return is_data_sink(cw)
 }
-function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hdash, hunsup, hstart, hend, k, w, q, line_start, pipe_start, body, rest, term, t, nl, lstart, found, hd, hbad, joined, hx, oc, j2, v, hnul, cont, r2, nl2, hopen) {
-  len = length(cmd); i = 1; seg = ""; in_sq = 0; in_dq = 0; in_bt = 0; paren = 0; hn = 0; line_start = 1; pipe_start = 1
+function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hdash, hunsup, hstart, hend, k, w, q, line_start, pipe_start, body, rest, term, t, nl, lstart, found, hd, hbad, joined, hx, oc, j2, v, hnul, cont, r2, nl2, hopen, wo) {
+  len = length(cmd); i = 1; seg = ""; in_sq = 0; in_dq = 0; in_bt = 0; paren = 0; hn = 0; line_start = 1; pipe_start = 1; wo = 0
   while (i <= len) {
     c = substr(cmd, i, 1); nc = substr(cmd, i + 1, 1)
-    if (c == "#" && !in_sq && !in_dq && !in_bt && paren == 0) {
-      # a shell comment starts at a word boundary (line/segment start or after
-      # whitespace/operators) and runs to the newline — nothing in it is an
-      # operator; a # inside a word (a#b) or inside quotes is literal
-      pc = (i > 1) ? substr(cmd, i - 1, 1) : ""
-      if (pc == "" || pc ~ /[ \t\n;|&(]/) {
-        while (i <= len && substr(cmd, i, 1) != "\n") i++
-        continue
-      }
+    if (c == "#" && !in_sq && !in_dq && !in_bt && paren == 0 && !wo) {
+      # a shell comment starts only at a LEXICAL word boundary — after real
+      # (unescaped) whitespace, an operator, or a newline — and runs to the
+      # newline; a # inside a word (a#b, path\ #name, path\;#name, a word
+      # continued by backslash-newline) or inside quotes is literal
+      while (i <= len && substr(cmd, i, 1) != "\n") i++
+      continue
     }
+    # word state AFTER consuming this character: quoted/nested content and
+    # escaped characters (incl. escaped blanks and backslash-newline) are
+    # inside a word; unescaped blanks, newlines and list operators end it
+    if (in_sq || in_dq || in_bt || paren > 0) wo = 1
+    else if (c == "\\" && nc != "") wo = 1
+    else if (c ~ /[ \t\n;|&]/) wo = 0
+    else wo = 1
     if (in_sq) { seg = seg c; if (c == "\047") in_sq = 0; i++; continue }
     if (in_dq) {
       if (c == "\\" && nc != "") { seg = seg c nc; i += 2; continue }
