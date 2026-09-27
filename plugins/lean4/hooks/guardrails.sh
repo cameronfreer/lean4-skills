@@ -413,12 +413,13 @@ _strip_wrappers() {
 #     `while … done`, `case`, `for`, …) is never reduced to its first simple
 #     command — the receiver is unidentifiable and the body is retained;
 #   * `cmd <<EOF … EOF` (unquoted delimiter): the body undergoes expansion, so
-#     its $(…) and `…` substitutions are executable — those are tokenized
-#     (quote- and comment-aware: a quoted or commented `)` does not end a
-#     substitution); a substitution containing a nested heredoc operator, or
-#     left open at the end of the body, makes the span untrustworthy and the
-#     whole body is then checked line by line; otherwise the rest of the
-#     body is data;
+#     its $(…) and `…` substitutions are executable — the extracted spans
+#     are tokenized (so an inline `$(git …)` is detected even beside data)
+#     AND, once any command substitution is present, the WHOLE body is
+#     checked line by line, so the scanner never needs to understand every
+#     construct a substitution may contain (case patterns, `${…:-)}`,
+#     nested heredocs, …); an unquoted body with no command substitution is
+#     data;
 #   * `<<-` strips leading tabs from the terminator; `<<<` is a here-string,
 #     not a heredoc; several heredocs on one line are consumed in order; an
 #     unterminated body runs to the end of the input;
@@ -467,40 +468,39 @@ function skip_quoted(body, i, len,   c) {
   else { while (i <= len && substr(body, i, 1) != "\"") { if (substr(body, i, 1) == "\\") i++; i++ } }
   return i + 1
 }
-function subst_scan(body,   i, len, c, depth, start) {
-  # tokenize the $(…) and `…` substitutions of an unquoted heredoc body;
-  # quote- and comment-aware inside $(…). If a substitution contains nested
-  # shell syntax this scanner does not model — a heredoc operator, whose
-  # body may hold an unbalanced ")" — or is left open at the end of the
-  # body, the extracted span cannot be trusted: the WHOLE body is then
-  # checked line-preservingly instead (conservative boundary, no inner
-  # heredoc parser)
-  len = length(body); i = 1
+function subst_scan(body,   i, len, c, depth, start, active) {
+  # An UNQUOTED heredoc body: its $(…) and `…` substitutions are executable.
+  # Boundary (deliberately conservative): once the body contains ANY active
+  # command substitution, the WHOLE body is checked line-preservingly — in
+  # addition to the extracted spans, which keep ordinary inline $(git …)
+  # detected even when it shares a line with data. The scanner therefore
+  # never has to prove it understands every construct that may appear
+  # inside a substitution (case patterns, ${…:-)} , nested heredocs, …). An
+  # unquoted body WITHOUT command substitutions remains data.
+  len = length(body); i = 1; active = 0
   while (i <= len) {
     c = substr(body, i, 1)
     if (c == "\\") { i += 2; continue }
     if (c == "$" && substr(body, i + 1, 1) == "(") {
+      active = 1
       depth = 1; start = i + 2; i += 2
       while (i <= len && depth > 0) {
         c = substr(body, i, 1)
         if (c == "\\") { i += 2; continue }
         if (c == "\047" || c == "\"") { i = skip_quoted(body, i, len); continue }
         if (c == "#" && (i == start || substr(body, i - 1, 1) ~ /[ \t\n;|&(]/)) {
-          # a shell comment inside the substitution runs to the newline; a
-          # ")" in it does not close the substitution
           while (i <= len && substr(body, i, 1) != "\n") i++
           continue
         }
-        if (c == "<" && substr(body, i + 1, 1) == "<") { tokenize(body); return }   # nested heredoc: unmodeled
         if (c == "(") depth++
         else if (c == ")") depth--
         i++
       }
-      if (depth > 0) { tokenize(body); return }   # substitution still open at the end of the body
-      tokenize(substr(body, start, i - 1 - start))
+      if (depth == 0) tokenize(substr(body, start, i - 1 - start))   # best-effort span
       continue
     }
     if (c == "`") {
+      active = 1
       start = i + 1; i++
       while (i <= len && substr(body, i, 1) != "`") { if (substr(body, i, 1) == "\\") i++; i++ }
       tokenize(substr(body, start, i - start))
@@ -509,6 +509,7 @@ function subst_scan(body,   i, len, c, depth, start) {
     }
     i++
   }
+  if (active) tokenize(body)   # the whole body, line-preserving
 }
 function is_shell_word(w) {
   sub(/.*\//, "", w)                       # /bin/bash -> bash

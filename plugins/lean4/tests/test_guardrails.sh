@@ -1092,8 +1092,15 @@ run_test "208 top-level multi-line quoted string containing a guarded line (base
 run_test "208 nested heredoc inside \$( ) in an unquoted body: later guarded line checked" $'cat <<OUTER\n$(cat <<\'INNER\'\n)\nINNER\ngit reset --hard\n)\nOUTER' 2
 run_test "208 nested heredoc inside \$( ): quoted OUTER makes everything literal" $'cat <<\'OUTER\'\n$(cat <<\'INNER\'\n)\nINNER\ngit reset --hard\n)\nOUTER' 0
 run_test "208 nested heredoc inside \$( ) with a harmless body stays allowed" $'cat <<OUTER\n$(cat <<\'INNER\'\nhello\nINNER\n)\nOUTER' 0
+# review round 21: an unquoted body with any command substitution is checked whole
+run_test "208 case pattern ) inside \$( ) does not truncate the check" $'cat <<OUTER\n$(case x in\nx) : ;;\nesac\ngit reset --hard\n)\nOUTER' 2
+run_test "208 \${…:-)} inside \$( ) does not truncate the check" $'cat <<OUTER\n$(printf \'%s\' ${GUARDRAIL_PROBE_UNSET:-)}\ngit reset --hard\n)\nOUTER' 2
+run_test "208 inline \$(git …) beside data is still detected (span)" $'cat <<OUTER\nvalue: $(git reset --hard) done\nOUTER' 2
+run_test "208 unquoted body without substitutions stays data" $'cat <<OUTER\n$HOME and ${USER} are fine\ngit reset --hard\nOUTER' 0
+run_test "208 quoted body with the same text stays data" $'cat <<\'OUTER\'\n$(case x in\nx) : ;;\nesac\ngit reset --hard\n)\nOUTER' 0
+run_test "208 unquoted body with a harmless substitution and harmless lines stays allowed" $'cat <<OUTER\ntoday: $(date)\nhello\nOUTER' 0
 run_test "208 substitution left open at the end of an unquoted body: whole body checked" $'cat <<OUTER\n$(true\ngit reset --hard\nOUTER' 2
-run_test "208 ordinary balanced substitution still extracted (control)" $'cat <<OUTER\n$(echo ok)\ngit reset --hard is a note here\nOUTER' 0
+run_test "208 unquoted body with a substitution: a guarded-looking note is retained (conservative)" $'cat <<OUTER\n$(echo ok)\ngit reset --hard is a note here\nOUTER' 2
 
 echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
 # Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,
