@@ -1159,6 +1159,19 @@ _t208 "208 perf: 10 KB unquoted doc full of guarded words (data)" "$(printf "cat
 _t208 "208 perf: 10 KB quoted doc, then a real blocked op" "$(printf "cat > doc.md <<'EOF'\n%s\nEOF\ngit reset --hard" "$_doc208")" 2
 _t208 "208 perf: 120 git commands (all relevant segments)" "$_manygit208" 0
 _t208 "208 perf: 120 git commands, last one blocked" "${_manygit208}git reset --hard" 2
+# review round 26: the receiver check and the parent-expansion check share one traversal —
+# nested unquoted heredocs with substitutions must not be traversed twice per level
+_nest208() { # $1 depth, $2 quoted? (y/n): builds bash <<H{i} … nesting around a body with a substitution
+  local body=$'git status\n$(true)\n' i
+  for ((i = 0; i < $1; i++)); do
+    if [[ "$2" == y ]]; then body="bash <<'H$i'"$'\n'"${body}H$i"$'\n'; else body="bash <<H$i"$'\n'"${body}H$i"$'\n'; fi
+  done
+  printf '%s' "$body"
+}
+_t208 "208 perf: 18-level unquoted nesting + substitution, blocked op after" "$(_nest208 18 n)"$'\n'"git reset --hard" 2
+_t208 "208 perf: 18-level unquoted nesting + substitution, benign after" "$(_nest208 18 n)"$'\n'"git status" 0
+_t208 "208 perf: 18-level quoted nesting, blocked op after" "$(_nest208 18 y)"$'\n'"git reset --hard" 2
+_t208 "208 perf: 18-level unquoted nesting, guarded op INSIDE the innermost body" "$(_nest208 18 n | sed 's/^git status$/git reset --hard/')" 2
 
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="

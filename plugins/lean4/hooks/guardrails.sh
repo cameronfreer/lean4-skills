@@ -522,6 +522,7 @@ function subst_scan(body,   i, len, c, depth, start, active, wo) {
     emit(body)
     tokenize(body)
   }
+  return active   # 1 = the whole body was already tokenized here
 }
 function is_shell_word(w) {
   sub(/.*\//, "", w)                       # /bin/bash -> bash
@@ -715,7 +716,7 @@ function stage_is_data_sink(stage,   cw) {
   if (cw == "" || _cw_exp) return 0
   return is_data_sink(cw)
 }
-function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hdash, hunsup, hstart, hend, k, w, q, line_start, pipe_start, body, rest, term, t, nl, lstart, found, hd, hbad, joined, hx, oc, j2, v, hnul, cont, r2, nl2, hopen, wo) {
+function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hdash, hunsup, hstart, hend, k, w, q, line_start, pipe_start, body, rest, term, t, nl, lstart, found, hd, hbad, joined, hx, oc, j2, v, hnul, cont, r2, nl2, hopen, wo, retained) {
   len = length(cmd); i = 1; seg = ""; in_sq = 0; in_dq = 0; in_bt = 0; paren = 0; hn = 0; line_start = 1; pipe_start = 1; wo = 0
   while (i <= len) {
     c = substr(cmd, i, 1); nc = substr(cmd, i + 1, 1)
@@ -898,9 +899,19 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
           #  2. the PARENT shell expands an UNQUOTED body before the receiver
           #     ever sees it: its command substitutions run whoever receives
           #     the text (a quoted inner heredoc inside is no protection), so
-          #     subst_scan runs for every unquoted body regardless of stage 1
-          if (hopen || _po_nested || !pipeline_is_data_sink(t cont)) tokenize(body)
-          if (!hq[k]) subst_scan(body)
+          #     subst_scan runs for every unquoted body regardless of stage 1.
+          # The two checks SHARE one traversal: when subst_scan has already
+          # tokenized the whole body (active substitutions present), stage 1
+          # does not traverse it again — otherwise nested heredocs would be
+          # traversed twice per level (exponential in nesting depth).
+          # `retained` is decided BEFORE subst_scan: recursive scanning
+          # rewrites the shared side-channel variables (_po_nested).
+          retained = (hopen || _po_nested || !pipeline_is_data_sink(t cont))
+          if (!hq[k]) {
+            if (!subst_scan(body) && retained) tokenize(body)
+          } else if (retained) {
+            tokenize(body)
+          }
           rest = substr(rest, lstart)
         }
         hn = 0
