@@ -1172,6 +1172,18 @@ _t208 "208 perf: 18-level unquoted nesting + substitution, blocked op after" "$(
 _t208 "208 perf: 18-level unquoted nesting + substitution, benign after" "$(_nest208 18 n)"$'\n'"git status" 0
 _t208 "208 perf: 18-level quoted nesting, blocked op after" "$(_nest208 18 y)"$'\n'"git reset --hard" 2
 _t208 "208 perf: 18-level unquoted nesting, guarded op INSIDE the innermost body" "$(_nest208 18 n | sed 's/^git status$/git reset --hard/')" 2
+# review round 27: identical text is tokenized at most once per invocation — combined heredoc +
+# substitution nesting reaches the same inner text through several recursive paths
+_compose208() { # $1 layers: each layer = two heredocs around a substitution around the previous body
+  local body=$'git status\n' i
+  for ((i = 0; i < $1; i++)); do
+    body="bash <<A$i"$'\n'"bash <<B$i"$'\n'"\$("$'\n'"${body})"$'\n'"B$i"$'\n'"A$i"$'\n'
+  done
+  printf '%s' "$body"
+}
+_t208 "208 perf: 16 paired heredoc+substitution layers, blocked op after" "$(_compose208 16)"$'\n'"git reset --hard" 2
+_t208 "208 perf: 16 paired layers, benign after" "$(_compose208 16)"$'\n'"git status" 0
+_t208 "208 perf: 16 paired layers, guarded op inside the innermost body" "$(_compose208 16 | sed 's/^git status$/git reset --hard/')" 2
 
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="

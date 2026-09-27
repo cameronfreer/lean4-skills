@@ -717,6 +717,15 @@ function stage_is_data_sink(stage,   cw) {
   return is_data_sink(cw)
 }
 function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn, hw, hq, hdash, hunsup, hstart, hend, k, w, q, line_start, pipe_start, body, rest, term, t, nl, lstart, found, hd, hbad, joined, hx, oc, j2, v, hnul, cont, r2, nl2, hopen, wo, retained) {
+  # Invariant: an identical command string is tokenized AT MOST ONCE per hook
+  # invocation, whichever recursive path reaches it. The guard only checks
+  # for the PRESENCE of matching segments, so repeating identical segments
+  # adds no protection — while combined heredoc and substitution nesting
+  # would otherwise reach the same inner text through several paths (the
+  # expansion scan of an outer body and the whole-body traversal that
+  # reaches the inner heredoc), doubling the work at every level.
+  if (cmd in _gr_tokenized) return
+  _gr_tokenized[cmd] = 1
   len = length(cmd); i = 1; seg = ""; in_sq = 0; in_dq = 0; in_bt = 0; paren = 0; hn = 0; line_start = 1; pipe_start = 1; wo = 0
   while (i <= len) {
     c = substr(cmd, i, 1); nc = substr(cmd, i + 1, 1)
