@@ -414,7 +414,10 @@ _strip_wrappers() {
 #     command — the receiver is unidentifiable and the body is retained;
 #   * `cmd <<EOF … EOF` (unquoted delimiter): the body undergoes expansion, so
 #     its $(…) and `…` substitutions are executable — those are tokenized
-#     (quote-aware: a quoted `)` does not end a substitution); the rest of the
+#     (quote- and comment-aware: a quoted or commented `)` does not end a
+#     substitution); a substitution containing a nested heredoc operator, or
+#     left open at the end of the body, makes the span untrustworthy and the
+#     whole body is then checked line by line; otherwise the rest of the
 #     body is data;
 #   * `<<-` strips leading tabs from the terminator; `<<<` is a here-string,
 #     not a heredoc; several heredocs on one line are consumed in order; an
@@ -466,7 +469,12 @@ function skip_quoted(body, i, len,   c) {
 }
 function subst_scan(body,   i, len, c, depth, start) {
   # tokenize the $(…) and `…` substitutions of an unquoted heredoc body;
-  # quote-aware inside $(…) so a quoted ")" does not end the substitution
+  # quote- and comment-aware inside $(…). If a substitution contains nested
+  # shell syntax this scanner does not model — a heredoc operator, whose
+  # body may hold an unbalanced ")" — or is left open at the end of the
+  # body, the extracted span cannot be trusted: the WHOLE body is then
+  # checked line-preservingly instead (conservative boundary, no inner
+  # heredoc parser)
   len = length(body); i = 1
   while (i <= len) {
     c = substr(body, i, 1)
@@ -483,10 +491,12 @@ function subst_scan(body,   i, len, c, depth, start) {
           while (i <= len && substr(body, i, 1) != "\n") i++
           continue
         }
+        if (c == "<" && substr(body, i + 1, 1) == "<") { tokenize(body); return }   # nested heredoc: unmodeled
         if (c == "(") depth++
         else if (c == ")") depth--
         i++
       }
+      if (depth > 0) { tokenize(body); return }   # substitution still open at the end of the body
       tokenize(substr(body, start, i - 1 - start))
       continue
     }

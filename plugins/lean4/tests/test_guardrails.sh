@@ -1088,6 +1088,12 @@ run_test "208 quoted cat control: multi-line \$( ) in a data body stays allowed"
 run_test "208 top-level multi-line \$( ) hides nothing (base parity)" $'x=$(\ngit reset --hard\n)' 2
 run_test "208 top-level multi-line quoted string: benign lines allowed" $'echo "line one\nline two"' 0
 run_test "208 top-level multi-line quoted string containing a guarded line (base parity)" $'echo "note:\ngit reset --hard\n"' 2
+# review round 20: a substitution with a nested heredoc (or left open) makes the whole body checkable
+run_test "208 nested heredoc inside \$( ) in an unquoted body: later guarded line checked" $'cat <<OUTER\n$(cat <<\'INNER\'\n)\nINNER\ngit reset --hard\n)\nOUTER' 2
+run_test "208 nested heredoc inside \$( ): quoted OUTER makes everything literal" $'cat <<\'OUTER\'\n$(cat <<\'INNER\'\n)\nINNER\ngit reset --hard\n)\nOUTER' 0
+run_test "208 nested heredoc inside \$( ) with a harmless body stays allowed" $'cat <<OUTER\n$(cat <<\'INNER\'\nhello\nINNER\n)\nOUTER' 0
+run_test "208 substitution left open at the end of an unquoted body: whole body checked" $'cat <<OUTER\n$(true\ngit reset --hard\nOUTER' 2
+run_test "208 ordinary balanced substitution still extracted (control)" $'cat <<OUTER\n$(echo ok)\ngit reset --hard is a note here\nOUTER' 0
 
 echo "--- #208: parsing cost stays inside the 5 s hook deadline ---"
 # Wall-clock budget: 3 s (the pre-fix numbers were 10–18 s for these inputs,
