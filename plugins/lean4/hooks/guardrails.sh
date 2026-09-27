@@ -491,7 +491,7 @@ function subst_scan(body,   i, len, c, depth, start, active, wo) {
           while (i <= len && substr(body, i, 1) != "\n") i++
           continue
         }
-        if (c == "\\") { wo = 1; i += 2; continue }
+        if (c == "\\") { if (substr(body, i + 1, 1) != "\n") wo = 1; i += 2; continue }
         if (c == "\047" || c == "\"") { wo = 1; i = skip_quoted(body, i, len); continue }
         wo = (c ~ /[ \t\n;|&(]/) ? 0 : 1
         if (c == "(") depth++
@@ -657,7 +657,7 @@ function pipeline_is_data_sink(text,   n, parts, k, i, len, c, stage, in_sq, in_
   for (i = 1; i <= len; i++) {
     c = substr(text, i, 1)
     if (c == "#" && !in_sq && !in_dq && !wo) { while (i <= len && substr(text, i, 1) != "\n") i++; wo = 0; continue }
-    if (in_sq || in_dq) wo = 1; else if (c == "\\") wo = 1; else if (c ~ /[ \t\n;|&]/) wo = 0; else wo = 1
+    if (in_sq || in_dq) wo = 1; else if (c == "\\" && substr(text, i + 1, 1) == "\n") { } else if (c == "\\") wo = 1; else if (c ~ /[ \t\n;|&]/) wo = 0; else wo = 1
     if (in_sq) { stage = stage c; if (c == "\047") in_sq = 0; continue }
     if (in_dq) { if (c == "\\") { stage = stage c substr(text, i + 1, 1); i++; continue }; stage = stage c; if (c == "\"") in_dq = 0; continue }
     if (c == "\047") { in_sq = 1; stage = stage c; continue }
@@ -687,7 +687,7 @@ function pipeline_open(text,   i, len, c, in_sq, in_dq, wo) {
       while (i <= len && substr(text, i, 1) != "\n") i++   # a comment (at a lexical word boundary) runs to the newline
       wo = 0; continue
     }
-    if (in_sq || in_dq) wo = 1; else if (c == "\\") wo = 1; else if (c ~ /[ \t\n;|&]/) wo = 0; else wo = 1
+    if (in_sq || in_dq) wo = 1; else if (c == "\\" && substr(text, i + 1, 1) == "\n") { } else if (c == "\\") wo = 1; else if (c ~ /[ \t\n;|&]/) wo = 0; else wo = 1
     if (in_sq) { if (c == "\047") in_sq = 0; continue }
     if (c == "\\") { i++; continue }
     if (c == "$" && substr(text, i + 1, 1) == "{") {
@@ -726,9 +726,13 @@ function tokenize(cmd,   i, len, c, nc, pc, seg, in_sq, in_dq, in_bt, paren, hn,
       continue
     }
     # word state AFTER consuming this character: quoted/nested content and
-    # escaped characters (incl. escaped blanks and backslash-newline) are
-    # inside a word; unescaped blanks, newlines and list operators end it
+    # escaped characters (incl. escaped blanks) are inside a word; unescaped
+    # blanks, newlines and list operators end it; a backslash-newline pair
+    # is simply REMOVED by the shell, so it preserves the word state it found
+    # (`path\` + newline keeps the word open; `ok \` + newline after a
+    # separating blank leaves the boundary intact)
     if (in_sq || in_dq || in_bt || paren > 0) wo = 1
+    else if (c == "\\" && nc == "\n") { }
     else if (c == "\\" && nc != "") wo = 1
     else if (c ~ /[ \t\n;|&]/) wo = 0
     else wo = 1

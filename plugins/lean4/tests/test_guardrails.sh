@@ -1117,6 +1117,13 @@ run_test "208 control: literal heredoc body with the escaped-space shape stays d
 run_test "208 receiver word with an escaped space is unknown (retained)" $'cat <<\'EOF\' | wc\\ #x -l\ngit reset --hard\nEOF' 2
 run_test "208 receiver followed by a real comment stays data" $'cat <<\'EOF\' | wc -l #x\ngit reset --hard\nEOF' 0
 run_test "208 open pipeline: escaped space before # in the continuation" $'cat <<\'EOF\' |\ngit reset --hard\nEOF\nwc\\ #x | bash' 2
+# review round 24: a backslash-newline pair preserves the word state it found
+run_test "208 continuation after a separating blank: # is a comment, later command checked" $'echo ok \\\n# <<EOF\ngit reset --hard' 2
+run_test "208 continuation after a separating blank: # comment (control, allowed)" $'echo ok \\\n# git reset --hard' 0
+run_test "208 continuation glued to a word keeps it open: # is literal" $'echo path\\\n#name; git reset --hard' 2
+run_test "208 continuation then # comment inside a receiving pipeline" $'cat <<\'EOF\' | wc \\\n# -l\ngit reset --hard\nEOF' 0
+run_test "208 continuation glued to the receiver word: unknown, retained" $'cat <<\'EOF\' | wc\\\n#x\ngit reset --hard\nEOF' 2
+run_test "208 continuation inside \$( ) in an unquoted body then # comment" $'cat <<EOF\n$(echo ok \\\n# )\ngit reset --hard\n)\nEOF' 2
 run_test "208 substitution left open at the end of an unquoted body: whole body checked" $'cat <<OUTER\n$(true\ngit reset --hard\nOUTER' 2
 run_test "208 unquoted body with a substitution: a guarded-looking note is retained (conservative)" $'cat <<OUTER\n$(echo ok)\ngit reset --hard is a note here\nOUTER' 2
 
