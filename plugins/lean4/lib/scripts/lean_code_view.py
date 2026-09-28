@@ -55,9 +55,23 @@ def _blank(text: str) -> str:
 def code_view(text: str) -> str:
     """Blank comments and string/char literals; newline positions unchanged."""
     out: list[str] = []
-    i = 0
+    _scan(text, 0, out, until_brace=False)
+    return "".join(out)
+
+
+def _scan(text: str, i: int, out: list[str], *, until_brace: bool) -> int:
+    """The one lexical pass. Appends the view of text[i:] to ``out``.
+
+    With ``until_brace`` the scan is the code of an interpolation: it stops
+    at the first `}` not balanced by a `{` at code level and returns its
+    index (the caller emits the brace). Comments, string/char literals,
+    raw strings and nested interpolations are consumed by the same rules
+    either way, so a `}` inside any of them never ends an interpolation.
+    Returns len(text) when it runs to the end.
+    """
     n = len(text)
     depth = 0  # block-comment nesting
+    braces = 0  # code-level `{` … `}` nesting, only used with until_brace
     while i < n:
         ch = text[i]
         nxt = text[i + 1] if i + 1 < n else ""
@@ -93,9 +107,8 @@ def code_view(text: str) -> str:
                 continue
         if ch == '"' and i >= 2 and text[i - 1] == "!" and _IDENT.match(text[i - 2]):
             # interpolated string `ident!"…"`: literal text blanked, each
-            # `{…}` is code (kept, scanned recursively)
-            j = _interp_string(text, i, out)
-            i = j
+            # `{…}` is code (scanned by this same function)
+            i = _interp_string(text, i, out)
             continue
         if ch == '"':
             # string literal: runs to the next unescaped quote, across lines;
@@ -124,9 +137,16 @@ def code_view(text: str) -> str:
             out.append("  ")
             i += 2
             continue
+        if until_brace:
+            if ch == "{":
+                braces += 1
+            elif ch == "}":
+                if braces == 0:
+                    return i
+                braces -= 1
         out.append(ch)
         i += 1
-    return "".join(out)
+    return n
 
 
 def _interp_string(text: str, i: int, out: list[str]) -> int:
@@ -145,43 +165,14 @@ def _interp_string(text: str, i: int, out: list[str]) -> int:
             out.append(" ")
             return j + 1
         if c == "{":
-            k = _interp_code_end(text, j + 1)
             out.append("{")
-            out.append(code_view(text[j + 1 : k]))
+            k = _scan(text, j + 1, out, until_brace=True)
             if k < n:
                 out.append("}")
                 k += 1
             j = k
             continue
         out.append("\n" if c == "\n" else " ")
-        j += 1
-    return n
-
-
-def _interp_code_end(text: str, j: int) -> int:
-    """Index of the `}` closing the interpolation whose code starts at j
-    (nested braces balanced; string and char literals skipped)."""
-    n = len(text)
-    depth = 0
-    while j < n:
-        c = text[j]
-        if c == '"':
-            j += 1
-            while j < n and text[j] != '"':
-                j += 2 if text[j] == "\\" else 1
-            j += 1
-            continue
-        if c == "'" and (j == 0 or not _IDENT.match(text[j - 1])):
-            m = _CHAR_LIT.match(text, j)
-            if m:
-                j = m.end()
-                continue
-        if c == "{":
-            depth += 1
-        elif c == "}":
-            if depth == 0:
-                return j
-            depth -= 1
         j += 1
     return n
 
