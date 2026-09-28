@@ -7,8 +7,18 @@
 #
 # Finds top-level declarations that are never used in the project.
 # Covered keywords: theorem, lemma, def, abbrev, instance, axiom,
-# constant, structure, class, inductive — optionally prefixed by
-# noncomputable, unsafe, partial, or nonrec.
+# constant, structure, class, inductive — optionally prefixed by an
+# access modifier (private, protected, local) and/or noncomputable,
+# unsafe, partial, nonrec (#184). A `private` declaration is file-local in
+# Lean, so its usages are counted within its own file only — a same-named
+# private declaration in another file cannot mask it.
+#
+# The analysis runs over a code-only mirror of the tree (#185,
+# lib/scripts/lean_code_view.py): comments — line, nested block, docstrings
+# — and string literals are blanked, with line numbers preserved, so a
+# mention in a docstring, a commented-out proof or a `#guard_msgs` string
+# never counts as a usage, and a commented-out declaration is never
+# extracted. Requires python3 (loud exit 2 otherwise).
 #
 # Examples:
 #   ./unused_declarations.sh
@@ -25,10 +35,11 @@
 #     unused, because extraction records the short name and the usage
 #     boundary deliberately excludes `.`-prefixed forms. Verify with
 #     find_usages.sh before removing anything namespaced.
-#   - Usages in comments and strings ARE counted (may hide dead code).
-#   - Indented, private/protected/local, @[attr], and mutual-block decls
-#     are not extracted; trees containing ONLY those are reported as
-#     unverifiable (exit 1) rather than clean.
+#   - Indented, @[attr]-prefixed and mutual-block decls are not extracted;
+#     trees containing ONLY those are reported as unverifiable (exit 1)
+#     rather than clean.
+#   - Advisory only: "potentially unused" is a grep-level verdict, never a
+#     certification of dead code and never an automatic deletion.
 
 set -euo pipefail
 
@@ -87,6 +98,19 @@ else
     echo ""
 fi
 
+# The code-only mirror (#185). Same policy as the rg/PCRE check above: a
+# missing tool or a failed mirror must be loud (exit 2), never a false
+# "no findings".
+if ! command -v python3 >/dev/null 2>&1; then
+    echo -e "${RED}Error: this script requires python3 (to build the comment/string-free code view).${NC}" >&2
+    exit 2
+fi
+CODE_VIEW="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lean_code_view.py"
+if [[ ! -f "$CODE_VIEW" ]]; then
+    echo -e "${RED}Error: lean_code_view.py not found beside this script — cannot analyze.${NC}" >&2
+    exit 2
+fi
+
 # Lean identifier boundary patterns
 # Lean identifiers can contain: letters, digits, _, ' (prime), and . (qualified names)
 # We need custom boundaries because \b doesn't work with ' or .
@@ -108,7 +132,19 @@ echo ""
 # Temporary files
 DECLARATIONS=$(mktemp)
 UNUSED=$(mktemp)
-trap 'rm -f "$DECLARATIONS" "$UNUSED"' EXIT
+PRIVATE_MAP=$(mktemp)
+MIRROR=$(mktemp -d)
+trap 'rm -rf "$DECLARATIONS" "$UNUSED" "$PRIVATE_MAP" "$MIRROR"' EXIT
+
+echo -e "${GREEN}Step 0: Building the code-only view (comments and strings blanked)...${NC}"
+if ! _mirrored=$(python3 "$CODE_VIEW" "$SEARCH_DIR" "$MIRROR"); then
+    echo -e "${RED}Error: could not build the code-only view of $SEARCH_DIR — cannot analyze.${NC}" >&2
+    exit 2
+fi
+echo -e "Mirrored ${BOLD}${_mirrored}${NC} Lean file(s)"
+echo ""
+# Locations found in the mirror are reported against the original tree.
+_loc_fix() { sed "s|^$MIRROR/|$SEARCH_DIR/|"; }
 
 echo -e "${GREEN}Step 1: Finding all declarations...${NC}"
 
@@ -122,6 +158,11 @@ echo -e "${GREEN}Step 1: Finding all declarations...${NC}"
 # `example` is deliberately absent: examples are anonymous, no name to track.
 DECL_KEYWORDS='theorem|lemma|def|abbrev|instance|axiom|constant|structure|class|inductive'
 DECL_MODIFIERS='noncomputable|unsafe|partial|nonrec'
+# Access modifiers come BEFORE decl modifiers, as in Lean's declModifiers
+# grammar (`private noncomputable def`; the reverse is not valid Lean).
+DECL_ACCESS='private|protected|local'
+# rg capture numbering with the access group in front: $6 is the name.
+DECL_RE="^(($DECL_ACCESS)\s+)?(($DECL_MODIFIERS)\s+)?($DECL_KEYWORDS)\s+"
 if [[ "$USE_RG" == true ]]; then
     # --no-filename is load-bearing: without it, rg prefixes every match with
     # `path:` when searching a directory (even with --no-heading), so every
@@ -133,16 +174,27 @@ if [[ "$USE_RG" == true ]]; then
     # under `set -euo pipefail` that killed the whole script mid-run on any
     # declaration-free tree — exit 1 with no summary, making the
     # TOTAL_DECLS==0 branch below unreachable in rg mode.
-    rg -t lean "^(($DECL_MODIFIERS)\s+)?($DECL_KEYWORDS)\s+([\w'.]+)" \
-        "$SEARCH_DIR" \
+    rg -t lean "${DECL_RE}([\w'.]+)" \
+        "$MIRROR" \
         --no-heading \
         --no-filename \
         --only-matching \
-        --replace '$4' | sort -u > "$DECLARATIONS" || true
+        --replace '$6' | sort -u > "$DECLARATIONS" || true
+    # private declarations, with their file: usages are counted per file
+    rg -t lean "^private\s+(($DECL_MODIFIERS)\s+)?($DECL_KEYWORDS)\s+([\w'.]+)" \
+        "$MIRROR" \
+        --no-heading \
+        --with-filename \
+        --only-matching \
+        --replace '$4' | sed 's|^\(.*\):\([^:]*\)$|\1\t\2|' | sort -u > "$PRIVATE_MAP" || true
 else
-    find "$SEARCH_DIR" -name "*.lean" -type f -exec \
-        grep -hoP "^(($DECL_MODIFIERS)\s+)?($DECL_KEYWORDS)\s+\K[\w'.]+" {} \; | \
+    find "$MIRROR" -name "*.lean" -type f -exec \
+        grep -hoP "${DECL_RE}\K[\w'.]+" {} \; | \
         sort -u > "$DECLARATIONS" || true
+    while IFS= read -r _pf; do
+        grep -oP "^private\s+(($DECL_MODIFIERS)\s+)?($DECL_KEYWORDS)\s+\K[\w'.]+" "$_pf" 2>/dev/null | \
+            sed "s|^|$_pf\t|" || true
+    done < <(find "$MIRROR" -name "*.lean" -type f) | sort -u > "$PRIVATE_MAP"
 fi
 
 TOTAL_DECLS=$(wc -l < "$DECLARATIONS" | tr -d ' ')
@@ -171,8 +223,8 @@ if [[ $TOTAL_DECLS -eq 0 ]]; then
     # itself failed (regex bug, tool misbehavior) and must be loud, not a
     # friendly zero. Also catches @[attr] lines and mutual blocks.
     _shape_re="^[[:space:]]*((private|protected|local)[[:space:]]+)?(($DECL_MODIFIERS)[[:space:]]+)?($DECL_KEYWORDS)[[:space:]]|^[[:space:]]*@\[|^[[:space:]]*mutual[[:space:]]*$"
-    if grep -rqE --include='*.lean' "$_shape_re" "$SEARCH_DIR" 2>/dev/null; then
-        echo -e "${YELLOW}⚠ No top-level declarations matched, but declaration-shaped content exists (indented / private / @[attr] / mutual) — analysis cannot cover it${NC}"
+    if grep -rqE --include='*.lean' "$_shape_re" "$MIRROR" 2>/dev/null; then
+        echo -e "${YELLOW}⚠ No top-level declarations matched, but declaration-shaped content exists (indented / @[attr] / mutual) — analysis cannot cover it${NC}"
         exit 1
     fi
     echo -e "${YELLOW}No declarations found in $SEARCH_DIR${NC}"
@@ -200,22 +252,47 @@ while IFS= read -r decl; do
         continue
     fi
 
-    # Search for uses of this declaration
+    # Search for uses of this declaration in the code-only mirror.
     # Escape for regex and use Lean-aware boundaries (handles ' and .)
     escaped_decl=$(escape_regex "$decl")
-    if [[ "$USE_RG" == true ]]; then
-        # Count usages (excluding definition)
-        USAGE_COUNT=$(rg -t lean "$LEAN_ID_BEFORE$escaped_decl$LEAN_ID_AFTER" "$SEARCH_DIR" --count-matches 2>/dev/null | \
-            awk -F: '{sum += $2} END {print sum}' || echo "0")
-    else
-        USAGE_COUNT=$(find "$SEARCH_DIR" -name "*.lean" -type f -exec \
-            grep -Eo "$LEAN_ID_BEFORE$escaped_decl$LEAN_ID_AFTER" {} \; | wc -l | tr -d ' ')
+    _usage_re="$LEAN_ID_BEFORE$escaped_decl$LEAN_ID_AFTER"
+
+    # Files where this name is a PRIVATE declaration: file-local counting.
+    _priv_files=$(awk -F'\t' -v n="$decl" '$2 == n {print $1}' "$PRIVATE_MAP")
+    _priv_n=0
+    if [[ -n "$_priv_files" ]]; then
+        while IFS= read -r _pf; do
+            [[ -n "$_pf" ]] || continue
+            _priv_n=$((_priv_n + 1))
+            _c=$(grep -Eo "$_usage_re" "$_pf" 2>/dev/null | wc -l | tr -d ' ')
+            if [[ "${_c:-0}" -le 1 ]]; then
+                printf '%s\t%s\n' "$decl" "$_pf" >> "$UNUSED"
+                UNUSED_COUNT=$((UNUSED_COUNT + 1))
+            fi
+        done <<< "$_priv_files"
     fi
 
-    # If only 1 usage (the definition itself) or 0, it's likely unused
-    if [[ $USAGE_COUNT -le 1 ]]; then
-        echo "$decl" >> "$UNUSED"
-        UNUSED_COUNT=$((UNUSED_COUNT + 1))
+    # Definition sites that are NOT private: project-wide counting (as before).
+    if [[ "$USE_RG" == true ]]; then
+        _sites=$(rg -t lean "${DECL_RE}${escaped_decl}${LEAN_ID_AFTER}" "$MIRROR" --count-matches 2>/dev/null | \
+            awk -F: '{sum += $2} END {print sum+0}' || echo "0")
+    else
+        _sites=$(find "$MIRROR" -name "*.lean" -type f -exec \
+            grep -Eo "${DECL_RE}${escaped_decl}${LEAN_ID_AFTER}" {} \; | wc -l | tr -d ' ')
+    fi
+    if [[ "${_sites:-0}" -gt "$_priv_n" ]]; then
+        if [[ "$USE_RG" == true ]]; then
+            USAGE_COUNT=$(rg -t lean "$_usage_re" "$MIRROR" --count-matches 2>/dev/null | \
+                awk -F: '{sum += $2} END {print sum+0}' || echo "0")
+        else
+            USAGE_COUNT=$(find "$MIRROR" -name "*.lean" -type f -exec \
+                grep -Eo "$_usage_re" {} \; | wc -l | tr -d ' ')
+        fi
+        # Only the definition sites themselves (public + private) → unused.
+        if [[ "${USAGE_COUNT:-0}" -le "$_sites" ]]; then
+            printf '%s\t\n' "$decl" >> "$UNUSED"
+            UNUSED_COUNT=$((UNUSED_COUNT + 1))
+        fi
     fi
 done < "$DECLARATIONS"
 
@@ -235,23 +312,27 @@ else
     echo -e "${YELLOW}Found ${BOLD}$UNUSED_COUNT${NC}${YELLOW} potentially unused declaration(s):${NC}"
     echo ""
 
-    # Show unused declarations with file locations
-    while IFS= read -r decl; do
-        # Find where it's defined (escape for regex). Keyword set + modifier
-        # prefix must mirror the Step 1 extraction regex, else expanded-class
-        # decls (axiom, noncomputable def, ...) report without a location.
+    # Show unused declarations with file locations (a private finding
+    # carries its file; a public one is located project-wide). The
+    # location regex must mirror the Step 1 extraction regex.
+    while IFS=$'\t' read -r decl _pfile; do
         escaped_decl=$(escape_regex "$decl")
-        if [[ "$USE_RG" == true ]]; then
-            LOCATION=$(rg -t lean "^(($DECL_MODIFIERS)\s+)?($DECL_KEYWORDS)\s+$escaped_decl$LEAN_ID_AFTER" \
-                "$SEARCH_DIR" --no-heading | head -1 || echo "")
+        _loc_re="${DECL_RE}${escaped_decl}${LEAN_ID_AFTER}"
+        if [[ -n "$_pfile" ]]; then
+            LOCATION=$(grep -En "$_loc_re" "$_pfile" 2>/dev/null | head -1 | sed "s|^|$_pfile:|" | _loc_fix || echo "")
+        elif [[ "$USE_RG" == true ]]; then
+            LOCATION=$(rg -t lean -n "$_loc_re" "$MIRROR" --no-heading | head -1 | _loc_fix || echo "")
         else
-            LOCATION=$(find "$SEARCH_DIR" -name "*.lean" -type f -exec \
-                grep -En "^(($DECL_MODIFIERS)\s+)?($DECL_KEYWORDS)\s+$escaped_decl$LEAN_ID_AFTER" {} + | \
-                head -1 || echo "")
+            LOCATION=$(find "$MIRROR" -name "*.lean" -type f -exec \
+                grep -EHn "$_loc_re" {} + | head -1 | _loc_fix || echo "")
         fi
 
         if [[ -n "$LOCATION" ]]; then
-            echo -e "  ${RED}✗${NC} ${BOLD}$decl${NC}"
+            if [[ -n "$_pfile" ]]; then
+                echo -e "  ${RED}✗${NC} ${BOLD}$decl${NC} (private)"
+            else
+                echo -e "  ${RED}✗${NC} ${BOLD}$decl${NC}"
+            fi
             echo -e "    Location: $LOCATION"
         fi
     done < "$UNUSED"
@@ -279,8 +360,8 @@ else
 
     echo -e "${YELLOW}${BOLD}Important:${NC}"
     echo "• This analysis may have false positives (e.g., exported API, instances)"
-    echo -e "• ${RED}⚠ Usages in comments and strings ARE counted${NC} (may inflate usage counts)"
-    echo "  This is a known limitation - stripping comments requires Lean parsing."
+    echo "• Usages in comments and strings are NOT counted (code-only view); namespace-qualified"
+    echo "  usages (A.foo) are not credited either — a grep-level verdict, not a certification"
     echo "• Always verify before removing declarations"
     echo "• Use ${BOLD}find_usages.sh <decl>${NC} to double-check specific declarations"
     echo ""
