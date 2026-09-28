@@ -313,6 +313,12 @@ jobs:
       - name: Self-test — cycle tracker
         run: bash plugins/lean4/tests/test_cycle_tracker.sh
 
+      # The guardrails regression suite also runs on Linux (mawk, GNU
+      # userland); the macOS bash3-compat job runs it under Bash 3.2 with
+      # BSD awk — together they cover the hook's awk tokenizer (#208).
+      - name: Self-test — guardrails.sh (Linux/mawk)
+        run: bash plugins/lean4/tests/test_guardrails.sh
+
       # Also run the lint_docs self-test on Linux so its staleness probes
       # (7–8) exercise the GNU `date -d` branch of Check 20's portable date
       # parser; the macOS bash3-compat job runs the same probes against the
