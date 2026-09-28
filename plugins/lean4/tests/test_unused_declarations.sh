@@ -545,12 +545,14 @@ fi
 
 # ---------------------------------------------------------------------------
 # Probe 19 — interpolation (#185 review): `{…}` inside s!"…" is code.
-# `live` is used only from interpolations (one nested) → used; `ghost`
-# appears only in literal text and as the escaped `\{ghost}` → flagged.
+# `live` is used only from interpolations (one nested, three whose code
+# holds a `}` inside a block comment / line comment / raw string) → used;
+# `ghost` appears only in literal text and as the escaped `\{ghost}` →
+# flagged; the `#check`s after those interpolations are not erased.
 # ---------------------------------------------------------------------------
 run_probe "P19 interpolation" interpolation
 p19_ok=1
-assert_out_has     "P19" "Found 5 declarations"          || p19_ok=0
+assert_out_has     "P19" "Found 8 declarations"          || p19_ok=0
 assert_out_has     "P19" "Potentially unused: 1"         || p19_ok=0
 assert_out_has     "P19" "  ✗ ghost"                     || p19_ok=0
 assert_out_missing "P19" "  ✗ live"                      || p19_ok=0
