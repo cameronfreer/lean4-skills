@@ -346,6 +346,7 @@ assert_out_has     "P11" "helper"                        || p11_ok=0
 assert_out_has     "P11" "(private)"                     || p11_ok=0
 assert_out_has     "P11" "B.lean"                        || p11_ok=0
 assert_out_has     "P11" "Potentially unused: 1"         || p11_ok=0
+assert_out_has     "P11" "Total declarations: 4"         || p11_ok=0   # helper×2 files + useA + useB
 assert_exit        "P11" 1                               || p11_ok=0
 if [[ $p11_ok -eq 1 ]]; then
     echo "  PASS: P11 private-collision — file-local counting flags the dead copy in B.lean"
@@ -442,6 +443,104 @@ if [[ $p14_ok -eq 1 ]]; then
     ((PASS++)) || true
 else
     ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 15 — literals (#185 review): a char literal containing `"`, a raw
+# string holding a declaration name, and an escaped newline inside a
+# string. Exactly dead/dead2/dead3 flagged; `quote`, `text`, `s` used;
+# dead3's location still says line 14 (newlines preserved).
+# ---------------------------------------------------------------------------
+run_probe "P15 literals" literals
+p15_ok=1
+assert_out_has     "P15" "Found 6 declarations"          || p15_ok=0
+assert_out_has     "P15" "Potentially unused: 3"         || p15_ok=0
+assert_out_has     "P15" "Location: $PROBE_TREE/Sample.lean:14:" || p15_ok=0
+assert_exit        "P15" 1                               || p15_ok=0
+for _used in quote text s; do
+    if grep -qE "^  ✗ $_used\$" <<< "$PROBE_OUT"; then
+        echo "  FAIL: P15 — used decl $_used flagged"; p15_ok=0
+    fi
+done
+if [[ $p15_ok -eq 1 ]]; then
+    echo "  PASS: P15 literals — char literal, raw string and escaped newline handled; lines preserved"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 16 — ignore_metadata (#185 review): `.ignore` excludes generated/.
+# The rg backend must keep that exclusion when the search moves to the
+# mirror, so `dead` (referenced only in generated/) is still flagged.
+# (The PCRE-grep fallback has no exclusions, as before — rg only.)
+# ---------------------------------------------------------------------------
+if command -v rg >/dev/null 2>&1; then
+    run_probe "P16 ignore-metadata" ignore_metadata
+    p16_ok=1
+    assert_out_has     "P16" "Mirrored 1 Lean file(s)"       || p16_ok=0
+    assert_out_has     "P16" "dead"                          || p16_ok=0
+    assert_out_has     "P16" "Potentially unused: 1"         || p16_ok=0
+    assert_exit        "P16" 1                               || p16_ok=0
+    if [[ $p16_ok -eq 1 ]]; then
+        echo "  PASS: P16 ignore-metadata — rg exclusions preserved across the mirror"
+        ((PASS++)) || true
+    else
+        ((FAIL++)) || true
+    fi
+else
+    echo "  SKIP: P16 — ripgrep not available"
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 17 — private_count (#184 review): consistent summary units — two
+# private `helper`s in two files are 2 declarations and 2 findings, never
+# "Total 1, unused 2, usage rate -100%".
+# ---------------------------------------------------------------------------
+run_probe "P17 private-count" private_count
+p17_ok=1
+assert_out_has     "P17" "Total declarations: 2"         || p17_ok=0
+assert_out_has     "P17" "Potentially unused: 2"         || p17_ok=0
+assert_out_missing "P17" "Usage rate: -"                 || p17_ok=0
+assert_exit        "P17" 1                               || p17_ok=0
+if [[ $p17_ok -eq 1 ]]; then
+    echo "  PASS: P17 private-count — summary units consistent"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 18 — unreadable directory (#185 review): a subdirectory the tool
+# cannot traverse must make the analysis fail loudly (exit 2), never
+# report a clean tree from the files it could read. Skipped as root.
+# ---------------------------------------------------------------------------
+if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+    ((++PROBE_COUNTER))
+    P18_DIR="$SCRATCH_ROOT/probe-$PROBE_COUNTER"
+    mkdir -p "$P18_DIR/secret"
+    cp "$FIXTURE_ROOT/all_used/Sample.lean" "$P18_DIR/"
+    printf 'def hidden_dead : Nat := 0\n' > "$P18_DIR/secret/Hidden.lean"
+    chmod 000 "$P18_DIR/secret"
+    set +e
+    PROBE_OUT=$("$BASH_FOR_COMPAT" "$UNUSED_SCRIPT" "$P18_DIR" 2>&1)
+    PROBE_EXIT=$?
+    set -e
+    chmod 755 "$P18_DIR/secret"
+    # shellcheck disable=SC2001
+    PROBE_OUT=$(sed "s/$(printf '\033')\[[0-9;]*m//g" <<< "$PROBE_OUT")
+    p18_ok=1
+    assert_out_has     "P18" "cannot analyze"                        || p18_ok=0
+    assert_out_missing "P18" "All declarations appear to be used"    || p18_ok=0
+    assert_exit        "P18" 2                                       || p18_ok=0
+    if [[ $p18_ok -eq 1 ]]; then
+        echo "  PASS: P18 unreadable-dir — loud exit 2, never a clean result"
+        ((PASS++)) || true
+    else
+        ((FAIL++)) || true
+    fi
+else
+    echo "  SKIP: P18 — running as root, directory permissions are not enforced"
 fi
 
 # ---------------------------------------------------------------------------
