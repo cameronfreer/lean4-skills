@@ -133,11 +133,34 @@ echo ""
 DECLARATIONS=$(mktemp)
 UNUSED=$(mktemp)
 PRIVATE_MAP=$(mktemp)
+FILELIST=$(mktemp)
+ENUM_ERR=$(mktemp)
 MIRROR=$(mktemp -d)
-trap 'rm -rf "$DECLARATIONS" "$UNUSED" "$PRIVATE_MAP" "$MIRROR"' EXIT
+trap 'rm -rf "$DECLARATIONS" "$UNUSED" "$PRIVATE_MAP" "$FILELIST" "$ENUM_ERR" "$MIRROR"' EXIT
 
 echo -e "${GREEN}Step 0: Building the code-only view (comments and strings blanked)...${NC}"
-if ! _mirrored=$(python3 "$CODE_VIEW" "$SEARCH_DIR" "$MIRROR"); then
+# The eligible source-file set is established FIRST, with the same backend
+# that used to search the tree directly: `rg --files` honours .gitignore /
+# .ignore / .rgignore exactly as `rg -t lean` did, `find` (the PCRE-grep
+# fallback) has no exclusions, as before. Exactly that set is mirrored, so
+# relocating the search never broadens it. A directory that cannot be
+# traversed makes the enumeration fail → loud exit 2, never a clean result.
+set +e
+if [[ "$USE_RG" == true ]]; then
+    rg --files -t lean -0 "$SEARCH_DIR" > "$FILELIST" 2> "$ENUM_ERR"
+    _enum_rc=$?
+    [[ $_enum_rc -eq 1 ]] && _enum_rc=0   # 1 = no Lean files, not an error
+else
+    find "$SEARCH_DIR" -name "*.lean" -type f -print0 > "$FILELIST" 2> "$ENUM_ERR"
+    _enum_rc=$?
+fi
+set -e
+if [[ $_enum_rc -ne 0 || -s "$ENUM_ERR" ]]; then
+    echo -e "${RED}Error: could not enumerate the Lean files under $SEARCH_DIR — cannot analyze:${NC}" >&2
+    sed 's/^/  /' "$ENUM_ERR" >&2
+    exit 2
+fi
+if ! _mirrored=$(python3 "$CODE_VIEW" "$SEARCH_DIR" "$MIRROR" --files "$FILELIST"); then
     echo -e "${RED}Error: could not build the code-only view of $SEARCH_DIR — cannot analyze.${NC}" >&2
     exit 2
 fi
@@ -237,6 +260,7 @@ echo ""
 
 UNUSED_COUNT=0
 PROGRESS=0
+PUBLIC_UNITS=0
 
 while IFS= read -r decl; do
     PROGRESS=$((PROGRESS + 1))
@@ -281,6 +305,7 @@ while IFS= read -r decl; do
             grep -Eo "${DECL_RE}${escaped_decl}${LEAN_ID_AFTER}" {} \; | wc -l | tr -d ' ')
     fi
     if [[ "${_sites:-0}" -gt "$_priv_n" ]]; then
+        PUBLIC_UNITS=$((PUBLIC_UNITS + 1))
         if [[ "$USE_RG" == true ]]; then
             USAGE_COUNT=$(rg -t lean "$_usage_re" "$MIRROR" --count-matches 2>/dev/null | \
                 awk -F: '{sum += $2} END {print sum+0}' || echo "0")
@@ -372,11 +397,15 @@ echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${CYAN}${BOLD}SUMMARY${NC}"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo -e "Total declarations: ${BOLD}$TOTAL_DECLS${NC}"
+# Units: a non-private name counts once; a private declaration counts once
+# PER FILE (it is file-local, and findings are per file) — so the
+# numerator and the denominator use the same unit.
+TOTAL_UNITS=$(( PUBLIC_UNITS + $(wc -l < "$PRIVATE_MAP" | tr -d ' ') ))
+echo -e "Total declarations: ${BOLD}$TOTAL_UNITS${NC} ($TOTAL_DECLS distinct names; a private declaration counts per file)"
 echo -e "Potentially unused: ${BOLD}$UNUSED_COUNT${NC}"
 
-if [[ $UNUSED_COUNT -gt 0 ]]; then
-    USAGE_RATE=$(( (TOTAL_DECLS - UNUSED_COUNT) * 100 / TOTAL_DECLS ))
+if [[ $UNUSED_COUNT -gt 0 && $TOTAL_UNITS -gt 0 ]]; then
+    USAGE_RATE=$(( (TOTAL_UNITS - UNUSED_COUNT) * 100 / TOTAL_UNITS ))
     echo -e "Usage rate: ${BOLD}${USAGE_RATE}%${NC}"
 fi
 
