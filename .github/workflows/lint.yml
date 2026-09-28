@@ -313,6 +313,12 @@ jobs:
       - name: Self-test — cycle tracker
         run: bash plugins/lean4/tests/test_cycle_tracker.sh
 
+      # Linux has no ripgrep by default, so this run exercises the
+      # PCRE-grep fallback backend; the macOS bash3-compat job installs rg
+      # and covers the rg backend (#184/#185).
+      - name: Self-test — unused_declarations (Linux, grep -P backend)
+        run: bash plugins/lean4/tests/test_unused_declarations.sh
+
       # The guardrails regression suite also runs on Linux (mawk, GNU
       # userland); the macOS bash3-compat job runs it under Bash 3.2 with
       # BSD awk — together they cover the hook's awk tokenizer (#208).

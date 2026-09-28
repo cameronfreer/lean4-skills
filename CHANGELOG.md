@@ -1,5 +1,15 @@
 # Changelog
 
+## v4.11.3 (September 2026)
+
+`unused_declarations.sh` covers private declarations and no longer counts comments or strings as usages (closes #184, closes #185).
+
+### Fixed
+
+- **Access modifiers are extracted (#184).** `private`, `protected` and `local` declarations are candidates like any other (the modifier group precedes the decl-modifier group, as in Lean's `declModifiers`). A `private` declaration is file-local in Lean, so its usages are counted **within its own file only** — a same-named private declaration in another file can no longer mask it — and a private finding is labelled `(private)` with its file. The "cannot cover" shape warning no longer lists `private`.
+- **Analysis runs over a code-only view (#185).** A new stdlib helper, `lib/scripts/lean_code_view.py` (a hardened port of `sorry_analyzer`'s comment/string scanner: line comments, nested block comments and docstrings, string literals with escapes, strings spanning lines — state threaded across lines), mirrors the tree with comments and strings blanked and line numbers preserved. Extraction and usage counting run over the mirror, locations are reported against the original tree, so a mention in a docstring, a commented-out proof or a `#guard_msgs` string never counts, and a commented-out declaration is never extracted. A missing `python3` or a failed mirror is a loud exit 2, never a clean result. CLI and exit codes unchanged; the verdict stays advisory ("potentially unused").
+- Tests: private-decls positive case (replacing the "unverifiable" fixture), private-name collision across files, comments/strings fixture (docstring, nested block, trailing comment, escaped and multi-line strings, commented-out decl) under both the rg and the PCRE-grep backends, no-python3 loud failure; the self-test now also runs on the Linux job (grep -P backend) besides macOS Bash 3.2 (rg backend).
+
 ## v4.11.2 (September 2026)
 
 `hooks/guardrails.sh` no longer exceeds its 5 s hook deadline on long Bash commands (which made Claude Code cancel it and run the command unchecked), and heredoc bodies that are plainly data are no longer parsed as commands (Closes #208; #164's stdin/platform fix is unrelated and stays in place).
