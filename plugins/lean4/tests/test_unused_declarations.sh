@@ -10,9 +10,15 @@ set -euo pipefail
 #       noncomputable/unsafe/partial/nonrec modifier prefixes) is
 #       extracted and located;
 #   (c) decl-free trees no longer kill the script under pipefail;
-#   (d) trees whose only decls are unmatched shapes (private, indented)
-#       warn and exit 1 instead of reporting a friendly zero;
-#   (e) genuinely declaration-free trees still exit 0.
+#   (d) trees whose only decls are unmatched shapes (indented) warn and
+#       exit 1 instead of reporting a friendly zero;
+#   (e) genuinely declaration-free trees still exit 0;
+#   (f) #184: private/protected/local decls are extracted, private ones
+#       counted per file (a same-named private decl elsewhere is no cover);
+#   (g) #185: comments and strings never count as usages and a
+#       commented-out declaration is never extracted (code-only mirror),
+#       under both the rg and the PCRE-grep backends; a missing python3 is
+#       a loud exit 2, never a clean result.
 #
 # Unlike test_check_axioms_inline.sh, no shim is needed: the script is
 # pure grep/rg over the filesystem, so tests point it at fixture
@@ -68,6 +74,7 @@ run_probe() {
     local tmpdir="$SCRATCH_ROOT/probe-$PROBE_COUNTER"
     mkdir -p "$tmpdir"
     cp -r "$FIXTURE_ROOT/$fixture/." "$tmpdir/"
+    PROBE_TREE="$tmpdir"
 
     set +e
     PROBE_OUT=$("$BASH_FOR_COMPAT" "$UNUSED_SCRIPT" "$tmpdir" "$@" 2>&1)
@@ -169,17 +176,20 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Probe 4 — private_only: extraction finds nothing, but the tree has
-# decl-shaped content. Shape heuristic must warn + exit 1 (not the
-# friendly "No declarations found" + exit 0).
+# Probe 4 — private_decls (#184): private decls are extracted; `helper`
+# is used in its file, `hidden` is flagged with its location.
 # ---------------------------------------------------------------------------
-run_probe "P4 private-only" private_only
+run_probe "P4 private-decls" private_decls
 p4_ok=1
-assert_out_has     "P4" "declaration-shaped content exists" || p4_ok=0
-assert_out_missing "P4" "No declarations found"             || p4_ok=0
-assert_exit        "P4" 1                                   || p4_ok=0
+assert_out_has     "P4" "Found 3 declarations"          || p4_ok=0
+assert_out_has     "P4" "hidden"                        || p4_ok=0
+assert_out_has     "P4" "(private)"                     || p4_ok=0
+assert_out_has     "P4" "Location:"                     || p4_ok=0
+assert_out_has     "P4" "Potentially unused: 1"         || p4_ok=0
+assert_out_missing "P4" "declaration-shaped content exists" || p4_ok=0
+assert_exit        "P4" 1                               || p4_ok=0
 if [[ $p4_ok -eq 1 ]]; then
-    echo "  PASS: P4 private-only — shape heuristic warns, exit 1"
+    echo "  PASS: P4 private-decls — private decls extracted; only hidden flagged"
     ((PASS++)) || true
 else
     ((FAIL++)) || true
@@ -240,7 +250,7 @@ fi
 # Probe 8 — --report-only does NOT excuse the shape-heuristic exit.
 # A tree the analysis cannot cover must exit 1 regardless of the flag.
 # ---------------------------------------------------------------------------
-run_probe "P8 report-only shape" private_only --report-only
+run_probe "P8 report-only shape" indented_modifier --report-only
 p8_ok=1
 assert_out_has     "P8" "declaration-shaped content exists" || p8_ok=0
 assert_exit        "P8" 1                                   || p8_ok=0
@@ -320,6 +330,115 @@ assert_out_missing "P10" "No declarations found"        || p10_ok=0
 assert_exit        "P10" 2                              || p10_ok=0
 if [[ $p10_ok -eq 1 ]]; then
     echo "  PASS: P10 no-PCRE-grep — loud config error, exit 2 (not false green)"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 11 — private_collision (#184): the same private name in two
+# files. A.lean's copy is used there; B.lean's is not and must be flagged
+# — project-wide counting would have hidden it. Location names B.lean.
+# ---------------------------------------------------------------------------
+run_probe "P11 private-collision" private_collision
+p11_ok=1
+assert_out_has     "P11" "helper"                        || p11_ok=0
+assert_out_has     "P11" "(private)"                     || p11_ok=0
+assert_out_has     "P11" "B.lean"                        || p11_ok=0
+assert_out_has     "P11" "Potentially unused: 1"         || p11_ok=0
+assert_exit        "P11" 1                               || p11_ok=0
+if [[ $p11_ok -eq 1 ]]; then
+    echo "  PASS: P11 private-collision — file-local counting flags the dead copy in B.lean"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 12 — comments_strings (#185): mentions in a docstring, a nested
+# block comment, a trailing line comment, a string literal and a
+# multi-line string never count; a commented-out declaration is not
+# extracted. real_thm is used by real code → only the four decls whose
+# sole mention is in comment/string context are flagged.
+# ---------------------------------------------------------------------------
+_p12_assert() { # $1 label, $2 tree path the locations must be reported against
+    local ok=1
+    assert_out_has     "$1" "Found 8 declarations"          || ok=0   # commented_out not extracted
+    assert_out_missing "$1" "commented_out"                 || ok=0
+    assert_out_has     "$1" "doc_only_thm"                  || ok=0
+    assert_out_has     "$1" "nested_only"                   || ok=0
+    assert_out_has     "$1" "string_only"                   || ok=0
+    assert_out_has     "$1" "line_only_in_string"           || ok=0
+    assert_out_has     "$1" "Potentially unused: 4"         || ok=0
+    assert_out_has     "$1" "Location: $2/Sample.lean"      || ok=0   # reported in the ORIGINAL tree, never the mirror
+    assert_exit        "$1" 1                               || ok=0
+    return $(( ok == 1 ? 0 : 1 ))
+}
+run_probe "P12 comments-strings" comments_strings
+if _p12_assert "P12" "$PROBE_TREE"; then
+    echo "  PASS: P12 comments-strings — comment/string mentions never count; commented-out decl not extracted"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 13 — the same fixture through the PCRE-grep fallback (rg hidden
+# from PATH; the real grep must support -P, else SKIP). Both backends
+# must agree.
+# ---------------------------------------------------------------------------
+if echo x | grep -oP 'x' >/dev/null 2>&1; then
+    ((++PROBE_COUNTER))
+    P13_DIR="$SCRATCH_ROOT/probe-$PROBE_COUNTER"
+    mkdir -p "$P13_DIR/bin" "$P13_DIR/tree"
+    cp -r "$FIXTURE_ROOT/comments_strings/." "$P13_DIR/tree/"
+    for util in sort wc tr find sed awk head rm mktemp cat dirname grep python3; do
+        src=$(command -v "$util" 2>/dev/null || true)
+        [[ -n "$src" ]] && ln -s "$src" "$P13_DIR/bin/$util"
+    done
+    set +e
+    PROBE_OUT=$(PATH="$P13_DIR/bin" "$BASH_FOR_COMPAT" "$UNUSED_SCRIPT" "$P13_DIR/tree" 2>&1)
+    PROBE_EXIT=$?
+    set -e
+    # shellcheck disable=SC2001
+    PROBE_OUT=$(sed "s/$(printf '\033')\[[0-9;]*m//g" <<< "$PROBE_OUT")
+    p13_ok=1
+    assert_out_has "P13" "ripgrep not found" || p13_ok=0   # the fallback really ran
+    _p12_assert "P13" "$P13_DIR/tree" || p13_ok=0
+    if [[ $p13_ok -eq 1 ]]; then
+        echo "  PASS: P13 comments-strings via PCRE grep — fallback backend agrees"
+        ((PASS++)) || true
+    else
+        ((FAIL++)) || true
+    fi
+else
+    echo "  SKIP: P13 — no PCRE-capable grep to exercise the fallback"
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 14 — no python3: the code-only view cannot be built, so the
+# script must fail LOUDLY (exit 2), never report a clean tree.
+# ---------------------------------------------------------------------------
+((++PROBE_COUNTER))
+P14_DIR="$SCRATCH_ROOT/probe-$PROBE_COUNTER"
+mkdir -p "$P14_DIR/bin" "$P14_DIR/tree"
+cp "$FIXTURE_ROOT/all_used/Sample.lean" "$P14_DIR/tree/"
+for util in sort wc tr find sed awk head rm mktemp cat dirname grep rg; do
+    src=$(command -v "$util" 2>/dev/null || true)
+    [[ -n "$src" ]] && ln -s "$src" "$P14_DIR/bin/$util"
+done
+set +e
+PROBE_OUT=$(PATH="$P14_DIR/bin" "$BASH_FOR_COMPAT" "$UNUSED_SCRIPT" "$P14_DIR/tree" 2>&1)
+PROBE_EXIT=$?
+set -e
+# shellcheck disable=SC2001
+PROBE_OUT=$(sed "s/$(printf '\033')\[[0-9;]*m//g" <<< "$PROBE_OUT")
+p14_ok=1
+assert_out_has     "P14" "requires python3"                    || p14_ok=0
+assert_out_missing "P14" "All declarations appear to be used"  || p14_ok=0
+assert_exit        "P14" 2                                     || p14_ok=0
+if [[ $p14_ok -eq 1 ]]; then
+    echo "  PASS: P14 no-python3 — loud exit 2, never a clean result"
     ((PASS++)) || true
 else
     ((FAIL++)) || true
