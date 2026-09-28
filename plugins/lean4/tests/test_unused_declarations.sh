@@ -544,6 +544,52 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Probe 19 — interpolation (#185 review): `{…}` inside s!"…" is code.
+# `live` is used only from interpolations (one nested) → used; `ghost`
+# appears only in literal text and as the escaped `\{ghost}` → flagged.
+# ---------------------------------------------------------------------------
+run_probe "P19 interpolation" interpolation
+p19_ok=1
+assert_out_has     "P19" "Found 5 declarations"          || p19_ok=0
+assert_out_has     "P19" "Potentially unused: 1"         || p19_ok=0
+assert_out_has     "P19" "  ✗ ghost"                     || p19_ok=0
+assert_out_missing "P19" "  ✗ live"                      || p19_ok=0
+assert_exit        "P19" 1                               || p19_ok=0
+if [[ $p19_ok -eq 1 ]]; then
+    echo "  PASS: P19 interpolation — interpolated code counts, literal text does not"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 20 — relative directory argument (#185 review): the documented
+# `unused_declarations.sh src` form. The backend lists `src/Sample.lean`
+# relative to the working directory; the mirror must resolve that the same
+# way, and locations are reported with the relative path the user gave.
+# ---------------------------------------------------------------------------
+((++PROBE_COUNTER))
+P20_DIR="$SCRATCH_ROOT/probe-$PROBE_COUNTER"
+mkdir -p "$P20_DIR/src"
+cp "$FIXTURE_ROOT/has_unused/Sample.lean" "$P20_DIR/src/"
+set +e
+PROBE_OUT=$(cd "$P20_DIR" && "$BASH_FOR_COMPAT" "$UNUSED_SCRIPT" src 2>&1)
+PROBE_EXIT=$?
+set -e
+# shellcheck disable=SC2001
+PROBE_OUT=$(sed "s/$(printf '\033')\[[0-9;]*m//g" <<< "$PROBE_OUT")
+p20_ok=1
+assert_out_has     "P20" "Location: src/Sample.lean:"    || p20_ok=0
+assert_out_missing "P20" "cannot analyze"                || p20_ok=0
+assert_exit        "P20" 1                               || p20_ok=0
+if [[ $p20_ok -eq 1 ]]; then
+    echo "  PASS: P20 relative-dir — 'unused_declarations.sh src' works, relative locations"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
 echo ""
 echo "=== test_unused_declarations.sh: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]
