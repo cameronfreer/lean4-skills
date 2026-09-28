@@ -10,10 +10,13 @@ columns and token boundaries are preserved and any grep-based tool can run
 over the mirror and report locations that are valid in the original tree.
 
 Which files: with ``--files LIST`` (``-`` = stdin), exactly the NUL-separated
-paths listed — the caller establishes the eligible set with its own backend
-(``rg --files`` honours ignore metadata, ``find`` does not) so relocating the
-search never broadens it. Without ``--files`` every ``*.lean`` under SRC_DIR
-is mirrored, and a directory that cannot be traversed is an error.
+paths listed, taken as the backend printed them — absolute, or relative to
+the current working directory (``rg --files src`` prints ``src/A.lean``) —
+so the caller establishes the eligible set with its own backend (``rg
+--files`` honours ignore metadata, ``find`` does not) and relocating the
+search never broadens it. Every listed path must lie under SRC_DIR. Without
+``--files`` every ``*.lean`` under SRC_DIR is mirrored, and a directory that
+cannot be traversed is an error.
 
 The scanner is a character-level port of ``sorry_analyzer.strip_lean_
 comments_and_strings`` (line comments ``--``, nested block comments
@@ -21,8 +24,11 @@ comments_and_strings`` (line comments ``--``, nested block comments
 hardened for this use: the string state is threaded across lines, an
 escaped newline inside a string stays a newline, character literals
 (``'"'``, ``'\\''``, ``'\\x41'``, ``'\\u{3b1}'``) and raw strings (``r"…"``,
-``r#"…"#``) are blanked whole. No Lean parsing is attempted; this is
-enough for reference counting, not for semantics.
+``r#"…"#``) are blanked whole, and in an interpolated string (``s!"…"``,
+``m!"…"``, any ``ident!"…"``) the literal text is blanked but each ``{…}``
+interpolation is code and is kept (scanned recursively, so a nested string
+inside it is blanked in turn; ``\\{`` is a literal brace). No Lean parsing
+is attempted; this is enough for reference counting, not for semantics.
 
 Exit status: 0 on success (prints the number of files mirrored); 1 on a
 usage error; 2 if any file or directory could not be read, listed or
@@ -85,6 +91,12 @@ def code_view(text: str) -> str:
                 out.append(" " * (m.end() - i))
                 i = m.end()
                 continue
+        if ch == '"' and i >= 2 and text[i - 1] == "!" and _IDENT.match(text[i - 2]):
+            # interpolated string `ident!"…"`: literal text blanked, each
+            # `{…}` is code (kept, scanned recursively)
+            j = _interp_string(text, i, out)
+            i = j
+            continue
         if ch == '"':
             # string literal: runs to the next unescaped quote, across lines;
             # an escaped newline keeps its newline
@@ -115,6 +127,63 @@ def code_view(text: str) -> str:
         out.append(ch)
         i += 1
     return "".join(out)
+
+
+def _interp_string(text: str, i: int, out: list[str]) -> int:
+    """Scan the interpolated string opening at text[i] == '"'; append its
+    view to ``out`` and return the index just past its closing quote."""
+    n = len(text)
+    out.append(" ")
+    j = i + 1
+    while j < n:
+        c = text[j]
+        if c == "\\" and j + 1 < n:
+            out.append(_blank(text[j : j + 2]))
+            j += 2
+            continue
+        if c == '"':
+            out.append(" ")
+            return j + 1
+        if c == "{":
+            k = _interp_code_end(text, j + 1)
+            out.append("{")
+            out.append(code_view(text[j + 1 : k]))
+            if k < n:
+                out.append("}")
+                k += 1
+            j = k
+            continue
+        out.append("\n" if c == "\n" else " ")
+        j += 1
+    return n
+
+
+def _interp_code_end(text: str, j: int) -> int:
+    """Index of the `}` closing the interpolation whose code starts at j
+    (nested braces balanced; string and char literals skipped)."""
+    n = len(text)
+    depth = 0
+    while j < n:
+        c = text[j]
+        if c == '"':
+            j += 1
+            while j < n and text[j] != '"':
+                j += 2 if text[j] == "\\" else 1
+            j += 1
+            continue
+        if c == "'" and (j == 0 or not _IDENT.match(text[j - 1])):
+            m = _CHAR_LIT.match(text, j)
+            if m:
+                j = m.end()
+                continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            if depth == 0:
+                return j
+            depth -= 1
+        j += 1
+    return n
 
 
 def _walk_all(src: str) -> list[str]:
@@ -161,13 +230,7 @@ def main(argv: list[str]) -> int:
             else:
                 with open(list_src, "rb") as lf:
                     raw = lf.read()
-            files = [
-                os.fsdecode(p)
-                if os.path.isabs(os.fsdecode(p))
-                else os.path.join(src, os.fsdecode(p))
-                for p in raw.split(b"\0")
-                if p
-            ]
+            files = [os.fsdecode(p) for p in raw.split(b"\0") if p]
     except OSError as ex:
         print(f"error: cannot list {src}: {ex}", file=sys.stderr)
         return 2
