@@ -124,22 +124,24 @@ lemma my_condExp_lemma
 ## Critical: Binder Order Matters
 
 ```lean
--- ❌ WRONG: m before instance parameters
+-- ❌ m is introduced before μ is typed: the anonymous ‹MeasurableSpace Ω›
+--    picks the newest MeasurableSpace Ω local, which is m
 lemma bad {Ω : Type*} [MeasurableSpace Ω]
-    (m : MeasurableSpace Ω)  -- Plain param TOO EARLY
+    (m : MeasurableSpace Ω)
     {μ : Measure Ω} [IsProbabilityMeasure μ]
     (hm : m ≤ ‹MeasurableSpace Ω›) : Result := by
   sorry  -- ‹MeasurableSpace Ω› resolves to m!
 
--- ✅ CORRECT: ALL instances first, THEN plain parameters
+-- ✅ μ is typed against the NAMED ambient instance before m is introduced,
+--    and the ambient fact is stated against that name explicitly
 lemma good {Ω : Type*} [inst : MeasurableSpace Ω]
-    {μ : Measure Ω} [IsProbabilityMeasure μ]  -- All instances
-    (m : MeasurableSpace Ω)                    -- Plain param AFTER
+    {μ : Measure Ω} [IsProbabilityMeasure μ]
+    (m : MeasurableSpace Ω)
     (hm : m ≤ inst) : Result := by
-  sorry  -- Instance resolution works correctly
+  sorry  -- later ambient facts still need `inst` / `@` / `MeasurableSet[inst]`
 ```
 
-**Why:** When `m` appears before instance params, `‹MeasurableSpace Ω›` resolves to `m` instead of the ambient instance.
+**Why:** the anonymous `‹MeasurableSpace Ω›` (and any instance-implicit argument synthesized after `m` is in scope) selects the newest `MeasurableSpace Ω` local. Bind `μ` against the named ambient space before introducing `m`, and keep stating ambient facts against that name — the order alone does not carry the later facts.
 
 **This is not a blanket "instances first" rule.** What matters is *which* `MeasurableSpace Ω` a later instance-implicit argument will pick up: fresh instance synthesis selects the most recently introduced class-typed local, whether it was bound with `[…]`, `(…)` or `{…}`. Name the ambient instance (`[mΩ : MeasurableSpace Ω]`) and state ambient facts against it explicitly (`@`, `MeasurableSet[mΩ]`, `@Kernel Ω Ω m mΩ`). For the conditional-kernel declarations in [§ 8](#8-kernel-form-vs-scalar-conditional-expectation) the working order is the opposite of the one above — the *source* σ-algebra `{m : MeasurableSpace Ω}` comes **before** the ambient instance `[mΩ : MeasurableSpace Ω]`, mirroring Mathlib's own signature — because there `μ`'s type must fix `mΩ` while `m` is an ordinary argument of `condExpKernel`. Annotate distinct source and target structures explicitly rather than relying on the order alone.
 
@@ -445,17 +447,11 @@ have : (fun ω ↦ h ω * indicator (Z⁻¹' B) 1 ω) = indicator (Z⁻¹' B) h 
 
 **When to use `condExpKernel` instead of scalar notation `μ[·|m]`.**
 
-#### Problem: Type Class Ambiguity with Scalar Notation
+#### Scalar notation and instance selection
 
-Scalar notation `μ[ψ | m]` is a macro for `MeasureTheory.condExp m μ ψ` — the measure and the conditioning σ-algebra are explicit arguments there too — but the *ambient* `MeasurableSpace Ω` instance behind `μ` is still resolved by instance synthesis, which gets confused when you have local bindings:
+Scalar notation `μ[ψ | m]` expands to `MeasureTheory.condExp m μ ψ`. Its ambient measurable space is inferred from the type of `μ` (an ordinary implicit `{m₀ : MeasurableSpace α}` with `μ : Measure[m₀] α`), not synthesized. Later class-typed locals can nevertheless affect *newly elaborated* ambient predicates and calls to APIs with instance-implicit measurable-space parameters — the reproduced case is in [§ 6 σ-Algebra Relations](#6-σ-algebra-relations-ready-to-paste): after `let mZW := …`, a bare `StronglyMeasurable` selects `mZW`, while `StronglyMeasurable[mΩ]` works. Pin those structures explicitly; switching to kernels is not a general repair.
 
-```lean
--- Ambiguous: Which MeasurableSpace instance?
-let 𝔾 : MeasurableSpace Ω := ...  -- Local binding
-have h : μ[ψ | m] = ... -- Error: Instance synthesis confused!
-```
-
-#### Solution: Kernel Form with Explicit Parameters
+#### Kernel representation and its prerequisites
 
 ```lean
 -- Explicit: condExpKernel takes μ and m as parameters
@@ -540,12 +536,12 @@ axiom directingMeasure_marginal : ...
 
 #### Migration Strategy: Scalar → Kernel
 
-**Before (scalar, instance-dependent):**
+**Scalar form:**
 ```lean
 have h : ∫ ω in s, φ ω * μ[ψ | m] ω ∂μ = ∫ ω in s, φ ω * V ω ∂μ
 ```
 
-**After (kernel, explicit):**
+**Kernel form:**
 ```lean
 -- Step 1: Convert scalar to kernel form
 have hCE : μ[ψ | m] =ᵐ[μ] (fun ω ↦ ∫ y, ψ y ∂(condExpKernel μ m ω))
@@ -554,7 +550,7 @@ have hCE : μ[ψ | m] =ᵐ[μ] (fun ω ↦ ∫ y, ψ y ∂(condExpKernel μ m ω
 have h : ∫ ω in s, φ ω * (∫ y, ψ y ∂(condExpKernel μ m ω)) ∂μ = ...
 ```
 
-**Trade-off:** Notational simplicity → instance clarity + axiom elimination
+**Trade-off:** notational simplicity → more structure (a measurable family, pushforwards, composition, Markov properties) and stronger prerequisites (`StandardBorelSpace`, a finite measure)
 
 #### When to Use Which Form
 
