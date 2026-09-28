@@ -47,6 +47,15 @@ example {Ω : Type*} {m : MeasurableSpace Ω} [mΩ : MeasurableSpace Ω]
     IsMarkovKernel (condExpKernel μ m) :=
   inferInstance
 
+-- Direct repair of the failure below: mathlib's binder order AND the explicit
+-- result type (a bare `Kernel Ω Ω` would select `mΩ` for both occurrences).
+noncomputable example {Ω : Type*}
+    {m : MeasurableSpace Ω} [mΩ : MeasurableSpace Ω]
+    [StandardBorelSpace Ω]
+    (μ : Measure Ω) [IsFiniteMeasure μ] :
+    @Kernel Ω Ω m mΩ :=
+  condExpKernel μ m
+
 -- Negative control: a later class-typed binder changes instance selection.
 /--
 error: synthesized type class instance is not definitionally equal to expression inferred by typing rules, synthesized

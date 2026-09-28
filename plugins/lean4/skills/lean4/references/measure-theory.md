@@ -18,7 +18,7 @@ Deep patterns and pitfalls for measure theory and probability in Lean 4.
 When working with sub-σ-algebras and conditional expectation:
 
 1. **Make ambient space explicit:** `{m₀ : MeasurableSpace Ω}` (never `‹_›`)
-2. **Correct binder order:** All instance parameters first, THEN plain parameters
+2. **Binder order is about instance selection, not a fixed rule:** name the ambient measurable space and keep ambient facts explicitly tied to it; a later class-typed local can change which instance is selected regardless of its binder syntax (see [Critical: Binder Order Matters](#critical-binder-order-matters))
 3. **Check whether synthesis already succeeds** before adding local instances: given `[IsFiniteMeasure μ]`, `IsFiniteMeasure (μ.trim hm)` is a Mathlib instance and `SigmaFinite (μ.trim hm)` follows from it. `[SigmaFinite μ]` alone is **not** enough (`sigmaFinite_trim_bot_iff`; synthesis fails). If you still freeze one, use plain `have` (it registers the instance; `haveI` only inlines, which is irrelevant in a proof)
 4. **Avoid instance pollution:** name the ambient instance in the declaration (`[mΩ : MeasurableSpace Ω]`) and state ambient facts against it (`@`, `MeasurableSet[mΩ]`); `let m0 := ‹…›` is only the recovery when you cannot change the signature (see [instance-pollution.md](instance-pollution.md))
 5. **Prefer set-integral projection:** Use `setIntegral_condExp` instead of proving `μ[g|m] = g`
@@ -141,6 +141,8 @@ lemma good {Ω : Type*} [inst : MeasurableSpace Ω]
 
 **Why:** When `m` appears before instance params, `‹MeasurableSpace Ω›` resolves to `m` instead of the ambient instance.
 
+**This is not a blanket "instances first" rule.** What matters is *which* `MeasurableSpace Ω` a later instance-implicit argument will pick up: fresh instance synthesis selects the most recently introduced class-typed local, whether it was bound with `[…]`, `(…)` or `{…}`. Name the ambient instance (`[mΩ : MeasurableSpace Ω]`) and state ambient facts against it explicitly (`@`, `MeasurableSet[mΩ]`, `@Kernel Ω Ω m mΩ`). For the conditional-kernel declarations in [§ 8](#8-kernel-form-vs-scalar-conditional-expectation) the working order is the opposite of the one above — the *source* σ-algebra `{m : MeasurableSpace Ω}` comes **before** the ambient instance `[mΩ : MeasurableSpace Ω]`, mirroring Mathlib's own signature — because there `μ`'s type must fix `mΩ` while `m` is an ordinary argument of `condExpKernel`. Annotate distinct source and target structures explicitly rather than relying on the order alone.
+
 ---
 
 ## Common Error Messages
@@ -223,7 +225,7 @@ type mismatch
 
 **Solutions:**
 1. **Pin ambient and use `@`** (see Pattern 1 below: Avoid Instance Pollution)
-2. **Check binder order** - instances before plain parameters
+2. **Check which `MeasurableSpace Ω` local is newest** - it is what fresh instance synthesis picks; reorder so the intended one is selected, and annotate the expected structure (see [Critical: Binder Order Matters](#critical-binder-order-matters))
 3. **Consider using `sorry` and moving on** - fighting the elaborator rarely wins
 
 **When to give up:** If you've tried pinning ambient and fixing binder order but still get synthesized/inferred mismatches, this is often a deep elaboration issue. Document with `sorry` and note the issue - coming back later with fresh eyes often helps.
@@ -445,7 +447,7 @@ have : (fun ω ↦ h ω * indicator (Z⁻¹' B) 1 ω) = indicator (Z⁻¹' B) h 
 
 #### Problem: Type Class Ambiguity with Scalar Notation
 
-Scalar notation `μ[ψ | m]` relies on implicit instance resolution for `MeasurableSpace`, which gets confused when you have local bindings:
+Scalar notation `μ[ψ | m]` is a macro for `MeasureTheory.condExp m μ ψ` — the measure and the conditioning σ-algebra are explicit arguments there too — but the *ambient* `MeasurableSpace Ω` instance behind `μ` is still resolved by instance synthesis, which gets confused when you have local bindings:
 
 ```lean
 -- Ambiguous: Which MeasurableSpace instance?
@@ -460,11 +462,12 @@ have h : μ[ψ | m] = ... -- Error: Instance synthesis confused!
 μ[ψ | m] =ᵐ[μ] (fun ω ↦ ∫ y, ψ y ∂(condExpKernel μ m ω))
 ```
 
-**Why kernel form is better for complex cases:**
-- **Explicit parameters:** `condExpKernel μ m` names the measure and source σ-algebra
-- **Distinct source and target:** The source uses `m`; the target uses the ambient `mΩ`
-- **Instance selection still matters:** Later class-typed locals can interfere; use the binder order below
+**When kernel form is the better choice:**
+- **You need kernel structure:** a measurable family of measures, pushforwards (`Kernel.map`), composition, or the Markov / probability-measure properties
+- **Distinct source and target:** The source uses `m`; the target uses the ambient `mΩ` — stated explicitly as `@Kernel Ω Ω m mΩ`
 - **Access to kernel lemmas:** Set integrals, measurability theorems, composition
+
+Choose kernel form when you need kernel structure or kernel-specific theorems. **Switching representations does not by itself resolve measurable-space instance ambiguity**: kernels have the same instance-selection trap, shown next.
 
 On Lean 4.34.0-rc1, the following binder order fails even without `Kernel.map`:
 
@@ -488,8 +491,19 @@ inferred
 
 `μ` was elaborated against `mΩ`, but fresh instance synthesis selects the newer
 class-typed local `m`. This is an instance-selection trap, not a restriction on
-mapping kernels. Follow mathlib's order `{m : MeasurableSpace Ω} [mΩ : MeasurableSpace Ω]`
-so the resulting kernel has source `m` and target `mΩ`.
+mapping kernels. The direct repair has two parts — mathlib's order
+`{m : MeasurableSpace Ω} [mΩ : MeasurableSpace Ω]`, **and** the explicit result
+type `@Kernel Ω Ω m mΩ` (a bare `Kernel Ω Ω` would select the ambient structure
+for both occurrences of `Ω`):
+
+```lean
+noncomputable example {Ω : Type*}
+    {m : MeasurableSpace Ω} [mΩ : MeasurableSpace Ω]
+    [StandardBorelSpace Ω]
+    (μ : Measure Ω) [IsFiniteMeasure μ] :
+    @Kernel Ω Ω m mΩ :=
+  condExpKernel μ m
+```
 
 The working examples and a `#guard_msgs` check for this failure are in
 `tests/fixtures/reference_snippets/measure_theory_snippets.lean`.
@@ -551,11 +565,10 @@ have h : ∫ ω in s, φ ω * (∫ y, ψ y ∂(condExpKernel μ m ω)) ∂μ = .
 - ✅ Working in measure-theory basics
 
 **Use kernel form `condExpKernel μ m` when:**
-- ✅ Multiple σ-algebras in scope (local bindings like `let 𝔾 := ...`)
-- ✅ Need explicit control over measure/σ-algebra binding
+- ✅ You need a measurable family of measures, pushforwards, or composition
+- ✅ You need the Markov / probability-measure properties of the conditional distribution
 - ✅ Want to eliminate custom axioms about "measures parametrized by Ω"
-- ✅ Need kernel composition or Markov kernel properties
-- ✅ Hitting instance synthesis errors with scalar notation
+- ❌ Not as a fix for instance-synthesis errors with scalar notation — resolve those by naming the ambient instance and annotating (kernels hit the same trap)
 
 #### Key Kernel Lemmas
 
@@ -573,7 +586,7 @@ example : IsMarkovKernel (condExpKernel μ m) := inferInstance
 
 Here `hs : MeasurableSet s` uses the ambient space; the full context is in the fixture.
 
-**Bottom line:** `condExpKernel` is the explicit, principled alternative when you need fine-grained instance control or when you're tempted to axiomatize "functions returning measures."
+**Bottom line:** `condExpKernel` is the principled choice when you need kernel structure or kernel-specific theorems, or when you're tempted to axiomatize "functions returning measures." It is not an instance-ambiguity workaround.
 
 ---
 
