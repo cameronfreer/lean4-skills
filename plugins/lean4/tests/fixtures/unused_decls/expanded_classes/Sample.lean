@@ -1,6 +1,6 @@
--- Fixture: two used decls (used_thm + uses_thm, the latter via the
--- trailing comment) and nine dead decls spanning the expanded keyword
--- classes (axiom, constant, structure, class, inductive, and the four
+-- Fixture: two used decls (used_thm + uses_thm, the latter via a real
+-- #check) and nine dead decls spanning the expanded keyword classes
+-- (axiom, constant, structure, class, inductive, and the four
 -- modifier-prefixed def forms). Locks in the Step 1 extraction regex.
 theorem used_thm : True := trivial
 axiom dead_axiom : False
@@ -16,4 +16,4 @@ class DeadClass where
 inductive DeadInductive where
   | one
 def uses_thm := used_thm
--- uses_thm is referenced here so it counts as used: uses_thm
+#check uses_thm

@@ -10,9 +10,15 @@ set -euo pipefail
 #       noncomputable/unsafe/partial/nonrec modifier prefixes) is
 #       extracted and located;
 #   (c) decl-free trees no longer kill the script under pipefail;
-#   (d) trees whose only decls are unmatched shapes (private, indented)
-#       warn and exit 1 instead of reporting a friendly zero;
-#   (e) genuinely declaration-free trees still exit 0.
+#   (d) trees whose only decls are unmatched shapes (indented) warn and
+#       exit 1 instead of reporting a friendly zero;
+#   (e) genuinely declaration-free trees still exit 0;
+#   (f) #184: private/protected/local decls are extracted, private ones
+#       counted per file (a same-named private decl elsewhere is no cover);
+#   (g) #185: comments and strings never count as usages and a
+#       commented-out declaration is never extracted (code-only mirror),
+#       under both the rg and the PCRE-grep backends; a missing python3 is
+#       a loud exit 2, never a clean result.
 #
 # Unlike test_check_axioms_inline.sh, no shim is needed: the script is
 # pure grep/rg over the filesystem, so tests point it at fixture
@@ -68,6 +74,7 @@ run_probe() {
     local tmpdir="$SCRATCH_ROOT/probe-$PROBE_COUNTER"
     mkdir -p "$tmpdir"
     cp -r "$FIXTURE_ROOT/$fixture/." "$tmpdir/"
+    PROBE_TREE="$tmpdir"
 
     set +e
     PROBE_OUT=$("$BASH_FOR_COMPAT" "$UNUSED_SCRIPT" "$tmpdir" "$@" 2>&1)
@@ -169,17 +176,20 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Probe 4 — private_only: extraction finds nothing, but the tree has
-# decl-shaped content. Shape heuristic must warn + exit 1 (not the
-# friendly "No declarations found" + exit 0).
+# Probe 4 — private_decls (#184): private decls are extracted; `helper`
+# is used in its file, `hidden` is flagged with its location.
 # ---------------------------------------------------------------------------
-run_probe "P4 private-only" private_only
+run_probe "P4 private-decls" private_decls
 p4_ok=1
-assert_out_has     "P4" "declaration-shaped content exists" || p4_ok=0
-assert_out_missing "P4" "No declarations found"             || p4_ok=0
-assert_exit        "P4" 1                                   || p4_ok=0
+assert_out_has     "P4" "Found 3 declarations"          || p4_ok=0
+assert_out_has     "P4" "hidden"                        || p4_ok=0
+assert_out_has     "P4" "(private)"                     || p4_ok=0
+assert_out_has     "P4" "Location:"                     || p4_ok=0
+assert_out_has     "P4" "Potentially unused: 1"         || p4_ok=0
+assert_out_missing "P4" "declaration-shaped content exists" || p4_ok=0
+assert_exit        "P4" 1                               || p4_ok=0
 if [[ $p4_ok -eq 1 ]]; then
-    echo "  PASS: P4 private-only — shape heuristic warns, exit 1"
+    echo "  PASS: P4 private-decls — private decls extracted; only hidden flagged"
     ((PASS++)) || true
 else
     ((FAIL++)) || true
@@ -240,7 +250,7 @@ fi
 # Probe 8 — --report-only does NOT excuse the shape-heuristic exit.
 # A tree the analysis cannot cover must exit 1 regardless of the flag.
 # ---------------------------------------------------------------------------
-run_probe "P8 report-only shape" private_only --report-only
+run_probe "P8 report-only shape" indented_modifier --report-only
 p8_ok=1
 assert_out_has     "P8" "declaration-shaped content exists" || p8_ok=0
 assert_exit        "P8" 1                                   || p8_ok=0
@@ -320,6 +330,323 @@ assert_out_missing "P10" "No declarations found"        || p10_ok=0
 assert_exit        "P10" 2                              || p10_ok=0
 if [[ $p10_ok -eq 1 ]]; then
     echo "  PASS: P10 no-PCRE-grep — loud config error, exit 2 (not false green)"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 11 — private_collision (#184): the same private name in two
+# files. A.lean's copy is used there; B.lean's is not and must be flagged
+# — project-wide counting would have hidden it. Location names B.lean.
+# ---------------------------------------------------------------------------
+run_probe "P11 private-collision" private_collision
+p11_ok=1
+assert_out_has     "P11" "helper"                        || p11_ok=0
+assert_out_has     "P11" "(private)"                     || p11_ok=0
+assert_out_has     "P11" "B.lean"                        || p11_ok=0
+assert_out_has     "P11" "Potentially unused: 1"         || p11_ok=0
+assert_out_has     "P11" "Total declarations: 4"         || p11_ok=0   # helper×2 files + useA + useB
+assert_exit        "P11" 1                               || p11_ok=0
+if [[ $p11_ok -eq 1 ]]; then
+    echo "  PASS: P11 private-collision — file-local counting flags the dead copy in B.lean"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 12 — comments_strings (#185): mentions in a docstring, a nested
+# block comment, a trailing line comment, a string literal and a
+# multi-line string never count; a commented-out declaration is not
+# extracted. real_thm is used by real code → only the four decls whose
+# sole mention is in comment/string context are flagged.
+# ---------------------------------------------------------------------------
+_p12_assert() { # $1 label, $2 tree path the locations must be reported against
+    local ok=1
+    assert_out_has     "$1" "Found 8 declarations"          || ok=0   # commented_out not extracted
+    assert_out_missing "$1" "commented_out"                 || ok=0
+    assert_out_has     "$1" "doc_only_thm"                  || ok=0
+    assert_out_has     "$1" "nested_only"                   || ok=0
+    assert_out_has     "$1" "string_only"                   || ok=0
+    assert_out_has     "$1" "line_only_in_string"           || ok=0
+    assert_out_has     "$1" "Potentially unused: 4"         || ok=0
+    assert_out_has     "$1" "Location: $2/Sample.lean"      || ok=0   # reported in the ORIGINAL tree, never the mirror
+    assert_exit        "$1" 1                               || ok=0
+    return $(( ok == 1 ? 0 : 1 ))
+}
+run_probe "P12 comments-strings" comments_strings
+if _p12_assert "P12" "$PROBE_TREE"; then
+    echo "  PASS: P12 comments-strings — comment/string mentions never count; commented-out decl not extracted"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 13 — the same fixture through the PCRE-grep fallback (rg hidden
+# from PATH; the real grep must support -P, else SKIP). Both backends
+# must agree.
+# ---------------------------------------------------------------------------
+if echo x | grep -oP 'x' >/dev/null 2>&1; then
+    ((++PROBE_COUNTER))
+    P13_DIR="$SCRATCH_ROOT/probe-$PROBE_COUNTER"
+    mkdir -p "$P13_DIR/bin" "$P13_DIR/tree"
+    cp -r "$FIXTURE_ROOT/comments_strings/." "$P13_DIR/tree/"
+    for util in sort wc tr find sed awk head rm mktemp cat dirname grep python3; do
+        src=$(command -v "$util" 2>/dev/null || true)
+        [[ -n "$src" ]] && ln -s "$src" "$P13_DIR/bin/$util"
+    done
+    set +e
+    PROBE_OUT=$(PATH="$P13_DIR/bin" "$BASH_FOR_COMPAT" "$UNUSED_SCRIPT" "$P13_DIR/tree" 2>&1)
+    PROBE_EXIT=$?
+    set -e
+    # shellcheck disable=SC2001
+    PROBE_OUT=$(sed "s/$(printf '\033')\[[0-9;]*m//g" <<< "$PROBE_OUT")
+    p13_ok=1
+    assert_out_has "P13" "ripgrep not found" || p13_ok=0   # the fallback really ran
+    _p12_assert "P13" "$P13_DIR/tree" || p13_ok=0
+    if [[ $p13_ok -eq 1 ]]; then
+        echo "  PASS: P13 comments-strings via PCRE grep — fallback backend agrees"
+        ((PASS++)) || true
+    else
+        ((FAIL++)) || true
+    fi
+else
+    echo "  SKIP: P13 — no PCRE-capable grep to exercise the fallback"
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 14 — no python3: the code-only view cannot be built, so the
+# script must fail LOUDLY (exit 2), never report a clean tree.
+# ---------------------------------------------------------------------------
+((++PROBE_COUNTER))
+P14_DIR="$SCRATCH_ROOT/probe-$PROBE_COUNTER"
+mkdir -p "$P14_DIR/bin" "$P14_DIR/tree"
+cp "$FIXTURE_ROOT/all_used/Sample.lean" "$P14_DIR/tree/"
+for util in sort wc tr find sed awk head rm mktemp cat dirname grep rg; do
+    src=$(command -v "$util" 2>/dev/null || true)
+    [[ -n "$src" ]] && ln -s "$src" "$P14_DIR/bin/$util"
+done
+set +e
+PROBE_OUT=$(PATH="$P14_DIR/bin" "$BASH_FOR_COMPAT" "$UNUSED_SCRIPT" "$P14_DIR/tree" 2>&1)
+PROBE_EXIT=$?
+set -e
+# shellcheck disable=SC2001
+PROBE_OUT=$(sed "s/$(printf '\033')\[[0-9;]*m//g" <<< "$PROBE_OUT")
+p14_ok=1
+assert_out_has     "P14" "requires python3"                    || p14_ok=0
+assert_out_missing "P14" "All declarations appear to be used"  || p14_ok=0
+assert_exit        "P14" 2                                     || p14_ok=0
+if [[ $p14_ok -eq 1 ]]; then
+    echo "  PASS: P14 no-python3 — loud exit 2, never a clean result"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 15 — literals (#185 review): a char literal containing `"`, a raw
+# string holding a declaration name, and an escaped newline inside a
+# string. Exactly dead/dead2/dead3 flagged; `quote`, `text`, `s` used;
+# dead3's location still says line 14 (newlines preserved).
+# ---------------------------------------------------------------------------
+run_probe "P15 literals" literals
+p15_ok=1
+assert_out_has     "P15" "Found 6 declarations"          || p15_ok=0
+assert_out_has     "P15" "Potentially unused: 3"         || p15_ok=0
+assert_out_has     "P15" "Location: $PROBE_TREE/Sample.lean:14:" || p15_ok=0
+assert_exit        "P15" 1                               || p15_ok=0
+for _used in quote text s; do
+    if grep -qE "^  ✗ $_used\$" <<< "$PROBE_OUT"; then
+        echo "  FAIL: P15 — used decl $_used flagged"; p15_ok=0
+    fi
+done
+if [[ $p15_ok -eq 1 ]]; then
+    echo "  PASS: P15 literals — char literal, raw string and escaped newline handled; lines preserved"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 16 — ignore_metadata (#185 review): `.ignore` excludes generated/.
+# The rg backend must keep that exclusion when the search moves to the
+# mirror, so `dead` (referenced only in generated/) is still flagged.
+# (The PCRE-grep fallback has no exclusions, as before — rg only.)
+# ---------------------------------------------------------------------------
+if command -v rg >/dev/null 2>&1; then
+    run_probe "P16 ignore-metadata" ignore_metadata
+    p16_ok=1
+    assert_out_has     "P16" "Mirrored 1 Lean file(s)"       || p16_ok=0
+    assert_out_has     "P16" "dead"                          || p16_ok=0
+    assert_out_has     "P16" "Potentially unused: 1"         || p16_ok=0
+    assert_exit        "P16" 1                               || p16_ok=0
+    if [[ $p16_ok -eq 1 ]]; then
+        echo "  PASS: P16 ignore-metadata — rg exclusions preserved across the mirror"
+        ((PASS++)) || true
+    else
+        ((FAIL++)) || true
+    fi
+else
+    echo "  SKIP: P16 — ripgrep not available"
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 17 — private_count (#184 review): consistent summary units — two
+# private `helper`s in two files are 2 declarations and 2 findings, never
+# "Total 1, unused 2, usage rate -100%".
+# ---------------------------------------------------------------------------
+run_probe "P17 private-count" private_count
+p17_ok=1
+assert_out_has     "P17" "Total declarations: 2"         || p17_ok=0
+assert_out_has     "P17" "Potentially unused: 2"         || p17_ok=0
+assert_out_missing "P17" "Usage rate: -"                 || p17_ok=0
+assert_exit        "P17" 1                               || p17_ok=0
+if [[ $p17_ok -eq 1 ]]; then
+    echo "  PASS: P17 private-count — summary units consistent"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 18 — unreadable directory (#185 review): a subdirectory the tool
+# cannot traverse must make the analysis fail loudly (exit 2), never
+# report a clean tree from the files it could read. Skipped as root.
+# ---------------------------------------------------------------------------
+if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+    ((++PROBE_COUNTER))
+    P18_DIR="$SCRATCH_ROOT/probe-$PROBE_COUNTER"
+    mkdir -p "$P18_DIR/secret"
+    cp "$FIXTURE_ROOT/all_used/Sample.lean" "$P18_DIR/"
+    printf 'def hidden_dead : Nat := 0\n' > "$P18_DIR/secret/Hidden.lean"
+    chmod 000 "$P18_DIR/secret"
+    set +e
+    PROBE_OUT=$("$BASH_FOR_COMPAT" "$UNUSED_SCRIPT" "$P18_DIR" 2>&1)
+    PROBE_EXIT=$?
+    set -e
+    chmod 755 "$P18_DIR/secret"
+    # shellcheck disable=SC2001
+    PROBE_OUT=$(sed "s/$(printf '\033')\[[0-9;]*m//g" <<< "$PROBE_OUT")
+    p18_ok=1
+    assert_out_has     "P18" "cannot analyze"                        || p18_ok=0
+    assert_out_missing "P18" "All declarations appear to be used"    || p18_ok=0
+    assert_exit        "P18" 2                                       || p18_ok=0
+    if [[ $p18_ok -eq 1 ]]; then
+        echo "  PASS: P18 unreadable-dir — loud exit 2, never a clean result"
+        ((PASS++)) || true
+    else
+        ((FAIL++)) || true
+    fi
+else
+    echo "  SKIP: P18 — running as root, directory permissions are not enforced"
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 19 — interpolation (#185 review): `{…}` inside s!"…" is code.
+# `live` is used only from interpolations (one nested, three whose code
+# holds a `}` inside a block comment / line comment / raw string) → used;
+# `ghost` appears only in literal text and as the escaped `\{ghost}` →
+# flagged; the `#check`s after those interpolations are not erased.
+# ---------------------------------------------------------------------------
+run_probe "P19 interpolation" interpolation
+p19_ok=1
+assert_out_has     "P19" "Found 8 declarations"          || p19_ok=0
+assert_out_has     "P19" "Potentially unused: 1"         || p19_ok=0
+assert_out_has     "P19" "  ✗ ghost"                     || p19_ok=0
+assert_out_missing "P19" "  ✗ live"                      || p19_ok=0
+assert_exit        "P19" 1                               || p19_ok=0
+if [[ $p19_ok -eq 1 ]]; then
+    echo "  PASS: P19 interpolation — interpolated code counts, literal text does not"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
+# Probe 20 — relative directory argument (#185 review): the documented
+# `unused_declarations.sh src` form. The backend lists `src/Sample.lean`
+# relative to the working directory; the mirror must resolve that the same
+# way, and locations are reported with the relative path the user gave.
+# ---------------------------------------------------------------------------
+((++PROBE_COUNTER))
+P20_DIR="$SCRATCH_ROOT/probe-$PROBE_COUNTER"
+mkdir -p "$P20_DIR/src"
+cp "$FIXTURE_ROOT/has_unused/Sample.lean" "$P20_DIR/src/"
+set +e
+PROBE_OUT=$(cd "$P20_DIR" && "$BASH_FOR_COMPAT" "$UNUSED_SCRIPT" src 2>&1)
+PROBE_EXIT=$?
+set -e
+# shellcheck disable=SC2001
+PROBE_OUT=$(sed "s/$(printf '\033')\[[0-9;]*m//g" <<< "$PROBE_OUT")
+p20_ok=1
+assert_out_has     "P20" "Location: src/Sample.lean:"    || p20_ok=0
+assert_out_missing "P20" "cannot analyze"                || p20_ok=0
+assert_exit        "P20" 1                               || p20_ok=0
+if [[ $p20_ok -eq 1 ]]; then
+    echo "  PASS: P20 relative-dir — 'unused_declarations.sh src' works, relative locations"
+    ((PASS++)) || true
+else
+    ((FAIL++)) || true
+fi
+
+# ---------------------------------------------------------------------------
+# Probes 21–23 (#185 review): token boundaries and interpolation starts.
+# Each fixture has exactly one dead declaration and used declarations
+# placed AFTER the tricky literal, so a literal that swallowed the rest of
+# the file would show up as extra findings, not only as shifted lines.
+# ---------------------------------------------------------------------------
+_p21_23() {
+    local label="$1" fixture="$2" found="$3"; shift 3
+    run_probe "$label" "$fixture"
+    local ok=1
+    assert_out_has     "$label" "Found $found declarations"  || ok=0
+    assert_out_has     "$label" "Potentially unused: 1"      || ok=0
+    assert_out_has     "$label" "  ✗ dead"                   || ok=0
+    assert_exit        "$label" 1                            || ok=0
+    local used
+    for used in "$@"; do
+        if grep -qE "^  ✗ $used\$" <<< "$PROBE_OUT"; then
+            echo "  FAIL: $label — used decl $used flagged"; ok=0
+        fi
+    done
+    if [[ $ok -eq 1 ]]; then
+        echo "  PASS: $label — only dead flagged"
+        ((PASS++)) || true
+    else
+        ((FAIL++)) || true
+    fi
+}
+_p21_23 "P21 unicode-tokens" unicode_tokens 3 live after
+_p21_23 "P22 escaped-ident"  escaped_ident  2 live
+_p21_23 "P23 interp-spacing" interp_spacing 3 live act
+# P25: a Name literal `throwError is not the keyword — its "{" string must
+# not swallow `#check live`, `after` and `#check after` (#185 review).
+_p21_23 "P25 name-literal"   name_literal   3 live after
+
+# ---------------------------------------------------------------------------
+# Probe 24 (#185 review): which strings interpolate is Lean's syntax, not a
+# name heuristic. `throwErrorAt ref "…"` (plain, indexed, `.missing` and
+# `Syntax.«missing»` refs, comment before the string) and `trace[cls] "…"`
+# interpolate → `live`, `used`, `usedDot`, `usedEsc` used; `logInfo`, `Lean.logInfo`, `panic!` take ordinary strings →
+# `dead`, `dead2`, `dead3` (referenced only as `{…}` literal text) flagged.
+# ---------------------------------------------------------------------------
+run_probe "P24 interp-args" interp_args
+p24_ok=1
+assert_out_has     "P24" "Found 15 declarations"         || p24_ok=0
+assert_out_has     "P24" "Potentially unused: 3"         || p24_ok=0
+assert_exit        "P24" 1                               || p24_ok=0
+for _d in dead dead2 dead3; do
+    grep -qE "^  ✗ $_d\$" <<< "$PROBE_OUT" \
+        || { echo "  FAIL: P24 — $_d (ordinary-string reference) not flagged"; p24_ok=0; }
+done
+for _u in live used usedDot usedEsc; do
+    ! grep -qE "^  ✗ $_u\$" <<< "$PROBE_OUT" \
+        || { echo "  FAIL: P24 — $_u (interpolated reference) flagged"; p24_ok=0; }
+done
+if [[ $p24_ok -eq 1 ]]; then
+    echo "  PASS: P24 interp-args — throwErrorAt/trace[] interpolate; logInfo/panic! strings do not"
     ((PASS++)) || true
 else
     ((FAIL++)) || true
