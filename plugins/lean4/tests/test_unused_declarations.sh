@@ -624,21 +624,21 @@ _p21_23 "P23 interp-spacing" interp_spacing 3 live act
 
 # ---------------------------------------------------------------------------
 # Probe 24 (#185 review): which strings interpolate is Lean's syntax, not a
-# name heuristic. `throwErrorAt ref "…"` (plain and indexed ref, comment
-# before the string) and `trace[cls] "…"` interpolate → `live`, `used`
-# used; `logInfo`, `Lean.logInfo`, `panic!` take ordinary strings →
+# name heuristic. `throwErrorAt ref "…"` (plain, indexed, `.missing` and
+# `Syntax.«missing»` refs, comment before the string) and `trace[cls] "…"`
+# interpolate → `live`, `used`, `usedDot`, `usedEsc` used; `logInfo`, `Lean.logInfo`, `panic!` take ordinary strings →
 # `dead`, `dead2`, `dead3` (referenced only as `{…}` literal text) flagged.
 # ---------------------------------------------------------------------------
 run_probe "P24 interp-args" interp_args
 p24_ok=1
-assert_out_has     "P24" "Found 11 declarations"         || p24_ok=0
+assert_out_has     "P24" "Found 15 declarations"         || p24_ok=0
 assert_out_has     "P24" "Potentially unused: 3"         || p24_ok=0
 assert_exit        "P24" 1                               || p24_ok=0
 for _d in dead dead2 dead3; do
     grep -qE "^  ✗ $_d\$" <<< "$PROBE_OUT" \
         || { echo "  FAIL: P24 — $_d (ordinary-string reference) not flagged"; p24_ok=0; }
 done
-for _u in live used; do
+for _u in live used usedDot usedEsc; do
     ! grep -qE "^  ✗ $_u\$" <<< "$PROBE_OUT" \
         || { echo "  FAIL: P24 — $_u (interpolated reference) flagged"; p24_ok=0; }
 done
