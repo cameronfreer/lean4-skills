@@ -24,10 +24,17 @@ comments_and_strings`` (line comments ``--``, nested block comments
 hardened for this use: the string state is threaded across lines, an
 escaped newline inside a string stays a newline, character literals
 (``'"'``, ``'\\''``, ``'\\x41'``, ``'\\u{3b1}'``) and raw strings (``r"…"``,
-``r#"…"#``) are blanked whole, and in an interpolated string (``s!"…"``,
-``m!"…"``, any ``ident!"…"``) the literal text is blanked but each ``{…}``
-interpolation is code and is kept (scanned recursively, so a nested string
-inside it is blanked in turn; ``\\{`` is a literal brace). No Lean parsing
+``r#"…"#``) are blanked whole — a literal is recognised at any token
+boundary, Lean's identifier alphabet deciding what is a boundary (so
+``⟨'"', x⟩`` is a char literal, ``x'`` a primed name) — an escaped
+identifier ``«…»`` is opaque up to its ``»``, and in an interpolated string
+(the string after ``s!``/``m!``/any ``ident!`` or after core ``throwError``/
+``logInfo``-family names, whitespace and comments in between allowed) the
+literal text is blanked but each ``{…}`` interpolation is code and is kept
+(scanned by the same pass, so a nested string or a ``}`` inside a comment
+or raw string there is handled in turn; ``\\{`` is a literal brace).
+Strings of other, user-defined interpolating macros are blanked whole —
+a ``{…}`` reference there is not counted (advisory tool). No Lean parsing
 is attempted; this is enough for reference counting, not for semantics.
 
 Exit status: 0 on success (prints the number of files mirrored); 1 on a
@@ -42,7 +49,41 @@ import os
 import re
 import sys
 
-_IDENT = re.compile(r"[A-Za-z0-9_'.À-\U0010ffff]")
+# Lean's identifier alphabet (Lean.isIdFirst / isIdRest, src/Init/Meta.lean):
+# ASCII letters, digits, `_`, `'`, `!`, `?`, letter-like Unicode (Greek but
+# λ Π Σ, Coptic, polytonic Greek, the letter-like block, mathematical
+# script/double-struck/fraktur) and subscripts. Everything else — `⟨`, `(`,
+# `,`, `←`, `∀`, spaces… — ends a token, so a literal right after it is
+# recognised. Ident rest additionally continues over `.` (qualified names).
+_LETTER_LIKE = (
+    "\u03b1-\u03ba\u03bc-\u03c9"  # lower Greek but λ
+    "\u0391-\u039f\u03a1\u03a2\u03a4-\u03a9"  # upper Greek but Π Σ
+    "\u03ca-\u03fb"  # Coptic
+    "\u1f00-\u1ffe"  # polytonic Greek
+    "\u2100-\u214f"  # letter-like block
+    "\U0001d49c-\U0001d59f"  # script, double-struck, fraktur
+)
+_SUBSCRIPT = "\u2080-\u2089\u2090-\u209c\u1d62-\u1d6a"
+_ID_FIRST = re.compile(f"[A-Za-z_{_LETTER_LIKE}]")
+_IDENT = re.compile(f"[A-Za-z0-9_'!?.{_LETTER_LIKE}{_SUBSCRIPT}]")
+# Identifiers whose next string literal Lean parses as an interpolated
+# string: any `ident!` (s!, m!, f!, throwError!-style macros) and the core
+# `throwError`/`logInfo` family (`interpolatedStr(term) <|> term`). Other
+# user macros that interpolate are not recognised — a `{…}` reference in
+# such a string is blanked like literal text (advisory tool; see #185).
+_INTERP_WORDS = frozenset(
+    {
+        "throwError",
+        "throwErrorAt",
+        "logInfo",
+        "logInfoAt",
+        "logWarning",
+        "logWarningAt",
+        "logError",
+        "logErrorAt",
+        "trace",
+    }
+)
 _CHAR_LIT = re.compile(r"'(?:\\x[0-9A-Fa-f]{2}|\\u\{[0-9A-Fa-f]+\}|\\.|[^'\\\n])'")
 _RAW_OPEN = re.compile(r'r(#*)"')
 
@@ -72,6 +113,7 @@ def _scan(text: str, i: int, out: list[str], *, until_brace: bool) -> int:
     n = len(text)
     depth = 0  # block-comment nesting
     braces = 0  # code-level `{` … `}` nesting, only used with until_brace
+    interp_pending = False  # the next string literal is interpolated
     while i < n:
         ch = text[i]
         nxt = text[i + 1] if i + 1 < n else ""
@@ -90,6 +132,15 @@ def _scan(text: str, i: int, out: list[str], *, until_brace: bool) -> int:
             i += 1
             continue
         at_token_start = i == 0 or not _IDENT.match(text[i - 1])
+        if ch == "«":
+            # escaped identifier component: opaque up to `»` — may hold
+            # comment markers, quotes, braces, newlines; kept verbatim
+            j = text.find("»", i + 1)
+            j = n if j < 0 else j + 1
+            out.append(text[i:j])
+            i = j
+            interp_pending = False
+            continue
         if ch == "r" and at_token_start:
             m = _RAW_OPEN.match(text, i)
             if m:
@@ -105,12 +156,14 @@ def _scan(text: str, i: int, out: list[str], *, until_brace: bool) -> int:
                 out.append(" " * (m.end() - i))
                 i = m.end()
                 continue
-        if ch == '"' and i >= 2 and text[i - 1] == "!" and _IDENT.match(text[i - 2]):
-            # interpolated string `ident!"…"`: literal text blanked, each
-            # `{…}` is code (scanned by this same function)
+        if ch == '"' and interp_pending:
+            # interpolated string (`s! "…"`, `throwError "…"`): literal
+            # text blanked, each `{…}` is code (scanned by this function)
             i = _interp_string(text, i, out)
+            interp_pending = False
             continue
         if ch == '"':
+            interp_pending = False
             # string literal: runs to the next unescaped quote, across lines;
             # an escaped newline keeps its newline
             j = i + 1
@@ -137,6 +190,18 @@ def _scan(text: str, i: int, out: list[str], *, until_brace: bool) -> int:
             out.append("  ")
             i += 2
             continue
+        if at_token_start and _ID_FIRST.match(ch):
+            # identifier token, kept verbatim; decides whether the string
+            # literal that follows (after whitespace/comments) interpolates
+            j = i + 1
+            while j < n and _IDENT.match(text[j]):
+                j += 1
+            word = text[i:j]
+            last = word.rsplit(".", 1)[-1]
+            interp_pending = last.endswith("!") or last in _INTERP_WORDS
+            out.append(word)
+            i = j
+            continue
         if until_brace:
             if ch == "{":
                 braces += 1
@@ -144,6 +209,8 @@ def _scan(text: str, i: int, out: list[str], *, until_brace: bool) -> int:
                 if braces == 0:
                     return i
                 braces -= 1
+        if not ch.isspace():
+            interp_pending = False
         out.append(ch)
         i += 1
     return n
