@@ -24,7 +24,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from lean_code_view import code_view
+from lean_code_view import _INTERP_ARGS, code_view
 
 _FIXTURES = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "unused_decls"
 
@@ -87,6 +87,32 @@ class InterpolationTest(unittest.TestCase):
                 self.assertEqual(len(view), len(src))
                 self.assertNotIn("{", view)
                 self.assertNotIn("}", view)
+
+
+class NameLiteralTest(unittest.TestCase):
+    # `` `throwError `` is a Name value (one token in Lean's lexer), not the
+    # keyword: the string after it is ordinary, whatever it holds. (Lean
+    # rejects ``kw for keyword tokens; the scanner must still not treat the
+    # quoted form as the keyword.)
+    def test_open_brace_does_not_swallow_the_tail(self) -> None:
+        src = '#check Lean.Name.str `throwError "{"\n#check live\ndef after : Nat := 2\n#check after\n'
+        view = code_view(src)
+        self.assertEqual(len(view), len(src))
+        for line in ("#check live", "def after : Nat := 2", "#check after"):
+            self.assertIn(line, view.splitlines())
+
+    def test_quoted_keywords_are_not_keywords(self) -> None:
+        for kw in (*_INTERP_ARGS, "trace", "Lean.\u00abthrowError\u00bb"):
+            for quote in ("`", "``"):
+                src = f'#check Lean.Name.str {quote}{kw} "literal {{x}}"'
+                with self.subTest(src=src):
+                    view = code_view(src)
+                    self.assertIn(f"{quote}{kw}", view)
+                    self.assertNotIn("{", view)
+
+    def test_syntax_quotation_is_code(self) -> None:
+        src = '`(throwError "v {x}")'
+        self.assertEqual(code_view(src), "`(throwError    {x} )")
 
 
 class TokenBoundaryTest(unittest.TestCase):

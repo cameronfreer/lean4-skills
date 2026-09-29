@@ -27,7 +27,8 @@ escaped newline inside a string stays a newline, character literals
 ``r#"…"#``) are blanked whole — a literal is recognised at any token
 boundary, Lean's identifier alphabet deciding what is a boundary (so
 ``⟨'"', x⟩`` is a char literal, ``x'`` a primed name) — an escaped
-identifier ``«…»`` is opaque up to its ``»``, and in an interpolated string
+identifier ``«…»`` is opaque up to its ``»``, a Name literal (```throwError``)
+is one token whose name is never a keyword, and in an interpolated string
 the literal text is blanked but each ``{…}`` interpolation is code and is
 kept (scanned by the same pass, so a nested string or a ``}`` inside a
 comment or raw string there is handled in turn; ``\\{`` is a literal
@@ -185,6 +186,20 @@ def _scan(text: str, i: int, out: list[str], *, until: str) -> int:
             continue
         was_post, post = post, False
         at_token_start = i == 0 or not _IDENT.match(text[i - 1])
+        if ch == "`":
+            # Name literal `x / ``x — one token in Lean's lexer: kept
+            # verbatim, and its name never acts as a keyword (`throwError
+            # is a value). Syntax quotations `(…) fall through as code.
+            k = i + 2 if nxt == "`" else i + 1
+            if k < n and (text[k] == "«" or _ID_FIRST.match(text[k])):
+                j = _ident_end(text, k)
+                out.append(text[i:j])
+                i = j
+                if need:
+                    need, post = need[1:], True
+                else:
+                    need = None
+                continue
         if ch == "r" and at_token_start:
             m = _RAW_OPEN.match(text, i)
             if m:
