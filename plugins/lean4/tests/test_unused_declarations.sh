@@ -592,6 +592,37 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Probes 21–23 (#185 review): token boundaries and interpolation starts.
+# Each fixture has exactly one dead declaration and used declarations
+# placed AFTER the tricky literal, so a literal that swallowed the rest of
+# the file would show up as extra findings, not only as shifted lines.
+# ---------------------------------------------------------------------------
+_p21_23() {
+    local label="$1" fixture="$2" found="$3"; shift 3
+    run_probe "$label" "$fixture"
+    local ok=1
+    assert_out_has     "$label" "Found $found declarations"  || ok=0
+    assert_out_has     "$label" "Potentially unused: 1"      || ok=0
+    assert_out_has     "$label" "  ✗ dead"                   || ok=0
+    assert_exit        "$label" 1                            || ok=0
+    local used
+    for used in "$@"; do
+        if grep -qE "^  ✗ $used\$" <<< "$PROBE_OUT"; then
+            echo "  FAIL: $label — used decl $used flagged"; ok=0
+        fi
+    done
+    if [[ $ok -eq 1 ]]; then
+        echo "  PASS: $label — only dead flagged"
+        ((PASS++)) || true
+    else
+        ((FAIL++)) || true
+    fi
+}
+_p21_23 "P21 unicode-tokens" unicode_tokens 3 live after
+_p21_23 "P22 escaped-ident"  escaped_ident  2 live
+_p21_23 "P23 interp-spacing" interp_spacing 3 live act
+
+# ---------------------------------------------------------------------------
 echo ""
 echo "=== test_unused_declarations.sh: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]
