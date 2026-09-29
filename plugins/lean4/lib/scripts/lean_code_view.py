@@ -34,9 +34,10 @@ comment or raw string there is handled in turn; ``\\{`` is a literal
 brace). A string is interpolated exactly where core Lean's syntax says so:
 after the keyword ``s!``, ``m!``, ``f!``, ``println!``, ``dbg_trace``,
 ``throwError``…, or after ``throwErrorAt ref``, ``trace[cls]``,
-``throwNamedError name``… — the argument skipped as one token or bracket
-group with its postfixes (``stx[0]!``), whitespace and comments allowed in
-between. ``logInfo "…"``, ``panic! "…"``, ``Lean.throwError "…"`` and
+``throwNamedError name``… — the argument skipped as one token (a
+qualified name whose components may be escaped, ``Syntax.«missing»``, or a
+leading-dot name, ``.missing``) or bracket group, with its postfixes
+(``stx[0]!``), whitespace and comments allowed in between. ``logInfo "…"``, ``panic! "…"``, ``Lean.throwError "…"`` and
 user-defined interpolating macros take the string as ordinary text (for
 the latter a ``{…}`` reference is not counted; advisory tool). No Lean
 parsing is attempted; this is enough for reference counting, not for
@@ -113,6 +114,32 @@ def _blank(text: str) -> str:
     return "".join("\n" if c == "\n" else " " for c in text)
 
 
+def _component_start(c: str) -> bool:
+    """Can ``c`` begin a name component after a `.`?"""
+    return c == "«" or (c != "." and bool(_IDENT.match(c)))
+
+
+def _ident_end(text: str, i: int) -> int:
+    """End of the name starting at text[i]: components of identifier
+    characters or escaped ``«…»`` (opaque up to ``»`` — it may hold
+    comment markers, quotes, braces, newlines), joined by `.`. A leading
+    `.` (``.missing``) is part of the name."""
+    n = len(text)
+    j = i
+    while j < n:
+        if text[j] == "«":
+            k = text.find("»", j + 1)
+            j = n if k < 0 else k + 1
+        else:
+            while j < n and text[j] != "." and _IDENT.match(text[j]):
+                j += 1
+        if j + 1 < n and text[j] == "." and _component_start(text[j + 1]):
+            j += 1
+            continue
+        return j
+    return j
+
+
 def code_view(text: str) -> str:
     """Blank comments and string/char literals; newline positions unchanged."""
     out: list[str] = []
@@ -158,18 +185,6 @@ def _scan(text: str, i: int, out: list[str], *, until: str) -> int:
             continue
         was_post, post = post, False
         at_token_start = i == 0 or not _IDENT.match(text[i - 1])
-        if ch == "«":
-            # escaped identifier component: opaque up to `»` — may hold
-            # comment markers, quotes, braces, newlines; kept verbatim
-            j = text.find("»", i + 1)
-            j = n if j < 0 else j + 1
-            out.append(text[i:j])
-            i = j
-            if need:
-                need, post = need[1:], True
-            else:
-                need = None
-            continue
         if ch == "r" and at_token_start:
             m = _RAW_OPEN.match(text, i)
             if m:
@@ -221,12 +236,16 @@ def _scan(text: str, i: int, out: list[str], *, until: str) -> int:
             out.append("  ")
             i += 2
             continue
-        if at_token_start and _ID_FIRST.match(ch):
-            # identifier token, kept verbatim: an expected argument, or a
-            # keyword whose string argument interpolates, or neither
-            j = i + 1
-            while j < n and _IDENT.match(text[j]):
-                j += 1
+        if (
+            ch == "«"
+            or (at_token_start and _ID_FIRST.match(ch))
+            or (need and not was_post and ch == "." and _component_start(nxt))
+        ):
+            # identifier token, kept verbatim — `Syntax.«missing»`, and in
+            # argument position `.missing`, are one token: an expected
+            # argument, or a keyword whose string argument interpolates,
+            # or neither
+            j = _ident_end(text, i)
             word = text[i:j]
             if need:
                 need, post = need[1:], True
@@ -237,12 +256,9 @@ def _scan(text: str, i: int, out: list[str], *, until: str) -> int:
             out.append(word)
             i = j
             continue
-        if was_post and (ch in "!?" or (ch == "." and _IDENT.match(nxt))):
+        if was_post and (ch in "!?" or (ch == "." and _component_start(nxt))):
             # postfix of the argument just read: `x[0]!`, `(f x).raw`
-            j = i + 1
-            if ch == ".":
-                while j < n and _IDENT.match(text[j]):
-                    j += 1
+            j = i + 1 if ch in "!?" else _ident_end(text, i)
             out.append(text[i:j])
             i = j
             post = True
