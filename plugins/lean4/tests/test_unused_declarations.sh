@@ -621,6 +621,9 @@ _p21_23() {
 _p21_23 "P21 unicode-tokens" unicode_tokens 3 live after
 _p21_23 "P22 escaped-ident"  escaped_ident  2 live
 _p21_23 "P23 interp-spacing" interp_spacing 3 live act
+# P25: a Name literal `throwError is not the keyword — its "{" string must
+# not swallow `#check live`, `after` and `#check after` (#185 review).
+_p21_23 "P25 name-literal"   name_literal   3 live after
 
 # ---------------------------------------------------------------------------
 # Probe 24 (#185 review): which strings interpolate is Lean's syntax, not a
