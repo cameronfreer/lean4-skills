@@ -59,6 +59,7 @@ jobs:
           python3 plugins/lean4/lib/scripts/tests/test_file_baseline.py
           python3 plugins/lean4/lib/scripts/tests/test_project_context.py
           python3 plugins/lean4/lib/scripts/tests/test_checkpoint_mathlib_roots.py
+          python3 plugins/lean4/lib/scripts/tests/test_lean_code_view.py
           python3 plugins/lean4/tests/test_review_schema.py
           python3 plugins/lean4/tests/test_run_contract.py
           python3 plugins/lean4/tests/test_run_store.py
