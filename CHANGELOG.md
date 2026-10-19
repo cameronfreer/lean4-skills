@@ -1,5 +1,35 @@
 # Changelog
 
+## v4.11.4 (October 2026)
+
+The five advanced references past their validation window are revalidated against Lean `v4.33.1` and `v4.35.0` (and Mathlib `346a4bd3f9` where needed), with every example compiled and the core ones run in CI (closes #181).
+
+### Fixed
+
+- **grind-tactic.md.** Several documented snippets failed when compiled and are replaced with compiling ones:
+  - **Hints:** `grind [h1, h2]` with local hypotheses is an error, not a no-op.
+  - **Registration:** all three `@[grind]` examples were rejected for want of a usable pattern; a bare `@[grind]` can also select a pattern that never fires (use `@[grind?]`).
+  - **Zero-product:** the claim that it "needs `NoZeroDivisors`" is false. `grind` closes it in a field; with `NoZeroDivisors`, `IsDomain` or on `ℤ` it needs `grind [mul_eq_zero]`. The old example's auto-bound `x y` were natural numbers.
+  - **`grind_pattern` and Boolean precedence:** the constrained `grind_pattern` example is now the command's own; the first Boolean-precedence example was a type mismatch.
+  - **Interactive mode:** both examples closed on entry and failed at their first command; the `try`-guarded loop now runs on an open goal. `instantiate [h]` does not resolve a local hypothesis by name on `v4.33.1`/`v4.35.0` (use plain `instantiate` or the `show_local_thms` anchor).
+  - **Other corrections:** `native_decide` after `intro x` fails (use `bv_decide`, which needs `import Std.Tactic.BVDecide`, or `simp`); `+suggestions` needs a library-suggestions engine (`import Lean.LibrarySuggestions.Default`).
+  - **Additions:** the attribute-variant list is completed from `Init/Grind/Attr.lean` (`←=`, `⇒`/`⇐`, `.`, `symbol`, `hom`/`hom_pred` on `v4.35.0`, `grind?`); `lia` is listed. The Version Matrix states that its "since" column is from the release notes, not rechecked.
+- **metaprogramming-patterns.md.** Every block but the minimal DSL failed to compile:
+  - **Validation:** uses `Macro.throwErrorAt` with `s!` (the `throwErrorAt … "{x}"` form needs `MonadError`, which `MacroM` lacks).
+  - **Antiquotation block:** it reused one syntax name for two alternatives and quoted a non-category; it is replaced by a `dslValue` syntax category with a term escape.
+  - **Elaborator and unexpander:** the elaborator opens `Meta` for `inferType`; the unexpander targets a real constant.
+  - **Debugging and gotchas:** `trace.Macro.expand` does not exist (`trace.Elab.step` shows expansions). Hygiene guidance is corrected (`mkIdent`, not `withFreshMacroScope`). The "left recursion causes parse loops" gotcha is replaced by the observed right associativity of a precedence-free infix.
+- **linter-authoring.md.** The Core Pattern's run function did not honour the documented `set_option linter.myRule false in` local disable. It is now wrapped in `withSetOptionIn` and uses `Linter.getLinterValue` / `Linter.logLint`. For correctness rules, `logErrorAt` reports every occurrence where `throwErrorAt` stops at the first. The `weak.` option's failure mode is quoted.
+- **verso-docs.md.** The example's untyped `{given}` made ``{lean}`#[n]` `` fail (`{given (type := "Nat")}` / ``{given}`n : Nat` ``). The diagnostics now carry Lean's real messages: "Code element could be more specific." is a warning, and an unknown role is an error. The other built-in roles are listed, and `doc.verso` turns module docs into Verso as well.
+- **profiling-workflows.md.** `set_option trace.profiler.output` inside a file suppresses the traces and writes no file; the JSON is written only when the option is passed on the command line (`lean -D…` / `lake env lean -D…`). The threshold default, `output.pp` and `serve` are documented from their option descriptions.
+- Each file's version metadata now records what was checked, on which toolchains, and which fixture holds the evidence; `Last validated` is the day of the check.
+- Tests:
+  - **CI fixtures:** `run_core_snippets.sh` (lean-integration, pinned Lean 4.33.1) now also elaborates `grind_snippets.lean`, `grind_suggestions_snippets.lean`, `meta_snippets.lean` and `verso_snippets.lean`. Documented failures are `fail_if_success` or `#guard_msgs` blocks.
+  - **Linter pair:** the runner compiles `linter_rule.lean` and elaborates `linter_use.lean` against it with `-Dweak.linter.myRule=true`.
+  - **Profiler:** it checks command-line JSON export and the in-file no-file pitfall.
+  - **Mathlib claims:** these are in the local-only `grind_mathlib_snippets.lean`, with the Mathlib commit recorded.
+  - **Contract check:** Check 46 pins each reference's evidence pointer, the fixture wiring, and one load-bearing correction per file.
+
 ## v4.11.3 (September 2026)
 
 `unused_declarations.sh` covers private declarations and no longer counts comments or strings as usages (closes #184, closes #185).

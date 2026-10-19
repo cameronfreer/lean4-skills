@@ -3,9 +3,9 @@
 > **Scope:** Not part of the prove/autoprove default loop. Consulted when the agent encounters goals that `simp` cannot close, or when cross-domain reasoning is needed.
 
 > **Version metadata:**
-> - **Verified on:** Lean reference + release notes through `v4.27.0`
-> - **Last validated:** 2026-02-17
-> - **Confidence:** medium (mixed: official docs + targeted examples, not full snippet CI)
+> - **Verified on:** Lean `v4.33.1` and `v4.35.0` (core examples, options, attribute and interactive syntax checked against each toolchain's source and compiled); Mathlib `346a4bd3f9` on Lean `v4.35.0-rc3` (ring and arithmetic examples)
+> - **Last validated:** 2026-10-19
+> - **Confidence:** high for the compiled examples (core ones run in CI: `tests/fixtures/reference_snippets/grind_snippets.lean`, `grind_suggestions_snippets.lean`; Mathlib ones local-only: `grind_mathlib_snippets.lean`); medium for the Version Matrix "since" column (release notes, not rechecked on older toolchains)
 
 ## Table of Contents
 
@@ -31,11 +31,11 @@ Use `grind` when:
 - finite-domain reasoning is involved (`Fin`, `Bool`, small enums)
 
 Use specialized tactics when one domain is dominant:
-- integer linear arithmetic -> `omega`
-- real/rational linear arithmetic -> `linarith`
-- nonlinear arithmetic -> `nlinarith`
+- integer linear arithmetic -> `omega` (or `lia`: `grind` restricted to its linear-integer solver)
+- real/rational linear arithmetic -> `linarith` (Mathlib)
+- nonlinear arithmetic -> `nlinarith` (Mathlib)
 - pure rewriting -> `simp` / `simp only`
-- combinatorial bit-level search -> `bv_decide`
+- combinatorial bit-level search -> `bv_decide` (`import Std.Tactic.BVDecide`)
 
 ### Single Decision Flow
 
@@ -43,7 +43,7 @@ Use specialized tactics when one domain is dominant:
 Can simp close it?
 ├─ Yes -> use simp
 └─ No
-   ├─ Integer-linear only? -> omega
+   ├─ Integer-linear only? -> omega / lia
    ├─ Real/rational-linear only? -> linarith
    ├─ Nonlinear arithmetic? -> nlinarith
    ├─ Combinatorial bit-level goal? -> bv_decide
@@ -79,24 +79,28 @@ The tactic works by contradiction over a shared fact store. Compared to `simp` (
 example (h1 : a = b) (h2 : b = c) : a = c := by
   grind
 
-example [CommRing R] [NoZeroDivisors R] (h : x * y = 0) (hx : x ≠ 0) : y = 0 := by
+example : (5 : Fin 3) = 2 := by
   grind
 
-example : (5 : Fin 3) = 2 := by
+-- Mathlib: in a field, zero-product reasoning is built in.
+example {K : Type*} [Field K] (x y : K) (h : x * y = 0) (hx : x ≠ 0) : y = 0 := by
   grind
 ```
 
 ## Version Matrix
 
-| Feature | Available Since | Notes |
+Every feature below exists and parses on `v4.33.1` and `v4.35.0` (`grind_snippets.lean`). The "Available since" column is taken from the Lean release notes and was not rechecked against older toolchains.
+
+| Feature | Available since | Notes |
 |---|---|---|
 | `grind?` companion tactic | `v4.17.0` | Reimplemented in `v4.26.0` using newer suggestion infra |
 | `grind -splitMatch` / `grind -splitIte` | `v4.17.0` | Disable selected case-splitting sources |
 | `grind +splitImp` | `v4.20.0` | Allow implication splitting |
-| Interactive `instantiate` supports local theorems/hyps | `v4.25.0` | Older toolchains may require global constants |
+| Interactive `instantiate` with local theorems | `v4.25.0` | On `v4.33.1`/`v4.35.0` a local is used by plain `instantiate` or by its anchor; `instantiate [h]` by hypothesis name is rejected (see [Interactive Mode](#interactive-mode)) |
 | `@[grind_pattern]` constraints | `v4.26.0` | Pattern shaping became more expressive |
 | `@[grind_pattern]` guards | `v4.27.0` | More precise pattern activation |
 | `grind -funCC`, `grind +revert`, `grind -reducible` | `v4.27.0` | Additional control over congruence/reduction/search |
+| `@[grind hom]`, `@[grind hom_pred]` | `v4.35.0` | Homomorphism rules into a solver domain; absent on `v4.33.1` (checked in source) |
 
 If your toolchain is older than these entries, expect option/behavior differences.
 
@@ -105,22 +109,30 @@ If your toolchain is older than these entries, expect option/behavior difference
 ### Baseline Sequence
 
 ```lean
-example (h : n < m ∨ n = m) (hne : n ≠ m) : n < m := by
+example (n m : Nat) (h : n < m ∨ n = m) (hne : n ≠ m) : n < m := by
   simp at *
   grind
 ```
 
+Give binders their types: with auto-bound `n m` the statement's instances are stuck before `grind` runs.
+
 ### With Hints
 
+Hints are theorems to instantiate or definitions to unfold:
+
 ```lean
-example (h1 : a = b) (h2 : b = c) : a = c := by
-  grind [h1, h2]
+def dbl (x : Nat) : Nat := x + x
+
+example (a : Nat) : dbl a = 2 * a := by
+  grind [dbl]
 ```
+
+`grind` already uses every local hypothesis. Passing one as a hint is an **error**, not a no-op: `grind [h1]` reports ``redundant parameter `h1`, `grind` uses local hypotheses automatically``.
 
 ### After Manual Case Structure
 
 ```lean
-example (p : Prop) [Decidable p] (h1 : p → q) (h2 : ¬p → q) : q := by
+example (p q : Prop) [Decidable p] (h1 : p → q) (h2 : ¬p → q) : q := by
   by_cases hp : p
   · grind
   · grind
@@ -136,9 +148,11 @@ grind only [lemma1, lemma2]
 grind [-lemma3]
 ```
 
+`-lemma3` only applies to a lemma registered with `@[grind]`; for any other name it is an error.
+
 ## Controls and Performance
 
-Key knobs (defaults from `Init/Grind/Config.lean`):
+Key knobs (defaults from `Init/Grind/Config.lean`, identical on `v4.33.1` and `v4.35.0`):
 
 ```lean
 -- Case-splitting budget (default 9).
@@ -190,36 +204,53 @@ grind
 ### `@[grind]` Registration
 
 ```lean
-@[grind] theorem my_refl (x : Nat) : x = x := by
-  rfl
+def dbl (x : Nat) : Nat := x + x
 
-@[grind =] theorem my_add_zero (x : Nat) : x + 0 = x := by
-  exact Nat.add_zero x
+@[grind =] theorem dbl_def (x : Nat) : dbl x = x + x := rfl
 
-@[grind ->] theorem my_left (h : p ∧ q) : p := by
-  exact h.left
+def Pos (n : Nat) : Prop := 0 < n
+
+@[grind →] theorem Pos.ne_zero {n : Nat} (h : Pos n) : n ≠ 0 := by
+  unfold Pos at h; omega
+
+example (a : Nat) : dbl a = 2 * a := by grind
+example (n : Nat) (h : Pos n) : n ≠ 0 := by grind
 ```
 
-Full attribute variant list:
-- `@[grind]`: default pattern inference
-- `@[grind =]`, `@[grind =_]`, `@[grind _=_]`: equality-oriented matching
-- `@[grind →]`, `@[grind ←]`: forward/backward oriented matching
+Registration fails loudly when no usable pattern exists: `@[grind]` on `x = x`, `@[grind =]` on `x + 0 = x` (the left side normalises away), and `@[grind →]` on `p ∧ q → p` are all rejected.
+
+A bare `@[grind]` can also succeed with a pattern that never fires. On `0 < x → 0 < trip x` it selects `1 ≤ trip x`, the normalised conclusion, and `grind` then fails on goals the lemma would close. Lean reports the alternatives as `Try these` info. Use `@[grind?]` to print the selected pattern, and pick a modifier deliberately.
+
+Attribute variants (`Init/Grind/Attr.lean`):
+- `@[grind]` / `@[grind .]`: default — conclusion, then hypotheses left to right
+- `@[grind =]`, `@[grind =_]`, `@[grind _=_]`: left side, right side, or both sides of an equation
+- `@[grind ←=]`: instantiate an equation when the matching disequality is assumed
+- `@[grind →]`, `@[grind ←]`: patterns from the hypotheses (forward) or from the conclusion (backward)
+- `@[grind ⇒]`, `@[grind ⇐]`: hypotheses then conclusion, or conclusion then hypotheses right to left
 - `@[grind cases]`, `@[grind cases eager]`: split guidance for inductive predicates
 - `@[grind intro]`: use constructors of an inductive predicate as matching rules
-- `@[grind inj]`, `@[grind ext]`, `@[grind funCC]`, `@[grind norm]`, `@[grind unfold]`
-- `@[grind!]`: minimal indexable subexpression pattern selection
+- `@[grind ext]`, `@[grind inj]`, `@[grind funCC]`, `@[grind norm]`, `@[grind unfold]`
+- `@[grind symbol <prio>]`: priority of a constant during pattern selection
+- `@[grind hom]`, `@[grind hom_pred]`: homomorphism rules and predicates (`v4.35.0`+)
+- `gen` suffix (accepted after `=`, `=_`, `_=_`, `←`, `.`); `usr`, in tactic hints (`grind [usr thm]`), selects the pattern declared with `grind_pattern`
+- `@[grind!]`: minimal indexable subexpression pattern selection; `@[grind?]` / `@[grind!?]` also print the selected patterns
 
 Use `@[grind]` sparingly on lemmas with stable, reusable patterns. Keep exploratory annotations local first (`@[local grind ...]`); promote to global only after repeated wins across files.
 
 ### `@[grind_pattern]` for E-matching Shape
 
-When automatic pattern extraction is poor, use explicit patterns:
+When automatic pattern extraction is poor, use explicit patterns. This is the command's own docstring example:
 
 ```lean
-grind_pattern myThm => f x, g y where
+opaque f : Nat → Nat
+axiom fMono : x ≤ y → f x ≤ f y
+
+grind_pattern fMono => f x, f y where
   guard x ≤ y
   x =/= y
-  depth x < 8
+
+example : f b = f c → a ≤ f a → f (f a) ≤ f (f (f a)) := by
+  grind
 ```
 
 Supported constraints: `guard`, `check`, `size`, `depth`, `gen`, `max_insts`, value/ground predicates (`is_ground`, `is_value`, `is_strict_value`, `not_value`, `not_strict_value`), and definitional equality/inequality guards (`x =?= t`, `x =/= t`).
@@ -230,12 +261,9 @@ Use this only when ordinary `@[grind]` registration is insufficient and profilin
 
 ### Boolean Precedence
 
-```lean
--- Parses as b && (false = false), usually not what you intend.
-example (b : Bool) : b && false = false := by
-  -- Parenthesize explicitly to avoid precedence ambiguity.
-  exact Bool.and_false b
+`b && false = false` parses as `b && (false = false)`; the `Prop` is coerced back with `decide`, so the statement is `(b && decide (false = false)) = true`. A proof of `(b && false) = false` does not fit it.
 
+```lean
 -- Prefer explicit parentheses.
 example (b : Bool) : (b && false) = false := by
   grind
@@ -243,88 +271,95 @@ example (b : Bool) : (b && false) = false := by
 
 ### Redundant Local-Hypothesis Hints
 
-`grind` already sees local hypotheses; `grind [h]` is often redundant when `h` is local.
+`grind` already sees local hypotheses; `grind [h]` with a local `h` is an error (see [With Hints](#with-hints)).
 
 ### Typeclass Assumptions Matter
 
-Zero-product reasoning typically needs `NoZeroDivisors`:
+`grind`'s ring reasoning does not derive the zero-product property from `NoZeroDivisors` or `IsDomain`, nor on `ℤ`. In a field it does (see [What `grind` Does](#what-grind-does)). Elsewhere, pass the lemma:
 
 ```lean
-example [CommRing R] [NoZeroDivisors R] (h : x * y = 0) (hx : x ≠ 0) : y = 0 := by
-  grind
+-- Mathlib
+example {R : Type*} [CommRing R] [NoZeroDivisors R] (x y : R) (h : x * y = 0) (hx : x ≠ 0) :
+    y = 0 := by
+  grind [mul_eq_zero]
 ```
+
+Bind `x y : R` explicitly. With auto-bound implicits they are elaborated as natural numbers, not elements of `R`.
 
 ## Interactive Mode
 
 Use `grind => ...` as the default development mode — it is the most observable and steerable path.
 
 ```lean
-example (a b c : Nat) (h1 : a = b) (h2 : b = c) : a = c := by
+def h1 (n : Nat) : Nat := n + 1
+
+@[grind =] theorem h1_def (n : Nat) : h1 n = n + 1 := rfl
+
+example : h1 0 = 1 := by
   grind =>
     show_state
-    done
+    instantiate
 ```
 
+If `grind` closes the goal on entry, the first command fails with "No goals to be solved". For example, `a = c` from `a = b` and `b = c` is closed by congruence closure before `show_state` runs.
+
 Common commands:
-- `show_state`, `show_eqcs`, `show_cases`, `show_asserted`
-- `cases?`, `cases_next`
-- `instantiate [thm]`
+- `show_state`, `show_eqcs`, `show_cases`, `show_asserted`, `show_true`, `show_false`, `show_local_thms`, `show_goals`
+- `cases?`, `cases #anchor`, `cases_next`
+- `instantiate`, `instantiate [thm]`, `instantiate only [thm]` (`use [thm]` is shorthand for the last)
 - `have` (inject missing intermediate facts)
 - `done` / `finish` / `finish?`
+- `try t` (shorthand for `first (t) (skip)`), `first (t₁) (t₂)`
 
 ### Debugging Loop
 
 ```lean
-grind =>
-  show_state
-  instantiate
-  first
-    (show_asserted)
-    (skip)
-  first
-    (show_cases)
-    (skip)
-  first
-    (cases_next)
-    (skip)
-  first
-    (finish)
-    (skip)
+example : h1 0 = 1 := by
+  grind =>
+    show_state
+    try show_asserted
+    try show_cases
+    try cases_next
+    instantiate
+    try finish
 ```
 
-Note: on well-annotated goals, `instantiate` may close the goal entirely. Guard trailing steps with `first ... (skip)` to avoid "no goals to be solved" errors. Once stable, replace ad-hoc `have` steps with annotations or `grind_pattern` so the proof can collapse toward `grind`/`grind only [...]`.
+`instantiate` may close the goal entirely. Guard trailing steps with `try` (or `first ... (skip)`), which stay silent once no goal remains. Once stable, replace ad-hoc `have` steps with annotations or `grind_pattern` so the proof can collapse toward `grind`/`grind only [...]`.
 
-### Version-Sensitive `instantiate`
+### Local Hypotheses in `instantiate`
 
-On `v4.25.0+`, `instantiate` may use local hypotheses/theorems directly:
+A local hypothesis such as `hk : ∀ n, k n = n + 1` is a local theorem. Plain `instantiate` uses it:
 
 ```lean
-example (f : Nat → Nat) (h : ∀ n, f n = n + 1) : f 0 = 1 := by
+example (k : Nat → Nat) (hk : ∀ n, k n = n + 1) : k 0 = 1 := by
   grind =>
-    instantiate [h]
-    done
+    instantiate
 ```
 
-If your toolchain reports `Unknown constant` for locals, fall back to global `@[grind]` lemmas or plain `grind`/`simp`.
+`instantiate [hk]` / `instantiate only [hk]` do **not** resolve a local by name on `v4.33.1`/`v4.35.0`; they report ``Unknown constant `hk` ``. To target one local theorem, run `show_local_thms` and pass the anchor it prints (`instantiate [#0c1c]`). Anchors are hashes of the current state, so do not keep them in a final proof.
 
 ## Known Limitations
 
 Observed patterns where `grind` may not be the best tool:
 
-1. Nonlinear arithmetic is often better handled by `nlinarith`.
+1. Nonlinear arithmetic is often better handled by `nlinarith`. On this goal `grind` fails and `nlinarith` succeeds (Mathlib):
 
 ```lean
 example (x : Int) (h1 : 0 ≤ x) (h2 : x < 10) : x * x < 100 := by
   nlinarith [h1, h2]
 ```
 
-2. Bit-level/algebraic bitvector goals are often better with `bv_decide` or `native_decide`.
+2. Bit-level bitvector goals are often better with `bv_decide` or `simp`:
 
 ```lean
+import Std.Tactic.BVDecide
+
 example : ∀ x : BitVec 64, (x &&& 0) = 0 := by
   intro x
-  native_decide
+  bv_decide
 ```
+
+`native_decide` needs a closed goal: after `intro x` it fails with "Expected type must not contain free variables".
 
 3. Large case-splitting spaces may blow up; cap `splits` first.
 
@@ -333,6 +368,8 @@ example : ∀ x : BitVec 64, (x &&& 0) = 0 := by
 ## Suggestions and Locals
 
 `grind` supports premise selection via `+suggestions` and local-library harvesting via `+locals`.
+
+`+suggestions` needs a library-suggestions engine. Without one it fails with "No library suggestions engine registered". Add `import Lean.LibrarySuggestions.Default` to use Lean's built-in engine, or configure one with `set_library_suggestions`.
 
 Staged workflow:
 1. Prototype: `grind +suggestions +locals`
