@@ -2615,6 +2615,75 @@ if [[ "$check45_ok" -eq 1 ]]; then
     ok "Check 45: prior-run reuse pinned (#82C: explicit selection, finality unknown, blocker preserved, content-bound approval, autoprove stops on drift, local source-note bridge, guard before creation; no resume/repair/lock recovery)"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 46: advanced references revalidated (#181). The examples are
+# established by the reference_snippets fixtures (run in lean-integration via
+# run_core_snippets.sh, Check 42 pins that wiring); this check pins that each
+# reference names its evidence, that the fixtures exist and are run, and that
+# the corrected guidance does not regress to what failed when compiled.
+# ---------------------------------------------------------------------------
+check46_ok=1
+_c46_ref="$PLUGIN_ROOT/skills/lean4/references"
+_c46_fx="$PLUGIN_ROOT/tests/fixtures/reference_snippets"
+for _c46_pair in grind-tactic.md:grind_snippets.lean \
+                 metaprogramming-patterns.md:meta_snippets.lean \
+                 linter-authoring.md:linter_rule.lean \
+                 verso-docs.md:verso_snippets.lean \
+                 profiling-workflows.md:run_core_snippets.sh; do
+    _c46_md="${_c46_pair%%:*}"; _c46_f="${_c46_pair#*:}"
+    if ! grep -E '^> - \*\*Confidence:\*\*' "$_c46_ref/$_c46_md" | grep -qF "reference_snippets/$_c46_f"; then
+        fail "Check 46: $_c46_md Confidence line must name its evidence (reference_snippets/$_c46_f)"
+        check46_ok=0
+    fi
+done
+for _c46_f in grind_snippets.lean grind_suggestions_snippets.lean meta_snippets.lean \
+              verso_snippets.lean linter_rule.lean linter_use.lean profiler_probe.lean \
+              profiler_infile.lean grind_mathlib_snippets.lean; do
+    if [[ ! -f "$_c46_fx/$_c46_f" ]]; then
+        fail "Check 46: tests/fixtures/reference_snippets/$_c46_f is missing"
+        check46_ok=0
+    elif [[ "$_c46_f" != grind_mathlib_snippets.lean ]] \
+         && ! grep -qF "$_c46_f" "$_c46_fx/run_core_snippets.sh"; then
+        fail "Check 46: run_core_snippets.sh does not run $_c46_f"
+        check46_ok=0
+    fi
+done
+# Corrections that must not regress (each failed when the old text was compiled).
+_c46_g="$_c46_ref/grind-tactic.md"
+if ! grep -qF 'redundant parameter `h1`, `grind` uses local hypotheses automatically' "$_c46_g"; then
+    fail "Check 46: grind-tactic.md must say a local-hypothesis hint is an error"
+    check46_ok=0
+fi
+if ! grep -qF 'grind [mul_eq_zero]' "$_c46_g" || grep -qF 'Zero-product reasoning typically needs `NoZeroDivisors`' "$_c46_g"; then
+    fail "Check 46: grind-tactic.md zero-product guidance must pass mul_eq_zero, not rely on NoZeroDivisors"
+    check46_ok=0
+fi
+if ! grep -qF 'do **not** resolve a local by name' "$_c46_g"; then
+    fail "Check 46: grind-tactic.md must say instantiate [h] does not resolve a local by name"
+    check46_ok=0
+fi
+_c46_m="$_c46_ref/metaprogramming-patterns.md"
+if ! grep -qF 'Macro.throwErrorAt stx s!"invalid rank value: {value}"' "$_c46_m" \
+   || grep -qE '^- `set_option trace\.Macro\.expand' "$_c46_m"; then
+    fail "Check 46: metaprogramming-patterns.md must validate with Macro.throwErrorAt and not recommend trace.Macro.expand"
+    check46_ok=0
+fi
+if ! grep -qF 'withSetOptionIn' "$_c46_ref/linter-authoring.md"; then
+    fail "Check 46: linter-authoring.md Core Pattern must wrap the run function in withSetOptionIn"
+    check46_ok=0
+fi
+if ! grep -qF 'Code element could be more specific.' "$_c46_ref/verso-docs.md"; then
+    fail "Check 46: verso-docs.md must quote the actual bare-code-element warning"
+    check46_ok=0
+fi
+if ! grep -qF 'writes no file' "$_c46_ref/profiling-workflows.md"; then
+    fail "Check 46: profiling-workflows.md must warn that an in-file trace.profiler.output writes no file"
+    check46_ok=0
+fi
+if [[ "$check46_ok" -eq 1 ]]; then
+    ok "Check 46: advanced references revalidated (#181: each names its fixture; fixtures run by run_core_snippets.sh; grind/metaprogramming/linter/verso/profiling corrections pinned)"
+fi
+
 if [[ "$check39_ok" -eq 1 ]]; then
     ok "Check 39: file-gate scope pinned (#166: canonical section w/ both failure directions + both recovery paths, cited sites corrected, cross-file editors routed, disprove REFUTED licensed by lake lean <target-file>, no naive module-name derivation)"
 fi
