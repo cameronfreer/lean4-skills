@@ -12,6 +12,15 @@ for f in core_instance_snippets.lean diagnostic_snippets.lean \
     lean "$here/$f"
 done
 
+# `bv_decide` as a `grind` command exists from Lean v4.34.0 on.
+if [[ "$(lean --version)" =~ version\ ([0-9]+)\.([0-9]+)\. ]] &&
+    (( BASH_REMATCH[1] > 4 || BASH_REMATCH[2] >= 34 )); then
+    echo "== grind_bv_snippets.lean (must elaborate; Lean v4.34.0+)"
+    lean "$here/grind_bv_snippets.lean"
+else
+    echo "== grind_bv_snippets.lean skipped: needs Lean v4.34.0+"
+fi
+
 echo "== diagnostic_omit_negative.lean (must FAIL at the docstring line with unexpected token 'omit')"
 if out="$(lean "$here/diagnostic_omit_negative.lean" 2>&1)"; then
     echo "FAIL: diagnostic_omit_negative.lean elaborated, but it documents a parse error" >&2
@@ -54,8 +63,44 @@ if [[ -n "$out" ]]; then
     echo "FAIL: trace.profiler.output given, but trace messages were still printed" >&2
     exit 1
 fi
-if ! grep -qF '"threads"' "$scratch/profile.json" 2>/dev/null; then
+if [[ ! -s "$scratch/profile.json" ]]; then
     echo "FAIL: trace.profiler.output given on the command line, but no Firefox Profiler JSON was written" >&2
+    exit 1
+fi
+# Frame names in the exported profile, one per line (a name can span lines).
+frames() {
+    python3 -I -c 'import json, sys
+d = json.load(open(sys.argv[1]))
+print("\n".join(sorted({s for t in d["threads"] for s in t["stringArray"]})))' "$1"
+}
+# The probe's `decide +kernel` must appear as a real Kernel frame (the exporter
+# adds a `runFrontend` root by itself); by default a frame is its class only.
+names="$(frames "$scratch/profile.json")"
+if ! grep -qxF 'Kernel' <<<"$names"; then
+    echo "FAIL: the profile has no Kernel frame from profiler_probe.lean" >&2
+    exit 1
+fi
+if grep -qF 'typechecking declarations' <<<"$names"; then
+    echo "FAIL: without trace.profiler.output.pp, frames should carry only class and tag" >&2
+    exit 1
+fi
+
+echo "== profiler_probe.lean (-Dtrace.profiler.output.pp=true keeps the full trace text)"
+"$lean_bin" -Dtrace.profiler=true -Dtrace.profiler.threshold=1 \
+    "-Dtrace.profiler.output=$scratch/profile-pp.json" -Dtrace.profiler.output.pp=true \
+    "$here/profiler_probe.lean"
+if ! grep -qF 'Kernel: typechecking declarations' <<<"$(frames "$scratch/profile-pp.json")"; then
+    echo "FAIL: -Dtrace.profiler.output.pp=true should keep the full Kernel trace text" >&2
+    exit 1
+fi
+
+echo "== profiler_probe.lean (output.pp set inside the file is not used by the exporter)"
+{ echo 'set_option trace.profiler.output.pp true'; cat "$here/profiler_probe.lean"; } \
+    > "$scratch/ProfilerPpInfile.lean"
+"$lean_bin" -Dtrace.profiler=true -Dtrace.profiler.threshold=1 \
+    "-Dtrace.profiler.output=$scratch/profile-pp-infile.json" "$scratch/ProfilerPpInfile.lean"
+if grep -qF 'typechecking declarations' <<<"$(frames "$scratch/profile-pp-infile.json")"; then
+    echo "FAIL: in-file trace.profiler.output.pp now reaches the exporter; update profiling-workflows.md" >&2
     exit 1
 fi
 

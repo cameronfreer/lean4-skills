@@ -65,7 +65,7 @@ example (a b : Nat) (h : a = b) : b = a := by
   grind
 example (x y : Int) (h : x < y) : x + 1 ≤ y := by lia
 
-/-! ### § The `@[grind]` and `@[grind_pattern]` Attributes -/
+/-! ### § The `@[grind]` Attribute and the `grind_pattern` Command -/
 
 section Attributes
 
@@ -193,6 +193,31 @@ example (k : Nat → Nat) (hk : ∀ n, k n = n + 1) : k 0 = 1 := by
     show_local_thms
     instantiate [#0c1c]
 
+-- An anchor hashes the expression (here the local theorem's type): renaming
+-- `k` to `k2` changes it.
+/-- trace: [thms] Local theorems
+  [thm] #cbee := ∀ (n : Nat), k2 n = n + 1 -/
+#guard_msgs in
+example (k2 : Nat → Nat) (hk : ∀ n, k2 n = n + 1) : k2 0 = 1 := by
+  grind =>
+    show_local_thms
+    instantiate
+
+-- `grind?` suggests an anchor-restricted call and an anchor-free one; both check.
+/-- info: Try these:
+  [apply] grind only [#0c1c]
+  [apply] grind only
+  [apply] grind => instantiate only [#0c1c] -/
+#guard_msgs in
+example (k : Nat → Nat) (hk : ∀ n, k n = n + 1) (_hz : ∀ n, k n ≠ 0) : k 0 = 1 := by
+  grind?
+
+example (k : Nat → Nat) (hk : ∀ n, k n = n + 1) (_hz : ∀ n, k n ≠ 0) : k 0 = 1 := by
+  grind only [#0c1c]
+
+example (k : Nat → Nat) (hk : ∀ n, k n = n + 1) (_hz : ∀ n, k n ≠ 0) : k 0 = 1 := by
+  grind only
+
 /-! ### § Known Limitations -/
 
 -- `native_decide` needs a closed goal; after `intro x` it fails.
@@ -209,6 +234,34 @@ example : ∀ x : BitVec 64, (x &&& 0) = 0 := by
 
 example (a b : Nat) (h : a = b) : b = a := by
   grind +locals
+
+-- `+locals` harvests definitions from the current file: an untagged
+-- definition is out of reach for plain `grind` ...
+def dblLocal (x : Nat) : Nat := x + x
+
+example (a : Nat) : dblLocal a = 2 * a := by
+  fail_if_success grind
+  grind +locals
+
+-- ... `grind? +locals` minimizes to an explicit call without the flag ...
+/-- info: Try these:
+  [apply] grind only [dblLocal]
+  [apply] grind => instantiate only [dblLocal] -/
+#guard_msgs in
+example (a : Nat) : dblLocal a = 2 * a := by
+  grind? +locals
+
+example (a : Nat) : dblLocal a = 2 * a := by
+  grind only [dblLocal]
+
+-- ... while bare `grind?` drops the pool and can only suggest `sorry`.
+/-- info: Try this:
+  [apply] grind => sorry
+---
+warning: declaration uses `sorry` -/
+#guard_msgs in
+example (a : Nat) : dblLocal a = 2 * a := by
+  grind?
 
 -- `+suggestions` needs a library-suggestions engine.
 example (a b : Nat) (h : a = b) : b = a := by

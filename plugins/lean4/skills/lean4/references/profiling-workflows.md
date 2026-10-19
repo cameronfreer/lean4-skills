@@ -43,7 +43,7 @@ Notes:
 - **Threshold units.** `trace.profiler.threshold` is in milliseconds (default `10`), or in heartbeats when `trace.profiler.useHeartbeats` is true.
 - **JSON output.** With `trace.profiler.output` set, Lean writes Firefox Profiler JSON (`meta`, `threads`, `libs`) and prints no trace messages.
 - **Pitfall: set the output path on the command line.** `set_option trace.profiler.output "…"` *inside* the file suppresses the trace messages but writes no file (checked on `v4.33.1` and `v4.35.0`), so the profile is silently lost.
-- **`trace.profiler.output.pp`.** If false (the default), exported trace nodes carry only the trace class and tag. Set it to true to keep the full text.
+- **`trace.profiler.output.pp`.** If false (the default), exported trace nodes carry only the trace class and tag. To keep the full text, pass `-Dtrace.profiler.output.pp=true` on the command line too. The JSON exporter reads the command-line options, so an in-file `set_option trace.profiler.output.pp true` is not used.
 - **`trace.profiler.serve`.** If true, it serves the data over HTTP and opens `https://profiler.firefox.com`, blocking until Ctrl+C.
 
 ## Workflow

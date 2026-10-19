@@ -2636,8 +2636,8 @@ for _c46_pair in grind-tactic.md:grind_snippets.lean \
         check46_ok=0
     fi
 done
-for _c46_f in grind_snippets.lean grind_suggestions_snippets.lean meta_snippets.lean \
-              verso_snippets.lean linter_rule.lean linter_use.lean profiler_probe.lean \
+for _c46_f in grind_snippets.lean grind_suggestions_snippets.lean grind_bv_snippets.lean \
+              meta_snippets.lean verso_snippets.lean linter_rule.lean linter_use.lean profiler_probe.lean \
               profiler_infile.lean grind_mathlib_snippets.lean; do
     if [[ ! -f "$_c46_fx/$_c46_f" ]]; then
         fail "Check 46: tests/fixtures/reference_snippets/$_c46_f is missing"
@@ -2682,6 +2682,35 @@ if ! grep -qF 'def transpose (xs : List Nat) : List Nat := xs.reverse' "$_c46_re
 fi
 if ! grep -qF 'writes no file' "$_c46_ref/profiling-workflows.md"; then
     fail "Check 46: profiling-workflows.md must warn that an in-file trace.profiler.output writes no file"
+    check46_ok=0
+fi
+# #212 review: the same corrections in the linked references, and their refinements.
+if grep -rqE 'set_option trace\.Macro\.expand' "$_c46_ref"; then
+    fail "Check 46: no reference may recommend the nonexistent trace.Macro.expand"
+    check46_ok=0
+fi
+if ! grep -qF 'trace.Elab.command' "$_c46_m" || ! grep -qF 'trace.Elab.command' "$_c46_ref/lean4-custom-syntax.md"; then
+    fail "Check 46: metaprogramming-patterns.md and lean4-custom-syntax.md must name trace.Elab.command for command macros"
+    check46_ok=0
+fi
+_c46_t="$_c46_ref/tactics-reference.md"
+if ! grep -qF 'grind [mul_eq_zero]' "$_c46_t" || grep -qF '[NoZeroDivisors R] (h : x * y = 0)' "$_c46_t" \
+   || ! grep -qF 'redundant parameter' "$_c46_t"; then
+    fail "Check 46: tactics-reference.md grind section must carry the zero-product and hint corrections"
+    check46_ok=0
+fi
+if ! grep -qF '`@[grind hom]`, `@[grind hom_pred]` | `v4.34.0`' "$_c46_g" \
+   || ! grep -qF 'grind? +suggestions +locals' "$_c46_g" \
+   || grep -qF 'Anchors are hashes of the current state' "$_c46_g"; then
+    fail "Check 46: grind-tactic.md hom boundary (v4.34.0), staged-workflow flags or anchor explanation regressed"
+    check46_ok=0
+fi
+if grep -qF 'structures, namespaces, theorems' "$_c46_ref/verso-docs.md"; then
+    fail "Check 46: verso-docs.md must not list namespaces as {name} targets"
+    check46_ok=0
+fi
+if ! grep -qF -- '-Dtrace.profiler.output.pp=true' "$_c46_ref/profiling-workflows.md"; then
+    fail "Check 46: profiling-workflows.md must say output.pp is read from the command line"
     check46_ok=0
 fi
 if [[ "$check46_ok" -eq 1 ]]; then

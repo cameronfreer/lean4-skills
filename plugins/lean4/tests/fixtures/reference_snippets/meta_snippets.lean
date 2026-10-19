@@ -11,7 +11,9 @@ fixture's pinned toolchain (messages pinned to Lean 4.33.1), via
 
 Every documented block is elaborated as written and exercised; documented
 behaviour (error spans, hygiene, pretty-printing, associativity) is pinned with
-`#guard`/`#guard_msgs`.
+`#guard`/`#guard_msgs`. The last section also pins the corrections carried into
+`lean4-custom-syntax.md` and `scaffold-dsl.md` (trace options, associativity of
+a custom category, macro recursion).
 -/
 
 /-! ### § Minimal DSL Pattern -/
@@ -189,3 +191,76 @@ example : Nat := 0
 #guard_msgs (substring := true) in
 set_option trace.Macro.expand true in
 example : Nat := 0
+
+/-! ### § Trace classes for macro expansion (also `lean4-custom-syntax.md`, `scaffold-dsl.md`) -/
+
+namespace Traces
+
+-- A term macro's expansion is an `Elab.step` node. (Elab.step traces are
+-- reported after the inner command, so `set_option` goes outside `#guard_msgs`.)
+macro "myTermMacro" : term => `(1 + 1)
+
+set_option trace.Elab.step true in
+/-- trace: [Elab.step] ✅️ expected type: Nat, term
+    myTermMacro
+  [Elab.step] ✅️ expected type: Nat, term
+      1 + 1 -/
+#guard_msgs (substring := true) in
+example : Nat := myTermMacro
+
+-- A command macro's expansion is an `Elab.command` node ...
+macro "myCmdMacro" : command => `(def macroOut : Nat := 1)
+
+/-- trace: [Elab.command] ✅️ myCmdMacro -/
+#guard_msgs (substring := true) in
+set_option trace.Elab.command true in
+myCmdMacro
+
+-- ... and `trace.Elab.step` shows only the terms of the expanded `def`.
+set_option trace.Elab.step true in
+/-- trace: [Elab.step] ✅️ expected type: Type, term
+    Nat✝
+  [Elab.step.result] Nat
+[Elab.step] ✅️ expected type: Nat, term
+    1
+  [Elab.step.result] 1 -/
+#guard_msgs in
+myCmdMacro
+
+end Traces
+
+/-! ### § `lean4-custom-syntax.md`: associativity in a custom category, macro recursion -/
+
+namespace CustomCat
+
+declare_syntax_cat arithR
+syntax num : arithR
+syntax arithR " + " arithR : arithR
+syntax "[arithR|" arithR "]" : term
+macro_rules
+  | `([arithR| $n:num]) => `(($n : Int))
+  | `([arithR| $a + $b]) => `([arithR| $a] - [arithR| $b])
+
+-- No precedences: no loop, but right-associative.
+#guard [arithR| 10 + 3 + 2] == 9
+
+declare_syntax_cat arithL
+syntax num : arithL
+syntax:65 arithL:65 " + " arithL:66 : arithL
+syntax "[arithL|" arithL "]" : term
+macro_rules
+  | `([arithL| $n:num]) => `(($n : Int))
+  | `([arithL| $a + $b]) => `([arithL| $a] - [arithL| $b])
+
+#guard [arithL| 10 + 3 + 2] == 5
+
+-- `maximum recursion depth` comes from an expansion that reproduces its input.
+syntax "loopy" : term
+macro_rules
+  | `(loopy) => `(loopy)
+
+/-- error: maximum recursion depth has been reached -/
+#guard_msgs (substring := true) in
+#check loopy
+
+end CustomCat

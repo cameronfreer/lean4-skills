@@ -12,3 +12,22 @@ example (a b : Nat) (h : a = b) : b = a := by
 
 example (a b : Nat) (h : a = b) : b = a := by
   grind +suggestions +locals
+
+-- The staged workflow on a goal that needs discovery: an untagged definition
+-- from this file. Plain `grind` fails; `grind? +suggestions +locals` finds it
+-- and suggests an explicit call that needs neither flag.
+def dblSugg (x : Nat) : Nat := x + x
+
+example (a : Nat) : dblSugg a = 2 * a := by
+  fail_if_success grind
+  grind +suggestions +locals
+
+/-- info: Try these:
+  [apply] grind only [dblSugg]
+  [apply] grind => instantiate only [dblSugg] -/
+#guard_msgs in
+example (a : Nat) : dblSugg a = 2 * a := by
+  grind? +suggestions +locals
+
+example (a : Nat) : dblSugg a = 2 * a := by
+  grind only [dblSugg]

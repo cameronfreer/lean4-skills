@@ -504,7 +504,11 @@ have h : Measurable (fun ω ↦ f (ω (-1))) := by
 **Baseline usage:**
 ```lean
 example (h1 : a = b) (h2 : b = c) : a = c := by grind
-example [CommRing R] [NoZeroDivisors R] (h : x * y = 0) (hx : x ≠ 0) : y = 0 := by grind
+-- Mathlib: in a field, zero-product reasoning is built in ...
+example {K : Type*} [Field K] (x y : K) (h : x * y = 0) (hx : x ≠ 0) : y = 0 := by grind
+-- ... with only NoZeroDivisors (or IsDomain, or ℤ) pass the lemma; bind x y explicitly
+example {R : Type*} [CommRing R] [NoZeroDivisors R] (x y : R) (h : x * y = 0) (hx : x ≠ 0) :
+    y = 0 := by grind [mul_eq_zero]
 example : (5 : Fin 3) = 2 := by grind
 
 -- Typical sequence:
@@ -532,9 +536,9 @@ grind -funCC +revert -reducible       -- newer search/reduction controls
 - Combinatorial/bit-blasting search -> `bv_decide`
 
 **Notes:**
-- Local hypotheses are already in scope for `grind`; avoid passing them redundantly.
+- Local hypotheses are already in scope for `grind`. Passing one as a hint is an error, not a no-op: `grind [h]` reports ``redundant parameter `h` ``.
 - If search explodes, reduce splitting (`splits := 0`) before adding more lemmas.
-- For custom automation, register lemmas with `@[grind]` / `@[grind =]` / `@[grind ->]` and use `@[grind_pattern]` only when matching needs manual shaping.
+- For custom automation, register lemmas with `@[grind]` / `@[grind =]` / `@[grind ->]` and use the `grind_pattern` command only when matching needs manual shaping.
 
 **For full details:** [grind-tactic.md](grind-tactic.md)
 

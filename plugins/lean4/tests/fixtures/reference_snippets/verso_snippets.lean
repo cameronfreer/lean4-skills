@@ -19,11 +19,29 @@ def transpose (xs : List Nat) : List Nat := xs.reverse
 -- module docs are Verso too, so section markers here are plain comments.
 
 /--
-Returns {name}`transpose` applied to {given (type := "Nat")}`n`.
+For {given (type := "Nat")}`n`, returns {lean}`transpose [n]`.
 Use {lean}`#[n]` for a rank-1 shape literal.
 Prefer {lit}`x[i,j]` when writing pseudo-indexing.
 -/
 def shape (n : Nat) : List Nat := transpose [n]
+
+-- § Role Priority: `{name}` takes declarations and in-scope variables ...
+/-- Doubles {name}`n`; {name}`Nat` is an inductive type, so it resolves. -/
+def twice (n : Nat) : Nat := n + n
+
+-- ... but not a namespace that is not also a declaration.
+namespace OnlyNs
+def inner : Nat := 1
+end OnlyNs
+
+/-- error: Unknown constant `OnlyNs` -/
+#guard_msgs in
+/-- Lives in {name}`OnlyNs`. -/
+def nsName : Nat := 0
+
+-- Use `{lit}` for a namespace-only label and `{module}` for a module.
+/-- Lives in {lit}`OnlyNs`; see {module}`Init.Prelude`. -/
+def nsLit : Nat := 0
 
 -- `{given}` can also carry the type inline.
 /-- For {given}`xs : List Nat`, {name}`transpose` reverses {lean}`xs`. -/

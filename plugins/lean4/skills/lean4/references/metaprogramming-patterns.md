@@ -7,6 +7,8 @@
 > - **Last validated:** 2026-10-19
 > - **Confidence:** medium (the blocks run in CI: `tests/fixtures/reference_snippets/meta_snippets.lean`; MetaM/TacticM APIs remain drift-prone across toolchains, and the design guidance is not machine-checked)
 
+The examples assume `import Lean` (as their fixture does).
+
 ## When to Use
 
 - Defining new syntax or a DSL
@@ -146,7 +148,9 @@ Use `@[app_delab]` when matching is more complex (implicit args, dependent types
 
 ## Debugging Checklist
 
-- `set_option trace.Elab.step true` to see each elaboration step, including the result of every macro expansion. (There is no `trace.Macro.expand` option.)
+- `set_option trace.Elab.step true` to see each term and tactic elaboration step, including term and tactic macro expansions
+- `set_option trace.Elab.command true` to see command elaboration, including command macro expansions (`trace.Elab.step` shows only the terms inside the expanded command)
+- There is no `trace.Macro.expand` option
 - `set_option pp.all true` to inspect implicit arguments
 
 ## Common Gotchas

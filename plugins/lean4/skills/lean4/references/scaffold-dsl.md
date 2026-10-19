@@ -56,5 +56,5 @@ end MyDSL
 ```lean
 set_option pp.notation false in #check [myDSL| ...]  -- see expansion
 set_option pp.all true in #check [myDSL| ...]        -- full detail
-set_option trace.Macro.expand true in #check [myDSL| x + 1 * 2]  -- trace expansion
+set_option trace.Elab.step true in #check [myDSL| x + 1 * 2]     -- trace expansion
 ```

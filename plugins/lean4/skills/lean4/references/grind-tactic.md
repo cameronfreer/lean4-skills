@@ -3,9 +3,9 @@
 > **Scope:** Not part of the prove/autoprove default loop. Consulted when the agent encounters goals that `simp` cannot close, or when cross-domain reasoning is needed.
 
 > **Version metadata:**
-> - **Verified on:** Lean `v4.33.1` and `v4.35.0` (core examples, options, attribute and interactive syntax checked against each toolchain's source and compiled); Mathlib `346a4bd3f9` on Lean `v4.35.0-rc3` (ring and arithmetic examples)
+> - **Verified on:** Lean `v4.33.1` and `v4.35.0` (core examples, options, attribute and interactive syntax checked against each toolchain's source and compiled), plus `v4.34.0` for the entries marked `v4.34.0`; Mathlib `346a4bd3f9` on Lean `v4.35.0-rc3` (ring and arithmetic examples)
 > - **Last validated:** 2026-10-19
-> - **Confidence:** high for the compiled examples (core ones run in CI: `tests/fixtures/reference_snippets/grind_snippets.lean`, `grind_suggestions_snippets.lean`; Mathlib ones local-only: `grind_mathlib_snippets.lean`); medium for the Version Matrix "since" column (release notes, not rechecked on older toolchains)
+> - **Confidence:** high for the compiled examples (core ones run in CI: `tests/fixtures/reference_snippets/grind_snippets.lean`, `grind_suggestions_snippets.lean`; `grind_bv_snippets.lean` needs `v4.34.0`+ and is run by the runner only on such a toolchain; Mathlib ones local-only: `grind_mathlib_snippets.lean`); medium for the Version Matrix "since" column (release notes, not rechecked on older toolchains)
 
 ## Table of Contents
 
@@ -14,7 +14,7 @@
 - [Version Matrix](#version-matrix)
 - [Usage Patterns](#usage-patterns)
 - [Controls and Performance](#controls-and-performance)
-- [The `@[grind]` and `@[grind_pattern]` Attributes](#the-grind-and-grind_pattern-attributes)
+- [The `@[grind]` Attribute and the `grind_pattern` Command](#the-grind-attribute-and-the-grind_pattern-command)
 - [Common Gotchas](#common-gotchas)
 - [Interactive Mode](#interactive-mode)
 - [Known Limitations](#known-limitations)
@@ -89,7 +89,7 @@ example {K : Type*} [Field K] (x y : K) (h : x * y = 0) (hx : x ≠ 0) : y = 0 :
 
 ## Version Matrix
 
-Every feature below, except the explicitly version-qualified entries, exists and parses on `v4.33.1` and `v4.35.0` (`grind_snippets.lean`). The "Available since" column is taken from the Lean release notes and was not rechecked against older toolchains.
+Every feature below, except the entries marked `v4.34.0`, exists and parses on `v4.33.1` and `v4.35.0` (`grind_snippets.lean`); those exist from `v4.34.0` on. The "Available since" column is taken from the Lean release notes and was not rechecked against older toolchains.
 
 | Feature | Available since | Notes |
 |---|---|---|
@@ -97,10 +97,11 @@ Every feature below, except the explicitly version-qualified entries, exists and
 | `grind -splitMatch` / `grind -splitIte` | `v4.17.0` | Disable selected case-splitting sources |
 | `grind +splitImp` | `v4.20.0` | Allow implication splitting |
 | Interactive `instantiate` with local theorems | `v4.25.0` | On `v4.33.1`/`v4.35.0` a local is used by plain `instantiate` or by its anchor; `instantiate [h]` by hypothesis name is rejected (see [Interactive Mode](#interactive-mode)) |
-| `@[grind_pattern]` constraints | `v4.26.0` | Pattern shaping became more expressive |
-| `@[grind_pattern]` guards | `v4.27.0` | More precise pattern activation |
+| `grind_pattern` constraints | `v4.26.0` | Pattern shaping became more expressive |
+| `grind_pattern` guards | `v4.27.0` | More precise pattern activation |
 | `grind -funCC`, `grind +revert`, `grind -reducible` | `v4.27.0` | Additional control over congruence/reduction/search |
-| `@[grind hom]`, `@[grind hom_pred]` | `v4.35.0` | Homomorphism rules into a solver domain; absent on `v4.33.1` (checked in source) |
+| `@[grind hom]`, `@[grind hom_pred]` | `v4.34.0` | Homomorphism rules into a solver domain (renamed from `homo`/`homo_pred`); absent on `v4.33.1`, accepted on `v4.34.0` (checked) |
+| `bv_decide` inside `grind => …` | `v4.34.0` | Bit-blasts after grind's congruence closure; a parse error on `v4.33.1` (checked; see [Interactive Mode](#interactive-mode)) |
 
 If your toolchain is older than these entries, expect option/behavior differences.
 
@@ -199,7 +200,7 @@ set_option trace.grind.split true in
 grind
 ```
 
-## The `@[grind]` and `@[grind_pattern]` Attributes
+## The `@[grind]` Attribute and the `grind_pattern` Command
 
 ### `@[grind]` Registration
 
@@ -231,13 +232,13 @@ Attribute variants (`Init/Grind/Attr.lean`):
 - `@[grind intro]`: use constructors of an inductive predicate as matching rules
 - `@[grind ext]`, `@[grind inj]`, `@[grind funCC]`, `@[grind norm]`, `@[grind unfold]`
 - `@[grind symbol <prio>]`: priority of a constant during pattern selection
-- `@[grind hom]`, `@[grind hom_pred]`: homomorphism rules and predicates (`v4.35.0`+)
+- `@[grind hom]`, `@[grind hom_pred]`: homomorphism rules and predicates (`v4.34.0`+)
 - `gen` suffix (accepted after `=`, `=_`, `_=_`, `←`, `.`); `usr`, in tactic hints (`grind [usr thm]`), selects the pattern declared with `grind_pattern`
 - `@[grind!]`: minimal indexable subexpression pattern selection; `@[grind?]` / `@[grind!?]` also print the selected patterns
 
 Use `@[grind]` sparingly on lemmas with stable, reusable patterns. Keep exploratory annotations local first (`@[local grind ...]`); promote to global only after repeated wins across files.
 
-### `@[grind_pattern]` for E-matching Shape
+### `grind_pattern` for E-matching Shape
 
 When automatic pattern extraction is poor, use explicit patterns. This is the command's own docstring example:
 
@@ -255,7 +256,7 @@ example : f b = f c → a ≤ f a → f (f a) ≤ f (f (f a)) := by
 
 Supported constraints: `guard`, `check`, `size`, `depth`, `gen`, `max_insts`, value/ground predicates (`is_ground`, `is_value`, `is_strict_value`, `not_value`, `not_strict_value`), and definitional equality/inequality guards (`x =?= t`, `x =/= t`).
 
-Use this only when ordinary `@[grind]` registration is insufficient and profiling shows matching misses.
+Use this command only when ordinary `@[grind]` registration is insufficient and profiling shows matching misses.
 
 ## Common Gotchas
 
@@ -311,6 +312,22 @@ Common commands:
 - `done` / `finish` / `finish?`
 - `try t` (shorthand for `first (t) (skip)`), `first (t₁) (t₂)`
 
+### Bit-Blasting Inside `grind` (`v4.34.0`+)
+
+From `v4.34.0` on, `bv_decide` is also a `grind` interactive command. It bit-blasts the goal using the equalities grind has already derived. On its own, `bv_decide` treats `f x` and `f y` as unrelated; grind's congruence closure first makes them equal:
+
+```lean
+import Std.Tactic.BVDecide
+
+opaque f : BitVec 8 → BitVec 8
+
+example (x y : BitVec 8) (h : x = y) : f x ^^^ f y = 0 := by
+  grind =>
+    bv_decide
+```
+
+Standalone `bv_decide` fails on this goal. Without `import Std.Tactic.BVDecide`, the command reports "to use `bv_decide`, please include `import Std.Tactic.BVDecide`". On `v4.33.1` it is a parse error.
+
 ### Debugging Loop
 
 ```lean
@@ -336,7 +353,16 @@ example (k : Nat → Nat) (hk : ∀ n, k n = n + 1) : k 0 = 1 := by
     instantiate
 ```
 
-`instantiate [hk]` / `instantiate only [hk]` do **not** resolve a local by name on `v4.33.1`/`v4.35.0`; they report ``Unknown constant `hk` ``. To target one local theorem, run `show_local_thms` and pass the anchor it prints (`instantiate [#0c1c]`). Anchors are hashes of the current state, so do not keep them in a final proof.
+`instantiate [hk]` / `instantiate only [hk]` do **not** resolve a local by name on `v4.33.1`/`v4.35.0`; they report ``Unknown constant `hk` ``. To target one local theorem, run `show_local_thms` and pass the anchor it prints (`instantiate [#0c1c]`).
+
+An anchor is a stable hash of an expression; for a local theorem, of its type. It does not change between runs, but editing that expression changes it: renaming `k` to `k2` in `hk` turns `#0c1c` into `#cbee`. Anchors are supported in checked proofs. `grind?` itself can suggest both an anchor-restricted call and an anchor-free one:
+
+```lean
+example (k : Nat → Nat) (hk : ∀ n, k n = n + 1) (_hz : ∀ n, k n ≠ 0) : k 0 = 1 := by
+  grind?  -- Try these: grind only [#0c1c]; grind only; grind => instantiate only [#0c1c]
+```
+
+Prefer the anchor-free suggestion when it is equally clear and reliable.
 
 ## Known Limitations
 
@@ -367,13 +393,13 @@ example : ∀ x : BitVec 64, (x &&& 0) = 0 := by
 
 ## Suggestions and Locals
 
-`grind` supports premise selection via `+suggestions` and local-library harvesting via `+locals`.
+`grind` supports premise selection via `+suggestions`, and `+locals` harvests definitions from the current file. Local hypotheses are always available; `+locals` is not needed for them.
 
 `+suggestions` needs a library-suggestions engine. Without one it fails with "No library suggestions engine registered". Add `import Lean.LibrarySuggestions.Default` to use Lean's built-in engine, or configure one with `set_library_suggestions`.
 
 Staged workflow:
 1. Prototype: `grind +suggestions +locals`
-2. Minimize: run `grind?`, adopt `grind only [...]` when stable
+2. Minimize: run `grind? +suggestions +locals`, adopt the `grind only [...]` it suggests when stable. The suggestion names the premises it used, so it no longer needs the flags. Keep the flags on `grind?`: bare `grind?` drops those premise pools, and on a goal that needed them it can only suggest `grind => sorry`
 3. Stabilize: convert repeatedly selected lemmas into `@[local grind ...]` / `@[local simp]`
 4. Promote to global annotations only after repeated success across files
 

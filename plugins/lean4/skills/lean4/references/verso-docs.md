@@ -17,7 +17,7 @@ Verso docstrings are enabled with `set_option doc.verso true`. That option also 
 
 ## Role Priority
 
-1. `{name}` for declared names (constants, structures, namespaces, theorems)
+1. `{name}` for declarations (constants, structures, theorems) and in-scope variables. A namespace that is not itself a declaration is not a valid target: ``{name}`Foo` `` reports ``Unknown constant `Foo` `` when `Foo` only contains `Foo.bar` (`Nat` works because it is also an inductive type). Use `{lit}` for a namespace-only label and `{module}` for a module
 2. `{lean}` for Lean expressions or snippets
 3. `{lit}` for literal code that should not resolve (last resort)
 
@@ -60,7 +60,7 @@ set_option doc.verso true
 def transpose (xs : List Nat) : List Nat := xs.reverse
 
 /--
-Returns {name}`transpose` applied to {given (type := "Nat")}`n`.
+For {given (type := "Nat")}`n`, returns {lean}`transpose [n]`.
 Use {lean}`#[n]` for a rank-1 shape literal.
 Prefer {lit}`x[i,j]` when writing pseudo-indexing.
 -/
