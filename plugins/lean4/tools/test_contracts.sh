@@ -2676,6 +2676,10 @@ if ! grep -qF 'Code element could be more specific.' "$_c46_ref/verso-docs.md"; 
     fail "Check 46: verso-docs.md must quote the actual bare-code-element warning"
     check46_ok=0
 fi
+if ! grep -qF 'def transpose (xs : List Nat) : List Nat := xs.reverse' "$_c46_ref/verso-docs.md"; then
+    fail "Check 46: verso-docs.md example must define transpose, as verso_snippets.lean does"
+    check46_ok=0
+fi
 if ! grep -qF 'writes no file' "$_c46_ref/profiling-workflows.md"; then
     fail "Check 46: profiling-workflows.md must warn that an in-file trace.profiler.output writes no file"
     check46_ok=0

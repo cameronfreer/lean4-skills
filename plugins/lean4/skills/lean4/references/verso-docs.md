@@ -57,6 +57,8 @@ Use these small transforms in sequence:
 ```lean
 set_option doc.verso true
 
+def transpose (xs : List Nat) : List Nat := xs.reverse
+
 /--
 Returns {name}`transpose` applied to {given (type := "Nat")}`n`.
 Use {lean}`#[n]` for a rank-1 shape literal.

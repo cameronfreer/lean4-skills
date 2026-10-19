@@ -89,7 +89,7 @@ example {K : Type*} [Field K] (x y : K) (h : x * y = 0) (hx : x ≠ 0) : y = 0 :
 
 ## Version Matrix
 
-Every feature below exists and parses on `v4.33.1` and `v4.35.0` (`grind_snippets.lean`). The "Available since" column is taken from the Lean release notes and was not rechecked against older toolchains.
+Every feature below, except the explicitly version-qualified entries, exists and parses on `v4.33.1` and `v4.35.0` (`grind_snippets.lean`). The "Available since" column is taken from the Lean release notes and was not rechecked against older toolchains.
 
 | Feature | Available since | Notes |
 |---|---|---|
