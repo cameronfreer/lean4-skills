@@ -274,10 +274,12 @@ declare_syntax_cat myDSL (behavior := symbol)  -- treat idents as symbols
 syntax "[myDSL|" myDSL "]" : term
 ```
 
-**Recursive with precedence (avoid infinite loop):**
+**Binary operators: precedence sets associativity:**
 ```lean
-syntax:65 myDSL " + " myDSL:66 : myDSL  -- left-assoc, :66 stops recursion
+syntax:65 myDSL:65 " + " myDSL:66 : myDSL  -- left-assoc: 10 + 3 + 2 is (10 + 3) + 2
 ```
+
+Without precedences, `syntax myDSL " + " myDSL : myDSL` still parses (no loop) but associates to the right: `10 + 3 + 2` is `10 + (3 + 2)`.
 
 ## Indentation-Sensitive Syntax
 
@@ -402,7 +404,8 @@ let code ← translateCode body       -- pass 2: synthesis
 **Diagnostic workflow:**
 ```
 1. Parse error?     → Syntax rule wrong (check precedence, missing bridge)
-2. Macro silent?    → set_option trace.Macro.expand true
+2. Macro silent?    → set_option trace.Elab.step true (term/tactic macros)
+                       set_option trace.Elab.command true (command macros)
 3. Wrong output?    → set_option pp.notation false (see actual term)
 4. Type error?      → set_option pp.all true (see implicit args)
 ```
@@ -414,7 +417,7 @@ let code ← translateCode body       -- pass 2: synthesis
 | `unknown identifier 'x'` | Hygiene scoped name away | Use `mkIdent \`x` to break hygiene |
 | `expected term` | Macro returned wrong syntax kind | Check antiquotation: `$e` vs `$e:term` |
 | `ambiguous, possible interpretations` | Overlapping syntax rules | Add precedence or more specific pattern |
-| `maximum recursion depth` | Left-recursive without precedence | Add `:N` to break recursion |
+| `maximum recursion depth` | A macro whose expansion reproduces its input (e.g. ``macro_rules \| `(loopy) => `(loopy)``) | Make each rule's output reach a base case |
 | `failed to synthesize instance` | Elaborator needs type hint | Use `elabTerm stx (some expectedType)` |
 
 **When macros aren't enough** (escalate to `elab_rules`):
@@ -437,8 +440,8 @@ elab "typeof!" e:term : term => do
 
 **Debug commands:**
 ```lean
-set_option trace.Macro.expand true   -- see macro expansion
-set_option trace.Elab.step true      -- see elaboration steps
+set_option trace.Elab.step true      -- elaboration steps, incl. term/tactic macro expansion
+set_option trace.Elab.command true   -- command elaboration, incl. command macro expansion
 set_option pp.all true               -- see all implicit args
 dbg_trace "x = {x}"                  -- runtime printf
 logInfo m!"{e}"                      -- permanent, pretty-prints Expr

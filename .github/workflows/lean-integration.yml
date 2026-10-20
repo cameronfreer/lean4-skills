@@ -65,7 +65,7 @@ jobs:
           LEAN_FILE_GATE_KEEP_DIR: ${{ runner.temp }}/lean_file_gate_failures
         run: python3 plugins/lean4/tests/integration/test_lean_file_gate.py -v
 
-      - name: Core-Lean reference snippets (instance registration; #167/#168/#169 diagnostics)
+      - name: Core-Lean reference snippets (instance registration; #167/#168/#169 diagnostics; #181 grind/metaprogramming/linter/Verso/profiler)
         # Same pinned toolchain, no Mathlib. Documented repairs must elaborate;
         # documented failures are #guard_msgs controls, plus one must-fail file
         # for the `omit` parse error that #guard_msgs cannot capture.

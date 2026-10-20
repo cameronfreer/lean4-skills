@@ -1,5 +1,42 @@
 # Changelog
 
+## v4.11.4 (October 2026)
+
+The five advanced references past their validation window are revalidated against Lean `v4.33.1` and `v4.35.0` (and Mathlib `346a4bd3f9` where needed), with every example compiled and the core ones run in CI (closes #181).
+
+### Fixed
+
+- **grind-tactic.md.** Several documented snippets failed when compiled and are replaced with compiling ones:
+  - **Hints:** `grind [h1, h2]` with local hypotheses is an error, not a no-op.
+  - **Registration:** all three `@[grind]` examples were rejected for want of a usable pattern; a bare `@[grind]` can also select a pattern that never fires (use `@[grind?]`).
+  - **Zero-product:** the claim that it "needs `NoZeroDivisors`" is false. `grind` closes it in a field; with `NoZeroDivisors`, `IsDomain` or on `ℤ` it needs `grind [mul_eq_zero]`. The old example's auto-bound `x y` were natural numbers.
+  - **`grind_pattern` and Boolean precedence:** the constrained `grind_pattern` example is now the command's own; the first Boolean-precedence example was a type mismatch.
+  - **Interactive mode:** both examples closed on entry and failed at their first command; the `try`-guarded loop now runs on an open goal. `instantiate [h]` does not resolve a local hypothesis by name on `v4.33.1`/`v4.35.0` (use plain `instantiate` or the `show_local_thms` anchor).
+  - **Other corrections:** `native_decide` after `intro x` fails (use `bv_decide`, which needs `import Std.Tactic.BVDecide`, or `simp`); `+suggestions` needs a library-suggestions engine (`import Lean.LibrarySuggestions.Default`).
+  - **Additions:** the attribute-variant list is completed from `Init/Grind/Attr.lean` (`←=`, `⇒`/`⇐`, `.`, `symbol`, `hom`/`hom_pred` from `v4.34.0`, `grind?`); `lia` is listed. The Version Matrix states that its "since" column is from the release notes, not rechecked; its `v4.34.0` rows were checked on that toolchain.
+  - **Anchors:** an anchor is a stable hash of an expression (a local theorem's type), changed by editing it; checked proofs may keep one, and `grind?` suggests both an anchor-restricted and an anchor-free call.
+  - **Suggestions and locals:** `+locals` harvests the current file's definitions. The staged workflow minimizes with `grind? +suggestions +locals`, since bare `grind?` drops those premise pools.
+  - **`grind => bv_decide` (`v4.34.0`+)** is documented, with an example that standalone `bv_decide` cannot close. `grind_pattern` is called a command.
+- **metaprogramming-patterns.md.** Every block but the minimal DSL failed to compile:
+  - **Validation:** uses `Macro.throwErrorAt` with `s!` (the `throwErrorAt … "{x}"` form needs `MonadError`, which `MacroM` lacks).
+  - **Antiquotation block:** it reused one syntax name for two alternatives and quoted a non-category; it is replaced by a `dslValue` syntax category with a term escape.
+  - **Elaborator and unexpander:** the elaborator opens `Meta` for `inferType`; the unexpander targets a real constant.
+  - **Debugging and gotchas:** `trace.Macro.expand` does not exist: `trace.Elab.step` shows term and tactic macro expansions, `trace.Elab.command` command macro expansions. Hygiene guidance is corrected (`mkIdent`, not `withFreshMacroScope`). The "left recursion causes parse loops" gotcha is replaced by the observed right associativity of a precedence-free infix.
+- **linter-authoring.md.** The Core Pattern's run function did not honour the documented `set_option linter.myRule false in` local disable. It is now wrapped in `withSetOptionIn` and uses `Linter.getLinterValue` / `Linter.logLint`. For correctness rules, `logErrorAt` reports every occurrence where `throwErrorAt` stops at the first. The `weak.` option's failure mode is quoted.
+- **verso-docs.md.** The example's untyped `{given}` made ``{lean}`#[n]` `` fail (`{given (type := "Nat")}` / ``{given}`n : Nat` ``). The diagnostics now carry Lean's real messages: "Code element could be more specific." is a warning, and an unknown role is an error. The other built-in roles are listed, and `doc.verso` turns module docs into Verso as well. The displayed example defines the `transpose` it names, and its prose names the checked expression ``{lean}`transpose [n]` ``. `{name}` takes declarations and in-scope variables, not a namespace that is only a namespace (use `{lit}`, or `{module}` for a module).
+- **profiling-workflows.md.** `set_option trace.profiler.output` inside a file suppresses the traces and writes no file; the JSON is written only when the option is passed on the command line (`lean -D…` / `lake env lean -D…`). The threshold default, `output.pp` and `serve` are documented from their option descriptions; `output.pp`, like the output path, takes effect only with `-D`.
+- **Linked references.** The same errors are corrected where they recur: `tactics-reference.md`'s `grind` section (the zero-product example, and a local-hypothesis hint is an error), `lean4-custom-syntax.md` and `scaffold-dsl.md` (no `trace.Macro.expand`; a precedence-free binary rule associates right rather than looping; `maximum recursion depth` comes from a self-reproducing macro).
+- Each file's version metadata now records what was checked, on which toolchains, and which fixture holds the evidence; `Last validated` is the day of the check.
+- Tests:
+  - **CI fixtures:** `run_core_snippets.sh` (lean-integration, pinned Lean 4.33.1) now also elaborates `grind_snippets.lean`, `grind_suggestions_snippets.lean`, `meta_snippets.lean` and `verso_snippets.lean`. Documented failures are `fail_if_success` or `#guard_msgs` blocks.
+  - **Linter pair:** the runner compiles `linter_rule.lean` and elaborates `linter_use.lean` against it with `-Dweak.linter.myRule=true`.
+  - **Profiler:** it checks command-line JSON export and the in-file no-file pitfall. It parses the exported JSON for a real Kernel frame, and checks that `output.pp` keeps the full trace text with `-D` but not when set in the file.
+  - **Discovery and anchors:** an untagged definition that plain `grind` misses is found by `+locals` and by `grind? +suggestions +locals`, which minimize to `grind only [def]`. Anchor pins cover a renamed expression, and the `grind?` suggestions with and without anchors.
+  - **Version-gated fixture:** `grind_bv_snippets.lean` is elaborated only on Lean `v4.34.0`+ (skipped on CI's 4.33.1; run locally on 4.34.0 and 4.35.0).
+  - **Trace classes:** `meta_snippets.lean` pins `Elab.step` for a term macro and `Elab.command` for a command macro, plus the custom-category associativity and the macro-recursion error.
+  - **Mathlib claims:** these are in the local-only `grind_mathlib_snippets.lean`, with the Mathlib commit recorded.
+  - **Contract check:** Check 46 pins each reference's evidence pointer, the fixture wiring, and one load-bearing correction per file.
+
 ## v4.11.3 (September 2026)
 
 `unused_declarations.sh` covers private declarations and no longer counts comments or strings as usages (closes #184, closes #185).
