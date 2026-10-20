@@ -2,7 +2,8 @@ name: lean-integration
 
 # Real-toolchain integration suite for the file-gate / /disprove certification
 # sequence (#166, PR #195): one Linux job, one pinned Lean toolchain (the
-# fixture's lean-toolchain), no mathlib, no LSP. Separate from lint.yml so the
+# fixture's lean-toolchain), no mathlib, no LSP; plus a second job that reruns
+# only the core reference snippets on a newer Lean. Separate from lint.yml so the
 # fast contract suites stay fast; the toolchain is cached, the fixture
 # projects' .lake directories are never cached (their state is the experiment).
 
@@ -84,3 +85,48 @@ jobs:
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 14
+
+  # The core-Lean reference snippets again, on a toolchain newer than the
+  # fixture's pin: catches version-specific regressions in the documented
+  # examples and runs the version-gated fixtures the pinned job skips
+  # (grind_bv_snippets.lean needs v4.34.0+). Pinned rather than floating, so a
+  # Lean release never turns CI red by itself; bump NEWER_LEAN deliberately.
+  # The file-gate suite stays on the fixture's pin only.
+  core-snippets-newer-lean:
+    runs-on: ubuntu-latest
+    env:
+      NEWER_LEAN: leanprover/lean4:v4.35.0
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cache elan toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.elan
+          key: elan-${{ runner.os }}-${{ env.NEWER_LEAN }}
+
+      - name: Install elan + the newer toolchain
+        run: |
+          set -euo pipefail
+          if [ ! -x "$HOME/.elan/bin/elan" ]; then
+            curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+              | sh -s -- -y --default-toolchain none
+          fi
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+          "$HOME/.elan/bin/elan" toolchain install "$NEWER_LEAN"
+
+      - name: Core-Lean reference snippets on the newer toolchain
+        # Same directory and runner as the pinned job; ELAN_TOOLCHAIN overrides
+        # the directory's lean-toolchain for `lean` and for `elan which lean`.
+        working-directory: plugins/lean4/tests/fixtures/lean_file_gate
+        env:
+          ELAN_TOOLCHAIN: ${{ env.NEWER_LEAN }}
+        run: |
+          set -euo pipefail
+          v="${NEWER_LEAN##*:v}"
+          lean --version
+          lean --version | grep -F "version $v"
+          elan which lean | grep -F "v$v/"
+          bash ../reference_snippets/run_core_snippets.sh | tee "$RUNNER_TEMP/snippets.log"
+          # The version-gated fixture must have run here, not been skipped.
+          grep -F '== grind_bv_snippets.lean (must elaborate' "$RUNNER_TEMP/snippets.log"
