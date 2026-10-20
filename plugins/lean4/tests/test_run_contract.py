@@ -192,6 +192,36 @@ class HandoffValid(unittest.TestCase):
             [],
         )
 
+    def test_concluded_stop(self) -> None:
+        # #85: a non-blocker stop — null stop_detail and blocker fields.
+        self.assertEqual(
+            validate_handoff(
+                valid_handoff(
+                    status="stopped", stop_reason="concluded", next_action="stop"
+                )
+            ),
+            [],
+        )
+
+    def test_concluded_stop_rejects_blocker_fields_and_detail(self) -> None:
+        h = valid_handoff(
+            status="stopped",
+            stop_reason="concluded",
+            next_action="stop",
+            blocker_kind="proof",
+            blocker_class="arithmetic",
+            blocker_signature="Foo.lean:42:e",
+            new_evidence_required_for_rerun="x",
+        )
+        self.assertTrue(validate_handoff(h))
+        h = valid_handoff(
+            status="stopped",
+            stop_reason="concluded",
+            stop_detail="x",
+            next_action="stop",
+        )
+        self.assertTrue(validate_handoff(h))
+
     def test_proof_repair_diff_artifact(self) -> None:
         self.assertEqual(
             validate_handoff(
@@ -422,6 +452,14 @@ class RerunPredicate(unittest.TestCase):
     def test_queue_empty_empty_delta_allowed(self) -> None:
         prior = valid_handoff(
             status="stopped", stop_reason="queue-empty", next_action="stop"
+        )
+        d = valid_dispatch(prior_blocker=None, evidence_delta=[])
+        self.assertFalse(rerun_forbidden(d, prior))
+
+    def test_concluded_reruns_freely(self) -> None:
+        # #85: a concluded stop is not blocker-driven — no signature to match.
+        prior = valid_handoff(
+            status="stopped", stop_reason="concluded", next_action="stop"
         )
         d = valid_dispatch(prior_blocker=None, evidence_delta=[])
         self.assertFalse(rerun_forbidden(d, prior))
