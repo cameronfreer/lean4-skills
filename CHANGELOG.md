@@ -8,7 +8,7 @@
 
 - **`--conclude-after=N%|Nc|<duration>|0`** (default `15%`). `N%` (0–50) reserves from every limited budget, `Nc` from total cycles only, a duration from runtime only; `0` turns the phase off and keeps the previous behaviour. Per limit L the reserve is `0 if L == 1 else min(max(1, ceil(L × p)), L − 1)`: with the defaults the conclusion is due at cycle 17 of 20, or after two consecutive stuck cycles of 3. Startup validation errors: a reserve larger than its budget, a duration with unlimited runtime, `0c`/`0s` (use `0`), a percentage above 50. With `--formalize=auto` (per-claim budgets) the phase is off, with a warning.
 - **The conclusion cycle** ([cycle-engine § Conclusion Phase](plugins/lean4/skills/lean4/references/cycle-engine.md#conclusion-phase)). Only `tick` decides it is due, so at least one proving cycle always runs, and a binding limit is an ordinary stop. The next cycle concludes:
-  - **finalization**, only when exactly one sorry remains and an already-tested candidate still applies to it, verified per File Gate Scope, with no fresh deep search;
+  - **finalization**, only when exactly one sorry remains and an already-tested candidate still applies to it, verified per File Gate Scope, with no fresh deep search — never under `--repair-only`, which concludes by synthesis without filling sorries;
   - otherwise **synthesis**, a verdict `ready` / `fixable` / `no-credible-path` with the best partial patch, the blocker inventory, missing lemmas, unexplored queries, the recommended next command, and cost accounting by phase.
 
   It ends with the final Replan and one real tick. The mapping: a successful finalization is `solved`, even on the last available cycle; then a limit reached on that tick; otherwise the new `stop_reason: concluded`. The runtime reserve is best-effort and stated as such: with the budget already spent, no further proof attempt is started. The summary gains a `**Conclusion:**` line and a conclusion-cost row; with `--persist` the helper's `action` is honoured during the conclusion as everywhere else, and an interrupted conclusion reports only what it produced.
@@ -30,7 +30,7 @@
   - startup validation, and the `start-claim` guard.
 
   The macOS Bash 3.2 smoke test also covers reserve parsing, the due tick, the latch and a rejected `0c`.
-- Parser: grammar, ranges, fit within the budget, the `--formalize=auto` warning, and parity with `cycle-tracker init` on every case.
+- Parser: grammar, ranges, fit within the budget, the `--formalize=auto` warning, and parity with `cycle-tracker init` on every case, with init given the parser's resolved value (padded values such as `" 15% "` are rejected by both; case is folded by both).
 - A protocol acceptance test (`ConclusionPhase`, real tracker and real persistence helper) for the `concluded`, limit-during-conclusion, finalization-on-the-last-cycle, precedence and runtime-overshoot mappings; persistence off, an unconfirmed `finish`, a committed final Replan with failed bookkeeping (stored and cited, no tick, no finish) and an interrupted conclusion; `--conclude-after=0`.
 - Contract, store and reuse tests for `concluded`.
 - Check 47 pins the prose; Check 14 maps the new stop condition.

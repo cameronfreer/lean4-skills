@@ -2747,6 +2747,8 @@ else
                   'otherwise `stop_reason: concluded`' \
                   'never enters the conclusion phase' \
                   'an already-tested candidate for **that** sorry' \
+                  'iff the run is **not `--repair-only`**' \
+                  'A `--repair-only` run concludes by synthesis alone and fills no sorry' \
                   'no fresh deep search under the label of finalization' \
                   'never a numeric score' 'never set `new_evidence_required_for_rerun`' \
                   '**cannot guarantee**' 'without starting another proof attempt' \
@@ -2762,8 +2764,9 @@ if ! grep -qE '^\| --conclude-after \| No \| 15% \|' "$_c47_ap" \
    || ! grep -qF -- '`--conclude-after=0` with `--formalize=auto`' "$_c47_ap" \
    || ! grep -qF '### Conclusion Phase' "$_c47_ap" \
    || ! grep -qF '**Conclusion:** [ready | fixable | no-credible-path' "$_c47_ap" \
+   || ! grep -qF 'never under `--repair-only`, which synthesizes without filling sorries' "$_c47_ap" \
    || ! grep -qF '/ `concluded` → `status: stopped`' "$_c47_ap"; then
-    fail "Check 47: autoprove.md must carry the --conclude-after row, the formalize=auto rule, the phase, the Conclusion line and the concluded mapping"
+    fail "Check 47: autoprove.md must carry the --conclude-after row, the formalize=auto rule, the phase, the repair-only exclusion, the Conclusion line and the concluded mapping"
     check47_ok=0
 fi
 _c47_hand=$(extract_section "$_c47_hc" "## Handoff record (worker → parent/human)")

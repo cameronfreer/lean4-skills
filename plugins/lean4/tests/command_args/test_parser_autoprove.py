@@ -206,6 +206,15 @@ class TestAutoproveConcludeAfter(unittest.TestCase):
                 self.assertEqual(len(errs), 1, errs)
                 self.assertIn("--conclude-after", errs[0])
 
+    def test_surrounding_whitespace_rejected(self):
+        # cycle-tracker init gets the resolved value verbatim and does not
+        # strip it, so the parser must not accept what init would refuse.
+        for v in (" 15% ", " 0 ", "15% ", "\t2c"):
+            with self.subTest(v=v):
+                errs = self._parse(f'--conclude-after="{v}"').errors
+                self.assertEqual(len(errs), 1, errs)
+                self.assertIn("invalid value", errs[0])
+
     def test_zero_forms_name_the_fix(self):
         for v in ("0c", "0s"):
             with self.subTest(v=v):
@@ -255,7 +264,9 @@ class TestAutoproveConcludeAfter(unittest.TestCase):
     )
     def test_parser_and_tracker_agree(self):
         """Startup validation is the same in both places: the parser rejects a
-        value iff `cycle-tracker init` refuses it (exit 2)."""
+        value iff `cycle-tracker init` refuses it (exit 2). init gets what the
+        agent passes it: the parser's resolved value, or the raw value when
+        the parser refused it."""
         cases = [
             ("20", "120m", v)
             for v in (
@@ -275,6 +286,12 @@ class TestAutoproveConcludeAfter(unittest.TestCase):
                 "x",
                 "15",
                 "2.5%",
+                "2C",
+                "15M",
+                " 15% ",
+                " 0 ",
+                "15% ",
+                "\t2c",
             )
         ] + [("3", "0", "5m"), ("3", "0", "15%")]
         with tempfile.TemporaryDirectory() as tmp:
@@ -285,9 +302,11 @@ class TestAutoproveConcludeAfter(unittest.TestCase):
                 with self.subTest(cycles=cycles, runtime=runtime, v=v):
                     parsed = self._parse(
                         f"--max-cycles={cycles} --max-total-runtime={runtime} "
-                        f"--conclude-after={v}"
+                        f'--conclude-after="{v}"'
                     )
                     rt = parsed.options.get("--max-total-runtime")
+                    ca = parsed.options.get("--conclude-after")
+                    resolved = v if parsed.errors or ca is None else ca.value
                     p = subprocess.run(
                         [
                             "bash",
@@ -296,7 +315,7 @@ class TestAutoproveConcludeAfter(unittest.TestCase):
                             f"--max-cycles={cycles}",
                             "--max-stuck=3",
                             f"--max-runtime={rt.value if rt else runtime}",
-                            f"--conclude-after={v}",
+                            f"--conclude-after={resolved}",
                         ],
                         capture_output=True,
                         text=True,
@@ -308,6 +327,8 @@ class TestAutoproveConcludeAfter(unittest.TestCase):
                         p.returncode == 2,
                         (parsed.errors, p.stderr),
                     )
+                    if not parsed.errors:
+                        self.assertEqual(p.returncode, 0, p.stderr)
 
 
 if __name__ == "__main__":

@@ -302,8 +302,9 @@ def conclude_after_errors(
     value: object, max_cycles: object, max_runtime: object
 ) -> list[str]:
     """Startup validation of --conclude-after against the budgets it reserves
-    from; mirrors cycle_tracker.sh init (#85)."""
-    spec = str(value).strip().lower()
+    from; mirrors cycle_tracker.sh init (#85). Like init, it folds case but
+    does not strip whitespace: the resolved value is passed to init as is."""
+    spec = str(value).lower()
     name = "--conclude-after"
     if spec == "0":
         return []
@@ -369,10 +370,7 @@ def _conclude_after_formalize_auto(
     ctx: ParseContext,
 ) -> list[str]:
     """--formalize=auto runs per-claim budgets: no conclusion phase there."""
-    if (
-        flags.get("--formalize") == "auto"
-        and str(flags.get("--conclude-after")).strip().lower() != "0"
-    ):
+    if flags.get("--formalize") == "auto" and str(flags.get("--conclude-after")) != "0":
         return [
             "--formalize=auto uses per-claim budgets; the conclusion phase is "
             "not available there — the tracker is initialized with "
