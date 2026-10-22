@@ -187,6 +187,48 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Test 9: conclusion phase (#85) — reserve parsing (10# arithmetic, ${x%\%}),
+# the due tick, the latch, and a startup validation error
+# ---------------------------------------------------------------------------
+echo ""
+echo "-- conclusion phase (#85) --"
+
+assert_out() {
+  local desc="$1" expected="$2"
+  if [[ "$LAST_OUT" == *"$expected"* ]]; then
+    echo "  PASS: $desc"
+    ((PASS++)) || true
+  else
+    echo "  FAIL: $desc (output missing '$expected')"
+    echo "  Output: $LAST_OUT"
+    ((FAIL++)) || true
+  fi
+}
+
+run init --max-cycles=4 --max-stuck=3 --max-runtime=60m --conclude-after=015%
+assert_exit "init with --conclude-after=015% (leading zero)" 0
+SESSION_ID="$LAST_STDOUT"
+export LEAN4_SESSION_ID="$SESSION_ID"
+run status
+assert_out "15% of 60m reserves 540s" "conclude_reserve_runtime_seconds=540"
+run tick --stuck=no
+run tick --stuck=no
+run tick --stuck=no
+assert_out "cycle 3 of 4 is due" "conclude=yes"
+run conclude
+assert_exit "conclude latches" 0
+assert_out "snapshot at cycle 3" "conclude_at_cycles=3"
+run tick --stuck=yes
+assert_exit "the conclusion cycle's tick reaches max-cycles" 1
+assert_out "stop_reason names the limit" "stop_reason=max-cycles"
+assert_out "still latched" "concluding=yes"
+run stop
+cleanup
+
+run init --max-cycles=4 --max-stuck=3 --conclude-after=0c
+assert_exit "--conclude-after=0c is a startup error" 2
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""

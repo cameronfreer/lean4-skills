@@ -50,6 +50,10 @@ STOP_REASONS = {
     "max-runtime",
     "user-stop",
     "queue-empty",
+    # #85, plugin >= 4.12.0: the reserved conclusion phase ended the run by
+    # policy before any limit bound. A non-blocker stop; readers older than
+    # 4.12.0 reject it (the amendment is additive, not bidirectional).
+    "concluded",
     "protocol-error",
     "operational-error",
 }
