@@ -278,22 +278,41 @@ _reserve_for() {
   echo "$r"
 }
 
+# Decimal operands of --conclude-after are compared as text, never through
+# fixed-width arithmetic, so an over-long value cannot wrap to a small or
+# negative reserve. $1 without leading zeros ("0" if all zeros).
+_strip_zeros() {
+  local d="${1#"${1%%[!0]*}"}"
+  echo "${d:-0}"
+}
+
+# Succeeds iff $1 >= $2, for non-negative decimal strings of any length.
+_dec_ge() {
+  local a b
+  a=$(_strip_zeros "$1"); b=$(_strip_zeros "$2")
+  if [[ ${#a} -ne ${#b} ]]; then
+    [[ ${#a} -gt ${#b} ]]
+    return
+  fi
+  [[ "$a" == "$b" || "$a" > "$b" ]]
+}
+
 # Parse --conclude-after against the budgets it reserves from. The forms are
 # independent: N% reserves from every limited budget, Nc from total cycles
 # only, a duration from runtime only, 0 disables the phase. Sets the globals
 # _res_cycles, _res_stuck, _res_runtime (0 = that budget never triggers).
 _conclusion_reserves() {
-  local spec="$1" max_cycles="$2" max_stuck="$3" runtime_seconds="$4" n secs
+  local spec="$1" max_cycles="$2" max_stuck="$3" runtime_seconds="$4" n mult
   _res_cycles=0; _res_stuck=0; _res_runtime=0
   case "$spec" in
     0) ;;
     *%)
       n="${spec%\%}"
-      if ! [[ "$n" =~ ^[0-9]+$ ]] || [[ $(( 10#$n )) -gt 50 ]]; then
+      if ! [[ "$n" =~ ^[0-9]+$ ]] || _dec_ge "$n" 51; then
         echo "error=--conclude-after percentage must be an integer from 0 to 50, got '$spec'" >&2
         exit 2
       fi
-      n=$(( 10#$n ))
+      n=$(_strip_zeros "$n")
       # 0% disables everything, before any max(1, ...) rounding.
       if [[ "$n" -gt 0 ]]; then
         _res_cycles=$(_reserve_for "$max_cycles" "$n")
@@ -309,12 +328,12 @@ _conclusion_reserves() {
         echo "error=invalid --conclude-after '$spec' (expected N%, Nc, a duration such as 5m or 90s, or 0)" >&2
         exit 2
       fi
-      n=$(( 10#$n ))
-      if [[ "$n" -eq 0 ]]; then
+      n=$(_strip_zeros "$n")
+      if [[ "$n" == 0 ]]; then
         echo "error=--conclude-after=$spec is rejected: use 0 to disable the conclusion phase" >&2
         exit 2
       fi
-      if [[ "$n" -ge "$max_cycles" ]]; then
+      if _dec_ge "$n" "$max_cycles"; then
         echo "error=--conclude-after=$spec: reserve larger than its budget (--max-cycles=$max_cycles)" >&2
         exit 2
       fi
@@ -326,20 +345,27 @@ _conclusion_reserves() {
         echo "error=invalid --conclude-after '$spec' (expected N%, Nc, a duration such as 5m or 90s, or 0)" >&2
         exit 2
       fi
-      if [[ $(( 10#$n )) -eq 0 ]]; then
+      n=$(_strip_zeros "$n")
+      if [[ "$n" == 0 ]]; then
         echo "error=--conclude-after=$spec is rejected: use 0 to disable the conclusion phase" >&2
         exit 2
       fi
-      secs=$(_parse_duration "$(( 10#$n ))${spec##*[0-9]}")
       if [[ "$runtime_seconds" -eq 0 ]]; then
         echo "error=--conclude-after=$spec reserves runtime, but the runtime budget is unlimited" >&2
         exit 2
       fi
-      if [[ "$secs" -ge "$runtime_seconds" ]]; then
+      case "${spec##*[0-9]}" in
+        s) mult=1 ;;
+        m) mult=60 ;;
+        h) mult=3600 ;;
+      esac
+      # n * mult >= runtime  iff  n >= ceil(runtime / mult); below that bound
+      # the product is smaller than the runtime budget, so it cannot overflow.
+      if _dec_ge "$n" "$(( (runtime_seconds + mult - 1) / mult ))"; then
         echo "error=--conclude-after=$spec: reserve larger than its budget (max runtime ${runtime_seconds}s)" >&2
         exit 2
       fi
-      _res_runtime="$secs"
+      _res_runtime=$(( n * mult ))
       ;;
     *)
       echo "error=invalid --conclude-after '$spec' (expected N%, Nc, a duration such as 5m or 90s, or 0)" >&2

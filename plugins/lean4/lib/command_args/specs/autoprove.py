@@ -369,8 +369,12 @@ def _conclude_after_formalize_auto(
     flags: Mapping[str, object],
     ctx: ParseContext,
 ) -> list[str]:
-    """--formalize=auto runs per-claim budgets: no conclusion phase there."""
-    if flags.get("--formalize") == "auto" and str(flags.get("--conclude-after")) != "0":
+    """--formalize=auto runs per-claim budgets: no conclusion phase there.
+    Silent when the value already disables the phase (`0`, or `0%` in any
+    zero-padded spelling)."""
+    value = str(flags.get("--conclude-after"))
+    disabled = value == "0" or re.fullmatch(r"0+%", value) is not None
+    if flags.get("--formalize") == "auto" and not disabled:
         return [
             "--formalize=auto uses per-claim budgets; the conclusion phase is "
             "not available there — the tracker is initialized with "

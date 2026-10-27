@@ -245,8 +245,13 @@ class TestAutoproveConcludeAfter(unittest.TestCase):
         r = self._parse(tail)
         self.assertEqual(r.errors, [])
         self.assertTrue(any("per-claim budgets" in w for w in r.warnings), r.warnings)
-        r = self._parse(tail + " --conclude-after=0")
-        self.assertFalse(any("per-claim budgets" in w for w in r.warnings), r.warnings)
+        for off in ("0", "0%", "000%"):
+            with self.subTest(off=off):
+                r = self._parse(tail + f" --conclude-after={off}")
+                self.assertEqual(r.errors, [])
+                self.assertFalse(
+                    any("per-claim budgets" in w for w in r.warnings), r.warnings
+                )
 
     def test_doc_phrases_are_documented(self):
         docs = ""
@@ -292,8 +297,19 @@ class TestAutoproveConcludeAfter(unittest.TestCase):
                 " 0 ",
                 "15% ",
                 "\t2c",
+                # over-long decimals: no fixed-width wrap in the tracker
+                "18446744073709551616%",
+                "10000000000000000000c",
+                "18446744073709551617s",
+                "9223372036854775808m",
+                "1" + "0" * 30 + "h",
+                "00000000000000000000000015%",
+                "000000000000000000000002c",
+                "0000000000000000000000000119m",
+                "0000000000000000000000c",
+                "00000000000000000000%",
             )
-        ] + [("3", "0", "5m"), ("3", "0", "15%")]
+        ] + [("3", "0", "5m"), ("3", "0", "15%"), ("3", "0", "99999999999999999999h")]
         with tempfile.TemporaryDirectory() as tmp:
             env = dict(os.environ, TMPDIR=tmp, LEAN4_SESSION_DIR=tmp)
             for k in ("LEAN4_ENV_FILE", "CLAUDE_ENV_FILE", "LEAN4_SESSION_ID"):

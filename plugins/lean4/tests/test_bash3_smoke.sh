@@ -187,8 +187,9 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Test 9: conclusion phase (#85) — reserve parsing (10# arithmetic, ${x%\%}),
-# the due tick, the latch, and a startup validation error
+# Test 9: conclusion phase (#85) — reserve parsing (leading zeros stripped and
+# magnitudes compared as text: nested ${x#"${x%%[!0]*}"}, [[ a > b ]]; ${x%\%}),
+# the due tick, the latch, and startup validation errors
 # ---------------------------------------------------------------------------
 echo ""
 echo "-- conclusion phase (#85) --"
@@ -227,6 +228,22 @@ cleanup
 
 run init --max-cycles=4 --max-stuck=3 --conclude-after=0c
 assert_exit "--conclude-after=0c is a startup error" 2
+
+run init --max-cycles=20 --max-stuck=3 --conclude-after=10000000000000000000c
+assert_exit "an over-long count is refused, not wrapped" 2
+assert_out "refused as larger than its budget" "reserve larger than its budget"
+run init --max-cycles=20 --max-stuck=3 --conclude-after=20c
+assert_exit "an equal-length count equal to the budget is refused" 2
+run init --max-cycles=20 --max-stuck=3 --conclude-after=51%
+assert_exit "51% is refused" 2
+run init --max-cycles=20 --max-stuck=3 --max-runtime=60m --conclude-after=0000000000000000000019c
+assert_exit "a long zero-padded count is accepted" 0
+SESSION_ID="$LAST_STDOUT"
+export LEAN4_SESSION_ID="$SESSION_ID"
+run status
+assert_out "padding stripped: 19 reserved cycles" "conclude_reserve_cycles=19"
+run stop
+cleanup
 
 # ---------------------------------------------------------------------------
 # Summary

@@ -1711,6 +1711,25 @@ conclusion_suite() {
   run init --max-cycles=3 --max-stuck=3 --conclude-after=5m
   assert_exit "$p: a duration with unlimited runtime is refused" 2
   assert_contains "$p: refusal names the unlimited budget" "unlimited"
+  # Over-long decimals are compared as text, never through fixed-width
+  # arithmetic (2^64 would wrap a percentage to 0 and a count negative).
+  for bad in 18446744073709551616% 10000000000000000000c 18446744073709551617s 9223372036854775808m; do
+    run init --max-cycles=20 --max-stuck=3 --max-runtime=120m --conclude-after="$bad"
+    assert_exit "$p: --conclude-after=$bad is a startup error" 2
+  done
+  run init --max-cycles=20 --max-stuck=3 --max-runtime=120m --conclude-after=10000000000000000000c
+  assert_contains "$p: an over-long count is too large, not negative" "reserve larger than its budget"
+  run init --max-cycles=20 --max-stuck=3 --max-runtime=120m --conclude-after=0000000000000000000120m
+  assert_exit "$p: a zero-padded duration equal to the budget is refused" 2
+  init_session --max-cycles=20 --max-stuck=3 --max-runtime=120m --conclude-after=00000000000000000000000015%
+  run status
+  assert_field "$p: long zero padding keeps 15% of cycles" conclude_reserve_cycles 3
+  assert_field "$p: long zero padding keeps 15% of runtime" conclude_reserve_runtime_seconds 1080
+  cleanup_session
+  init_session --max-cycles=20 --max-stuck=3 --max-runtime=120m --conclude-after=0000000000000000000000119m
+  run status
+  assert_field "$p: a zero-padded duration just under the budget" conclude_reserve_runtime_seconds 7140
+  cleanup_session
   init_session --max-cycles=5 --max-stuck=3 --conclude-after=2C
   run status
   assert_field "$p: the form is case-insensitive" conclude_reserve_cycles 2
