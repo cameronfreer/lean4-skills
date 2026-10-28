@@ -361,7 +361,7 @@ _conclusion_reserves() {
       esac
       # n * mult >= runtime  iff  n >= ceil(runtime / mult); below that bound
       # the product is smaller than the runtime budget, so it cannot overflow.
-      if _dec_ge "$n" "$(( (runtime_seconds + mult - 1) / mult ))"; then
+      if _dec_ge "$n" "$(( runtime_seconds / mult + (runtime_seconds % mult != 0) ))"; then
         echo "error=--conclude-after=$spec: reserve larger than its budget (max runtime ${runtime_seconds}s)" >&2
         exit 2
       fi

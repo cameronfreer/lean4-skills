@@ -310,6 +310,16 @@ class TestAutoproveConcludeAfter(unittest.TestCase):
                 "00000000000000000000%",
             )
         ] + [("3", "0", "5m"), ("3", "0", "15%"), ("3", "0", "99999999999999999999h")]
+        # a runtime at INT64_MAX: ceil(runtime / unit) must not wrap
+        cases += [
+            ("20", "9223372036854775807s", v)
+            for v in (
+                "153722867280912931m",
+                "2562047788015216h",
+                "153722867280912930m",
+                "2562047788015215h",
+            )
+        ]
         with tempfile.TemporaryDirectory() as tmp:
             env = dict(os.environ, TMPDIR=tmp, LEAN4_SESSION_DIR=tmp)
             for k in ("LEAN4_ENV_FILE", "CLAUDE_ENV_FILE", "LEAN4_SESSION_ID"):
