@@ -343,7 +343,8 @@ lean4-skills-cycle-tracker init \
   --max-stuck=<resolved> \
   --max-runtime=<resolved> \
   --max-deep-per-cycle=<resolved> \
-  --max-consecutive-deep=<resolved>
+  --max-consecutive-deep=<resolved> \
+  --conclude-after=<resolved>        # autoprove only; omitted (= 0) elsewhere
 ```
 
 A failed init (exit 2) is a startup validation error — do not proceed. On success, the session ID is printed to stdout. If a writable env file is available (`LEAN4_ENV_FILE` or `CLAUDE_ENV_FILE`), init also persists `LEAN4_SESSION_ID` there for subsequent calls; otherwise, pass it as an env prefix (`LEAN4_SESSION_ID=<id> bash ...`).
@@ -362,8 +363,9 @@ This is one atomic operation that:
 3. Updates the consecutive-deep-cycles counter (increment if deep was used this cycle, reset to 0 otherwise)
 4. Resets the per-cycle deep counter
 5. Checks all limits (max-cycles, max-stuck, max-runtime)
+6. Reports whether the conclusion phase is due (`conclude=yes|no`) and latched (`concluding=yes|no`)
 
-If exit code is 1 (`LIMIT_REACHED`), stop immediately and emit the structured summary.
+If exit code is 1 (`LIMIT_REACHED`), stop immediately and emit the structured summary; the `stop_reason=` line names the limit (`max-stuck` > `max-cycles` > `max-runtime` when several bind). On `conclude=yes`, enter the [Conclusion Phase](#conclusion-phase) (`cycle-tracker conclude`, then the conclusion as the next cycle).
 
 ### Deep Mode Preflight
 
@@ -396,9 +398,51 @@ Call `lean4-skills-cycle-tracker status` for the structured summary counters, th
 | Level | Mechanism | Reliability | Parameters |
 |-------|-----------|-------------|------------|
 | **Startup-validated** | Fail before work starts | Guaranteed when command follows invocation contract | enum/path/companion/numeric checks |
-| **Session-enforced** | `cycle_tracker.sh` at cycle boundaries | Protocol-dependent — reliable when command follows documented cycle boundary protocol | `--max-cycles`, `--max-stuck-cycles`, `--max-deep-per-cycle`, `--max-consecutive-deep-cycles` |
+| **Session-enforced** | `cycle_tracker.sh` at cycle boundaries | Protocol-dependent — reliable when command follows documented cycle boundary protocol | `--max-cycles`, `--max-stuck-cycles`, `--max-deep-per-cycle`, `--max-consecutive-deep-cycles`, `--conclude-after` (its runtime reserve is best-effort, like the runtime budget) |
 | **Best-effort** | `cycle_tracker.sh tick` + `can-deep` | Checked at cycle boundaries and deep preflight — not a kill switch, cannot preempt mid-step | `--max-total-runtime` |
 | **Advisory** | Instruction to LLM/subagent | Model-mediated, not validated or tracked | `--deep-time-budget`, `--batch-size` |
+
+## Conclusion Phase
+
+`autoprove` reserves the end of its budget for a **conclusion**: instead of spending its last cycles on low-yield search until a limit stops it, it either finishes an already-tested proof or reports a verdict on what remains (Refs #85; autoformalize's per-claim budgets are a follow-up — the tracker refuses `start-claim` while a reserve is enabled). Off with `--conclude-after=0`; the tracker's own default is off, so other callers are unchanged.
+
+**Reserve forms** (independent; every hard limit stays active whatever the form):
+
+| `--conclude-after` | Total-cycles reserve | Stuck-cycles reserve | Runtime reserve |
+|---|---|---|---|
+| `N%` (default `15%`) | percentage | percentage | percentage |
+| `Nc` | N cycles | none | none |
+| duration (`5m`, `90s`) | none | none | the duration |
+| `0` | none | none | none |
+
+Startup validation (parser and `cycle-tracker init`, exit 2): `N%` needs `0 ≤ N ≤ 50`; `Nc` with `N ≥ --max-cycles`, or a duration `≥ --max-total-runtime`, is "reserve larger than its budget"; a duration with an unlimited runtime budget is refused; **`0c` and `0s` are rejected** (use `0`). `0%` disables everything before any rounding.
+
+**Rounding** (integers, ceil; positive percentages only). Per cycle limit L: `reserve = 0 if L == 1 else min(max(1, ceil(L × p)), L − 1)`; the runtime reserve is computed the same way from the limit in seconds. Worked defaults: `--max-cycles=20` → 3, due when `cycles ≥ 17`; `--max-stuck-cycles=3` → 1, due when `consecutive_stuck ≥ 2` (before the third, binding, stuck cycle); `--max-cycles=2` → due after cycle 1; `--max-cycles=1` → no conclusion phase. `--conclude-after=2c` never triggers on stuck cycles or runtime.
+
+**Trigger.** Only `tick` computes it, so at least one proving cycle always runs: `conclude=yes` (with `conclude_reason=` naming the budget: `max-stuck`, `max-cycles` or `max-runtime`, in that order when several are reached together) when, for a **limited** budget with a **positive** reserve, `cycles ≥ max_cycles − reserve`, `consecutive_stuck ≥ max_stuck − reserve`, or `elapsed ≥ max_runtime − reserve` — and no limit binds on that tick (`LIMIT_REACHED` is an ordinary stop). The exit code is unchanged.
+
+**Latch.** `lean4-skills-cycle-tracker conclude` (refused unless the last tick reported `conclude=yes`, or with the phase disabled) sets the latch and snapshots `conclude_at` — `cycles`, `consecutive_stuck`, `stuck_cycles_total`, `deep_total`, `elapsed_seconds` — for cost accounting by phase. From then on `tick` and `status` report `concluding=yes` whatever the counters do; ordinary search never resumes. `conclude` is idempotent.
+
+**Boundary sequence** (persistence calls only with `--persist`):
+
+1. Cycle k ends → `run-persist replan` (cycle k) → `tick --stuck=…` (cycle k's tick).
+2. `LIMIT_REACHED` → ordinary stop, no conclusion. Otherwise `conclude=yes` → `cycle-tracker conclude` → the conclusion **is cycle k+1**: a finalization attempt, or synthesis.
+3. The final Replan (the verdict) → `run-persist replan` (cycle k+1) → **one** `tick` for cycle k+1, its real tick (no extra ticks are manufactured). `--stuck` follows the ordinary definition: `no` iff a sorry in scope was filled during cycle k+1 (a successful finalization), otherwise `yes` — producing a report is not proof progress — and it is never chosen to obtain a preferred stop reason.
+4. Mapping after that tick, in this order: **a verified completion wins** — a successful finalization is `status: solved`, `stop_reason: null`, whatever the tick reports (the tick still records the consumed budget). Otherwise `LIMIT_REACHED` → the tracker's `stop_reason=` (it applies `max-stuck` > `max-cycles` > `max-runtime` when several limits bind, so the controller does not choose); otherwise `stop_reason: concluded`.
+5. `run-persist finish` with the mapped handoff → the summary. A run that is already complete, or stopped by the user, never enters the conclusion phase.
+
+**Finalization** happens instead of synthesis iff the run is **not `--repair-only`**, exactly one sorry remains in scope, **and** an already-tested candidate for **that** sorry applies to the current statement and context: the candidate names the target (its `file:line` and goal), and that declaration header and goal are unchanged since it was tested. A clean compile in scratch is evidence to reassess, not certification: after applying, verify per [File Gate Scope](#file-gate-scope) / [Build Target Policy](#build-target-policy) (changed imports need a rebuild or `lake lean`), then the axiom policy. Only an already-tested candidate may be applied — **no fresh deep search under the label of finalization** (`can-deep` is not a licence to override `--deep=never`). A failed finalization falls through to synthesis and is recorded as a failed avenue. A `--repair-only` run concludes by synthesis alone and fills no sorry, so its verdict is never `ready`.
+
+**Synthesis** ends the run with a verdict, never a numeric score:
+- `ready` — only through a successful finalization;
+- `fixable` — each next step tied to cited evidence (a candidate, a search hit, a lemma gap);
+- `no-credible-path` — the leads considered, and why each stalled.
+
+Always: the best partial patch (`artifacts` `{kind: "unified-diff"}`), the blocker inventory, likely missing lemmas and unexplored queries (in `evidence`), the recommended next command, and cost accounting from `conclude_at` against the final counters. The final Replan carries the plan, next steps, blockers, failed approaches and cites; the handoff carries artifacts, candidates and evidence. Recommendations never set `new_evidence_required_for_rerun` — only the existing blocker rules do.
+
+**Time budget.** Runtime is checked at boundaries and deep preflight; a long tool call is not interrupted, so the reserve **cannot guarantee** the conclusion starts before expiry (best-effort, like `--max-total-runtime` itself). Before finalization, and before each further expensive step of synthesis, read `cycle-tracker status`: on `runtime_exhausted=yes`, emit the summary from what exists **without starting another proof attempt**; the final tick then reports `max-runtime`.
+
+**Reporting, with or without persistence.** Without `--persist` there are no store calls and no citations — recommendations reference `file:line` and the summary's own sections; the conclusion is the final Replan text in the summary plus the handoff record. With `--persist` every write goes through `run-persist` and the summary reports storage per [Run Persistence](#run-persistence): `stored` with the confirmed cite (a committed write with failed bookkeeping is still stored, with its warning), `not stored` only for a known non-storage, `persistence unconfirmed` for an uncertain write. **The helper's `action` is carried forward, not only its storage status:** a committed final Replan with failed bookkeeping is stored and citable, but the helper returned `stop` — no final tick, no further ordinary persistence call; emit the operational-error fallback (kept current by `progress`) and show the Replan as stored with its cite and the run as stopped by persistence. **An interrupted conclusion** (a limit, a persistence stop, a tool failure) reports the material actually produced — a partial inventory, the leads gathered so far — and says the verdict was not reached; it never fills the verdict slot with a verdict it did not reach.
 
 ## Falsification Artifacts
 

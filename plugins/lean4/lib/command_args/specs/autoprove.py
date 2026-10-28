@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 
 from ..coercions import PRIOR_RUN_REQUIRES_PERSIST, RUN_STORE_REQUIRES_PERSIST
@@ -288,6 +289,109 @@ FORMALIZE_NEVER_IGNORES_SOURCE = CrossValidation(
 )
 
 
+_DURATION_SECONDS = {"s": 1, "m": 60, "h": 3600}
+
+
+def _duration_seconds(value: object) -> int:
+    """Seconds in a parser-normalized duration ('120m', '90s', '2h')."""
+    s = str(value)
+    return int(s[:-1]) * _DURATION_SECONDS[s[-1]]
+
+
+def conclude_after_errors(
+    value: object, max_cycles: object, max_runtime: object
+) -> list[str]:
+    """Startup validation of --conclude-after against the budgets it reserves
+    from; mirrors cycle_tracker.sh init (#85). Like init, it folds case but
+    does not strip whitespace: the resolved value is passed to init as is."""
+    spec = str(value).lower()
+    name = "--conclude-after"
+    if spec == "0":
+        return []
+    shape = (
+        f"{name}: invalid value {value!r}; expected N% (0-50), Nc, "
+        "a duration such as 5m or 90s, or 0"
+    )
+    m = re.fullmatch(r"([0-9]+)([%csmh])", spec)
+    if m is None:
+        return [shape]
+    n, unit = int(m.group(1)), m.group(2)
+    if unit == "%":
+        if n > 50:
+            return [f"{name}: percentage must be from 0 to 50, got {value!r}"]
+        return []
+    if n == 0:
+        return [f"{name}={value} is rejected: use 0 to disable the conclusion phase"]
+    if unit == "c":
+        if isinstance(max_cycles, int) and n >= max_cycles:
+            return [
+                f"{name}={value}: reserve larger than its budget "
+                f"(--max-cycles={max_cycles})"
+            ]
+        return []
+    runtime = _duration_seconds(max_runtime)
+    if runtime == 0:
+        return [
+            f"{name}={value} reserves runtime, but --max-total-runtime is unlimited"
+        ]
+    if n * _DURATION_SECONDS[unit] >= runtime:
+        return [
+            f"{name}={value}: reserve larger than its budget "
+            f"(--max-total-runtime={max_runtime})"
+        ]
+    return []
+
+
+def _conclude_after_valid(
+    flags: Mapping[str, object],
+    ctx: ParseContext,
+) -> list[str]:
+    return conclude_after_errors(
+        flags.get("--conclude-after"),
+        flags.get("--max-cycles"),
+        flags.get("--max-total-runtime"),
+    )
+
+
+CONCLUDE_AFTER_VALID = CrossValidation(
+    rule_id="autoprove-conclude-after-valid",
+    fn=_conclude_after_valid,
+    severity="error",
+    doc_phrases=(
+        "reserve larger than its budget",
+        "`0c` and `0s` are rejected",
+    ),
+    summary="Validate --conclude-after's form, range and fit within its budget.",
+)
+
+
+def _conclude_after_formalize_auto(
+    flags: Mapping[str, object],
+    ctx: ParseContext,
+) -> list[str]:
+    """--formalize=auto runs per-claim budgets: no conclusion phase there.
+    Silent when the value already disables the phase (`0`, or `0%` in any
+    zero-padded spelling)."""
+    value = str(flags.get("--conclude-after"))
+    disabled = value == "0" or re.fullmatch(r"0+%", value) is not None
+    if flags.get("--formalize") == "auto" and not disabled:
+        return [
+            "--formalize=auto uses per-claim budgets; the conclusion phase is "
+            "not available there — the tracker is initialized with "
+            "--conclude-after=0."
+        ]
+    return []
+
+
+CONCLUDE_AFTER_FORMALIZE_AUTO_WARNING = CrossValidation(
+    rule_id="autoprove-conclude-after-formalize-auto",
+    fn=_conclude_after_formalize_auto,
+    severity="warning",
+    doc_phrases=("With `--formalize=auto` the conclusion phase is off",),
+    summary="Warn that --formalize=auto (per-claim budgets) runs without a conclusion phase.",
+)
+
+
 def _statement_policy_formalize_coerce(
     value: object,
     flags: Mapping[str, object],
@@ -502,6 +606,14 @@ FLAG_MAX_STUCK_CYCLES = FlagSpec(
     enforcement="session-enforced",
 )
 
+FLAG_CONCLUDE_AFTER = FlagSpec(
+    name="--conclude-after",
+    type="freeform",
+    default="15%",
+    enforcement="session-enforced",
+    notes="Conclusion-phase reserve: N% (0-50), Nc, a duration, or 0 (off)",
+)
+
 FLAG_FORMALIZE = FlagSpec(
     name="--formalize",
     type="enum",
@@ -594,6 +706,7 @@ SPEC = CommandSpec(
         FLAG_MAX_CYCLES,
         FLAG_MAX_TOTAL_RUNTIME,
         FLAG_MAX_STUCK_CYCLES,
+        FLAG_CONCLUDE_AFTER,
         FLAG_FORMALIZE,
         FLAG_SOURCE,
         FLAG_CLAIM_SELECT,
@@ -610,5 +723,7 @@ SPEC = CommandSpec(
         FORMALIZE_AUTO_REQUIRES_FORMALIZE_OUT,
         FORMALIZE_RESTAGE_IGNORES_SOURCE,
         FORMALIZE_NEVER_IGNORES_SOURCE,
+        CONCLUDE_AFTER_VALID,
+        CONCLUDE_AFTER_FORMALIZE_AUTO_WARNING,
     ),
 )

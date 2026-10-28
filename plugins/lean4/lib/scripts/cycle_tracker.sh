@@ -31,8 +31,10 @@ export TMPDIR
 #
 # Subcommands:
 #   init   --max-cycles=N --max-stuck=N [--max-runtime=Xm] [--max-deep-per-cycle=N] [--max-consecutive-deep=N] [--max-knowledge-search-per-cycle=N]
+#          [--conclude-after=N%|Nc|<duration>|0]   (conclusion-phase reserve, #85; default 0 = off)
 #          Aliases (long user-facing forms): --max-stuck-cycles, --max-total-runtime, --max-consecutive-deep-cycles
 #   tick   --stuck=yes|no
+#   conclude
 #   can-deep
 #   deep
 #   kw-search-can
@@ -263,11 +265,121 @@ _parse_duration() {
 }
 
 # ---------------------------------------------------------------------------
+# Conclusion-phase reserve (#85)
+# ---------------------------------------------------------------------------
+# One limit's reserve for a positive percentage: 0 when the limit is 1,
+# otherwise min(max(1, ceil(L * p / 100)), L - 1). $1 = limit, $2 = percent.
+_reserve_for() {
+  local limit="$1" pct="$2" r
+  if [[ "$limit" -le 1 ]]; then echo 0; return; fi
+  r=$(( (limit * pct + 99) / 100 ))
+  if [[ "$r" -lt 1 ]]; then r=1; fi
+  if [[ "$r" -gt $(( limit - 1 )) ]]; then r=$(( limit - 1 )); fi
+  echo "$r"
+}
+
+# Decimal operands of --conclude-after are compared as text, never through
+# fixed-width arithmetic, so an over-long value cannot wrap to a small or
+# negative reserve. $1 without leading zeros ("0" if all zeros).
+_strip_zeros() {
+  local d="${1#"${1%%[!0]*}"}"
+  echo "${d:-0}"
+}
+
+# Succeeds iff $1 >= $2, for non-negative decimal strings of any length.
+_dec_ge() {
+  local a b
+  a=$(_strip_zeros "$1"); b=$(_strip_zeros "$2")
+  if [[ ${#a} -ne ${#b} ]]; then
+    [[ ${#a} -gt ${#b} ]]
+    return
+  fi
+  [[ "$a" == "$b" || "$a" > "$b" ]]
+}
+
+# Parse --conclude-after against the budgets it reserves from. The forms are
+# independent: N% reserves from every limited budget, Nc from total cycles
+# only, a duration from runtime only, 0 disables the phase. Sets the globals
+# _res_cycles, _res_stuck, _res_runtime (0 = that budget never triggers).
+_conclusion_reserves() {
+  local spec="$1" max_cycles="$2" max_stuck="$3" runtime_seconds="$4" n mult
+  _res_cycles=0; _res_stuck=0; _res_runtime=0
+  case "$spec" in
+    0) ;;
+    *%)
+      n="${spec%\%}"
+      if ! [[ "$n" =~ ^[0-9]+$ ]] || _dec_ge "$n" 51; then
+        echo "error=--conclude-after percentage must be an integer from 0 to 50, got '$spec'" >&2
+        exit 2
+      fi
+      n=$(_strip_zeros "$n")
+      # 0% disables everything, before any max(1, ...) rounding.
+      if [[ "$n" -gt 0 ]]; then
+        _res_cycles=$(_reserve_for "$max_cycles" "$n")
+        _res_stuck=$(_reserve_for "$max_stuck" "$n")
+        if [[ "$runtime_seconds" -gt 0 ]]; then
+          _res_runtime=$(_reserve_for "$runtime_seconds" "$n")
+        fi
+      fi
+      ;;
+    *c)
+      n="${spec%c}"
+      if ! [[ "$n" =~ ^[0-9]+$ ]]; then
+        echo "error=invalid --conclude-after '$spec' (expected N%, Nc, a duration such as 5m or 90s, or 0)" >&2
+        exit 2
+      fi
+      n=$(_strip_zeros "$n")
+      if [[ "$n" == 0 ]]; then
+        echo "error=--conclude-after=$spec is rejected: use 0 to disable the conclusion phase" >&2
+        exit 2
+      fi
+      if _dec_ge "$n" "$max_cycles"; then
+        echo "error=--conclude-after=$spec: reserve larger than its budget (--max-cycles=$max_cycles)" >&2
+        exit 2
+      fi
+      _res_cycles="$n"
+      ;;
+    *s|*m|*h)
+      n="${spec%[smh]}"
+      if ! [[ "$n" =~ ^[0-9]+$ ]]; then
+        echo "error=invalid --conclude-after '$spec' (expected N%, Nc, a duration such as 5m or 90s, or 0)" >&2
+        exit 2
+      fi
+      n=$(_strip_zeros "$n")
+      if [[ "$n" == 0 ]]; then
+        echo "error=--conclude-after=$spec is rejected: use 0 to disable the conclusion phase" >&2
+        exit 2
+      fi
+      if [[ "$runtime_seconds" -eq 0 ]]; then
+        echo "error=--conclude-after=$spec reserves runtime, but the runtime budget is unlimited" >&2
+        exit 2
+      fi
+      case "${spec##*[0-9]}" in
+        s) mult=1 ;;
+        m) mult=60 ;;
+        h) mult=3600 ;;
+      esac
+      # n * mult >= runtime  iff  n >= ceil(runtime / mult); below that bound
+      # the product is smaller than the runtime budget, so it cannot overflow.
+      if _dec_ge "$n" "$(( runtime_seconds / mult + (runtime_seconds % mult != 0) ))"; then
+        echo "error=--conclude-after=$spec: reserve larger than its budget (max runtime ${runtime_seconds}s)" >&2
+        exit 2
+      fi
+      _res_runtime=$(( n * mult ))
+      ;;
+    *)
+      echo "error=invalid --conclude-after '$spec' (expected N%, Nc, a duration such as 5m or 90s, or 0)" >&2
+      exit 2
+      ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
 # Subcommand: init
 # ---------------------------------------------------------------------------
 cmd_init() {
   local max_cycles="" max_stuck="" max_runtime="" max_deep_per_cycle="1" max_consecutive_deep="2"
-  local max_kw_search_per_cycle="3"
+  local max_kw_search_per_cycle="3" conclude_after="0"
 
   # Track the flag name the caller actually used, for error messages
   local name_stuck="--max-stuck" name_consec_deep="--max-consecutive-deep"
@@ -283,6 +395,7 @@ cmd_init() {
       --max-consecutive-deep=*) max_consecutive_deep="${arg#*=}" ;;
       --max-consecutive-deep-cycles=*) max_consecutive_deep="${arg#*=}"; name_consec_deep="--max-consecutive-deep-cycles" ;;
       --max-knowledge-search-per-cycle=*) max_kw_search_per_cycle="${arg#*=}" ;;
+      --conclude-after=*) conclude_after="${arg#*=}" ;;
       *) echo "error=unknown argument: $arg" >&2; exit 2 ;;
     esac
   done
@@ -297,6 +410,11 @@ cmd_init() {
   # Parse duration (optional)
   local runtime_seconds
   runtime_seconds=$(_parse_duration "$max_runtime")
+
+  # Conclusion-phase reserve, validated against the budgets before any state
+  # exists (a bad value is a startup validation error).
+  conclude_after="$(printf '%s' "$conclude_after" | tr '[:upper:]' '[:lower:]')"
+  _conclusion_reserves "$conclude_after" "$max_cycles" "$max_stuck" "$runtime_seconds"
 
   # Clean stale sessions (>24h, owned by current user)
   find "$TMPDIR" -maxdepth 1 -name 'lean4-session-*.json' -user "$(id -u)" -mmin +1440 -delete 2>/dev/null || true
@@ -360,7 +478,15 @@ cmd_init() {
   "deep_total": 0,
   "kw_search_total": 0,
   "claims_attempted": 0,
-  "claim_active": false
+  "claim_active": false,
+  "conclude_after": "$conclude_after",
+  "reserve_cycles": $_res_cycles,
+  "reserve_stuck": $_res_stuck,
+  "reserve_runtime_seconds": $_res_runtime,
+  "conclude_due": "",
+  "concluding": false,
+  "conclude_reason": "",
+  "conclude_at": null
 }
 ENDJSON
   )
@@ -449,6 +575,23 @@ cmd_tick() {
         ] | join(",")
       ) as $violations |
 
+      # The stop reason when limits bind: blocker-driven first, then
+      # session-enforced before best-effort (max-stuck > max-cycles > max-runtime).
+      (if ($violations | length) == 0 then ""
+       elif .consecutive_stuck >= .max_stuck then "max-stuck"
+       elif .cycles >= .max_cycles then "max-cycles"
+       else "max-runtime" end) as $stop_reason |
+
+      # Conclusion phase (#85): due when a limited budget with a positive
+      # reserve has reached it, no limit binds, and the phase is not latched.
+      (if (.concluding // false) or ($violations | length) > 0 then ""
+       elif (.reserve_stuck // 0) > 0 and .consecutive_stuck >= (.max_stuck - .reserve_stuck) then "max-stuck"
+       elif (.reserve_cycles // 0) > 0 and .cycles >= (.max_cycles - .reserve_cycles) then "max-cycles"
+       elif (.reserve_runtime_seconds // 0) > 0 and .max_runtime_seconds > 0
+            and $elapsed >= (.max_runtime_seconds - .reserve_runtime_seconds) then "max-runtime"
+       else "" end) as $due |
+      .conclude_due = $due |
+
       # Format elapsed display — use seconds when max is not a whole number of minutes
       (if .max_runtime_seconds > 0 and (.max_runtime_seconds % 60) != 0 then
         ($elapsed | tostring) + "s/" + (.max_runtime_seconds | tostring) + "s"
@@ -462,14 +605,16 @@ cmd_tick() {
       {
         _output: (
           "result=" + (if ($violations | length) > 0 then "LIMIT_REACHED" else "ok" end) + "\n" +
-          (if ($violations | length) > 0 then "violation=" + $violations + "\n" else "" end) +
+          (if ($violations | length) > 0 then "violation=" + $violations + "\n" + "stop_reason=" + $stop_reason + "\n" else "" end) +
           "cycles=" + (.cycles | tostring) + "/" + (.max_cycles | tostring) + "\n" +
           "consecutive_stuck=" + (.consecutive_stuck | tostring) + "/" + (.max_stuck | tostring) + "\n" +
           "elapsed_seconds=" + ($elapsed | tostring) + "\n" +
           "elapsed_display=" + $elapsed_display + "\n" +
           "deep_this_cycle=" + (.deep_this_cycle | tostring) + "/" + (.max_deep_per_cycle | tostring) + "\n" +
           "consecutive_deep_cycles=" + (.consecutive_deep_cycles | tostring) + "/" + (.max_consecutive_deep | tostring) + "\n" +
-          "kw_search_this_cycle=" + (.kw_search_this_cycle | tostring) + "/" + (.max_kw_search_per_cycle | tostring)
+          "kw_search_this_cycle=" + (.kw_search_this_cycle | tostring) + "/" + (.max_kw_search_per_cycle | tostring) + "\n" +
+          "conclude=" + (if $due != "" then "yes\nconclude_reason=" + $due else "no" end) + "\n" +
+          "concluding=" + (if (.concluding // false) then "yes" else "no" end)
         ),
         _state: (del(._output))
       }
@@ -534,6 +679,23 @@ if d['consecutive_stuck'] >= d['max_stuck']:
 if d['max_runtime_seconds'] > 0 and elapsed >= d['max_runtime_seconds']:
     violations.append('max-runtime')
 
+# The stop reason when limits bind: blocker-driven first, then
+# session-enforced before best-effort (max-stuck > max-cycles > max-runtime).
+stop_reason = next((r for r in ('max-stuck', 'max-cycles', 'max-runtime') if r in violations), '')
+
+# Conclusion phase (#85): due when a limited budget with a positive
+# reserve has reached it, no limit binds, and the phase is not latched.
+due = ''
+if not d.get('concluding') and not violations:
+    rs_, rc_, rr_ = d.get('reserve_stuck', 0), d.get('reserve_cycles', 0), d.get('reserve_runtime_seconds', 0)
+    if rs_ > 0 and d['consecutive_stuck'] >= d['max_stuck'] - rs_:
+        due = 'max-stuck'
+    elif rc_ > 0 and d['cycles'] >= d['max_cycles'] - rc_:
+        due = 'max-cycles'
+    elif rr_ > 0 and d['max_runtime_seconds'] > 0 and elapsed >= d['max_runtime_seconds'] - rr_:
+        due = 'max-runtime'
+d['conclude_due'] = due
+
 # Format display — use seconds when max < 60s
 mrs = d['max_runtime_seconds']
 if mrs > 0 and mrs % 60 != 0:
@@ -547,6 +709,7 @@ result = 'LIMIT_REACHED' if violations else 'ok'
 lines = ['result=' + result]
 if violations:
     lines.append('violation=' + ','.join(violations))
+    lines.append('stop_reason=' + stop_reason)
 lines.extend([
     f\"cycles={d['cycles']}/{d['max_cycles']}\",
     f\"consecutive_stuck={d['consecutive_stuck']}/{d['max_stuck']}\",
@@ -556,6 +719,11 @@ lines.extend([
     f\"consecutive_deep_cycles={d['consecutive_deep_cycles']}/{d['max_consecutive_deep']}\",
     f\"kw_search_this_cycle={d['kw_search_this_cycle']}/{d['max_kw_search_per_cycle']}\",
 ])
+if due:
+    lines.extend(['conclude=yes', 'conclude_reason=' + due])
+else:
+    lines.append('conclude=no')
+lines.append('concluding=' + ('yes' if d.get('concluding') else 'no'))
 
 # Write state atomically
 import tempfile, os
@@ -568,6 +736,133 @@ print('\n'.join(lines))
 sys.exit(1 if violations else 0)
 " 2>/dev/null
   fi
+}
+
+# ---------------------------------------------------------------------------
+# Subcommand: conclude (#85)
+# ---------------------------------------------------------------------------
+# Latches the conclusion phase after a tick reported conclude=yes, and
+# snapshots the counters as conclude_at (cost accounting by phase). Once
+# latched, tick and status report concluding=yes whatever the counters do.
+# Idempotent: a second call changes nothing and reports the same snapshot.
+_print_conclusion() {
+  local file="$1"
+  if [[ "$_json_backend" == "jq" ]]; then
+    jq -r '
+      "conclude_reason=" + .conclude_reason,
+      "conclude_at_cycles=" + (.conclude_at.cycles | tostring),
+      "conclude_at_consecutive_stuck=" + (.conclude_at.consecutive_stuck | tostring),
+      "conclude_at_stuck_cycles_total=" + (.conclude_at.stuck_cycles_total | tostring),
+      "conclude_at_deep_total=" + (.conclude_at.deep_total | tostring),
+      "conclude_at_elapsed_seconds=" + (.conclude_at.elapsed_seconds | tostring)
+    ' "$file" 2>/dev/null
+  else
+    python3 -c "
+import json
+with open('$file') as f:
+    d = json.load(f)
+a = d['conclude_at']
+print('\n'.join([
+    'conclude_reason=' + d['conclude_reason'],
+    f\"conclude_at_cycles={a['cycles']}\",
+    f\"conclude_at_consecutive_stuck={a['consecutive_stuck']}\",
+    f\"conclude_at_stuck_cycles_total={a['stuck_cycles_total']}\",
+    f\"conclude_at_deep_total={a['deep_total']}\",
+    f\"conclude_at_elapsed_seconds={a['elapsed_seconds']}\",
+]))
+" 2>/dev/null
+  fi
+}
+
+cmd_conclude() {
+  if [[ $# -gt 0 ]]; then
+    echo "error=unknown argument: $1" >&2
+    exit 2
+  fi
+  local file
+  file=$(_state_file)
+  _validate_state "$file"
+  _detect_backend
+
+  local now
+  now=$(date +%s)
+
+  local verdict
+  if [[ "$_json_backend" == "jq" ]]; then
+    verdict=$(jq -r '
+      if ((.reserve_cycles // 0) + (.reserve_stuck // 0) + (.reserve_runtime_seconds // 0)) == 0 then "disabled"
+      elif (.concluding // false) then "latched"
+      elif (.conclude_due // "") == "" then "not-due"
+      else "latch" end
+    ' "$file" 2>/dev/null)
+  else
+    verdict=$(python3 -c "
+import json
+with open('$file') as f:
+    d = json.load(f)
+if d.get('reserve_cycles', 0) + d.get('reserve_stuck', 0) + d.get('reserve_runtime_seconds', 0) == 0:
+    print('disabled')
+elif d.get('concluding'):
+    print('latched')
+elif not d.get('conclude_due'):
+    print('not-due')
+else:
+    print('latch')
+" 2>/dev/null)
+  fi
+
+  case "$verdict" in
+    disabled)
+      echo "error=conclude called but the conclusion phase is disabled (--conclude-after=0)" >&2
+      exit 2 ;;
+    not-due)
+      echo "error=conclude called before any reserve was reached (the last tick did not report conclude=yes)" >&2
+      exit 2 ;;
+    latch)
+      if [[ "$_json_backend" == "jq" ]]; then
+        local tmp
+        tmp=$(mktemp "${file}.tmp.XXXXXX")
+        jq --argjson now "$now" '
+          .concluding = true |
+          .conclude_reason = .conclude_due |
+          .conclude_at = {
+            cycles: .cycles,
+            consecutive_stuck: .consecutive_stuck,
+            stuck_cycles_total: .stuck_cycles_total,
+            deep_total: .deep_total,
+            elapsed_seconds: ($now - .start_epoch)
+          }
+        ' "$file" > "$tmp" 2>/dev/null
+        mv "$tmp" "$file"
+      else
+        python3 -c "
+import json, tempfile, os
+with open('$file') as f:
+    d = json.load(f)
+d['concluding'] = True
+d['conclude_reason'] = d['conclude_due']
+d['conclude_at'] = {
+    'cycles': d['cycles'],
+    'consecutive_stuck': d['consecutive_stuck'],
+    'stuck_cycles_total': d['stuck_cycles_total'],
+    'deep_total': d['deep_total'],
+    'elapsed_seconds': $now - d['start_epoch'],
+}
+fd, tmp = tempfile.mkstemp(prefix=os.path.basename('$file') + '.tmp.', dir=os.path.dirname('$file'))
+with os.fdopen(fd, 'w') as f:
+    json.dump(d, f)
+os.rename(tmp, '$file')
+" 2>/dev/null
+      fi
+      ;;
+    latched) ;;
+    *)
+      echo "error=could not read the conclusion state from $file" >&2
+      exit 2 ;;
+  esac
+
+  echo "result=concluding"
+  _print_conclusion "$file"
 }
 
 # ---------------------------------------------------------------------------
@@ -784,6 +1079,19 @@ cmd_start_claim() {
     exit 2
   fi
 
+  # Guard: the conclusion phase is not defined for per-claim budgets (#85
+  # follow-up); a session that enabled it must not start a claim.
+  local reserved
+  if [[ "$_json_backend" == "jq" ]]; then
+    reserved=$(jq -r '(.reserve_cycles // 0) + (.reserve_stuck // 0) + (.reserve_runtime_seconds // 0)' "$file" 2>/dev/null)
+  else
+    reserved=$(python3 -c "import json; d = json.load(open('$file')); print(d.get('reserve_cycles', 0) + d.get('reserve_stuck', 0) + d.get('reserve_runtime_seconds', 0))" 2>/dev/null)
+  fi
+  if [[ "$reserved" != "0" ]]; then
+    echo "error=start-claim: the conclusion phase is not available with per-claim budgets; init with --conclude-after=0" >&2
+    exit 2
+  fi
+
   if [[ "$_json_backend" == "jq" ]]; then
     local tmp
     tmp=$(mktemp "${file}.tmp.XXXXXX")
@@ -894,7 +1202,23 @@ cmd_status() {
       "stuck_cycles_total=" + (.stuck_cycles_total | tostring),
       "deep_total=" + (.deep_total | tostring),
       "kw_search_total=" + (.kw_search_total | tostring),
-      "claims_attempted=" + ($claims_display | tostring)
+      "claims_attempted=" + ($claims_display | tostring),
+      # Conclusion phase (#85): the resolved reserves, the latch, and whether
+      # the runtime budget is already spent (read before any further attempt).
+      "conclude_after=" + (.conclude_after // "0"),
+      "conclude_reserve_cycles=" + ((.reserve_cycles // 0) | tostring),
+      "conclude_reserve_stuck=" + ((.reserve_stuck // 0) | tostring),
+      "conclude_reserve_runtime_seconds=" + ((.reserve_runtime_seconds // 0) | tostring),
+      "runtime_exhausted=" + (if .max_runtime_seconds > 0 and $elapsed >= .max_runtime_seconds then "yes" else "no" end),
+      "concluding=" + (if (.concluding // false) then "yes" else "no" end),
+      (if (.concluding // false) then
+        ("conclude_reason=" + .conclude_reason),
+        ("conclude_at_cycles=" + (.conclude_at.cycles | tostring)),
+        ("conclude_at_consecutive_stuck=" + (.conclude_at.consecutive_stuck | tostring)),
+        ("conclude_at_stuck_cycles_total=" + (.conclude_at.stuck_cycles_total | tostring)),
+        ("conclude_at_deep_total=" + (.conclude_at.deep_total | tostring)),
+        ("conclude_at_elapsed_seconds=" + (.conclude_at.elapsed_seconds | tostring))
+       else empty end)
     ' "$file" 2>/dev/null
   else
     python3 -c "
@@ -926,7 +1250,25 @@ lines = [
     f\"deep_total={d['deep_total']}\",
     f\"kw_search_total={d['kw_search_total']}\",
     f'claims_attempted={claims_display}',
+    # Conclusion phase (#85): the resolved reserves, the latch, and whether
+    # the runtime budget is already spent (read before any further attempt).
+    f\"conclude_after={d.get('conclude_after', '0')}\",
+    f\"conclude_reserve_cycles={d.get('reserve_cycles', 0)}\",
+    f\"conclude_reserve_stuck={d.get('reserve_stuck', 0)}\",
+    f\"conclude_reserve_runtime_seconds={d.get('reserve_runtime_seconds', 0)}\",
+    'runtime_exhausted=' + ('yes' if mrs > 0 and elapsed >= mrs else 'no'),
+    'concluding=' + ('yes' if d.get('concluding') else 'no'),
 ]
+if d.get('concluding'):
+    a = d['conclude_at']
+    lines.extend([
+        'conclude_reason=' + d['conclude_reason'],
+        f\"conclude_at_cycles={a['cycles']}\",
+        f\"conclude_at_consecutive_stuck={a['consecutive_stuck']}\",
+        f\"conclude_at_stuck_cycles_total={a['stuck_cycles_total']}\",
+        f\"conclude_at_deep_total={a['deep_total']}\",
+        f\"conclude_at_elapsed_seconds={a['elapsed_seconds']}\",
+    ])
 print('\n'.join(lines))
 " 2>/dev/null
   fi
@@ -1006,6 +1348,7 @@ shift || true
 case "$subcmd" in
   init)          cmd_init "$@" ;;
   tick)          cmd_tick "$@" ;;
+  conclude)      cmd_conclude "$@" ;;
   can-deep)      cmd_can_deep "$@" ;;
   deep)          cmd_deep "$@" ;;
   kw-search-can) cmd_kw_search_can "$@" ;;
@@ -1014,6 +1357,6 @@ case "$subcmd" in
   reset-claim)   cmd_reset_claim "$@" ;;
   status)        cmd_status "$@" ;;
   stop)          cmd_stop "$@" ;;
-  "")            echo "error=no subcommand specified (init|tick|can-deep|deep|kw-search-can|kw-search|start-claim|reset-claim|status|stop)" >&2; exit 2 ;;
+  "")            echo "error=no subcommand specified (init|tick|conclude|can-deep|deep|kw-search-can|kw-search|start-claim|reset-claim|status|stop)" >&2; exit 2 ;;
   *)             echo "error=unknown subcommand: $subcmd" >&2; exit 2 ;;
 esac

@@ -1506,6 +1506,274 @@ fi
 rm -rf "$NOIDDIR" "$NOIDENV"
 
 # =========================================================================
+# Conclusion phase (#85): --conclude-after, tick's conclude=, conclude, the
+# latch and its snapshot. Run on both JSON backends.
+# =========================================================================
+
+# Value of key $1 in LAST_OUT (pure bash: the python3 pass has a minimal PATH).
+field_of() {
+  local line
+  while IFS= read -r line; do
+    if [[ "$line" == "$1="* ]]; then printf '%s' "${line#*=}"; return; fi
+  done <<< "$LAST_OUT"
+}
+
+# Assert key $2 of LAST_OUT equals $3. $1 = description.
+assert_field() {
+  local desc="$1" key="$2" expected="$3" actual
+  actual=$(field_of "$key")
+  if [[ "$actual" == "$expected" ]]; then
+    echo "  PASS: $desc"
+    (( ++PASS ))
+  else
+    echo "  FAIL: $desc ($key: expected '$expected', got '$actual')"
+    echo "        output: $LAST_OUT"
+    (( ++FAIL ))
+  fi
+}
+
+# Tick $1 times with --stuck=$2.
+ticks() {
+  local i
+  for (( i = 0; i < $1; i++ )); do run tick --stuck="$2"; done
+}
+
+conclusion_suite() {
+  local p="$1" f
+
+  # Rounding: reserve = 0 if L == 1 else min(max(1, ceil(L*p)), L-1).
+  local mc want
+  for mc in 1:0 2:1 3:1 20:3; do
+    init_session --max-cycles="${mc%%:*}" --max-stuck=3 --max-runtime=120m --conclude-after=15%
+    run status
+    want="${mc##*:}"
+    assert_field "$p: 15% of max-cycles=${mc%%:*} reserves $want" conclude_reserve_cycles "$want"
+    assert_field "$p: 15% of max-stuck=3 reserves 1" conclude_reserve_stuck 1
+    assert_field "$p: 15% of 120m reserves 1080s" conclude_reserve_runtime_seconds 1080
+    cleanup_session
+  done
+  init_session --max-cycles=3 --max-stuck=3 --conclude-after=50%
+  run status
+  assert_field "$p: 50% of max-cycles=3 is capped at L-1" conclude_reserve_cycles 2
+  assert_field "$p: unlimited runtime reserves nothing" conclude_reserve_runtime_seconds 0
+  cleanup_session
+
+  # Worked default: max-cycles=20 -> conclude when cycles >= 17.
+  init_session --max-cycles=20 --max-stuck=3 --max-runtime=120m --conclude-after=15%
+  ticks 16 no
+  assert_field "$p: cycle 16 of 20 is not due" conclude no
+  run tick --stuck=no
+  assert_exit "$p: the due tick still exits 0" 0
+  assert_field "$p: cycle 17 of 20 is due" conclude yes
+  assert_field "$p: due on the total-cycles reserve" conclude_reason max-cycles
+  assert_field "$p: not latched by tick alone" concluding no
+  cleanup_session
+
+  # Stuck reserve: max-stuck=3 -> due at consecutive_stuck >= 2.
+  init_session --max-cycles=20 --max-stuck=3 --conclude-after=15%
+  run tick --stuck=yes
+  assert_field "$p: one stuck cycle is not due" conclude no
+  run tick --stuck=yes
+  assert_field "$p: two stuck cycles are due" conclude_reason max-stuck
+  cleanup_session
+
+  # max-cycles=2 -> after cycle 1; max-cycles=1 -> never (no conclusion phase).
+  init_session --max-cycles=2 --max-stuck=3 --conclude-after=15%
+  run tick --stuck=no
+  assert_field "$p: max-cycles=2 is due after cycle 1" conclude yes
+  cleanup_session
+  init_session --max-cycles=1 --max-stuck=3 --conclude-after=15%
+  run tick --stuck=no
+  assert_exit "$p: max-cycles=1 stops at its limit" 1
+  assert_field "$p: max-cycles=1 has no conclusion phase" conclude no
+  cleanup_session
+
+  # No immediate conclusion at startup: conclude needs a due tick.
+  init_session --max-cycles=2 --max-stuck=3 --conclude-after=15%
+  run conclude
+  assert_exit "$p: conclude before any tick is refused" 2
+  assert_contains "$p: refusal names the missing tick" "did not report conclude=yes"
+  cleanup_session
+
+  # Form independence: Nc never triggers on stuck cycles or runtime.
+  init_session --max-cycles=10 --max-stuck=3 --max-runtime=10m --conclude-after=2c
+  run status
+  assert_field "$p: 2c reserves two total cycles" conclude_reserve_cycles 2
+  assert_field "$p: 2c reserves no stuck cycles" conclude_reserve_stuck 0
+  assert_field "$p: 2c reserves no runtime" conclude_reserve_runtime_seconds 0
+  f=$(state_file)
+  write_field "$f" "start_epoch" "$(( $(date +%s) - 590 ))"
+  ticks 2 yes
+  assert_field "$p: 2c is not due on two stuck cycles near the runtime limit" conclude no
+  cleanup_session
+  # ... and a duration never triggers on cycles.
+  init_session --max-cycles=3 --max-stuck=3 --max-runtime=10m --conclude-after=1m
+  run status
+  assert_field "$p: a duration reserves no cycles" conclude_reserve_cycles 0
+  assert_field "$p: 1m reserves 60s" conclude_reserve_runtime_seconds 60
+  ticks 2 no
+  assert_field "$p: a duration is not due at cycle 2 of 3" conclude no
+  cleanup_session
+  init_session --max-cycles=10 --max-stuck=3 --max-runtime=10m --conclude-after=1m
+  f=$(state_file)
+  write_field "$f" "start_epoch" "$(( $(date +%s) - 545 ))"
+  run tick --stuck=no
+  assert_field "$p: 1m is due 55s before a 10m limit" conclude_reason max-runtime
+  cleanup_session
+
+  # 0% and 0 reserve nothing; conclude is then refused.
+  local z
+  for z in 0% 0; do
+    init_session --max-cycles=2 --max-stuck=2 --max-runtime=10m --conclude-after="$z"
+    run status
+    assert_field "$p: $z reserves no cycles" conclude_reserve_cycles 0
+    assert_field "$p: $z reserves no stuck cycles" conclude_reserve_stuck 0
+    assert_field "$p: $z reserves no runtime" conclude_reserve_runtime_seconds 0
+    run tick --stuck=no
+    assert_field "$p: $z is never due" conclude no
+    run conclude
+    assert_exit "$p: conclude with $z is refused" 2
+    assert_contains "$p: refusal says the phase is disabled" "disabled"
+    cleanup_session
+  done
+  # The tracker's own default is off (autoformalize is unchanged).
+  init_session --max-cycles=2 --max-stuck=2
+  run status
+  assert_field "$p: init without the flag is off" conclude_after 0
+  cleanup_session
+
+  # First crossing names its budget; simultaneous crossings prefer max-stuck.
+  init_session --max-cycles=10 --max-stuck=3 --conclude-after=15%
+  ticks 7 no
+  assert_field "$p: cycle 7 of 10 is not due (reserve 2)" conclude no
+  run tick --stuck=no
+  assert_field "$p: total cycles crossed first" conclude_reason max-cycles
+  cleanup_session
+  init_session --max-cycles=10 --max-stuck=3 --conclude-after=15%
+  ticks 6 no
+  ticks 2 yes
+  assert_field "$p: both reserves reached together -> max-stuck" conclude_reason max-stuck
+  cleanup_session
+
+  # Latch, snapshot, idempotence; the latch survives a stuck reset; a hard
+  # limit still fires during the conclusion and names its stop reason.
+  init_session --max-cycles=10 --max-stuck=3 --conclude-after=15%
+  ticks 1 no
+  run deep
+  ticks 2 yes
+  assert_field "$p: due at cycle 3 on the stuck reserve" conclude_reason max-stuck
+  run conclude
+  assert_exit "$p: conclude latches" 0
+  assert_field "$p: snapshot cycles" conclude_at_cycles 3
+  assert_field "$p: snapshot consecutive stuck" conclude_at_consecutive_stuck 2
+  assert_field "$p: snapshot stuck total" conclude_at_stuck_cycles_total 2
+  assert_field "$p: snapshot deep total" conclude_at_deep_total 1
+  assert_field "$p: snapshot reason" conclude_reason max-stuck
+  run deep
+  run conclude
+  assert_exit "$p: conclude is idempotent" 0
+  assert_field "$p: a second conclude keeps the snapshot" conclude_at_deep_total 1
+  run tick --stuck=no
+  assert_exit "$p: a conclusion cycle below every limit" 0
+  assert_field "$p: latch survives a stuck reset" concluding yes
+  assert_field "$p: a latched session is never due again" conclude no
+  ticks 3 yes
+  assert_exit "$p: a hard limit still fires while concluding" 1
+  assert_field "$p: and names its stop reason" stop_reason max-stuck
+  run status
+  assert_field "$p: status reports the latch" concluding yes
+  assert_field "$p: status keeps the snapshot" conclude_at_cycles 3
+  assert_field "$p: status final cycles for cost accounting" cycles_total 7
+  cleanup_session
+
+  # Simultaneous limits: max-stuck > max-cycles > max-runtime.
+  init_session --max-cycles=2 --max-stuck=2
+  ticks 2 yes
+  assert_field "$p: cycles+stuck bind -> max-stuck" stop_reason max-stuck
+  cleanup_session
+  init_session --max-cycles=1 --max-stuck=3 --max-runtime=1s
+  f=$(state_file)
+  write_field "$f" "start_epoch" "$(( $(date +%s) - 10 ))"
+  run tick --stuck=no
+  assert_field "$p: cycles+runtime bind -> max-cycles" stop_reason max-cycles
+  run status
+  assert_field "$p: status reports the spent runtime" runtime_exhausted yes
+  cleanup_session
+
+  # Startup validation.
+  local bad
+  for bad in 0c 0s 0m 51% x 15 -5% 2.5% 3c 10m; do
+    run init --max-cycles=3 --max-stuck=3 --max-runtime=10m --conclude-after="$bad"
+    assert_exit "$p: --conclude-after=$bad is a startup error" 2
+  done
+  run init --max-cycles=3 --max-stuck=3 --max-runtime=10m --conclude-after=3c
+  assert_contains "$p: 3c of 3 cycles is too large" "reserve larger than its budget"
+  run init --max-cycles=3 --max-stuck=3 --conclude-after=5m
+  assert_exit "$p: a duration with unlimited runtime is refused" 2
+  assert_contains "$p: refusal names the unlimited budget" "unlimited"
+  # Over-long decimals are compared as text, never through fixed-width
+  # arithmetic (2^64 would wrap a percentage to 0 and a count negative).
+  for bad in 18446744073709551616% 10000000000000000000c 18446744073709551617s 9223372036854775808m; do
+    run init --max-cycles=20 --max-stuck=3 --max-runtime=120m --conclude-after="$bad"
+    assert_exit "$p: --conclude-after=$bad is a startup error" 2
+  done
+  run init --max-cycles=20 --max-stuck=3 --max-runtime=120m --conclude-after=10000000000000000000c
+  assert_contains "$p: an over-long count is too large, not negative" "reserve larger than its budget"
+  run init --max-cycles=20 --max-stuck=3 --max-runtime=120m --conclude-after=0000000000000000000120m
+  assert_exit "$p: a zero-padded duration equal to the budget is refused" 2
+  init_session --max-cycles=20 --max-stuck=3 --max-runtime=120m --conclude-after=00000000000000000000000015%
+  run status
+  assert_field "$p: long zero padding keeps 15% of cycles" conclude_reserve_cycles 3
+  assert_field "$p: long zero padding keeps 15% of runtime" conclude_reserve_runtime_seconds 1080
+  cleanup_session
+  init_session --max-cycles=20 --max-stuck=3 --max-runtime=120m --conclude-after=0000000000000000000000119m
+  run status
+  assert_field "$p: a zero-padded duration just under the budget" conclude_reserve_runtime_seconds 7140
+  cleanup_session
+  init_session --max-cycles=5 --max-stuck=3 --conclude-after=2C
+  run status
+  assert_field "$p: the form is case-insensitive" conclude_reserve_cycles 2
+  # Per-claim budgets (autoformalize, autoprove --formalize=auto) refuse it.
+  run start-claim
+  assert_exit "$p: start-claim refused while a reserve is enabled" 2
+  assert_contains "$p: refusal names the fix" "--conclude-after=0"
+  cleanup_session
+  init_session --max-cycles=5 --max-stuck=3 --conclude-after=0
+  run start-claim
+  assert_exit "$p: start-claim allowed with --conclude-after=0" 0
+  cleanup_session
+}
+
+echo ""
+echo "-- Conclusion phase (jq backend) --"
+if command -v jq >/dev/null 2>&1; then
+  conclusion_suite jq
+else
+  echo "  SKIP: jq not available"
+fi
+
+echo ""
+echo "-- Conclusion phase (python3 backend) --"
+if command -v python3 >/dev/null 2>&1; then
+  ORIG_PATH="$PATH"
+  NOJQ_DIR=$(mktemp -d)
+  for cmd in python3 bash date id find mktemp mv rm stat touch grep chmod ln readlink realpath dirname basename cat wc tr sed; do
+    local_cmd=$(command -v "$cmd" 2>/dev/null || true)
+    if [[ -n "$local_cmd" ]]; then ln -sf "$local_cmd" "$NOJQ_DIR/$cmd" 2>/dev/null || true; fi
+  done
+  export PATH="$NOJQ_DIR"
+  if command -v jq >/dev/null 2>&1; then
+    echo "  SKIP: could not hide jq from PATH"
+  else
+    conclusion_suite py3
+  fi
+  export PATH="$ORIG_PATH"
+  rm -rf "$NOJQ_DIR"
+else
+  echo "  SKIP: python3 not available"
+fi
+
+# =========================================================================
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [[ "$FAIL" -eq 0 ]]

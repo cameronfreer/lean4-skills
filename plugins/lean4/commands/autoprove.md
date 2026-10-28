@@ -2,7 +2,7 @@
 name: autoprove
 description: Autonomous multi-cycle theorem proving with explicit stop budgets
 user_invocable: true
-argument-hint: '[scope] [--max-cycles=N] [--max-total-runtime=DURATION] [--commit=auto|never] [--deep=never|stuck]'
+argument-hint: '[scope] [--max-cycles=N] [--max-total-runtime=DURATION] [--conclude-after=N%|Nc|DURATION|0] [--commit=auto|never] [--deep=never|stuck]'
 ---
 
 # Lean4 Autoprove
@@ -41,7 +41,8 @@ Startup requirements:
 2. Refuse to start on startup validation errors.
 3. Call `lean4-skills-cycle-tracker init` with resolved numeric
    values for `--max-cycles`, `--max-stuck-cycles`, `--max-total-runtime`,
-   `--max-deep-per-cycle`, and `--max-consecutive-deep-cycles`.
+   `--max-deep-per-cycle`, `--max-consecutive-deep-cycles`, and
+   `--conclude-after` (`--conclude-after=0` with `--formalize=auto`).
    A failed init (exit 2) is a startup validation error — do not proceed.
 4. The state file is the single source of truth for session counters.
    Read counters from `tick`/`status` output, not from conversational memory.
@@ -89,6 +90,7 @@ Startup requirements:
 | --max-cycles | No | 20 | Session stop budget: max total cycles |
 | --max-total-runtime | No | 120m | Best-effort wall-clock session budget |
 | --max-stuck-cycles | No | 3 | Session stop budget: max consecutive stuck cycles |
+| --conclude-after | No | 15% | Reserve the end of the budget for a [conclusion](#conclusion-phase): `N%` (0–50, of every limited budget), `Nc` (total cycles only), a duration such as `5m` (runtime only), or `0` (off). Startup validation error when the reserve is larger than its budget (`3c` with `--max-cycles=3`), for a duration with unlimited runtime, and for `0c` and `0s` (use `0`). With `--formalize=auto` the conclusion phase is off (per-claim budgets). |
 | --formalize | No | never | `never` \| `restage` \| `auto`. See Formalize Outer Loop. (deprecated: use `/lean4:autoformalize`) |
 | --source | No | — | File path, URL, or PDF for claim extraction. Required when `--formalize=auto`. (deprecated: use `/lean4:autoformalize`) |
 | --claim-select | No | — | `first` \| `named:"..."` \| `regex:"..."`. Queue-extraction filter applied once at startup. Required when `--formalize=auto`. Ignored without `--source`. (deprecated: use `/lean4:autoformalize`) |
@@ -204,10 +206,15 @@ Autoprove stops when the **first** of these is satisfied:
 2. **Max stuck cycles** — `--max-stuck-cycles` consecutive stuck cycles (default: 3). Session-enforced via `lean4-skills-cycle-tracker`.
 3. **Max cycles** — `--max-cycles` total cycles reached (default: 20). Session-enforced via `lean4-skills-cycle-tracker`.
 4. **Max runtime** — best-effort wall-clock budget reached (`--max-total-runtime`, default: 120m). Checked at cycle boundaries and deep preflight.
-5. **Manual user stop** — user interrupts
-6. **Queue empty** — all claims attempted; expected completion for `--formalize=auto` sessions
+5. **Concluded** — the conclusion phase finished before any limit bound (see below)
+6. **Manual user stop** — user interrupts
+7. **Queue empty** — all claims attempted; expected completion for `--formalize=auto` sessions
 
 See [Session Tracking](../skills/lean4/references/cycle-engine.md#session-tracking) for the cycle boundary protocol and enforcement levels.
+
+### Conclusion Phase
+
+When a tick reports `conclude=yes` (the `--conclude-after` reserve of a limited budget is reached, no limit binds), call `lean4-skills-cycle-tracker conclude` and spend the **next cycle** concluding: apply an already-tested candidate when exactly one sorry remains and the candidate still applies (finalization, verified per File Gate Scope — never a fresh deep search, and never under `--repair-only`, which synthesizes without filling sorries), otherwise synthesize a verdict — `ready` (only via finalization), `fixable`, or `no-credible-path` — with the best partial patch, the blocker inventory, missing lemmas, unexplored queries and the recommended next command. That cycle ends with the final Replan and **one** real tick (`--stuck=no` only if a sorry was filled). Then map: a successful finalization → `completion`, whatever the tick says; a limit reached on that tick → the tracker's `stop_reason`; otherwise `concluded`. A completed or user-stopped run never enters the phase, and `--conclude-after=0` keeps today's behaviour. The runtime reserve is best-effort: before each expensive step read `cycle-tracker status`, and on `runtime_exhausted=yes` report what exists without starting another proof attempt. Full rules: [cycle-engine: Conclusion Phase](../skills/lean4/references/cycle-engine.md#conclusion-phase).
 
 ## Structured Summary on Stop
 
@@ -216,7 +223,9 @@ When autoprove stops (for any reason), emit:
 ```
 ## Autoprove Summary
 
-**Reason stopped:** [completion | max-stuck | max-cycles | max-runtime | user-stop | queue-empty]
+**Reason stopped:** [completion | max-stuck | max-cycles | max-runtime | concluded | user-stop | queue-empty]
+
+**Conclusion:** [ready | fixable | no-credible-path | not reached: <what was produced> | none (phase not entered)]
 
 | Metric | Value |
 |--------|-------|
@@ -227,6 +236,7 @@ When autoprove stops (for any reason), emit:
 | Deep invocations | D |
 | Time elapsed | T |
 | Formalizations | F |
+| Conclusion cost (if entered) | cycles / stuck cycles / deep / time since `conclude_at` |
 | Run (with `--persist`) | `<run_id>` — `stored` / `not stored: <detail>` (after `LEAN4_RUN_PERSIST_STATE` was set to a fresh invocation-private path and `run-persist start` ran before any proof edit) |
 
 **Handoff recommendations:**
@@ -247,9 +257,12 @@ full, "persistence is unconfirmed", no citation — never "not saved", never "st
 ([Run Persistence](../skills/lean4/references/cycle-engine.md#run-persistence)). Command-specific mapping:
 `completion → status: solved`; `max-stuck → status: stopped, stop_reason:
 max-stuck` (blocker-driven, so the blocker fields are non-null); `max-cycles` /
-`max-runtime` / `user-stop` / `queue-empty` → `status: stopped` with that
+`max-runtime` / `user-stop` / `queue-empty` / `concluded` → `status: stopped` with that
 `stop_reason` and null blocker fields (a `queue-empty` stop with claims remaining
-reruns freely). Before relaunching, obey the
+reruns freely, as does a `concluded` one — its recommendations are in the final
+Replan, never in `new_evidence_required_for_rerun`). A successful finalization in
+the conclusion phase is `completion → status: solved`, even on the last available
+cycle. Before relaunching, obey the
 [rerun guard](../skills/lean4/references/handoff-contract.md#rerun-guard).
 
 ## Deep Mode

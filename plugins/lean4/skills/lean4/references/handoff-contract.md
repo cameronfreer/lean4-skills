@@ -104,7 +104,7 @@ another agent to consume in one pass.
 | `scope` | enum \| null | echoes the dispatch `scope` (`sorry`/`deps`/`file`/`changed`/`project`); same malformed-dispatch nullability as `target` |
 | `mode` | enum \| null | echoes the dispatch `mode` (`prove`/`autoprove`/`golf`); same malformed-dispatch nullability as `target` |
 | `status` | enum `solved` \| `stuck` \| `stopped` | |
-| `stop_reason` | enum \| null | **non-null iff `status == stopped`**: `max-stuck` \| `max-cycles` \| `max-runtime` \| `user-stop` \| `queue-empty` \| `protocol-error` \| `operational-error`. `null` for `solved`/`stuck`. |
+| `stop_reason` | enum \| null | **non-null iff `status == stopped`**: `max-stuck` \| `max-cycles` \| `max-runtime` \| `user-stop` \| `queue-empty` \| `concluded` \| `protocol-error` \| `operational-error`. `null` for `solved`/`stuck`. `concluded` (plugin ≥ 4.12.0): autoprove's reserved [conclusion phase](cycle-engine.md#conclusion-phase) ended the run by policy before any limit bound. |
 | `stop_detail` | string \| null | **non-null iff `stop_reason ∈ {protocol-error, operational-error}`** (e.g. file-baseline drift, malformed dispatch, unavailable checker); `null` otherwise |
 | `blocker_kind` | enum \| null | why a blocker-driven stop happened: `proof` \| `false-statement` \| `safety-guard` \| `capability` \| `protocol` \| `operational`. **Non-null iff the stop was blocker-driven** — see Blocker fields below. |
 | `blocker_class` | enum \| null | the proof-triage class, **non-null iff `blocker_kind == proof`** ([sorry-filling.md](sorry-filling.md)): `definitional-equality` \| `missing-intro-constructor-cases` \| `missing-rewrite` \| `arithmetic` \| `missing-library-lemma` \| `typeclass-coercion-elaboration` \| `needs-helper-lemma`. `null` for a `safety-guard`/`false-statement`/etc. blocker (e.g. deep regression, scope exceeded, header-fence, rollback failure). |
@@ -136,11 +136,19 @@ blocker-driven** — `status == stuck`, or `status == stopped` with
 stop (deep regression, deep scope exceeded, header-fence violation, rollback
 failure) or a `false-statement`/`capability` blocker sets `blocker_kind`
 accordingly and leaves `blocker_class` `null`. All blocker fields are **`null`**
-for `status == solved` and for every non-blocker stop — budget/user/queue
-(`max-cycles` / `max-runtime` / `user-stop` / `queue-empty`) **and** operational
+for `status == solved` and for every non-blocker stop — budget/user/queue/conclusion
+(`max-cycles` / `max-runtime` / `user-stop` / `queue-empty` / `concluded`) **and** operational
 aborts (`protocol-error` / `operational-error`), which carry their cause in
 `stop_detail`. A `queue-empty` stop with claims remaining therefore reruns freely
-— no `blocker_signature` for the guard to match.
+— no `blocker_signature` for the guard to match — and so does a `concluded` stop
+(`stop_detail` null; its verdict and recommendations live in the final Replan,
+never in `new_evidence_required_for_rerun`).
+
+**Reader versions.** `concluded` is an additive amendment: readers from plugin
+4.12.0 on accept every older record, but an older reader (plugin < 4.12.0, or an
+earlier copy of `run_contract_validate`) rejects a `concluded` handoff. Records
+written by ≥ 4.12.0 may carry it, so read them with ≥ 4.12.0; the amendment is
+not bidirectionally compatible.
 
 **Custody vs effect.** `files_owned` reports custody (echoing the dispatch's
 `owned_files`); `files_changed` reports effect (what the worker wrote). The
@@ -176,7 +184,7 @@ A relaunch is **forbidden** when all four hold:
 - `new_dispatch.evidence_delta` is empty (nothing new to try).
 
 The non-null condition is load-bearing: a non-blocker stop
-(`queue-empty`/`max-cycles`/`max-runtime`/`user-stop`) has a `null` signature,
+(`queue-empty`/`max-cycles`/`max-runtime`/`user-stop`/`concluded`) has a `null` signature,
 and a `null == null` match must **not** forbid the rerun — those reruns are
 always allowed. A first dispatch carries `prior_blocker: null` and an empty `evidence_delta`, so
 it is never forbidden. A qualifying `evidence_delta` entry is any of:
