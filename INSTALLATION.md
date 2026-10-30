@@ -556,7 +556,8 @@ Per-host MCP configuration (check each host's latest docs for current syntax):
 - **Codex CLI:** Check [Codex docs](https://developers.openai.com/codex/) for MCP setup
 - **Gemini CLI:** Check [Gemini CLI docs](https://github.com/google-gemini/gemini-cli) for MCP setup
 - **OpenCode:** Check [OpenCode docs](https://opencode.ai/docs/) for MCP setup
-- **Other hosts:** `npx lean-lsp-mcp --project /path/to/lean/project` — connect via your agent's MCP configuration
+- **Other hosts:** `uvx lean-lsp-mcp --lean-project-path /path/to/lean/project` — connect via your
+  agent's MCP configuration
 
 ## Optional: ripgrep
 
