@@ -464,7 +464,13 @@ lean4-skills-sorry-analyzer . --report-only
 **Cold start / fresh worktree:**
 - Fresh worktree or after `lake clean`? Prime the cache in that worktree before the first real build.
 - Use the project's cache command: `lake cache get` on newer Lake, or `lake exe cache get` where the project still uses the mathlib cache executable.
-- If Lean LSP is cold or timing out on first use, run one `lake build` to bootstrap the workspace.
+- Bootstrap only when diagnostics demonstrate missing/stale imports: explicitly run
+  dependency-aware `lake lean <path/to/File.lean>` or the appropriate `lake build`
+  from the project root. For the native CLI, stop the session and query again
+  after rebuilding: `lean4-skills-lsp stop --project ROOT --json`.
+- For a native cold start or timeout, inspect `status`/`error`, check `status`/`doctor`,
+  and allow at most one bounded retry (`--timeout-ms`); then use fallback or report
+  the blocker. A cold or timed-out query alone does not justify a build.
 - After bootstrap, return to the normal verification ladder:
   `lean_diagnostic_messages(file)` → `lake env lean <path/to/File.lean>` (from project root; built imports only, see [File Gate Scope](references/cycle-engine.md#file-gate-scope)) → `lake build` only at checkpoint/final gate.
 - Do **not** symlink another worktree's `.lake/build`; use Lake cache/artifact mechanisms instead.
