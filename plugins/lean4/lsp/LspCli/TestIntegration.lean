@@ -33,8 +33,18 @@ def regressions (toolchain : String) (focus : String := "both") : IO Unit := do
   let exe := (← IO.currentDir) / ".lake/build/bin/lean4-skills-lsp"
   let invoke := fun (args : Array String) => IO.Process.output {cmd := exe.toString, args := args ++ #["--project", root.toString, "--json", "--timeout-ms", "30000"]}
   try
+    if focus == "watcher" then
+      let created ← IO.Process.output {cmd := "ln", args := #["-s", "missing.txt", (root / "unrelated.txt").toString]}
+      check "cold dangling link setup" (created.exitCode == 0)
     let opened ← decode (← invoke #["diagnostics", "Example.lean"])
     check "review fixture opens live document" opened.ok
+    if focus == "watcher" then
+      IO.FS.removeFile (root / "unrelated.txt")
+      let baseline ← decode (← invoke #["diagnostics", "Example.lean"])
+      let created ← IO.Process.output {cmd := "ln", args := #["-s", "missing.txt", (root / "warm.txt").toString]}
+      check "warm dangling link setup" (created.exitCode == 0)
+      let warm ← decode (← invoke #["diagnostics", "Example.lean"])
+      check "warm dangling link preserves fresh diagnostics and identity" (warm.ok && warm.sourceIdentity == baseline.sourceIdentity)
     if focus == "both" || focus == "search" then
       let old ← decode (← invoke #["search", "oldSymbol"])
       check s!"search fixture indexes original name: {(toJson old).compress}" ((old.data.getObjValAs? (Array Json) "symbols").toOption.any (!·.isEmpty))

@@ -16,8 +16,19 @@ private partial def walk (root path : FilePath) (deadline : Deadline)
   for entry in ← path.readDir do
     discard <| remaining deadline
     if entry.fileName == ".git" then continue
-    let metadata ← entry.path.metadata
-    if metadata.type == .dir then walk root entry.path deadline seen files
+    -- Entries may disappear after readDir, including dangling symlink targets.
+    -- Other failures must abort the freshness barrier.
+    let metadata ← try
+      some <$> entry.path.metadata
+    catch
+      | .noFileOrDirectory .. => pure none
+      | e => throw e
+    let some metadata := metadata | continue
+    if metadata.type == .dir then
+      try walk root entry.path deadline seen files
+      catch
+        | .noFileOrDirectory .. => pure ()
+        | e => throw e
     else if entry.path.extension == some "lean" || entry.path.extension == some "ilean" then
       files.modify (·.insert entry.path.toString ⟨metadata.modified, metadata.byteSize⟩)
 

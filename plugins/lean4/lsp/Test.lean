@@ -95,6 +95,49 @@ def main (args : List String) : IO UInt32 := do
   let nested := spaced / "one" / "two"
   IO.FS.createDirAll nested
   check "nested project discovery" ((← resolveProject (some nested)) == canonical)
+  -- Scanner must omit vanished targets while retaining live linked trees and errors.
+  let watched := tmp / "watched"
+  let package := tmp / "package"
+  IO.FS.createDir watched
+  IO.FS.createDir package
+  IO.FS.writeFile (watched / "Gone.lean") "example : True := trivial"
+  IO.FS.writeFile (package / "Linked.lean") "example : True := trivial"
+  let linkResult ← IO.Process.output {cmd := "ln", args := #["-s", package.toString, (watched / "package").toString]}
+  check "linked package setup" (linkResult.exitCode == 0)
+  let cycleResult ← IO.Process.output {cmd := "ln", args := #["-s", watched.toString, (package / "cycle").toString]}
+  check "linked cycle setup" (cycleResult.exitCode == 0)
+  let before ← Watcher.scan watched ((← IO.monoMsNow) + 5000)
+  check "live linked package scanned" (before.contains (watched / "package" / "Linked.lean").toString)
+  IO.FS.removeFile (watched / "Gone.lean")
+  let absent ← Watcher.scan watched ((← IO.monoMsNow) + 5000)
+  check "removed watched file produces deletion" ((Watcher.changes before absent).any fun event => event.uri == System.Uri.pathToUri (watched / "Gone.lean").toString && (match event.type with | .Deleted => true | _ => false))
+  let danglingLean ← IO.Process.output {cmd := "ln", args := #["-s", "missing.lean", (watched / "Gone.lean").toString]}
+  let danglingText ← IO.Process.output {cmd := "ln", args := #["-s", "missing.txt", (watched / "unrelated.txt").toString]}
+  check "dangling setup" (danglingLean.exitCode == 0 && danglingText.exitCode == 0)
+  let after ← Watcher.scan watched ((← IO.monoMsNow) + 5000)
+  check "dangling watched file produces deletion" ((Watcher.changes before after).any fun event => event.uri == System.Uri.pathToUri (watched / "Gone.lean").toString && (match event.type with | .Deleted => true | _ => false))
+  check "linked package remains scanned" (after.contains (watched / "package" / "Linked.lean").toString)
+  let locked := watched / "unreadable"
+  IO.FS.createDir locked
+  IO.FS.writeFile (locked / "Relevant.lean") "example : True := trivial"
+  let mode ← IO.Process.output {cmd := "chmod", args := #["000", locked.toString]}
+  check "permission fixture setup" (mode.exitCode == 0)
+  let rejected ← try
+    discard <| Watcher.scan watched ((← IO.monoMsNow) + 5000)
+    pure false
+  catch
+    | .permissionDenied .. => pure true
+    | e => throw e
+  let restored ← IO.Process.output {cmd := "chmod", args := #["700", locked.toString]}
+  check "permission fixture restored" (restored.exitCode == 0)
+  check "unreadable relevant tree is an error" rejected
+  let missingRoot ← try
+    discard <| Watcher.scan (tmp / "missing-root") ((← IO.monoMsNow) + 5000)
+    pure false
+  catch
+    | .noFileOrDirectory .. => pure true
+    | e => throw e
+  check "missing scan root is an error" missingRoot
   IO.FS.removeDirAll tmp
   let root ← resolveProject none
   let file ← resolveFile root "Main.lean"
