@@ -1,3 +1,4 @@
+import LspCli.TestTrials
 import LspCli.Doctor
 import LspCli.TestIntegration
 import LspCli.Test.Session
@@ -10,6 +11,9 @@ def main (args : List String) : IO UInt32 := do
   if args == ["--fake-server"] then return ← FakeServer.run
   if let ["--mathlib", root] := args then
     Integration.mathlib root
+    return 0
+  if args == ["--trials"] then
+    TrialTests.run
     return 0
   if args == ["--session"] then
     SessionTests.run

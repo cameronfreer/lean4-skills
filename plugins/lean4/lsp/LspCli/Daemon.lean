@@ -1,3 +1,4 @@
+import LspCli.Trials
 import LspCli.Session
 import LspCli.Socket
 open Lean System Std Std.Async
@@ -94,6 +95,7 @@ private def serve (server : TCP.Socket.Server) (s : Session) (d : Descriptor) (i
               s.close
               stop := true
               pure {ok := true, operation := "stop", projectRoot := some s.root.toString, status := "stopped"}
+            else if r.operation == .attempt then Trials.run s {r with timeoutMs := budget}
             else s.inspect {r with timeoutMs := budget}
       discard <| Socket.bounded (do Socket.sendJson client (toJson response); pure Json.null) ((← IO.monoMsNow) + 1000)
     catch e =>

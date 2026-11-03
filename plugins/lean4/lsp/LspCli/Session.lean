@@ -165,7 +165,7 @@ def goalStatus (goal : Json) : String :=
 
 private def hasErrors (ds : Array Json) : Bool :=
   ds.any fun d => (d.getObjValAs? Nat "severity").toOption == some 1
-private def staleImports (ds : Array Json) : Bool :=
+def staleImports (ds : Array Json) : Bool :=
   ds.any fun d => (d.getObjValAs? String "code").toOption == some "$/lean/staleDependency" ||
     (d.getObjValAs? String "message").toOption.any (fun m => (m.splitOn "Imports are out of date").length > 1)
 
