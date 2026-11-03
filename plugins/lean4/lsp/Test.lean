@@ -18,6 +18,9 @@ def main (args : List String) : IO UInt32 := do
   if args == ["serve", "--"] then
     if ← (System.FilePath.mk "hang").pathExists then IO.sleep 3000
     return 1
+  if let ["--regression", focus, "--server-toolchain", toolchain] := args then
+    Integration.regressions toolchain focus
+    return 0
   if args.head? == some "--integration" then
     Integration.run (args[2]?.getD "leanprover/lean4:v4.35.0")
     return 0

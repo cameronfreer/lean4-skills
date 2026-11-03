@@ -191,6 +191,14 @@ private def observe (s : Session) (r : Request) (deadline : Deadline) : IO Respo
   if r.operation == .status then
     return {base with data := Json.mkObj [("sessionIdentity", toJson s.nonce), ("serverPid", toJson s.transport.child.pid.toNat), ("scanDurationMs", toJson (← s.state.atomically get).scanMs)]}
   if r.operation == .search then
+    -- Watched-file events do not update an already open worker's source snapshot.
+    -- Synchronize each retained disk document and its index before claiming completeness.
+    for previous in (← s.state.atomically get).documents do
+      unless previous.virtual do
+        let path ← resolveFile s.root previous.path
+        let current ← s.openDocument path (← IO.FS.readFile path)
+        discard <| s.waitDocument current deadline
+        discard <| s.transport.request "$/lean/waitForILeans" (toJson ({uri? := some current.uri, version? := some current.version} : Lean.Lsp.WaitForILeansParams)) deadline
     discard <| s.transport.request "$/lean/waitForILeans" (toJson ({} : Lean.Lsp.WaitForILeansParams)) deadline
     let result ← s.transport.request "workspace/symbol" (toJson ({query := r.query.getD ""} : Lean.Lsp.WorkspaceSymbolParams)) deadline
     let symbols ← IO.ofExcept (result.getArr?)

@@ -97,14 +97,16 @@ private def serve (server : TCP.Socket.Server) (s : Session) (d : Descriptor) (i
             else s.inspect {r with timeoutMs := budget}
       discard <| Socket.bounded (do Socket.sendJson client (toJson response); pure Json.null) ((← IO.monoMsNow) + 1000)
     catch e =>
-      if (e.toString.splitOn "timeout:").length > 1 then
+      -- A bad or stalled unauthenticated peer owns only its connection.
+      if authenticated && (e.toString.splitOn "timeout:").length > 1 then
         s.state.atomically <| modify fun st => {st with retired := true}
       let response := Session.failure {operation := .status} s.root e
       try discard <| Socket.bounded (do Socket.sendJson client (toJson response); pure Json.null) ((← IO.monoMsNow) + 200) catch _ => pure ()
     try
       discard <| Socket.bounded (do client.shutdown; pure Json.null) ((← IO.monoMsNow) + 100)
     catch e =>
-      if (e.toString.splitOn "timeout:").length > 1 then
+      -- A bad or stalled unauthenticated peer owns only its connection.
+      if authenticated && (e.toString.splitOn "timeout:").length > 1 then
         s.state.atomically <| modify fun st => {st with retired := true}
     if stop || (← s.state.atomically get).retired || (← s.transport.state.atomically get).dead then break
     if authenticated then lastActivity ← IO.monoMsNow

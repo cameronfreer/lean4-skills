@@ -25,6 +25,56 @@ private partial def awaitNoWorkers (root : FilePath) (deadline : Nat) : IO Bool 
   IO.sleep 30
   awaitNoWorkers root deadline
 
+def regressions (toolchain : String) (focus : String := "both") : IO Unit := do
+  let root ← IO.FS.createTempDir
+  IO.FS.writeFile (root / "lean-toolchain") toolchain
+  IO.FS.writeFile (root / "lakefile.toml") "name = 'review_fixture'\n"
+  IO.FS.writeFile (root / "Example.lean") "def oldSymbol : Nat := 1\n"
+  let exe := (← IO.currentDir) / ".lake/build/bin/lean4-skills-lsp"
+  let invoke := fun (args : Array String) => IO.Process.output {cmd := exe.toString, args := args ++ #["--project", root.toString, "--json", "--timeout-ms", "30000"]}
+  try
+    let opened ← decode (← invoke #["diagnostics", "Example.lean"])
+    check "review fixture opens live document" opened.ok
+    if focus == "both" || focus == "search" then
+      let old ← decode (← invoke #["search", "oldSymbol"])
+      check s!"search fixture indexes original name: {(toJson old).compress}" ((old.data.getObjValAs? (Array Json) "symbols").toOption.any (!·.isEmpty))
+      IO.FS.writeFile (root / "Example.lean") "def newSymbol : Nat := 1\n"
+      -- No document inspection between the disk edit and either search.
+      let fresh ← decode (← invoke #["search", "newSymbol"])
+      check "search alone synchronizes retained disk document" (fresh.ok && (fresh.data.getObjValAs? Bool "complete").toOption == some true && (fresh.data.getObjValAs? (Array Json) "symbols").toOption.any (!·.isEmpty))
+      let removed ← decode (← invoke #["search", "oldSymbol"])
+      check "complete search excludes deleted open-document symbol" (removed.ok && (removed.data.getObjValAs? (Array Json) "symbols").toOption == some #[])
+    if focus == "both" || focus == "auth" then
+      let baseline ← decode (← invoke #["status"])
+      let expectedIdentity ← IO.ofExcept (baseline.data.getObjValAs? String "sessionIdentity")
+      let expectedWorkers ← workers root
+      let dir ← Daemon.cacheDir root
+      let descriptor : Daemon.Descriptor ← IO.ofExcept ((Json.parse (← IO.FS.readFile (dir / "session.json"))).bind fromJson?)
+      for kind in ["idle", "partial header", "partial body", "malformed JSON", "early EOF", "invalid envelope"] do
+        let client ← Std.Async.TCP.Socket.Client.mk
+        (client.connect (.v4 {addr := {octets := #v[127,0,0,1]}, port := descriptor.port.toUInt16})).block
+        if kind == "partial header" then
+          (client.send (ByteArray.mk #[0,0])).block
+        else if kind == "partial body" || kind == "early EOF" then
+          (client.send (ByteArray.mk #[0,0,0,4,123])).block
+        else if kind == "malformed JSON" then
+          (client.send (ByteArray.mk #[0,0,0,1,63])).block
+        else if kind == "invalid envelope" then
+          (Socket.sendJson client (Json.mkObj [])).block
+        if kind == "early EOF" then client.shutdown.block
+        if kind == "idle" || kind == "partial header" || kind == "partial body" then IO.sleep 1700
+        else
+          try discard <| (Socket.readJson client ((← IO.monoMsNow) + 2000)).block catch _ => pure ()
+        try client.shutdown.block catch _ => pure ()
+        let survived ← decode (← invoke #["status"])
+        check s!"unauthenticated {kind} preserves session identity" (survived.ok && (survived.data.getObjValAs? String "sessionIdentity").toOption == some expectedIdentity)
+        check s!"unauthenticated {kind} preserves worker" ((← workers root) == expectedWorkers && !expectedWorkers.isEmpty)
+    IO.println s!"review regressions {focus} {toolchain} passed"
+  finally
+    discard <| invoke #["stop"]
+    check "review fixture stop cleans workers" (← awaitNoWorkers root ((← IO.monoMsNow) + 3000))
+    IO.FS.removeDirAll root
+
 def run (toolchain : String) : IO Unit := do
   let temporary ← IO.FS.createTempDir
   let root := temporary / "project λ with spaces"
@@ -168,6 +218,7 @@ def run (toolchain : String) : IO Unit := do
     owned.transport.child.kill
     check "owned watchdog crash cleans workers through EOF" (← awaitNoWorkers root ((← IO.monoMsNow) + 3000))
     owned.close
+    regressions toolchain
     IO.println s!"integration {toolchain} passed"
   finally
     discard <| invoke #["stop"]

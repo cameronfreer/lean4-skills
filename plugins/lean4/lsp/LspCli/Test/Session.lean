@@ -9,6 +9,7 @@ private def deadline : IO Nat := return (← IO.monoMsNow) + 2000
 
 def run : IO Unit := do
   let root ← IO.FS.createTempDir
+  IO.FS.writeFile (root / "First.lean") "abc"
   let session ← Session.startWith root (← deadline) (← IO.appPath).toString #["--fake-server"]
   try
     let req := fun method params => do session.transport.request method params (← deadline)
