@@ -179,7 +179,7 @@ def run (toolchain : String) : IO Unit := do
     check s!"import edit is explicit stale_dependency: {(toJson staleDependency).compress}" (staleDependency.status == "stale_dependency" && staleDependency.exitCode == 4)
     check "dependency rebuild succeeds" ((← build).exitCode == 0)
     let imported ← decode (← invoke #["search", "importedNew"])
-    check "rebuilt ilean reaches symbol index" (imported.ok && (imported.data.getObjValAs? (Array Json) "symbols").toOption.any (!·.isEmpty))
+    check s!"rebuilt ilean reaches symbol index: {(toJson imported).compress}" (imported.ok && (imported.data.getObjValAs? (Array Json) "symbols").toOption.any (!·.isEmpty))
     discard <| invoke #["stop"]
     let freshDependent ← invoke #["diagnostics", "B.lean"]
     check "reopened dependent observes rebuilt semantics" (freshDependent.exitCode == 1 && (← decode freshDependent).status != "stale_dependency")

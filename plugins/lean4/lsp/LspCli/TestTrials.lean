@@ -9,7 +9,10 @@ private def decode (out : IO.Process.Output) : IO Response :=
 private def results (r : Response) : Array Json := (r.data.getObjValAs? (Array Json) "candidates").toOption.getD #[]
 private def status (j : Json) : String := (j.getObjValAs? String "status").toOption.getD ""
 
-def run : IO Unit := do
+def run (mathlib? : Option FilePath := none) : IO Unit := do
+  if let some mathlib := mathlib? then
+    unless ← (mathlib / "MathlibFixture.lean").pathExists do
+      throw <| IO.userError s!"missing Mathlib trial fixture: {mathlib / "MathlibFixture.lean"}"
   let root ← IO.FS.createTempDir
   IO.FS.writeFile (root / "lean-toolchain") "leanprover/lean4:v4.35.0"
   IO.FS.writeFile (root / "lakefile.toml") "name = 'trials'\n"
@@ -87,8 +90,7 @@ def run : IO Unit := do
     check "retirement closes scratch and live slots" ((← session.state.atomically get).documents.isEmpty)
     let restarted ← decode (← invoke #["goal", "Example.lean", "--line", "5", "--column", "3"])
     check "normal goal works after active cancellation" (restarted.status == "goals_present" && (← IO.FS.readFile (root / "Example.lean")) == "import Lean\n" ++ source)
-    let mathlib := FilePath.mk "/tmp/lean4-native-lsp-mathlib"
-    if ← (mathlib / "MathlibFixture.lean").pathExists then
+    if let some mathlib := mathlib? then
       let before ← IO.FS.readFile (mathlib / "MathlibFixture.lean")
       IO.FS.writeFile (root / "mathlib.json") (toJson (#["exact Nat.add_comm a b", "rfl", "sorry"] : Array String)).compress
       let math := fun (args : Array String) => IO.Process.output {cmd := exe.toString, args := args ++ #["--project", mathlib.toString, "--json", "--timeout-ms", "30000"]}
@@ -100,7 +102,6 @@ def run : IO Unit := do
         let goal ← decode (← math #["goal", "MathlibFixture.lean", "--line", "11", "--column", "3"])
         check "Mathlib live goal survives" (goal.status == "goals_present" && goal.sourceIdentity == result.sourceIdentity)
       finally discard <| math #["stop"]
-    else throw <| IO.userError "missing required Mathlib trial fixture"
     IO.println "trial tests passed"
   finally
     discard <| invoke #["stop"]

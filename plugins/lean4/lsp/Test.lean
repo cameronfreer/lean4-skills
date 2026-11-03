@@ -12,6 +12,9 @@ def main (args : List String) : IO UInt32 := do
   if let ["--mathlib", root] := args then
     Integration.mathlib root
     return 0
+  if let ["--trials", "--mathlib", root] := args then
+    TrialTests.run (some root)
+    return 0
   if args == ["--trials"] then
     TrialTests.run
     return 0
