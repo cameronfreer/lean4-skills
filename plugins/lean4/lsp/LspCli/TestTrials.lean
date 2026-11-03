@@ -23,6 +23,20 @@ def run (mathlib? : Option FilePath := none) : IO Unit := do
   let invoke := fun (args : Array String) => IO.Process.output {cmd := exe.toString, args := args ++ #["--project", root.toString, "--json", "--timeout-ms", "30000"]}
   let attempt := fun (extra : Array String) => invoke (#["attempt", "Example.lean", "--range", "4:3-4:8", "--snippets-file", "snippets.json"] ++ extra)
   try
+    let nested := root / "Sub"
+    IO.FS.createDir nested
+    let nestedSource := "def payload : String := include_str \"payload.txt\"\nexample : True := by\n  sorry\n"
+    let payload := "relative resource bytes\n"
+    IO.FS.writeFile (nested / "Example.lean") nestedSource
+    IO.FS.writeFile (nested / "payload.txt") payload
+    IO.FS.writeFile (root / "nested.json") "[\"trivial\"]"
+    let live ← invoke #["diagnostics", "Sub/Example.lean"]
+    check "nested source with relative resource is clean" (live.exitCode == 0)
+    let nestedOut ← invoke #["attempt", "Sub/Example.lean", "--range", "3:3-3:8", "--snippets-file", "nested.json"]
+    let nestedResult ← decode nestedOut
+    check s!"nested trial preserves relative resource context: {nestedOut.stdout}" (nestedOut.exitCode == 0 && status (results nestedResult)[0]! == "closed_local_goals")
+    check "nested source and resource bytes unchanged" ((← IO.FS.readFile (nested / "Example.lean")) == nestedSource && (← IO.FS.readFile (nested / "payload.txt")) == payload)
+    check "nested trial writes no scratch file" ((← nested.readDir).size == 2)
     let original ← decode (← invoke #["goal", "Example.lean", "--line", "4", "--column", "3"])
     let out ← attempt #[]
     let response ← decode out

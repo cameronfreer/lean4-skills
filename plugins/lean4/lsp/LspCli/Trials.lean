@@ -42,7 +42,8 @@ private def observe (s : Session) (r : Request) (deadline : Deadline) : IO Respo
   let chars := text.toList
   let left := String.ofList (chars.take (offset text range.start))
   let right := String.ofList (chars.drop (offset text range.end))
-  let scratch := s.root / s!".lean4-skills-trial-{s.nonce}.lean"
+  let some parent := path.parent | throw <| IO.userError "invalid: source has no parent directory"
+  let scratch := parent / s!".lean4-skills-trial-{s.nonce}.lean"
   let mut results := #[]
   let mut errors := false
   for candidate in candidates do
