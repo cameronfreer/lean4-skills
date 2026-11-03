@@ -61,6 +61,9 @@ structure Response where
   error : Option CliError := none
   deriving ToJson, FromJson
 
+def Response.exitCode (r : Response) : UInt32 :=
+  (r.error.map CliError.exitCode |>.getD 0).toUInt32
+
 def positive (s : String) : Except CliError Nat := do
   match s.toNat? with
   | some n => if n > 0 then pure n else throw (invalid "expected a positive integer")
