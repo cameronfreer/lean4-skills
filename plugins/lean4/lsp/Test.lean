@@ -1,14 +1,26 @@
 import LspCli.Doctor
+import LspCli.TestIntegration
+import LspCli.Test.Session
 open Lean System LspCli
 
 def check (label : String) (b : Bool) : IO Unit :=
   unless b do throw <| IO.userError s!"FAIL: {label}"
 
 def main (args : List String) : IO UInt32 := do
+  if args == ["--fake-server"] then return ← FakeServer.run
+  if let ["--mathlib", root] := args then
+    Integration.mathlib root
+    return 0
+  if args == ["--session"] then
+    SessionTests.run
+    return 0
   if args == ["env", "lean", "--version"] then return 0
   if args == ["serve", "--"] then
     if ← (System.FilePath.mk "hang").pathExists then IO.sleep 3000
     return 1
+  if args.head? == some "--integration" then
+    Integration.run (args[2]?.getD "leanprover/lean4:v4.35.0")
+    return 0
   check "unit flag" (args == ["--unit"])
   for argv in [["doctor", "--project", ".", "--json"], ["goal", "Foo.lean", "--line", "2", "--json"], ["diagnostics", "Foo.lean"], ["hover", "Foo.lean", "--line", "2", "--column", "3"], ["definition", "Foo.lean", "--line", "2", "--column", "3"], ["references", "Foo.lean", "--line", "2", "--column", "3"], ["code-actions", "Foo.lean", "--line", "2"], ["search", "add_zero", "--limit", "10"], ["attempt", "Foo.lean", "--range", "1:2-1:3", "--snippets-file", "x.json", "--expect-source", "abc", "--timeout-ms", "42"], ["status"], ["stop"]] do
     check s!"accepted {argv}" (parseArgs argv).isOk
@@ -84,7 +96,7 @@ def main (args : List String) : IO UInt32 := do
   check "invalid exit code" (out.exitCode == 2)
   check "one JSON record" ((Json.parse out.stdout.trimAscii.copy).isOk && (out.stdout.splitOn "\n").length == 2)
   let out ← IO.Process.output {cmd := exe.toString, args := #["status", "--project", root.toString, "--json"]}
-  check "unavailable exit code" (out.exitCode == 3)
+  check "inactive status exit code" (out.exitCode == 0)
   let doctor ← IO.Process.output {cmd := exe.toString, args := #["doctor", "--project", root.toString, "--json", "--timeout-ms", "10000"]}
   let doc ← IO.ofExcept (Json.parse doctor.stdout.trimAscii.copy)
   let available := (doc.getObjVal? "data").bind (·.getObjValAs? Bool "projectServerAvailable")

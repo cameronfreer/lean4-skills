@@ -1,4 +1,5 @@
 import LspCli.Protocol
+import LspCli.ProjectProcess
 import Lean.Data.Lsp.Communication
 open Lean System Lean.JsonRpc
 namespace LspCli
@@ -38,7 +39,7 @@ private def handshake (root : FilePath) (child : IO.Process.Child {stdin := .pip
 
 private def probeServer (root : FilePath) (cmd : String) (deadline : Nat) : IO DoctorResult := do
   try
-    let server ← IO.Process.spawn {cmd, args := #["serve", "--"], cwd := some root, stdin := .piped, stdout := .piped, stderr := .null, setsid := true}
+    let server ← IO.Process.spawn {cmd, args := #["serve", "--"], cwd := some root, stdin := .piped, stdout := .piped, stderr := .null, setsid := true, env := ProjectProcess.environment}
     let task ← IO.asTask (handshake root server) Task.Priority.dedicated
     let finished ← waitUntil task deadline
     let ok := finished && task.get.isOk
@@ -51,8 +52,9 @@ private def probeServer (root : FilePath) (cmd : String) (deadline : Nat) : IO D
 /-- Short-lived project probe. The deadline covers both phases. -/
 def probeProject (root : FilePath) (timeoutMs : Nat) (cmd : String := "lake") : IO DoctorResult := do
   let deadline := (← IO.monoMsNow) + timeoutMs
+  let cmd ← if cmd == "lake" then ProjectProcess.lake else pure cmd
   try
-    let version ← IO.Process.spawn {cmd, args := #["env", "lean", "--version"], cwd := some root, stdin := .null, stdout := .null, stderr := .null, setsid := true}
+    let version ← IO.Process.spawn {cmd, args := #["env", "lean", "--version"], cwd := some root, stdin := .null, stdout := .null, stderr := .null, setsid := true, env := ProjectProcess.environment}
     let task ← IO.asTask version.wait Task.Priority.dedicated
     unless ← waitUntil task deadline do
       try version.kill catch _ => pure ()
