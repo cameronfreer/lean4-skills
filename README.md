@@ -64,9 +64,14 @@ The proving workflows (`prove`, `autoprove`, `formalize`, and `autoformalize`) s
 
 CI gates every PR: full documentation lint, semantic contract suites, hook and wrapper runtime tests on Linux and macOS Bash 3.2, and pinned shellcheck/ruff/mypy/actionlint. Hosts marked "documented" in the Quick Start table follow verified setup patterns but are not CI-tested.
 
-## Lean LSP MCP (Optional, Recommended)
+## Live Lean inspection
 
-The skill works standalone, but pairs best with [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp): live goal inspection, mathlib search, and typically much faster feedback than repeated full builds. See [INSTALLATION.md → MCP Server](INSTALLATION.md#lean-lsp-mcp-server-all-hosts) for registration on any host, including the Claude Code scope trade-off for subagent visibility.
+For local goals, diagnostics, navigation, symbol search and isolated tactic
+trials, use the Lean-native CLI: [source-build installation](INSTALLATION.md#native-lean-lsp-cli-source-install).
+It runs without MCP and uses the target project's Lean server. The initial
+supported host is Linux x86_64; target Lean versions are 4.33.1 and 4.35.0.
+[lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) remains optional for
+explicit MCP setups and remote search services; see [MCP setup](INSTALLATION.md#lean-lsp-mcp-server-all-hosts).
 
 ## Documentation
 

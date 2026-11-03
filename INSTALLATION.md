@@ -11,8 +11,8 @@ Three install shapes, referenced throughout this guide:
   (`lean4-skills-*` wrappers and their scripts) or register plugin
   commands, lifecycle hooks, or subagent definitions. What you get is
   the instructions and references: the skill's LSP-first workflows
-  operate when your host separately provides Lean LSP tools (see
-  [Lean LSP MCP Server](#lean-lsp-mcp-server-all-hosts)); script-backed
+  operate with a separately installed [native CLI](#native-lean-lsp-cli-source-install)
+  or [Lean LSP MCP Server](#lean-lsp-mcp-server-all-hosts); script-backed
   steps need Tier 2 or Tier 3.
 - **Tier 2 — Portable checkout + helper runtime.** One cloned checkout,
   an `.agents/skills` symlink for native discovery, and one environment
@@ -67,10 +67,10 @@ No special setup required.
 
 #### LSP Server Not Working
 
-1. Verify installation: https://github.com/oOo0oOo/lean-lsp-mcp
-2. Run `lake build` in your project first (avoids timeouts). If fresh clone/worktree or after `lake clean`, prime cache first: `lake cache get` or `lake exe cache get`.
-3. Restart Claude Code
-4. Test: try `lean_goal` on a `.lean` file
+1. For the native CLI, run `lean4-skills-lsp doctor --project /path/to/project --json`; see [native recovery](#native-session-and-recovery). For an explicit MCP setup, verify its installation: https://github.com/oOo0oOo/lean-lsp-mcp
+2. If imports are missing/stale, hydrate the project's cache (`lake cache get` or `lake exe cache get` where supported), then explicitly run `lake lean path/to/File.lean` or the appropriate `lake build` from that project's root.
+3. Restart the selected server/session after rebuilding; native: `lean4-skills-lsp stop --project /path/to/project --json`.
+4. Query the goal again. A timeout alone does not imply dependencies need building.
 
 #### Environment Variables Not Set
 
@@ -523,7 +523,7 @@ Any LLM coding agent that can read markdown and run shell commands can use this 
    lean4-skills-check-axioms-inline path/to/YourFile.lean --report-only
    lean4-skills-search-mathlib "continuous" name
    ```
-4. If your agent supports MCP, add lean-lsp-mcp for faster mathlib search and sub-second feedback
+4. Install the [native CLI](#native-lean-lsp-cli-source-install) for local live inspection; retain MCP if explicitly preferred or needed for remote services
 
 ### Verify
 
@@ -533,10 +533,159 @@ command -v lean4-skills-sorry-analyzer        # wrapper resolves on PATH
 lean4-skills-sorry-analyzer . --format=summary --report-only
 ```
 
+## Native Lean LSP CLI (Source Install)
+
+The local backend is the compiled Lean executable `lean4-skills-lsp`, with one
+persistent session per canonical Lake project. No MCP, Python wrapper, or
+repeated `lake exe` invocation is required at runtime. Initial supported host:
+**Linux x86_64**. The binary is built with **Lean 4.35.0**; target-project server
+versions **4.33.1 and 4.35.0** are tested. Older versions, macOS/Windows native
+support, prebuilt releases and package-manager distribution are not certified.
+
+Install elan/Lean/Lake first, then build from this checkout. If you used a
+skill-only installer, clone the repository to obtain `plugins/lean4/lsp`.
+These commands use the default checkout location; adjust it to your clone:
+
+```bash
+git clone https://github.com/cameronfreer/lean4-skills.git "$HOME/lean4-skills"
+cd "$HOME/lean4-skills/plugins/lean4/lsp"
+elan toolchain install leanprover/lean4:v4.35.0
+lake +leanprover/lean4:v4.35.0 build lean4-skills-lsp
+mkdir -p "$HOME/.local/bin"
+install -m 0755 .lake/build/bin/lean4-skills-lsp "$HOME/.local/bin/lean4-skills-lsp"
+export PATH="$HOME/.local/bin:$HOME/.elan/bin:$PATH"
+```
+
+Persist the PATH addition in your shell configuration if needed. Installation
+copies the compiled executable outside the checkout; keep the checkout only
+for rebuilding/updating. The installed binary uses system libraries and does
+not need checkout-relative Lean shared libraries. To update, pull the checkout,
+rebuild with the same pin and repeat `install` after stopping active sessions.
+
+Invoke it from another working directory, with an existing built Lake project:
+
+```bash
+cd "$HOME"
+lean4-skills-lsp doctor --project /absolute/path/to/project --json
+lean4-skills-lsp goal path/to/File.lean --project /absolute/path/to/project --line 42 --json
+lean4-skills-lsp diagnostics path/to/File.lean --project /absolute/path/to/project --json
+lean4-skills-lsp status --project /absolute/path/to/project --json
+lean4-skills-lsp stop --project /absolute/path/to/project --json
+```
+
+`--project` selects the **target Lake project**, not the CLI source checkout.
+Without it, discovery walks upward from the working directory. Source files
+and relative `--snippets-file` paths resolve against the canonical project
+root; absolute paths are accepted, but source files must belong to the project.
+Symlinks are canonicalized. The daemon launches `lake serve --` in that root,
+using its `lean-toolchain`; it never changes the project's toolchain. Keep elan
+on PATH even when invoking the binary by absolute path.
+
+The [canonical semantic dispatch table](plugins/lean4/skills/lean4/SKILL.md#canonical-semantic-tool-dispatch)
+maps skill operations to native commands. A successful `doctor --json` selects
+`cli_local` unless MCP was explicitly chosen. Local-only search budgets exclude
+remote services; an unavailable native backend falls back to available MCP or
+the existing scripts/file-compilation workflow.
+
+### Native session and recovery
+
+The default 30-second deadline (`--timeout-ms N`) covers the whole operation,
+including startup, queueing, freshness scans, indexing and sequential trials.
+An idle session expires after ten minutes; `stop` gracefully shuts down its
+owned server. Descriptors/logs live in a private user cache, not the source
+tree. After a crash, the next operation checks ownership and recovers stale
+session state. Toolchain or Lake configuration changes invalidate the session;
+stop and query again after deliberate configuration changes.
+
+Inspection never automatically compiles dependencies: every disk/virtual open
+uses `dependencyBuildMode=never`. For a fresh clone/worktree, explicitly hydrate
+the project's supported cache first. For missing/stale imports, run
+`lake lean path/to/File.lean` or the appropriate `lake build` in the target root,
+then stop the native session and retry. Plain `lake env lean` only sees already
+built imports and cannot repair them. A goal timeout alone does not justify a
+build. Check `status`/`doctor`, allow at most one bounded retry with an explicit
+budget, then use fallback or report the blocker.
+
+With `--json`, stdout is one `lean4-lsp/v1` JSON record; check `ok`, `status`,
+`data` and `error`. Exit codes: 0 completed observation, 1 Lean error diagnostics,
+2 invalid invocation, 3 unavailable toolchain/server or protocol failure,
+4 timeout or stale source/dependency. Search with `data.complete: false` is
+incomplete, not proof of absence. A timed-out trial batch returns no partial
+results. A subsequent operation starts a fresh session after timeout retirement.
+
+Public positions are **1-based Unicode codepoints**; range ends are excluded.
+Trials need an exact replacement range and a nonempty JSON array of strings:
+
+```bash
+# candidates.json contains: ["rfl", "simp"]
+lean4-skills-lsp attempt path/to/File.lean --project /absolute/path/to/project \
+  --range 42:3-42:8 --snippets-file candidates.json --expect-source ID --json
+```
+
+Obtain `ID` from the current goal/diagnostics response's `sourceIdentity`.
+Trials preserve the complete source context and use a virtual source sibling,
+without writing scratch files. Completed `data.candidates` entries contain
+`candidate`, `status`, `goal`, `diagnostics` and the original `sourceIdentity`.
+A candidate error makes the batch exit 1 while retaining completed observations;
+warnings alone can exit 0. `closed_local_goals` is advisory, including when a
+`sorry` warning remains. Null/no-goal and incomplete elaboration are not proof
+completion. Preserve dependency-aware file compilation, no-sorry, standard-axiom
+and project/checkpoint gates.
+
+Code actions return resolved edits and source identity without applying edits.
+Before applying reviewed edits, re-query with `--expect-source ID` and compare
+disk with the inspected snapshot. Reject/requery if either changed; the CLI
+has no apply-edits operation.
+
+### Native validation and optional Mathlib measurements
+
+From `plugins/lean4/lsp`, build test executables once, then run suites serially:
+
+```bash
+lake +leanprover/lean4:v4.35.0 build lean4-skills-lsp test
+.lake/build/bin/test --unit
+.lake/build/bin/test --session
+.lake/build/bin/test --trials
+.lake/build/bin/test --integration --server-toolchain leanprover/lean4:v4.33.1
+.lake/build/bin/test --integration --server-toolchain leanprover/lean4:v4.35.0
+```
+
+Install both target toolchains before the integrations. Core tests create their
+own fixtures; normal CI requires no Mathlib checkout or private `/tmp` fixture.
+The runner expects its companion CLI at `.lake/build/bin/lean4-skills-lsp`
+relative to its working directory. CI builds both binaries once at 4.35.0,
+restores executable modes after artifact download, and runs the version matrix
+from a standalone directory with that layout. Its PATH smoke tests separately
+exercise the installed CLI outside the source checkout.
+
+For opt-in real Mathlib tests, use a **user-owned built scratch Lake project**
+whose Mathlib dependency matches that project's pinned toolchain. Hydrate/build
+its imports explicitly. Copy this repository's test data (not part of the
+`LspCli` namespace) to the scratch root without overwriting an existing file:
+
+```bash
+# From this repository root; set this to your own built scratch project.
+MATHLIB_PROJECT=/absolute/path/to/mathlib-scratch
+cp -n plugins/lean4/lsp/fixtures/MathlibFixture.lean "$MATHLIB_PROJECT/MathlibFixture.lean"
+cd plugins/lean4/lsp
+.lake/build/bin/test --mathlib "$MATHLIB_PROJECT"
+.lake/build/bin/test --trials --mathlib "$MATHLIB_PROJECT"
+```
+
+The fixture's intentional `sorry` is at line 11, columns `3-8`; retain its exact
+line layout. An explicitly missing fixture fails. The inspection suite reports
+cold/warm goal latency and registered-tree scan time; the extension tests
+successful, failing and `sorry` candidates while preserving source bytes.
+Run heavy suites serially to avoid resource contention. Core fixture timings
+are not Mathlib estimates. Mathlib performance depends on project/cache size,
+index state and host resources; this release makes no general latency or memory
+promise. Record real Mathlib measurements alongside core results when assessing
+production readiness for a particular project.
+
 ## Lean LSP MCP Server (All Hosts)
 
 [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) provides faster mathlib
-search and sub-second feedback. Works with any MCP-capable host. Setup: a few minutes.
+search and live feedback when MCP is explicitly preferred. Local workflows can use the native CLI above. Works with any MCP-capable host. Setup: a few minutes.
 
 **What you get:**
 - `lean_goal(file, line)` — See exact goal at cursor
