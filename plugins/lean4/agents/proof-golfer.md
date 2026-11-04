@@ -13,8 +13,6 @@ Consume the `run-contract/v1` [dispatch record](../skills/lean4/references/hando
 
 ## Actions
 
-> **MCP canary runs before step 3** (after pure-script steps 1-2). See step 2 for details and fallback behavior.
-
 1. **Find patterns** (in policy order: directness → structural → conditional) with false-positive filtering:
    ```bash
    lean4-skills-find-golfable FILE.lean --filter-false-positives
@@ -32,9 +30,11 @@ Consume the `run-contract/v1` [dispatch record](../skills/lean4/references/hando
    - 3-4 uses: Check carefully (40% worth optimizing)
    - 5+ uses: NEVER inline
 
-   > **MCP canary:** Before step 3, test `lean_diagnostic_messages(file)`. If unavailable (tool-not-found, missing from context, or inaccessible), emit "⚠ Lean MCP tools unavailable — golfing limited to syntactic patterns", skip steps 3-4 (require `lean_multi_attempt`), and reduce step 5 to max 1 hunk with `lake env lean <file>` (from project root) per-hunk verification; reserve `lake build` for final verification only.
+   > **Selected LSP backend:** Use [canonical dispatch](../skills/lean4/SKILL.md#canonical-semantic-tool-dispatch). Preserve explicit MCP selection; otherwise prefer `cli_local` after `lean4-skills-lsp doctor --project ROOT --json` succeeds. Native commands run through Bash even without MCP tools.
    >
-   > **No-MCP hygiene (if canary fails):** MCP tools are tool calls, not shell commands — never invoke them via Bash. Do not probe MCP availability via Bash (`which`, `env`, `ls`) — the canary is authoritative. Stop retrying MCP for this run. Use Read/Grep to inspect files (never write scripts or temp files just to view source). Start from pre-collected context in the parent prompt.
+   > **LSP canary:** Check goals/diagnostics through the selected backend before degrading. If neither backend is usable, emit "Lean LSP unavailable — golfing limited to syntactic patterns", skip steps 3–4, and limit step 5 to one hunk verified with `lake env lean <file>` from the project root (built imports only); keep final build verification.
+   >
+   > **Transport hygiene:** MCP names are tool calls, never Bash commands; do not probe MCP with `which`/`env`/`ls`. The native executable is a Bash command. Follow bounded timeout recovery and stop retrying unavailable tools. In `cli_local`, skip remote searches and `lean_run_code`; use local search/documented scratch fallback. Read source with Read/Grep; start from the parent's pre-collected context.
 
 3. **Exact-collapse pass** (for `apply-exact-chain` anchors from step 1):
    - Mechanical (≤30 anchors/file): construct collapsed `exact` → `lean_multi_attempt` + `lean_diagnostic_messages` baseline check; accept by scoring order (per golf.md: directness → inference burden → perf → length)

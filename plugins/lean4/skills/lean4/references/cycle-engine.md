@@ -19,25 +19,34 @@ Plan → Work → Checkpoint → Review → Replan → Continue/Stop
 
 ## LSP-First Protocol
 
-LSP tools are the normative first-pass for all discovery, search, and validation. Script fallback is permitted only when LSP is unavailable or its budget is exhausted.
+LSP tools are the normative first-pass for all discovery, search, and validation. Dispatch semantic names through the [canonical table in SKILL.md](../SKILL.md#canonical-semantic-tool-dispatch): prefer `cli_local` after a successful native doctor, preserving explicit MCP selection and script fallback. Script fallback is permitted when LSP is unavailable, its budget is exhausted, or search is explicitly incomplete.
+
+In `cli_local`, planning/work search budgets count local symbol queries, not
+remote tools. Exclude LeanFinder, LeanSearch, Loogle, hammer and state search
+from the available set; never spend retries trying absent services. Two
+empty/inconclusive local queries permit script fallback. An incomplete index
+or deadline permits fallback immediately and cannot establish absence. Keep
+script fallback local too: use `lean4-skills-smart-search QUERY --source=mathlib`
+or `lean4-skills-search-mathlib`.
 
 **Planning phase (per target sorry):**
 1. `lean_goal(file, line)` — understand goal before ordering
-2. Up to 3 LSP search tools (time-boxed ~30s total): `lean_local_search`, preferably `lean_leanfinder` for semantic/goal-aware search (`lean_leansearch` for natural-language fallback, `lean_hammer_premise` for premise suggestions), and `lean_loogle` for type-pattern gaps
+2. Up to 3 available LSP searches (time-boxed ~30s total); `cli_local`: local queries only; selected MCP: `lean_local_search`, preferably `lean_leanfinder` for semantic/goal-aware search (`lean_leansearch` for natural-language fallback, `lean_hammer_premise` for premise suggestions), and `lean_loogle` for type-pattern gaps
 3. Record top candidate lemmas and intended next attempts in the plan
 4. **Trivial-goal shortcut:** If the goal is obviously solvable (`rfl`, `simp`, `exact` with a known lemma), skip extended search — proceed directly to work phase
 
 **Work phase (per sorry):**
 1. Refresh `lean_goal(file, line)` at start
-2. Run up to 2 LSP search tools before any script fallback (skip if trivial goal or prior planning search was conclusive)
+2. Run up to 2 available LSP searches before any script fallback (skip if trivial goal or prior planning search was conclusive)
 3. Generate 2-3 candidate proof snippets from search results. When `lean_hammer_premise` returns premises, generate `simp only [p1, p2]` and `grind [p1, p2]` candidates.
-4. Test with `lean_multi_attempt(file, line, snippets=[...])`
-5. `lean_diagnostic_messages(file)` — verify; if "Try this" → `lean_code_actions(file, line)` → apply → `lean_diagnostic_messages(file)` to re-verify
-6. Prefer shortest passing candidate; only then edit/commit
+4. Test with `lean_multi_attempt(file, line, snippets=[...])`; native dispatch requires an explicit half-open replacement range and a candidate JSON array
+5. `lean_diagnostic_messages(file)` — verify; if "Try this" → `lean_code_actions(file, line)` → revalidate source identity and disk snapshot → apply reviewed edits → `lean_diagnostic_messages(file)` to re-verify
+6. Compare goals and diagnostics, accounting for pre-existing errors and `sorry` warnings. Prefer the shortest viable candidate, then edit and run the required gates. Local closure never certifies a theorem or its axioms
 
 **Fallback gate:** Script fallback (`lean4-skills-smart-search`, `lean4-skills-search-mathlib`) and repair agents are permitted when:
 - LSP search budget is exhausted (at least 2 searches returning empty/inconclusive), OR
-- LSP server is confirmed unavailable, timing out, or rate-limited
+- LSP server is confirmed unavailable, timing out, or rate-limited, OR
+- Native search reports incomplete coverage (`data.complete: false`)
 
 For sorry discovery fallback, prefer one-pass structured output:
 `lean4-skills-sorry-analyzer <target> --format=json --report-only`.
@@ -48,13 +57,30 @@ Do not suppress script stderr via `/dev/null`; surfaced errors are part of the f
 
 ## Build Target Policy
 
-For fresh clones/worktrees or after `lake clean`, hydrate cache first and do an initial `lake build` only if needed to bootstrap LSP; the ladder below is the normal steady-state workflow after startup.
+For fresh clones/worktrees or after `lake clean`, explicitly hydrate the
+project's cache first, then build missing dependencies if needed. Native disk
+and virtual opens use `dependencyBuildMode=never`: missing/stale imports require
+an explicit dependency-aware `lake lean <path/to/File.lean>` or appropriate
+`lake build`, followed by `lean4-skills-lsp stop --project ROOT --json` and a
+fresh query. Do not silently build dependencies during inspection, or start a
+build solely because an operation timed out. The ladder below is the normal
+steady-state workflow after startup.
+
+Native deadlines cover launch, queue wait, freshness scans, indexing and all
+sequential trial candidates. On timeout, allow at most one bounded retry after
+`status`/`doctor`, then fallback or report the blocker. Incomplete/elaborating,
+null-goal, stale and timeout responses are not successful proof checks; a
+trial timeout returns no partial batch. `closed_local_goals` remains advisory,
+and warnings such as `sorry` must still be checked. Before applying a returned
+code action, re-query with `--expect-source ID` and verify disk against the
+inspected snapshot; discard and requery changed actions. Public positions are
+1-based Unicode codepoints and ranges are half-open.
 
 Three-tier verification ladder — use the lightest tool that answers the question:
 
 | Tier | Tool | When | Speed |
 |------|------|------|-------|
-| Per-edit | `lean_diagnostic_messages(file)` | After every edit | Sub-second |
+| Per-edit | `lean_diagnostic_messages(file)` | After every edit | Measure for the target project |
 | File compile | `lake env lean <path/to/File.lean>` | File-level gate, import checks | Seconds |
 | Project gate | `lake build` | Checkpoint, final gate, `/lean4:checkpoint` | Minutes |
 
@@ -613,7 +639,16 @@ workers, `golf` golfers) — the concrete discipline behind the expectations abo
 
 ## Pre-flight Context for Subagent Dispatch
 
-MCP tools may not be available in subagents (anthropics/claude-code#39962). Before dispatching any proof-editing agent, collect relevant MCP results and pass them (summarized, not raw dumps) as the worker's starting state. This block is the concrete **dispatch record** of [run-contract/v1](#run-contract-run-contractv1): every field is present, and unavailable context uses `null` / `[]` rather than being omitted.
+Before dispatching any proof-editing agent, collect LSP results through the
+selected backend using the [canonical dispatch](../SKILL.md#canonical-semantic-tool-dispatch)
+and pass summaries as the worker's starting state. Preserve explicit MCP
+selection; otherwise prefer a working native CLI. MCP inheritance can fail in
+subagents (anthropics/claude-code#39962), but that does not disable native LSP
+through Bash. Pass the selected backend and canonical project root as guidance
+alongside the record; workers refresh source identities before trials/edits.
+This is the concrete **dispatch record** of [run-contract/v1](#run-contract-run-contractv1):
+every field is present, and unavailable context uses `null` / `[]` rather than
+being omitted. The record schema remains unchanged.
 
 ### Canonical dispatch envelope
 

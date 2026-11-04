@@ -25,11 +25,11 @@ Consume the `run-contract/v1` [dispatch record](../skills/lean4/references/hando
 
 1. **Classify error** — `lean_goal(file, line)` + `lean_diagnostic_messages(file)` first, then match errorType
 
-   > **MCP canary:** If `lean_goal` and `lean_diagnostic_messages` are both unavailable
-   > (tool-not-found, missing from context, or otherwise inaccessible), return no diff
-   > and let the caller escalate (same mechanism as the header-fence constraint).
+   > **Selected LSP backend:** Use [canonical dispatch](../skills/lean4/SKILL.md#canonical-semantic-tool-dispatch). Preserve explicit MCP selection; otherwise prefer `cli_local` after `lean4-skills-lsp doctor --project ROOT --json` succeeds. Native commands run through Bash even without MCP tools.
    >
-   > **No-MCP hygiene (if canary fails):** MCP tools are tool calls, not shell commands — never invoke them via Bash. Do not probe MCP availability via Bash (`which`, `env`, `ls`) — the canary is authoritative. Stop retrying MCP for this run. Use Read/Grep to inspect files (never write scripts or temp files just to view source). Start from pre-collected context in the parent prompt.
+   > **LSP canary:** Check goals/diagnostics through the selected backend before degrading. If neither backend can provide goals and diagnostics, return no diff and let the caller escalate (as for the header fence). MCP absence alone is not this condition.
+   >
+   > **Transport hygiene:** MCP names are tool calls, never Bash commands; do not probe MCP with `which`/`env`/`ls`. The native executable is a Bash command. Follow bounded timeout recovery and stop retrying unavailable tools. In `cli_local`, skip remote searches and `lean_run_code`; use local search/documented scratch fallback. Read source with Read/Grep; start from the parent's pre-collected context.
 
 2. **Apply error-specific strategy** (see table below)
 3. **Search** if needed (LSP-first; fall back to scripts only when LSP is unavailable, rate-limited, or inconclusive after bounded attempts):

@@ -1,6 +1,15 @@
 # Lean LSP Tools - API Reference
 
-**Detailed API documentation for all Lean LSP MCP server tools.**
+**MCP API reference: parameter names, response examples and upstream version notes below apply to the MCP backend.**
+
+For `cli_local`, use the [canonical semantic dispatch](../SKILL.md#canonical-semantic-tool-dispatch)
+and [native installation/response contract](../../../../../INSTALLATION.md#native-lean-lsp-cli-source-install).
+Preserve explicit MCP selection; otherwise use native after its doctor succeeds.
+Do not pass MCP parameters/result schemas to the native CLI. In particular,
+native trials are sequential range replacements guarded by `sourceIdentity`,
+search is indexed (no ripgrep dependency), incomplete results remain incomplete,
+and remote searches/profile/standalone-code tools have no native equivalent.
+MCP timing and concurrency descriptions below are not native guarantees.
 
 For workflow patterns and quick reference, see [lean-lsp-server.md](lean-lsp-server.md).
 
@@ -121,7 +130,10 @@ lean_diagnostic_messages(file)
 
 **Structured output (v0.18+):** Returns `{success, failed_dependencies, diagnostics}`. Check `failed_dependencies` when imports fail (e.g., "Unknown package 'Mathlib'").
 
-**Critical:** Empty diagnostics alone does not confirm proof completion. Always verify with `lean_goal` to confirm no remaining goals AND `lean_diagnostic_messages` to confirm clean diagnostics. Proof complete = no remaining goals + clean diagnostics.
+**Critical:** Empty diagnostics and closed local goals are observations, not proof
+certification. Inspect warnings (including `sorry`) and retain dependency-aware
+file compilation, no-sorry, standard-axiom and project/checkpoint gates. A null
+or unavailable goal does not establish completion.
 
 ---
 

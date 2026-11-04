@@ -146,23 +146,75 @@ Use `/lean4:learn` at any point to explore repo structure or navigate mathlib. T
 
 ## LSP Tools (Preferred)
 
-Sub-second feedback and search tools (LeanSearch, Loogle, LeanFinder) via Lean LSP MCP:
+Use the Lean-native `lean4-skills-lsp` executable for local operations when
+`lean4-skills-lsp doctor --project /path/to/project --json` exits 0 and reports
+`projectToolchainAvailable: true` and `projectServerAvailable: true`. The CLI
+needs no MCP or Python runtime. Preserve an explicitly selected MCP setup;
+otherwise prefer `cli_local`, then available MCP, then `scripts_only`. Discover
+once per project/session; do not repeatedly probe an unavailable backend.
 
-```
-lean_goal(file, line)                           # See exact goal
-lean_hover_info(file, line, col)                # Understand types
-lean_local_search("keyword")                    # Fast local + mathlib (unlimited)
-lean_leanfinder("goal or query")                # Semantic, goal-aware (10/30s)
-lean_leansearch("natural language")             # Semantic search (3/30s)
-lean_loogle("?a → ?b → _")                      # Type-pattern (unlimited if local mode)
-lean_hammer_premise(file, line, col)            # Premise suggestions for simp/aesop/grind (3/30s)
-lean_state_search(file, line, col)              # Goal-conditioned lemma search (3/30s)
-lean_multi_attempt(file, line, snippets=[...])  # Test multiple tactics
-lean_diagnostic_messages(file)                  # Per-file error/warning check
-lean_code_actions(file, line)                   # Resolve "Try this" suggestions to edits
-```
+### Canonical semantic tool dispatch
 
-`lean_run_code` is for isolated scratch experiments, not a substitute for live proof-state inspection via `lean_goal`/`lean_multi_attempt`/`lean_diagnostic_messages`. Prefer live-file tools when the question depends on actual file context.
+Workflow references use the semantic names below. In `cli_local`, translate
+through this single table; all commands accept `--project ROOT` and `--json`.
+`FILE` and relative snippet paths resolve against the project root.
+
+| Semantic operation | Native command / availability |
+|--------------------|-------------------------------|
+| `lean_goal(file, line[, col])` | `lean4-skills-lsp goal FILE --line N [--column C] --json` |
+| `lean_diagnostic_messages(file)` | `lean4-skills-lsp diagnostics FILE --json` |
+| `lean_hover_info(file, line, col)` | `lean4-skills-lsp hover FILE --line N --column C --json` |
+| definition lookup | `lean4-skills-lsp definition FILE --line N --column C --json` |
+| reference lookup | `lean4-skills-lsp references FILE --line N --column C --json` |
+| `lean_code_actions(file, line)` | `lean4-skills-lsp code-actions FILE --line N [--column C] --json` |
+| `lean_local_search("keyword")` | `lean4-skills-lsp search KEYWORD --limit 10 --json` (indexed local symbols) |
+| `lean_multi_attempt(file, line, snippets=[...])` | `lean4-skills-lsp attempt FILE --range START-END --snippets-file candidates.json --json`; select the exact replacement range first |
+| `lean_run_code` | No native equivalent; isolated scratch experiment via `lake env lean` |
+| `lean_leanfinder`, `lean_leansearch`, `lean_loogle`, `lean_hammer_premise`, `lean_state_search` | Not provided by `cli_local`; use only through an available, selected MCP setup |
+
+Public lines and columns are **1-based Unicode codepoints**; ranges such as
+`11:3-11:8` are half-open (end excluded). Do not pass byte or UTF-16 offsets.
+An omitted goal column returns before/after observations for that line.
+`candidates.json` is a nonempty JSON array of strings; preserve indentation and
+newlines literally. Trials replace only the selected range in the complete
+source snapshot, using a virtual sibling of the source; they never edit disk.
+
+Responses use `schema: "lean4-lsp/v1"`, `ok`, `status`, `data`, and, where
+applicable, `file`, `documentVersion`, `sourceIdentity`, and `error`. Retain
+`sourceIdentity` and send `--expect-source ID` when retrying trials or validating
+an action. Code actions return resolved edits without applying them. Before
+applying an edit, re-query with the original identity, check that disk still
+matches the inspected snapshot, and reject/requery on any mismatch; apply only
+the reviewed proof-body edits under the usual statement/docstring fences.
+
+Exit 0 is a completed observation; exit 1 reports Lean error diagnostics and
+may retain useful data; exit 2 is invalid input; exit 3 is server/toolchain or
+protocol failure; exit 4 is timeout or stale input/dependency. Warnings alone
+can exit 0. `closed_local_goals` is advisory: inspect diagnostics, including
+`sorry` warnings. `no_goal_at_position`, `still_elaborating`, and
+`stale_dependency` do not establish proof completion. A completed trial batch
+has `data.candidates` with `candidate`, `status`, `goal`, `diagnostics`, and the
+original `sourceIdentity`; any candidate error makes the batch exit 1 while
+retaining completed observations. A timed-out batch returns no partial data.
+
+On timeout, inspect `status`/`error`, use at most one bounded retry after
+`status`/`doctor` (optionally with an explicit larger `--timeout-ms`), then use
+fallback or report the blocker. The default whole-operation deadline is 30s.
+Treat `data.complete: false` or interrupted search as incomplete coverage, never
+as evidence of absence; reformulate one local query or use script search.
+Timeout recovery retires the session; a later operation starts a fresh one.
+
+The CLI never builds dependencies on document open (`dependencyBuildMode=never`).
+For missing/stale imports, explicitly hydrate the project's cache when needed,
+run dependency-aware `lake lean FILE` or the appropriate `lake build` from the
+project root, then `lean4-skills-lsp stop --project ROOT --json` and retry.
+Do not launch a build merely because a goal query timed out. Configuration or
+toolchain changes invalidate sessions; stop/restart after deliberate changes.
+See [cycle-engine.md](references/cycle-engine.md#build-target-policy) for final
+dependency-aware file, axiom, and project gates; local observations never replace them.
+
+`lean_run_code` is for isolated scratch experiments, not a substitute for live
+proof-state inspection via `lean_goal`/`lean_multi_attempt`/`lean_diagnostic_messages`.
 
 ## Capabilities
 
@@ -171,7 +223,8 @@ lean_code_actions(file, line)                   # Resolve "Try this" suggestions
 | Lean / Lake | yes | `lean --version`, `lake --version` | none — run `/lean4:diagnose` |
 | Python 3 | yes (scripts) | `python3 --version` or persistent `$LEAN4_PYTHON_BIN` | none for script-dependent operations |
 | Helper runtime path | yes (scripts) | trusted Codex `bin_dir`/`scripts_dir`, or persistent `$LEAN4_SCRIPTS` | use the diagnose workflow; stay LSP-only if unresolved |
-| Lean LSP MCP | no | try `lean_goal` on any `.lean` file | scripts + `lake env lean` (file-level only) |
+| Native Lean LSP CLI | no | `lean4-skills-lsp doctor --project ROOT --json` | selected MCP, then scripts + file compile |
+| Lean LSP MCP | no | available host tools / explicit setup; try `lean_goal` | native CLI, then scripts + file compile |
 | `lean_run_code` | no | try calling it | `lake env lean` on temp file |
 | `lean_code_actions` | no | try calling it | manual "Try this" application |
 | Subagent dispatch | no | host-dependent | run work in main thread |
@@ -179,7 +232,7 @@ lean_code_actions(file, line)                   # Resolve "Try this" suggestions
 
 ## Operating Profiles
 
-The skill adapts to what's available. Determine your profile by checking capabilities above, then follow the corresponding guidance.
+The skill adapts to what's available. Determine your profile by checking capabilities above, then follow the corresponding guidance. An explicit MCP preference wins; otherwise a successful native doctor selects `cli_local` before MCP profiles.
 
 ### Runtime path resolution
 
@@ -200,6 +253,18 @@ Do not emit `$LEAN4_BIN/...` or `$LEAN4_SCRIPTS/...` commands when those shell
 variables are unset. A trusted Codex absolute path is a complete alternative,
 not evidence that persistent variables exist.
 
+### cli_local (native CLI, no MCP required)
+
+Use the canonical dispatch table for live goals, diagnostics, navigation, code
+actions, local symbol search, and isolated candidate trials. Run proof work in
+thread when subagent dispatch is unavailable. Search budgets count available
+local queries only: remote LeanFinder/LeanSearch/Loogle/hammer/state-search
+operations are excluded, and unavailable calls consume no quota. After two
+empty/inconclusive local queries, or an explicitly incomplete/timed-out search,
+use the resolved local script search fallback (`lean4-skills-smart-search QUERY
+--source=mathlib`, or `lean4-skills-search-mathlib`). Do not infer symbol absence from an
+incomplete index. Preserve all quality gates below.
+
 ### full (all capabilities)
 
 MCP + subagents + commands. Full workflow with live goal inspection, tactic testing, and parallel subagent dispatch (requires disjoint owned-file sets per agent, or separate worktrees). Subagents get pre-collected MCP context per [cycle-engine.md § Pre-flight Context](references/cycle-engine.md#pre-flight-context-for-subagent-dispatch). If `lean_run_code` is unavailable, use `/tmp` scratch files with `lake env lean` for isolated experiments.
@@ -208,7 +273,7 @@ MCP + subagents + commands. Full workflow with live goal inspection, tactic test
 
 MCP works in the main thread. Run all proof work directly — do not delegate to subagents. All cycle-engine phases execute in-thread. If `lean_run_code` is unavailable, use `/tmp` scratch files with `lake env lean` for isolated experiments.
 
-### scripts_only (no MCP, no subagents)
+### scripts_only (no usable native CLI or MCP, no subagents)
 
 Use the resolved helper runtime (`scripts_dir` under native Codex,
 `$LEAN4_SCRIPTS` under a persistent environment) for search and use
@@ -218,7 +283,7 @@ Use the resolved helper runtime (`scripts_dir` under native Codex,
 - **No real-time diagnostics** — `lean_diagnostic_messages` is unavailable; use `lake env lean <file>` (from project root) for compilation errors, but feedback is file-level, not line-level
 - **Search is script-based** — `lean4-skills-smart-search` replaces LSP search tools
 
-This mode is functional for straightforward proofs but significantly slower and less precise than MCP-backed workflows.
+This mode is functional for straightforward proofs but significantly slower and less precise than live LSP workflows.
 
 ### review_only (read-only, no edits)
 
@@ -227,7 +292,7 @@ Read proof state and assess quality. No edits, no commits, no subagent dispatch.
 ## File Handling Rules
 
 **Scratch-work ladder** (in preference order):
-1. Live file + MCP tools (`lean_goal`, `lean_multi_attempt`, `lean_diagnostic_messages`)
+1. Live file + selected native CLI or MCP tools (`lean_goal`, `lean_multi_attempt`, `lean_diagnostic_messages`)
 2. `lean_run_code` for isolated experiments
 3. `/tmp` scratch files only when `lean_run_code` is unavailable and the experiment must not touch the live file
 4. Never create scratch files in the repo root
@@ -311,7 +376,7 @@ Both share the same cycle engine (plan → work → checkpoint → review → re
 
 When editing `.lean` files without invoking a command, the skill runs **one bounded pass**:
 - Read the goal or error via `lean_goal`/`lean_diagnostic_messages`
-- Search mathlib with up to 2 LSP tools (e.g. `lean_local_search` + `lean_leanfinder`/`lean_leansearch`/`lean_loogle`)
+- Search with up to 2 available LSP queries (`cli_local`: local symbols only; selected MCP: local/remote tools above)
 - Try the [Automation Tactics](#automation-tactics) cascade
 - Validate with `lean_diagnostic_messages` (no project-gate `lake build` in this mode)
 - No looping, no deep escalation, no multi-cycle behavior, no commits
@@ -399,7 +464,13 @@ lean4-skills-sorry-analyzer . --report-only
 **Cold start / fresh worktree:**
 - Fresh worktree or after `lake clean`? Prime the cache in that worktree before the first real build.
 - Use the project's cache command: `lake cache get` on newer Lake, or `lake exe cache get` where the project still uses the mathlib cache executable.
-- If Lean LSP is cold or timing out on first use, run one `lake build` to bootstrap the workspace.
+- Bootstrap only when diagnostics demonstrate missing/stale imports: explicitly run
+  dependency-aware `lake lean <path/to/File.lean>` or the appropriate `lake build`
+  from the project root. For the native CLI, stop the session and query again
+  after rebuilding: `lean4-skills-lsp stop --project ROOT --json`.
+- For a native cold start or timeout, inspect `status`/`error`, check `status`/`doctor`,
+  and allow at most one bounded retry (`--timeout-ms`); then use fallback or report
+  the blocker. A cold or timed-out query alone does not justify a build.
 - After bootstrap, return to the normal verification ladder:
   `lean_diagnostic_messages(file)` → `lake env lean <path/to/File.lean>` (from project root; built imports only, see [File Gate Scope](references/cycle-engine.md#file-gate-scope)) → `lake build` only at checkpoint/final gate.
 - Do **not** symlink another worktree's `.lake/build`; use Lake cache/artifact mechanisms instead.
