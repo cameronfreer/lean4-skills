@@ -1,10 +1,40 @@
 # Lean LSP Server - Quick Reference
 
-**Quick reference for Lean LSP MCP tools. For detailed API documentation, see [lean-lsp-tools-api.md](lean-lsp-tools-api.md).**
+Use the selected backend through the [canonical semantic dispatch](../SKILL.md#canonical-semantic-tool-dispatch).
+Preserve explicit MCP selection; otherwise prefer `cli_local` after a successful
+`lean4-skills-lsp doctor --project ROOT --json`. Native inspection uses the
+project's Lean server without MCP. [Install/build the CLI separately](../../../../../INSTALLATION.md#native-lean-lsp-cli-source-install).
 
-**The Lean LSP server provides instant feedback for interactive theorem development.**
+Semantic calls below are workflow notation, not shell commands. Translate
+supported local calls through the canonical table in `cli_local`. Unmapped
+MCP tools (outline, widgets, completions, standalone code and profiling) and
+remote search services have no native equivalent.
+Skip unavailable tools rather than counting them against local search budgets.
 
-**Key insight:** LSP tools provide instant feedback (< 1 second) versus build cycles (10-30+ seconds). This **30x speedup** transforms proof development from frustrating trial-and-error into smooth, interactive problem-solving.
+### Native response and trial rules
+
+- Check `ok`, `status`, `data`, and `error`; exit 1 may retain useful diagnostics
+  or candidate observations. Exit 4 means timeout or stale input/dependency.
+- Native trials are **sequential**, within one operation deadline. Supply an
+  exact half-open range in 1-based Unicode codepoints, a nonempty JSON string
+  array, and the original `sourceIdentity` as `--expect-source ID`.
+- `closed_local_goals` is advisory, including for a `sorry` candidate. Inspect
+  warnings and errors; null/no-goal or incomplete elaboration is not success.
+  Keep dependency-aware compilation, no-sorry and standard-axiom/project gates.
+- Code actions return edits without applying them. Revalidate source identity
+  and disk snapshot before applying reviewed proof-body edits.
+- Search with `data.complete: false` is incomplete, never proof of absence.
+
+```bash
+lean4-skills-lsp goal FILE --project ROOT --line 42 --column 3 --json
+# candidates.json is a JSON array such as ["simp", "rfl"]. Retain the goal's ID.
+lean4-skills-lsp attempt FILE --project ROOT --range 42:3-42:8 \
+  --snippets-file candidates.json --expect-source ID --json
+lean4-skills-lsp diagnostics FILE --project ROOT --json
+```
+
+`FILE`, `ROOT`, the range and `ID` are placeholders for the inspected project
+and exact source snapshot. The CLI does not write candidates to disk.
 
 ---
 
@@ -19,9 +49,13 @@
 
    This avoids rebuilding dependencies from scratch after a fresh checkout or `lake clean`.
 
-2. **If the LSP server is cold or timing out, run one `lake build`.**
-   The LSP server runs through `lake serve` and can be slow on first startup if the workspace has not been built yet.
-   Note: Lake's `[N/M]` denominator grows as dependencies are discovered — the counter and fraction are not reliable progress estimates.
+2. **Build only for demonstrated missing/stale imports.**
+   Explicitly run dependency-aware `lake lean <path/to/File.lean>` or the
+   appropriate `lake build` from the target root, then stop/requery the native
+   session. Native disk/virtual opens use `dependencyBuildMode=never`.
+   For a timeout alone, inspect status/error, check native status/doctor, allow
+   at most one bounded retry, then fallback/report. Do not start a build solely
+   because a query timed out. The default whole-operation deadline is 30s.
 
 3. **After bootstrap, use LSP for normal iteration.**
    Day-to-day proof development should use LSP tools for discovery, search, and per-edit validation.
@@ -29,19 +63,21 @@
 
 **Worktrees:** prime cache separately per worktree. Do **not** symlink another worktree's `.lake/build`.
 
-4. **Install ripgrep** - Required for `lean_local_search` (the most-used search tool):
+4. **For MCP/script search, install ripgrep when required by that backend.**
+   Native indexed symbol search does not require ripgrep:
    - macOS: `brew install ripgrep`
    - Linux: `apt install ripgrep` or https://github.com/BurntSushi/ripgrep#installation
    - Windows: https://github.com/BurntSushi/ripgrep#installation
    - Verify: `rg --version` should work
 
-**Without these:** You may experience server timeouts or missing search functionality.
+Missing imports or a missing selected-backend dependency can prevent useful inspection; diagnose the specific failure before rebuilding.
 
 ---
 
 ## Version Notes
 
-Covers lean-lsp-mcp **v0.20+/v0.21+** (February 2026).
+The following version notes describe **MCP only**, lean-lsp-mcp
+**v0.20+/v0.21+** (February 2026), not the native JSON/flag contract.
 
 - **v0.21.0**: Widget support, improved multiline in lean_goal/lean_multi_attempt.
 - **v0.20.0**: `lean_hammer_premise` added (premise suggestions for simp/aesop/grind). `lean_profile_proof` switched to line-based identification.
@@ -88,12 +124,8 @@ Without `tee`, piping to `head`/`grep` discards the rest. With `tee`, the full o
 8. lean_goal(file, line)                    # Confirm no remaining goals
 ```
 
-**Total time:** < 10 seconds (LSP) vs 30+ seconds per iteration (build-only)
-
-**Measured improvements:**
-- Feedback: **30x faster** (< 1s vs 30s)
-- Tactic exploration: **4x fewer iterations** (parallel testing)
-- Lemma discovery: **10x faster** (integrated search)
+Latency depends on imports, indexing and the project. Reusing a session avoids
+restarting Lean for every observation; no fixed speedup or latency is promised.
 
 ---
 
@@ -101,21 +133,24 @@ Without `tee`, piping to `head`/`grep` discards the rest. With `tee`, the full o
 
 1. **NEVER edit without checking goal state first** (`lean_goal`)
 2. **ALWAYS check diagnostics after edits** (don't wait for build)
-3. **Search before guessing** - use `lean_local_search` FIRST (fast & unlimited!)
+3. **Search before guessing** - use `lean_local_search` first within the operating profile budget
 4. **Check goals between tactics** - see intermediate progress
 5. **Use `lean_multi_attempt` liberally** - test multiple tactics at once
-6. **Respect rate limits** - `lean_local_search` is unlimited; `lean_loogle` unlimited in local mode; others vary per tool (see table)
+6. **Respect budgets** - native operations have deadlines; selected MCP tools also have backend-specific API limits
 7. **NEVER use `lean_file_contents` on large files** - wastes tokens, use `Read` tool instead (see warning below)
 
 ---
 
 ## Tool Summary
 
-**Local tools (unlimited, instant):**
-- Direct LSP queries against your project files
-- No rate limits, < 1 second response time
+This is the MCP tool catalogue. In `cli_local`, only mapped local operations
+are available; the native response contract above takes precedence.
 
-**External tools (rate limits vary per tool):**
+**Local tools (no remote API quota):**
+- Direct LSP queries against your project files
+- Project-dependent latency, bounded by the operation deadline
+
+**External tools (selected MCP only; rate limits vary per tool):**
 - Remote API calls to leansearch.net, leanfinder, loogle.lean-lang.org
 - `lean_loogle` is remote by default; local mode available (`--loogle-local` / `LEAN_LOOGLE_LOCAL`)
 - Rate limits are per-tool (separate pools); managed by LSP server
@@ -124,12 +159,12 @@ Without `tee`, piping to `head`/`grep` discards the rest. With `tee`, the full o
 
 | Tool | Type | Rate Limit | Speed | Use For |
 |------|------|------------|-------|---------|
-| `lean_goal` | **Local** | None | Instant | See goals (always!) |
-| `lean_local_search` | **Local** | None | Instant | Find lemmas (use first!) |
-| `lean_multi_attempt` | **Local** | None | Instant | Test tactics in parallel |
-| `lean_diagnostic_messages` | **Local** | None | Instant | Check errors |
-| `lean_code_actions` | **Local** | None | Instant | Resolve "Try this" suggestions |
-| `lean_hover_info` | **Local** | None | Instant | Check syntax/types |
+| `lean_goal` | **Local** | None | Project-dependent | See goals (always!) |
+| `lean_local_search` | **Local** | None | Project-dependent | Find lemmas (use first!) |
+| `lean_multi_attempt` | **Local** | None | Project-dependent | Compare tactic candidates |
+| `lean_diagnostic_messages` | **Local** | None | Project-dependent | Check errors |
+| `lean_code_actions` | **Local** | None | Project-dependent | Resolve "Try this" suggestions |
+| `lean_hover_info` | **Local** | None | Project-dependent | Check syntax/types |
 | `lean_file_outline` | **Local** | None | Fast | File structure overview |
 | `lean_run_code` | **Local** | None | Fast | Run standalone snippets |
 | `lean_file_contents` | **Local** | None | Fast | **DEPRECATED** — use Read tool |
@@ -165,13 +200,16 @@ limit parameters to reduce the response size.
 
 **Why:** `lean_file_contents` loads the entire file with annotations, consuming tokens proportional to file size. Most proof development tasks only need targeted information (goals, errors, specific definitions), not the whole file.
 
-**Rule of thumb:** If you need to read a file, use `Read` tool. Only use `lean_file_contents` on small files (<100 lines) when you specifically need LSP annotations.
+**Rule of thumb:** If you need to read a file, use `Read` or Grep rather than `lean_file_contents`.
 
 ---
 
 ## Common Usage Patterns
 
 ### When stuck on a proof
+
+This remote-search ladder requires selected MCP. In `cli_local`, use local
+symbol search and its bounded script fallback instead.
 ```
 1. lean_goal(file, line)              # See exact state
 2. lean_leanfinder("⊢ ... + hint")    # Semantic search (paste goal!)
@@ -226,7 +264,7 @@ lean_local_search("add_comm", limit=5)
 ```
 **Found it! But let's test multiple approaches...**
 
-### Step 3: Test tactics in parallel
+### Step 3: Compare tactic candidates
 ```
 lean_multi_attempt(file, line=13, snippets=[
   "  simp [Nat.add_comm]",
@@ -255,11 +293,8 @@ lean_goal(file, line=13)
 → After:
 no goals
 ```
-**SUCCESS! 🎉**
-
-**Total time:** < 10 seconds with absolute certainty
-
-**Build-only would take:** 30+ seconds per try-and-rebuild cycle
+Local goals are closed. Inspect all diagnostics, then run the required file,
+no-sorry, axiom and project gates before claiming completion.
 
 ---
 
@@ -301,14 +336,14 @@ no goals
 
 **Solutions:**
 1. Try partial matches: `"add"` instead of `"add_zero"`
-2. Use wildcards in loogle: `"_ + 0"`
-3. Try natural language: `lean_leansearch("addition with zero")`
+2. If native search is incomplete, reformulate one query or use script search
+3. Only with selected MCP: try loogle patterns or natural-language search
 
 ### Multi-attempt shows all failures
 **Check:**
 1. Proper indentation? Include leading spaces
 2. Correct line number? Point to tactic line
-3. Single-line only? Multi-line not supported
+3. Native: exact half-open range and source identity? Preserve multiline strings and indentation in the candidate JSON
 
 ### Empty diagnostics but proof incomplete
 **Problem:** `[]` diagnostics but not done
@@ -321,15 +356,8 @@ no goals
 
 ## Why This Matters
 
-**Without LSP:** You're coding blind, relying on slow build cycles for feedback.
-
-**With LSP:** You have the same interactive feedback loop as a human using Lean InfoView.
-
-**The transformation:** From "guess and wait" to "see and verify" instantly.
-
-**Measured results:**
-- **30x faster feedback** (< 1s vs 30s)
-- **4x fewer iterations** (parallel testing)
-- **10x faster discovery** (integrated search)
-
-**Bottom line:** LSP tools fundamentally change how you develop proofs. Once you experience instant feedback, you'll never want to wait for builds again.
+A persistent LSP session supports a goal → search → trial → diagnostics loop.
+It complements the file, no-sorry, axiom and project checks; it does not replace
+proof certification. See [native validation](../../../../../INSTALLATION.md#native-validation-and-optional-mathlib-measurements)
+for reproducible tests and fixture-specific measurements, not general speed or
+memory guarantees.

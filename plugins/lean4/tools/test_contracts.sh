@@ -2717,6 +2717,77 @@ if [[ "$check46_ok" -eq 1 ]]; then
     ok "Check 46: advanced references revalidated (#181: each names its fixture; fixtures run by run_core_snippets.sh; grind/metaprogramming/linter/verso/profiling corrections pinned)"
 fi
 
+# Native access must reach the consumers, not only SKILL.md's dispatch table.
+# These are policy contracts: a CLI-present/MCP-absent worker must retain LSP,
+# timeout alone must not trigger a build, and fresh-shell setup precedes elan.
+echo ""
+echo "-- Native LSP documentation contracts --"
+native_refs="$PLUGIN_ROOT/skills/lean4/references"
+for worker in sorry-filler-deep proof-repair proof-golfer axiom-eliminator; do
+    worker_file="$PLUGIN_ROOT/agents/$worker.md"
+    if grep -qF 'canonical-semantic-tool-dispatch' "$worker_file" \
+       && grep -qF 'cli_local' "$worker_file" \
+       && grep -qF 'Bash' "$worker_file" \
+       && ! grep -qF '**MCP canary' "$worker_file"; then
+        ok "Native LSP: $worker selects an available backend before degraded behavior"
+    else
+        fail "Native LSP: $worker must use canonical native/MCP dispatch, not an MCP-only canary"
+    fi
+done
+
+if grep -F '**LSP canary:**' "$PLUGIN_ROOT/agents/proof-golfer.md" | grep -qF 'lake env lean' \
+   && ! grep -qF 'before any edits or Bash verification' "$PLUGIN_ROOT/agents/sorry-filler-deep.md"; then
+    ok "Native LSP: Bash access remains usable and no-LSP golfing retains its file gate"
+else
+    fail "Native LSP: allow native Bash checks and retain the explicit no-LSP golfing file gate"
+fi
+
+native_diagnose="$PLUGIN_ROOT/commands/diagnose.md"
+if grep -qF 'lean4-skills-lsp doctor --project ROOT --json' "$native_diagnose" \
+   && grep -qF 'explicit MCP selection' "$native_diagnose" \
+   && grep -qF 'timeout alone' "$native_diagnose" \
+   && ! grep -qF '| Fresh worktree rebuild is slow / LSP times out on first use |' "$native_diagnose"; then
+    ok "Native LSP: diagnosis recognizes native availability and separates timeout recovery"
+else
+    fail "Native LSP: diagnosis must recognize native LSP without prescribing a build for timeout alone"
+fi
+
+for native_reference in lean-lsp-server lean-lsp-tools-api subagent-workflows; do
+    if grep -qF 'canonical-semantic-tool-dispatch' "$native_refs/$native_reference.md" \
+       && grep -qF 'cli_local' "$native_refs/$native_reference.md"; then
+        ok "Native LSP: $native_reference links the selected-backend contract"
+    else
+        fail "Native LSP: $native_reference must distinguish the native backend from MCP"
+    fi
+done
+if ! grep -qF 'If the LSP server is cold or timing out, run one `lake build`' "$native_refs/lean-lsp-server.md" \
+   && grep -qF 'timeout alone' "$native_refs/lean-lsp-server.md" \
+   && grep -qF 'sequential' "$native_refs/lean-lsp-server.md" \
+   && grep -qF 'sourceIdentity' "$native_refs/lean-lsp-server.md"; then
+    ok "Native LSP: quick reference preserves bounded recovery and isolated sequential trials"
+else
+    fail "Native LSP: quick reference must not inherit timeout-build or parallel-trial assumptions"
+fi
+if grep -qF 'selected backend' "$CYCLE_ENGINE" \
+   && ! grep -qF 'collect relevant MCP results' "$CYCLE_ENGINE"; then
+    ok "Native LSP: dispatch context is collected through the selected backend"
+else
+    fail "Native LSP: parent pre-flight must collect LSP context independently of MCP availability"
+fi
+if grep -qF 'no-sorry' "$native_refs/lean-lsp-tools-api.md" \
+   && grep -qF 'axiom' "$native_refs/lean-lsp-tools-api.md" \
+   && ! grep -qF 'Proof complete = no remaining goals + clean diagnostics.' "$native_refs/lean-lsp-tools-api.md"; then
+    ok "Native LSP: local observations do not replace proof certification gates"
+else
+    fail "Native LSP: API reference must preserve final no-sorry and axiom gates"
+fi
+native_install=$(extract_section "$PLUGIN_ROOT/../../INSTALLATION.md" '## Native Lean LSP CLI (Source Install)')
+if assert_ordered "$native_install" 'export PATH=.*\.elan/bin' 'elan toolchain install' 'lake +leanprover/lean4:v4.35.0 build'; then
+    ok "Native LSP: source installation initializes elan PATH before invoking it"
+else
+    fail "Native LSP: source installation must initialize elan PATH before invoking it"
+fi
+
 if [[ "$check39_ok" -eq 1 ]]; then
     ok "Check 39: file-gate scope pinned (#166: canonical section w/ both failure directions + both recovery paths, cited sites corrected, cross-file editors routed, disprove REFUTED licensed by lake lean <target-file>, no naive module-name derivation)"
 fi

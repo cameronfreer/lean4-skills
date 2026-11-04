@@ -18,13 +18,11 @@ Consume the `run-contract/v1` [dispatch record](../skills/lean4/references/hando
    - Use `lean4-skills-check-axioms-inline FILE.lean` (or `.` for project-wide audit) to measure current axiom state
    - Use `lean4-skills-find-usages axiom_name` for dependency inventory
 
-   > **MCP canary:** If `lean_diagnostic_messages` is missing from context (tool not
-   > listed), emit "⚠ Lean MCP tools unavailable in this subagent context" and fall
-   > back immediately to `lean4-skills-check-axioms-inline` and `lake build` for
-   > validation. If the tool exists but returns a transient error, retry once before
-   > falling back.
+   > **Selected LSP backend:** Use [canonical dispatch](../skills/lean4/SKILL.md#canonical-semantic-tool-dispatch). Preserve explicit MCP selection; otherwise prefer `cli_local` after `lean4-skills-lsp doctor --project ROOT --json` succeeds. Native commands run through Bash even without MCP tools.
    >
-   > **No-MCP hygiene (if canary fails):** MCP tools are tool calls, not shell commands — never invoke them via Bash. Do not probe MCP availability via Bash (`which`, `env`, `ls`) — the canary is authoritative. Stop retrying MCP for this run. Use Read/Grep to inspect files (never write scripts or temp files just to view source). Temp `.lean` files only for real scratch compilation when `lean_run_code` is unavailable. Start from pre-collected context in the parent prompt.
+   > **LSP canary:** Check goals/diagnostics through the selected backend before degrading. If neither backend is usable, emit "Lean LSP unavailable in this subagent context" and use the axiom scripts plus the required file/project gates. Use at most one bounded retry for a transient backend error.
+   >
+   > **Transport hygiene:** MCP names are tool calls, never Bash commands; do not probe MCP with `which`/`env`/`ls`. The native executable is a Bash command. Follow bounded timeout recovery and stop retrying unavailable tools. In `cli_local`, skip remote searches and `lean_run_code`; use local search/documented scratch fallback. Read source with Read/Grep; start from the parent's pre-collected context.
 
 2. **Propose migration plan** (~500-800 tokens):
    ```markdown
@@ -82,7 +80,7 @@ Total: ~2000-3000 tokens per batch
 - May NOT skip lemma search
 - May NOT break dependent theorems
 - Must track axiom count (trending down)
-- Prefer live-file MCP for target-context verification; use `lean_run_code` for isolated scratch experiments, and temporary `.lean` files only if `lean_run_code` is unavailable or insufficient
+- Prefer selected-backend live LSP for target-context verification; use `lean_run_code` for isolated scratch experiments, and temporary `.lean` files only if `lean_run_code` is unavailable or insufficient
 - Follow mathlib 100-char line width — do not wrap lines at 80 when they fit within 100
 
 ## Example (Happy Path)

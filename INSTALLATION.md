@@ -301,6 +301,14 @@ Use the
 — Codex discovers `.agents/skills` in your project and home directory
 and follows symlinked skill directories.
 
+For a local development checkout, link its existing
+`plugins/lean4/skills/lean4` directory instead of downloading another copy.
+The link exposes working-tree updates immediately. Verify the loaded entry in
+`/skills`; when the source is inside this plugin, Codex may list it as
+`lean4:lean4` rather than the bare `lean4` name. Select that entry (or invoke
+`$lean4:lean4`). A name-only check can otherwise mistake a loaded skill for a
+missing install. If the entry does not appear on the next turn, restart Codex.
+
 > **Moving from Tier 1 to Tier 2:** Codex does not merge duplicate
 > same-name skills, so a `$skill-installer` copy under
 > `$CODEX_HOME/skills/lean4` and the Tier-2 `~/.agents/skills/lean4`
@@ -542,12 +550,26 @@ repeated `lake exe` invocation is required at runtime. Initial supported host:
 versions **4.33.1 and 4.35.0** are tested. Older versions, macOS/Windows native
 support, prebuilt releases and package-manager distribution are not certified.
 
-Install elan/Lean/Lake first, then build from this checkout. If you used a
-skill-only installer, clone the repository to obtain `plugins/lean4/lsp`.
-These commands use the default checkout location; adjust it to your clone:
+Install [elan](https://github.com/leanprover/elan#installation) first if absent;
+it supplies the `lean` and `lake` launchers. The native CLI is a separate source
+build for **every installation tier**: skill/plugin installation and helper
+bootstrap do not compile it or put it in the plugin's `bin/` directory.
+
+Use your existing checkout if it contains `plugins/lean4/lsp`. If you do not
+have one, clone a published revision containing the CLI:
+
+Local unpublished changes are available in your existing checkout; the clone
+below tracks published `main`.
 
 ```bash
 git clone https://github.com/cameronfreer/lean4-skills.git "$HOME/lean4-skills"
+```
+
+Build from that checkout (adjust the `cd` for an existing clone). Initialize
+elan's PATH in this shell **before** invoking it, even after a fresh install:
+
+```bash
+export PATH="$HOME/.elan/bin:$PATH"
 cd "$HOME/lean4-skills/plugins/lean4/lsp"
 elan toolchain install leanprover/lean4:v4.35.0
 lake +leanprover/lean4:v4.35.0 build lean4-skills-lsp
@@ -698,7 +720,8 @@ search and live feedback when MCP is explicitly preferred. Local workflows can u
 - `lean_diagnostic_messages(file)` — Per-file error/warning check without a full `lake build`
 - …and more (hover info, goal-conditioned search, state inspection, etc.)
 
-**One-time setup:** ~5 minutes. Highly recommended.
+This is optional when the native backend covers your local workflow. Configure
+MCP explicitly when preferred or needed for the remote services listed above.
 
 Per-host MCP configuration (check each host's latest docs for current syntax):
 - **Claude Code** (run from your Lean project root): `claude mcp add --transport stdio --scope user lean-lsp -- uvx lean-lsp-mcp`. Project-scoped alternative (shared with collaborators via `.mcp.json`): `claude mcp add --transport stdio --scope project lean-lsp -- uvx lean-lsp-mcp`. User scope is recommended — it has been more reliable for keeping the MCP tools visible inside proof-editing subagents; project-scoped servers may not propagate to plugin subagents in some Claude Code versions.
@@ -765,5 +788,6 @@ If you have the old 3-plugin system:
 - **Plugin diagnostics (Claude Code):** `/lean4:diagnose` — checks environment, plugin, and project
 - **Plugin diagnostics (Codex):** run the absolute `preflight` path from trusted SessionStart context with `--codex`; use `/hooks` if context is missing
 - **Issues:** https://github.com/cameronfreer/lean4-skills/issues
-- **LSP server:** https://github.com/oOo0oOo/lean-lsp-mcp/issues
+- **Native CLI:** `lean4-skills-lsp doctor --project ROOT --json`, then [native recovery](#native-session-and-recovery); report CLI issues to this repository
+- **Explicit MCP backend:** https://github.com/oOo0oOo/lean-lsp-mcp/issues
 - **Claude Code:** `/help`

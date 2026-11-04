@@ -639,7 +639,16 @@ workers, `golf` golfers) — the concrete discipline behind the expectations abo
 
 ## Pre-flight Context for Subagent Dispatch
 
-MCP tools may not be available in subagents (anthropics/claude-code#39962). Before dispatching any proof-editing agent, collect relevant MCP results and pass them (summarized, not raw dumps) as the worker's starting state. This block is the concrete **dispatch record** of [run-contract/v1](#run-contract-run-contractv1): every field is present, and unavailable context uses `null` / `[]` rather than being omitted.
+Before dispatching any proof-editing agent, collect LSP results through the
+selected backend using the [canonical dispatch](../SKILL.md#canonical-semantic-tool-dispatch)
+and pass summaries as the worker's starting state. Preserve explicit MCP
+selection; otherwise prefer a working native CLI. MCP inheritance can fail in
+subagents (anthropics/claude-code#39962), but that does not disable native LSP
+through Bash. Pass the selected backend and canonical project root as guidance
+alongside the record; workers refresh source identities before trials/edits.
+This is the concrete **dispatch record** of [run-contract/v1](#run-contract-run-contractv1):
+every field is present, and unavailable context uses `null` / `[]` rather than
+being omitted. The record schema remains unchanged.
 
 ### Canonical dispatch envelope
 
