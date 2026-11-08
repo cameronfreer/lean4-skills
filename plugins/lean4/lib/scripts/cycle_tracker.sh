@@ -272,7 +272,9 @@ _parse_duration() {
 _reserve_for() {
   local limit="$1" pct="$2" r
   if [[ "$limit" -le 1 ]]; then echo 0; return; fi
-  r=$(( (limit * pct + 99) / 100 ))
+  # ceil(L * p / 100) with L split as 100q + r, so no intermediate exceeds L
+  # (p <= 50): limit * pct would wrap for a budget near INT64_MAX.
+  r=$(( (limit / 100) * pct + ((limit % 100) * pct + 99) / 100 ))
   if [[ "$r" -lt 1 ]]; then r=1; fi
   if [[ "$r" -gt $(( limit - 1 )) ]]; then r=$(( limit - 1 )); fi
   echo "$r"

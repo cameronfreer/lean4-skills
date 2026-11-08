@@ -1730,6 +1730,19 @@ conclusion_suite() {
   run status
   assert_field "$p: a zero-padded duration just under the budget" conclude_reserve_runtime_seconds 7140
   cleanup_session
+  # A percentage of an INT64_MAX budget: ceil(L * pct / 100) must neither
+  # wrap in the product nor in the + 99 (the clamp to 1 would hide it).
+  local pct want
+  for pct in 1:92233720368547759 15:1383505805528216372 50:4611686018427387904; do
+    want="${pct#*:}"; pct="${pct%%:*}"
+    init_session --max-cycles=9223372036854775807 --max-stuck=9223372036854775807 \
+      --max-runtime=9223372036854775807s --conclude-after="$pct%"
+    run status
+    assert_field "$p: $pct% of an INT64_MAX cycle budget" conclude_reserve_cycles "$want"
+    assert_field "$p: $pct% of an INT64_MAX stuck budget" conclude_reserve_stuck "$want"
+    assert_field "$p: $pct% of an INT64_MAX runtime budget" conclude_reserve_runtime_seconds "$want"
+    cleanup_session
+  done
   init_session --max-cycles=5 --max-stuck=3 --conclude-after=2C
   run status
   assert_field "$p: the form is case-insensitive" conclude_reserve_cycles 2

@@ -188,7 +188,8 @@ fi
 
 # ---------------------------------------------------------------------------
 # Test 9: conclusion phase (#85) — reserve parsing (leading zeros stripped and
-# magnitudes compared as text: nested ${x#"${x%%[!0]*}"}, [[ a > b ]]; ${x%\%}),
+# magnitudes compared as text: nested ${x#"${x%%[!0]*}"}, [[ a > b ]]; ${x%\%};
+# the percentage ceiling split as 100q + r so an INT64_MAX budget cannot wrap),
 # the due tick, the latch, and startup validation errors
 # ---------------------------------------------------------------------------
 echo ""
@@ -242,6 +243,15 @@ SESSION_ID="$LAST_STDOUT"
 export LEAN4_SESSION_ID="$SESSION_ID"
 run status
 assert_out "padding stripped: 19 reserved cycles" "conclude_reserve_cycles=19"
+run stop
+cleanup
+
+run init --max-cycles=20 --max-stuck=3 --max-runtime=9223372036854775807s --conclude-after=15%
+assert_exit "15% of an INT64_MAX runtime budget" 0
+SESSION_ID="$LAST_STDOUT"
+export LEAN4_SESSION_ID="$SESSION_ID"
+run status
+assert_out "the percentage does not wrap" "conclude_reserve_runtime_seconds=1383505805528216372"
 run stop
 cleanup
 
