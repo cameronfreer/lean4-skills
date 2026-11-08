@@ -215,6 +215,7 @@ slug_for_label() {
         "Max stuck cycles") echo "max-stuck" ;;
         "Max cycles")       echo "max-cycles" ;;
         "Max runtime")      echo "max-runtime" ;;
+        Concluded)          echo "concluded" ;;
         "Manual user stop") echo "user-stop" ;;
         "Queue empty")      echo "queue-empty" ;;
         *)                  echo "UNMAPPED:$1" ;;
@@ -2715,6 +2716,75 @@ if ! grep -qF -- '-Dtrace.profiler.output.pp=true' "$_c46_ref/profiling-workflow
 fi
 if [[ "$check46_ok" -eq 1 ]]; then
     ok "Check 46: advanced references revalidated (#181: each names its fixture; fixtures run by run_core_snippets.sh; grind/metaprogramming/linter/verso/profiling corrections pinned)"
+fi
+
+# ---------------------------------------------------------------------------
+# Check 47: autoprove conclusion phase (#85; Refs #85 — autoformalize deferred).
+# The protocol is executed by tests/integration/test_run_persistence.py
+# (ConclusionPhase) and the tracker suite (conclusion_suite); this check pins
+# the prose those tests encode and the contract amendment.
+# ---------------------------------------------------------------------------
+check47_ok=1
+_c47_ce="$PLUGIN_ROOT/skills/lean4/references/cycle-engine.md"
+_c47_ap="$PLUGIN_ROOT/commands/autoprove.md"
+_c47_hc="$PLUGIN_ROOT/skills/lean4/references/handoff-contract.md"
+_c47_sec=$(extract_section "$_c47_ce" "## Conclusion Phase")
+if [[ -z "$_c47_sec" ]]; then
+    fail "Check 47: cycle-engine.md missing '## Conclusion Phase'"
+    check47_ok=0
+else
+    for _c47_s in 'the tracker refuses `start-claim` while a reserve is enabled' \
+                  'every hard limit stays active whatever the form' \
+                  '**`0c` and `0s` are rejected**' 'reserve larger than its budget' \
+                  '`0%` disables everything before any rounding' \
+                  '`reserve = 0 if L == 1 else min(max(1, ceil(L × p)), L − 1)`' \
+                  'never triggers on stuck cycles or runtime' \
+                  'Only `tick` computes it, so at least one proving cycle always runs' \
+                  'ordinary search never resumes' '`conclude` is idempotent' \
+                  'the conclusion **is cycle k+1**' 'no extra ticks are manufactured' \
+                  'never chosen to obtain a preferred stop reason' \
+                  '**a verified completion wins**' '`max-stuck` > `max-cycles` > `max-runtime`' \
+                  'otherwise `stop_reason: concluded`' \
+                  'never enters the conclusion phase' \
+                  'an already-tested candidate for **that** sorry' \
+                  'iff the run is **not `--repair-only`**' \
+                  'A `--repair-only` run concludes by synthesis alone and fills no sorry' \
+                  'no fresh deep search under the label of finalization' \
+                  'never a numeric score' 'never set `new_evidence_required_for_rerun`' \
+                  '**cannot guarantee**' 'without starting another proof attempt' \
+                  "**The helper's \`action\` is carried forward, not only its storage status:**" \
+                  'never fills the verdict slot with a verdict it did not reach'; do
+        if ! grep -qF -- "$_c47_s" <<<"$_c47_sec"; then
+            fail "Check 47: Conclusion Phase must state: $_c47_s"
+            check47_ok=0
+        fi
+    done
+fi
+if ! grep -qE '^\| --conclude-after \| No \| 15% \|' "$_c47_ap" \
+   || ! grep -qF -- '`--conclude-after=0` with `--formalize=auto`' "$_c47_ap" \
+   || ! grep -qF '### Conclusion Phase' "$_c47_ap" \
+   || ! grep -qF '**Conclusion:** [ready | fixable | no-credible-path' "$_c47_ap" \
+   || ! grep -qF 'never under `--repair-only`, which synthesizes without filling sorries' "$_c47_ap" \
+   || ! grep -qF '/ `concluded` → `status: stopped`' "$_c47_ap"; then
+    fail "Check 47: autoprove.md must carry the --conclude-after row, the formalize=auto rule, the phase, the repair-only exclusion, the Conclusion line and the concluded mapping"
+    check47_ok=0
+fi
+_c47_hand=$(extract_section "$_c47_hc" "## Handoff record (worker → parent/human)")
+if ! grep -qF '`queue-empty` \| `concluded` \|' <<<"$_c47_hand" \
+   || ! grep -qF 'not bidirectionally compatible' <<<"$_c47_hand" \
+   || ! grep -qF '`user-stop`/`concluded`) has a `null` signature' "$_c47_hc"; then
+    fail "Check 47: handoff-contract.md must list concluded, state the reader-version boundary, and keep it out of the rerun guard"
+    check47_ok=0
+fi
+if ! grep -qF '"concluded",' "$PLUGIN_ROOT/lib/scripts/run_contract_validate.py" \
+   || ! grep -qF 'conclude)      cmd_conclude' "$PLUGIN_ROOT/lib/scripts/cycle_tracker.sh" \
+   || ! grep -qF 'class ConclusionPhase(_Env)' "$PLUGIN_ROOT/tests/integration/test_run_persistence.py" \
+   || ! grep -qF 'conclusion_suite py3' "$PLUGIN_ROOT/tests/test_cycle_tracker.sh"; then
+    fail "Check 47: validator enum, tracker subcommand or the protocol tests are missing"
+    check47_ok=0
+fi
+if [[ "$check47_ok" -eq 1 ]]; then
+    ok "Check 47: conclusion phase pinned (#85: reserve forms + rounding, tick-only trigger, latch, boundary sequence and mapping, finalization rule, time limitation, persistence reporting; concluded in the contract with its reader boundary; protocol tests wired)"
 fi
 
 if [[ "$check39_ok" -eq 1 ]]; then
