@@ -202,7 +202,12 @@ private def observe (s : Session) (r : Request) (deadline : Deadline) : IO Respo
     discard <| s.transport.request "$/lean/waitForILeans" (toJson ({} : Lean.Lsp.WaitForILeansParams)) deadline
     let result ← s.transport.request "workspace/symbol" (toJson ({query := r.query.getD ""} : Lean.Lsp.WorkspaceSymbolParams)) deadline
     let symbols ← IO.ofExcept (result.getArr?)
-    return {base with data := Json.mkObj [("symbols", ← s.publicJson "" (toJson (symbols.extract 0 (r.limit.getD 100)))), ("complete", toJson true)]}
+    let limit := r.limit.getD 100
+    let total := symbols.size
+    let truncated : Bool := total > limit
+    return {base with data := Json.mkObj [
+      ("symbols", ← s.publicJson "" (toJson (symbols.extract 0 limit))),
+      ("complete", toJson (!truncated)), ("truncated", toJson truncated), ("total", toJson total)]}
   if r.operation == .attempt then throw <| IO.userError "protocol: isolated trials are not installed yet"
   let some file := r.file | throw <| IO.userError "invalid: missing file"
   let path ← resolveFile s.root file
@@ -248,16 +253,29 @@ def runBounded (s : Session) (r : Request) (action : Deadline → IO Response) :
   let ch ← CloseableChannel.new
   discard <| IO.asTask (do
     let result ← try pure (.ok (toJson (← action deadline))) catch e => pure (.error e)
-    discard <| ch.send result) Task.Priority.dedicated
+    discard <| ch.send result
+    try ch.close catch _ => pure ()) Task.Priority.dedicated
   try
     IO.ofExcept (fromJson? (← awaitReply ch deadline))
   catch e =>
     let response := failure r s.root e
     let response := if response.status == "timeout" && r.operation == .goal && (← s.state.atomically get).phase == "elaborating" then {response with status := "still_elaborating"} else response
-    if response.exitCode == 4 || (← s.transport.state.atomically get).dead then
+    let mut drained := false
+    if response.status == "still_elaborating" then
+      -- Keep a healthy elaborating server: retire only if the abandoned action outlives a
+      -- short grace period, so no stale task can overlap the next serialized operation.
+      drained ← (do
+        let timer ← Std.Async.Selector.sleep (.ofInt 1000)
+        Std.Async.Selectable.one #[
+          .case ch.recvSelector (fun _ => pure true),
+          .case timer (fun _ => pure false)] : Std.Async.Async Bool).block
+    if (response.exitCode == 4 && !drained) || (← s.transport.state.atomically get).dead then
       s.state.atomically <| modify fun st => {st with retired := true}
     return response
-  finally ch.close
+  finally
+    try ch.close catch _ => pure ()
+    unless (← s.state.atomically get).retired do
+      s.state.atomically <| modify fun st => {st with phase := "idle"}
 /-- The daemon serializes complete operations; this reader-independent wrapper bounds callers. -/
 def inspect (s : Session) (r : Request) : IO Response :=
   s.runBounded r (observe s r)

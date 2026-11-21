@@ -136,6 +136,36 @@ def run (toolchain : String) : IO Unit := do
     check "references loaded index" (refs.ok && (refs.data.getArr?).toOption.any (·.size ≥ 2))
     let search ← decode (← invoke #["search", "unicode"])
     check s!"local symbol search: {(toJson search).compress}" (search.ok && (search.data.getObjValAs? Bool "complete").toOption == some true && (search.data.getObjValAs? (Array Json) "symbols").toOption.any (!·.isEmpty))
+    IO.FS.writeFile (root / "Search.lean")
+      "def contractSymbolA := 1\ndef contractSymbolB := 2\ndef contractSymbolC := 3\n"
+    let indexed ← decode (← invoke #["diagnostics", "Search.lean"])
+    check "search truncation fixture elaborates" indexed.ok
+    let limited ← decode (← invoke #["search", "contractSymbol", "--limit", "2"])
+    check "limited search reports incomplete coverage and total"
+      (limited.ok && (limited.data.getObjValAs? Bool "complete").toOption == some false &&
+       (limited.data.getObjValAs? Bool "truncated").toOption == some true &&
+       (limited.data.getObjValAs? Nat "total").toOption.any (· > 2) &&
+       (limited.data.getObjValAs? (Array Json) "symbols").toOption.any (·.size == 2))
+    let exhaustive ← decode (← invoke #["search", "contractSymbol", "--limit", "10"])
+    check "untruncated search reports complete coverage"
+      (exhaustive.ok && (exhaustive.data.getObjValAs? Bool "complete").toOption == some true &&
+       (exhaustive.data.getObjValAs? Bool "truncated").toOption == some false &&
+       (exhaustive.data.getObjValAs? Nat "total").toOption == some 3 &&
+       (exhaustive.data.getObjValAs? (Array Json) "symbols").toOption.any (·.size == 3))
+    IO.FS.writeFile (root / "Example.lean") "example : True := by\n  trivial\n"
+    let candidate := "trivial /-" ++ String.ofList (List.replicate Socket.maxFrameBytes 'x') ++ "-/"
+    IO.FS.writeFile (root / "large-candidates.json") (toJson (#[candidate])).compress
+    let oversizedOut ← invoke #["attempt", "Example.lean", "--range", "2:3-2:10",
+      "--snippets-file", "large-candidates.json"]
+    let oversized ← decode oversizedOut
+    check "oversized authenticated attempt retains operation and structured failure"
+      (!oversized.ok && oversized.operation == "attempt" &&
+       oversized.projectRoot == some root.toString && oversized.status == "response_too_large" &&
+       oversized.exitCode == 3 && oversizedOut.exitCode == 3 &&
+       oversized.error.any (·.code == "response_too_large"))
+    let survived ← decode (← invoke #["status"])
+    check "oversized response leaves same daemon usable"
+      (survived.ok && (survived.data.getObjValAs? String "sessionIdentity").toOption == some session)
     IO.FS.writeFile (root / "Example.lean") "example : True := by\n  simp?\n"
     let actions ← decode (← invoke #["code-actions", "Example.lean", "--line", "2"])
     check s!"resolved code actions: {(toJson actions).compress}" (actions.ok && (actions.data.getArr?).toOption.any (fun a => a.any (fun x => (x.getObjVal? "edit").isOk)))
@@ -155,6 +185,20 @@ def run (toolchain : String) : IO Unit := do
       c.shutdown
       pure result) envelope.deadline
     check "authentication rejects incorrect token" ((rejection.getObjValAs? Bool "ok").toOption == some false && !(rejection.compress.splitOn d.token).length > 1)
+    let mismatchedEnvelope : Daemon.Envelope :=
+      {envelope with
+        token := d.token, deadline := (← IO.monoMsNow) + 2000,
+        request := {operation := .goal, project := some "/wrong-project"}}
+    let mismatch ← Socket.bounded (do
+      let c ← Std.Async.TCP.Socket.Client.mk
+      c.connect (.v4 {addr := {octets := #v[127,0,0,1]}, port := d.port.toUInt16})
+      Socket.sendJson c (toJson mismatchedEnvelope)
+      let result ← Socket.readJson c mismatchedEnvelope.deadline
+      c.shutdown
+      pure result) mismatchedEnvelope.deadline
+    check "parsed-envelope exception retains request operation"
+      ((mismatch.getObjValAs? String "operation").toOption == some "goal" &&
+       (mismatch.getObjValAs? Bool "ok").toOption == some false)
     IO.FS.writeFile (root / "Example.lean") "#eval IO.sleep 800\n"
     let slow ← IO.asTask (invoke #["diagnostics", "Example.lean"]) Task.Priority.dedicated
     IO.sleep 100

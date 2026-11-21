@@ -106,8 +106,35 @@ def main (args : List String) : IO UInt32 := do
   check "linked package setup" (linkResult.exitCode == 0)
   let cycleResult ← IO.Process.output {cmd := "ln", args := #["-s", watched.toString, (package / "cycle").toString]}
   check "linked cycle setup" (cycleResult.exitCode == 0)
+  let dep := watched / ".lake" / "packages" / "dep"
+  let depIndex := dep / ".lake" / "build" / "lib" / "lean" / "Dep.ilean"
+  let projectIndex := watched / ".lake" / "build" / "lib" / "lean" / "X.ilean"
+  let nestedLake := watched / "sub" / ".lake" / "x"
+  IO.FS.createDirAll depIndex.parent.get!
+  IO.FS.createDirAll projectIndex.parent.get!
+  IO.FS.createDirAll nestedLake
+  IO.FS.writeFile (dep / "Dep.lean") "def dep := 1"
+  IO.FS.writeFile depIndex "dependency index"
+  IO.FS.writeFile projectIndex "project index"
+  IO.FS.writeFile (projectIndex.parent.get! / "Ignored.lean") "def ignored := 1"
+  IO.FS.writeFile (nestedLake / "Y.lean") "def nested := 1"
+  IO.FS.writeFile (nestedLake / "Y.ilean") "nested index"
   let before ← Watcher.scan watched ((← IO.monoMsNow) + 5000)
   check "live linked package scanned" (before.contains (watched / "package" / "Linked.lean").toString)
+  check "project source scanned" (before.contains (watched / "Gone.lean").toString)
+  check "dependency source excluded" (!before.contains (dep / "Dep.lean").toString)
+  check "dependency build index scanned" (before.contains depIndex.toString)
+  check "project build index scanned" (before.contains projectIndex.toString)
+  check "build source excluded"
+    (!before.contains (projectIndex.parent.get! / "Ignored.lean").toString)
+  check "nested lake source excluded" (!before.contains (nestedLake / "Y.lean").toString)
+  check "nested lake index excluded" (!before.contains (nestedLake / "Y.ilean").toString)
+  -- Change size so this does not depend on filesystem timestamp resolution.
+  IO.FS.writeFile depIndex "rebuilt dependency index with a different size"
+  let rebuilt ← Watcher.scan watched ((← IO.monoMsNow) + 5000)
+  check "rebuilt dependency index produces change" ((Watcher.changes before rebuilt).any fun event =>
+    event.uri == System.Uri.pathToUri depIndex.toString &&
+      (match event.type with | .Changed => true | _ => false))
   IO.FS.removeFile (watched / "Gone.lean")
   let absent ← Watcher.scan watched ((← IO.monoMsNow) + 5000)
   check "removed watched file produces deletion" ((Watcher.changes before absent).any fun event => event.uri == System.Uri.pathToUri (watched / "Gone.lean").toString && (match event.type with | .Deleted => true | _ => false))

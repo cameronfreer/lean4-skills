@@ -202,7 +202,13 @@ On timeout, inspect `status`/`error`, use at most one bounded retry after
 fallback or report the blocker. The default whole-operation deadline is 30s.
 Treat `data.complete: false` or interrupted search as incomplete coverage, never
 as evidence of absence; reformulate one local query or use script search.
-Timeout recovery retires the session; a later operation starts a fresh one.
+Successful search also reports `data.total` (matches before `--limit`) and
+`data.truncated`; truncation sets `complete: false`. `response_too_large`
+(exit 3) keeps the request's `operation`: narrow the range/limit or use fewer
+candidates. Timeout recovery normally retires the session and a later operation
+starts a fresh one; a `still_elaborating` goal timeout keeps the healthy server
+when its abandoned request drains within a one-second grace, so a retry resumes
+the in-progress elaboration.
 
 The CLI never builds dependencies on document open (`dependencyBuildMode=never`).
 For missing/stale imports, explicitly hydrate the project's cache when needed,

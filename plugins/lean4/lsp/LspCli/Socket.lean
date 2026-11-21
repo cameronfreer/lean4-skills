@@ -3,6 +3,9 @@ import Std.Async.TCP
 open Std Std.Async Lean
 namespace LspCli.Socket
 
+/-- Maximum encoded JSON body size, excluding the four-byte frame header. -/
+def maxFrameBytes : Nat := 1048576
+
 def acceptWithin (s : TCP.Socket.Server) (ms : Nat) : Async (Option TCP.Socket.Client) := do
   let timer ← Selector.sleep (.ofInt ms)
   Selectable.one #[.case s.acceptSelector (fun c => pure (some c)), .case timer (fun _ => pure none)]
@@ -23,14 +26,14 @@ private partial def readExact (c : TCP.Socket.Client) (n deadline : Nat) (acc : 
 
 def sendJson (c : TCP.Socket.Client) (j : Json) : Async Unit := do
   let body := j.compress.toUTF8
-  if body.size > 1048576 then throw (IO.userError "protocol: frame too large")
+  if body.size > maxFrameBytes then throw (IO.userError "protocol: frame too large")
   let n := body.size
   c.sendAll #[ByteArray.mk #[(n / 16777216).toUInt8, (n / 65536).toUInt8, (n / 256).toUInt8, n.toUInt8], body]
 
 def readJson (c : TCP.Socket.Client) (deadline : Deadline) : Async Json := do
   let header ← readExact c 4 deadline
   let n := header.foldl (fun n b => n * 256 + b.toNat) 0
-  if n > 1048576 then throw (IO.userError "protocol: frame too large")
+  if n > maxFrameBytes then throw (IO.userError "protocol: frame too large")
   let body ← readExact c n deadline
   let some text := String.fromUTF8? body | throw (IO.userError "protocol: invalid UTF-8")
   IO.ofExcept (Json.parse text)

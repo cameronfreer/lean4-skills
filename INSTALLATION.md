@@ -614,10 +614,13 @@ the existing scripts/file-compilation workflow.
 The default 30-second deadline (`--timeout-ms N`) covers the whole operation,
 including startup, queueing, freshness scans, indexing and sequential trials.
 An idle session expires after ten minutes; `stop` gracefully shuts down its
-owned server. Descriptors/logs live in a private user cache, not the source
-tree. After a crash, the next operation checks ownership and recovers stale
+owned server. Session descriptors live in a private user cache, not the source
+tree; daemon startup errors are not yet captured to a log there. After a crash, the next operation checks ownership and recovers stale
 session state. Toolchain or Lake configuration changes invalidate the session;
-stop and query again after deliberate configuration changes.
+stop and query again after deliberate configuration changes. Freshness scans
+watch project `.lean`/`.ilean` files outside `.git` and `.lake`, plus only the
+`.ilean` indexes under `.lake/build` and `.lake/packages/*/.lake/build`;
+dependency sources are not scanned, so rebuild a dependency to publish changes.
 
 Inspection never automatically compiles dependencies: every disk/virtual open
 uses `dependencyBuildMode=never`. For a fresh clone/worktree, explicitly hydrate
@@ -632,8 +635,12 @@ With `--json`, stdout is one `lean4-lsp/v1` JSON record; check `ok`, `status`,
 `data` and `error`. Exit codes: 0 completed observation, 1 Lean error diagnostics,
 2 invalid invocation, 3 unavailable toolchain/server or protocol failure,
 4 timeout or stale source/dependency. Search with `data.complete: false` is
-incomplete, not proof of absence. A timed-out trial batch returns no partial
-results. A subsequent operation starts a fresh session after timeout retirement.
+incomplete, not proof of absence; `data.truncated`/`data.total` report `--limit`
+cuts. Responses over 1 MiB become `response_too_large` (exit 3) with the
+request's operation preserved. A timed-out trial batch returns no partial
+results. A subsequent operation starts a fresh session after timeout retirement,
+except that a `still_elaborating` goal timeout keeps a healthy server whose
+abandoned request drains within a one-second grace period.
 
 Public positions are **1-based Unicode codepoints**; range ends are excluded.
 Trials need an exact replacement range and a nonempty JSON array of strings:

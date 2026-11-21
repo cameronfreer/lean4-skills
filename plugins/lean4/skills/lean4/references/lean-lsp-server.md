@@ -23,7 +23,10 @@ Skip unavailable tools rather than counting them against local search budgets.
   Keep dependency-aware compilation, no-sorry and standard-axiom/project gates.
 - Code actions return edits without applying them. Revalidate source identity
   and disk snapshot before applying reviewed proof-body edits.
-- Search with `data.complete: false` is incomplete, never proof of absence.
+- Search with `data.complete: false` is incomplete, never proof of absence;
+  `data.truncated: true` means `--limit` cut `data.total` matches.
+- `response_too_large` (exit 3) keeps the request operation; narrow the
+  range/limit or use fewer trial candidates and retry.
 
 ```bash
 lean4-skills-lsp goal FILE --project ROOT --line 42 --column 3 --json

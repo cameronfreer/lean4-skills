@@ -78,9 +78,11 @@ private def serve (server : TCP.Socket.Server) (s : Session) (d : Descriptor) (i
     let some client ← (Socket.acceptWithin server (min 1000 (idleMs - (now - lastActivity)))).block | continue
     let mut stop := false
     let mut authenticated := false
+    let parsedRequest ← IO.mkRef (none : Option Request)
     try
       let wire ← (Socket.readJson client ((← IO.monoMsNow) + 1000)).block
       let envelope : Envelope ← IO.ofExcept (fromJson? wire)
+      parsedRequest.set (some envelope.request)
       let valid := envelope.schema == d.schema && envelope.root == d.root && envelope.token == d.token && envelope.identity == d.identity
       authenticated := valid
       let response ← if !valid then pure (rejected s.root "invalid session credentials or root/version")
@@ -97,12 +99,21 @@ private def serve (server : TCP.Socket.Server) (s : Session) (d : Descriptor) (i
               pure {ok := true, operation := "stop", projectRoot := some s.root.toString, status := "stopped"}
             else if r.operation == .attempt then Trials.run s {r with timeoutMs := budget}
             else s.inspect {r with timeoutMs := budget}
+      let encodedSize := (toJson response).compress.toUTF8.size
+      let response := if encodedSize > Socket.maxFrameBytes then
+          {ok := false, operation := envelope.request.operation.name,
+           projectRoot := response.projectRoot, status := "response_too_large",
+           error := some ⟨"response_too_large",
+             s!"Encoded response is {encodedSize} bytes; limit is {Socket.maxFrameBytes} bytes. Narrow the range/limit or use fewer candidates.",
+             3⟩ : Response}
+        else response
       discard <| Socket.bounded (do Socket.sendJson client (toJson response); pure Json.null) ((← IO.monoMsNow) + 1000)
     catch e =>
       -- A bad or stalled unauthenticated peer owns only its connection.
       if authenticated && (e.toString.splitOn "timeout:").length > 1 then
         s.state.atomically <| modify fun st => {st with retired := true}
-      let response := Session.failure {operation := .status} s.root e
+      let request := (← parsedRequest.get).getD {operation := .status}
+      let response := Session.failure request s.root e
       try discard <| Socket.bounded (do Socket.sendJson client (toJson response); pure Json.null) ((← IO.monoMsNow) + 200) catch _ => pure ()
     try
       discard <| Socket.bounded (do client.shutdown; pure Json.null) ((← IO.monoMsNow) + 100)

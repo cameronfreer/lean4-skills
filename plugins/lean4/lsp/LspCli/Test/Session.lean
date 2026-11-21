@@ -79,10 +79,44 @@ def run : IO Unit := do
   let elaborating ← Session.startWith root (← deadline) (← IO.appPath).toString #["--fake-server"]
   try
     IO.FS.writeFile (root / "Slow.lean") "abc"
+    let before ← elaborating.inspect {operation := .status}
     let result ← elaborating.inspect {operation := .goal, file := some "Slow.lean", line := some 1, column := some 1, timeoutMs := 30}
     check "goal timeout distinguishes still elaborating" (result.exitCode == 4 && result.status == "still_elaborating")
+    let st ← elaborating.state.atomically get
+    check "still elaborating session retained and phase reset" (!st.retired && st.phase == "idle")
+    check "abandoned diagnostics request removed" (← elaborating.transport.state.atomically get <&> (·.pending.isEmpty))
+    let some document := st.documents[0]? | throw <| IO.userError "missing retained document"
+    let identity := document.identity
+    let retry ← elaborating.inspect {
+      operation := .goal, file := some "Slow.lean", line := some 1
+      column := some 1, timeoutMs := 2000}
+    check "goal retry succeeds on retained document" (retry.exitCode == 0 &&
+      retry.status == "no_goal_at_position" && retry.sourceIdentity == some identity)
+    let after ← elaborating.inspect {operation := .status}
+    check "goal retry preserves session nonce and child PID" (
+      (before.data.getObjValAs? String "sessionIdentity").toOption == some elaborating.nonce &&
+      (after.data.getObjValAs? String "sessionIdentity").toOption == some elaborating.nonce &&
+      (before.data.getObjValAs? Nat "serverPid").toOption == some elaborating.transport.child.pid.toNat &&
+      (after.data.getObjValAs? Nat "serverPid").toOption == some elaborating.transport.child.pid.toNat)
+    check "late diagnostics reply leaves no pending requests" (
+      ← elaborating.transport.state.atomically get <&> (·.pending.isEmpty))
   finally
     elaborating.close
+  let stuck ← Session.startWith root (← deadline) (← IO.appPath).toString #["--fake-server"]
+  try
+    let finished ← Std.CloseableChannel.new
+    let started ← IO.monoMsNow
+    let result ← stuck.runBounded {operation := .goal, timeoutMs := 30} fun _ => do
+      stuck.state.atomically <| modify fun st => {st with phase := "elaborating"}
+      IO.sleep 1600
+      discard <| finished.send true
+      return {ok := true, operation := "goal", status := "ok"}
+    check "unfinished elaboration action exceeds bounded grace" (result.exitCode == 4 &&
+      result.status == "still_elaborating" && (← IO.monoMsNow) - started < 1500)
+    check "unfinished elaboration action retires session" (← stuck.state.atomically get <&> (·.retired))
+    discard <| finished.recv
+  finally
+    stuck.close
     IO.FS.removeDirAll root
   IO.println "session tests passed"
 end SessionTests

@@ -10,6 +10,7 @@ def run : IO UInt32 := do
   let mut events : Array Json := #[]
   let mut registered := false
   let mut buildModes : Array Json := #[]
+  let mut slowFinished := false
   repeat
     match ← input.readLspMessage with
     | .request id method params =>
@@ -42,7 +43,10 @@ def run : IO UInt32 := do
         output.flush
       else if method == "test/eof" then return 0
       else if method == "textDocument/waitForDiagnostics" then
-        if ((p.getObjValAs? String "uri").toOption.getD "").endsWith "/Slow.lean" then IO.sleep 2000
+        if !slowFinished &&
+            ((p.getObjValAs? String "uri").toOption.getD "").endsWith "/Slow.lean" then
+          IO.sleep 200
+          slowFinished := true
         output.writeLspMessage (.response id (Json.mkObj []))
       else if method == "$/lean/plainGoal" then output.writeLspMessage (.response id Json.null)
       else output.writeLspMessage (.response id p)

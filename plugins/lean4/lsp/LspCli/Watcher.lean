@@ -7,7 +7,7 @@ structure Stamp where
   deriving BEq
 abbrev Snapshot := Std.HashMap String Stamp
 namespace Watcher
-private partial def walk (root path : FilePath) (deadline : Deadline)
+private partial def walk (path : FilePath) (indicesOnly : Bool) (deadline : Deadline)
     (seen : IO.Ref (Std.HashSet String)) (files : IO.Ref Snapshot) : IO Unit := do
   discard <| remaining deadline
   let canonical ← IO.FS.realPath path
@@ -15,7 +15,7 @@ private partial def walk (root path : FilePath) (deadline : Deadline)
   seen.modify (·.insert canonical.toString)
   for entry in ← path.readDir do
     discard <| remaining deadline
-    if entry.fileName == ".git" then continue
+    if entry.fileName == ".git" || entry.fileName == ".lake" then continue
     -- Entries may disappear after readDir, including dangling symlink targets.
     -- Other failures must abort the freshness barrier.
     let metadata ← try
@@ -25,17 +25,46 @@ private partial def walk (root path : FilePath) (deadline : Deadline)
       | e => throw e
     let some metadata := metadata | continue
     if metadata.type == .dir then
-      try walk root entry.path deadline seen files
+      try walk entry.path indicesOnly deadline seen files
       catch
         | .noFileOrDirectory .. => pure ()
         | e => throw e
-    else if entry.path.extension == some "lean" || entry.path.extension == some "ilean" then
+    else if entry.path.extension == some "ilean" ||
+        (!indicesOnly && entry.path.extension == some "lean") then
       files.modify (·.insert entry.path.toString ⟨metadata.modified, metadata.byteSize⟩)
 
+private def scanBuild (path : FilePath) (deadline : Deadline)
+    (seen : IO.Ref (Std.HashSet String)) (files : IO.Ref Snapshot) : IO Unit := do
+  discard <| remaining deadline
+  try
+    if (← path.metadata).type == .dir then
+      walk path true deadline seen files
+  catch
+    | .noFileOrDirectory .. => pure ()
+    | e => throw e
+
+/-- Watch project .lean/.ilean files, excluding .git and .lake subtrees; additionally watch only
+.ilean files in root/.lake/build and root/.lake/packages/*/.lake/build (with the same exclusions).
+Dependency sources are excluded: dependencyBuildMode=never makes rebuilt indices the server's signal. -/
 def scan (root : FilePath) (deadline : Deadline) : IO Snapshot := do
   let seen ← IO.mkRef {}
   let files ← IO.mkRef {}
-  walk root root deadline seen files
+  walk root false deadline seen files
+  scanBuild (root / ".lake" / "build") deadline seen files
+  discard <| remaining deadline
+  let packages ← try
+    (root / ".lake" / "packages").readDir
+  catch
+    | .noFileOrDirectory .. => pure #[]
+    | e => throw e
+  for entry in packages do
+    discard <| remaining deadline
+    try
+      if (← entry.path.metadata).type == .dir then
+        scanBuild (entry.path / ".lake" / "build") deadline seen files
+    catch
+      | .noFileOrDirectory .. => pure ()
+      | e => throw e
   discard <| remaining deadline
   files.get
 
