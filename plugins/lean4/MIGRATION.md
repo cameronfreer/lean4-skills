@@ -319,7 +319,7 @@ If you have external tooling or scripts that dispatch agents by the old names, u
 
 Both share the same cycle engine and most flags. Key differences:
 - **prove-only:** `--deep=ask` (interactive prompt), `--planning=ask`, `--commit=ask` (per-commit confirmation)
-- **autoprove-only:** `--max-cycles`, `--max-total-runtime`, `--max-stuck-cycles`, `--max-consecutive-deep-cycles` (autoprove coerces `--commit=ask` and `--review-source=external` to non-interactive values)
+- **autoprove-only:** `--max-cycles`, `--max-total-runtime`, `--max-stuck-cycles`, `--max-consecutive-deep-cycles`, `--conclude-after` (since v4.12.0; see [Conclusion Phase](commands/autoprove.md#conclusion-phase)). autoprove also coerces `--commit=ask` and `--review-source=external` to non-interactive values.
 - **Different defaults:** autoprove uses `--batch-size=2`, `--deep=stuck`, `--golf=never`, `--commit=auto`; prove uses `--batch-size=1`, `--deep=never`, `--golf=prompt`, `--commit=ask`
 
 ## V4.0.8 → V4.0.9

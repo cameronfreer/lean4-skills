@@ -480,6 +480,36 @@ class BlockerGuard(_Env):
         )
         self.assertEqual((rc_, res["code"]), (rp.EXIT_STARTUP, "blocker_cleared"))
 
+    def test_concluded_prior_is_evaluable_and_reruns_freely(self) -> None:
+        # #85: a stop by the conclusion phase carries no blocker, so the guard
+        # is evaluable and finds nothing to forbid — no evidence needed.
+        prior = self.make_prior(
+            handoff=self.handoff(
+                status="stopped", stop_reason="concluded", next_action="stop"
+            )
+        )
+        rc_, rep = self.preview(prior)
+        self.assertTrue(rep["selection"]["guard_evaluable"])
+        self.assertEqual(
+            (rep["carry"]["stop_reason"], rep["carry"]["prior_blocker"]),
+            ("concluded", None),
+        )
+        d = self.dispatch(prior_blocker=None, evidence_delta=[])
+        rc_, res = self.persist(
+            "start",
+            "--dispatch",
+            "-",
+            "--prior-run",
+            prior,
+            "--reuse-report",
+            self.write_report(rep),
+            "--now",
+            "2026-09-10T12:00:00Z",
+            stdin=json.dumps(d),
+        )
+        self.assertEqual((rc_, res["action"]), (0, "continue"), res)
+        self.assertTrue(res["guard"]["evaluable"])
+
     def test_operational_prior_stop_needs_a_specific_justification(self) -> None:
         prior = self.make_prior(
             handoff=self.handoff(

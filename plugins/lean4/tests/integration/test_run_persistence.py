@@ -1,5 +1,6 @@
 # ruff: noqa: UP031  (fake-store scripts use %-formatting: they contain literal braces)
-"""#82B acceptance: the proving commands' persistence protocol, end to end.
+"""#82B acceptance: the proving commands' persistence protocol, end to end
+(and #85's conclusion-phase protocol on top of it: class ConclusionPhase).
 
 The LLM-driven parts of prove/autoprove are prose; what CAN be executed is the
 protocol that prose prescribes (references/cycle-engine.md § Run Persistence):
@@ -26,6 +27,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from typing import Any
 from unittest.mock import patch
@@ -2066,6 +2068,394 @@ class InlineProgress(_Env):
             self.assertNotIn("final_handoff", st["state"])
             self.assertEqual(st["state"]["files_changed"], [])  # nothing absorbed
             self.tearDown()
+
+
+# ---------------------------------------------------------------------------
+# #85: the conclusion-phase protocol (cycle-engine.md § Conclusion Phase)
+# ---------------------------------------------------------------------------
+
+
+def _kv(text: str) -> dict[str, str]:
+    return dict(line.split("=", 1) for line in text.splitlines() if "=" in line)
+
+
+def _map_conclusion(tick: dict[str, str], finalized: bool) -> tuple[str, str | None]:
+    """The documented mapping after the conclusion cycle's one tick: a verified
+    completion wins; else the tracker's stop_reason; else concluded."""
+    if finalized:
+        return "solved", None
+    if tick["result"] == "LIMIT_REACHED":
+        return "stopped", tick["stop_reason"]
+    return "stopped", "concluded"
+
+
+def _mapped_handoff(
+    status: str, stop_reason: str | None, **over: Any
+) -> dict[str, Any]:
+    if stop_reason == "max-stuck":
+        over = {
+            "blocker_kind": "proof",
+            "blocker_class": "missing-library-lemma",
+            "blocker_signature": "Foo.lean:42:unknown identifier",
+            "new_evidence_required_for_rerun": "a tendsto lemma for monotone sequences",
+            **over,
+        }
+    h = valid_handoff(
+        status=status,
+        stop_reason=stop_reason,
+        next_action="stop" if status == "stopped" else "continue",
+        **over,
+    )
+    assert rc.validate_handoff(h) == [], rc.validate_handoff(h)
+    return h
+
+
+_PARTIAL = {"kind": "unified-diff", "content": "--- a/Foo.lean\n+++ b/Foo.lean\n"}
+
+
+@unittest.skipUnless(POSIX, "the store's mutation hosts")
+class ConclusionPhase(_Env):
+    """#85 acceptance, through the real tracker and the real persistence
+    helper: cycles → conclude=yes → conclude → final Replan → ONE tick →
+    finish with the mapped handoff. The controller is scripted; the mapping it
+    applies is the documented one (Check 47 pins the prose)."""
+
+    def _init(self, *args: str) -> None:
+        init = self.tracker("init", *args)
+        self.assertEqual(init.returncode, 0, init.stderr)
+        self.sid = init.stdout.strip().splitlines()[-1]
+        self.env["LEAN4_SESSION_ID"] = self.sid
+
+    def _tick(self, stuck: str) -> dict[str, str]:
+        p = self.tracker("tick", f"--stuck={stuck}")
+        out = _kv(p.stdout)
+        out["_exit"] = str(p.returncode)
+        return out
+
+    def _status(self) -> dict[str, str]:
+        return _kv(self.tracker("status").stdout)
+
+    def _shift_clock(self, seconds_ago: int) -> None:
+        """Clock injection: move the session start into the past."""
+        path = os.path.join(self.tmp, f"{self.sid}.json")
+        with open(path, encoding="utf-8") as f:
+            st = json.load(f)
+        st["start_epoch"] = int(time.time()) - seconds_ago
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(st, f)
+
+    def _start(self) -> str:
+        rc_, res = self.persist(
+            "start",
+            "--dispatch",
+            "-",
+            "--tracker-session-id",
+            self.sid,
+            "--now",
+            NOW,
+            stdin=json.dumps(valid_dispatch()),
+        )
+        self.assertEqual((rc_, res["action"]), (0, "continue"), res)
+        return str(res["run_id"])
+
+    def _replan(self, cycle: int, cites: list[str]) -> dict[str, Any]:
+        rc_, res = self.persist(
+            "replan", "--payload", "-", stdin=json.dumps(_replan(cycle, cites))
+        )
+        self.assertEqual((rc_, res["action"]), (0, "continue"), res)
+        return res
+
+    def _until_due(
+        self, stuck: str = "no", persist: bool = True
+    ) -> tuple[int, list[str], dict[str, str]]:
+        """Ordinary cycles (Replan, then tick) until a tick reports conclude=yes."""
+        cites: list[str] = []
+        for cycle in range(1, 30):
+            if persist:
+                cites.append(self._replan(cycle, cites[-1:])["cite"])
+            t = self._tick(stuck)
+            self.assertEqual(t["_exit"], "0", t)
+            if t["conclude"] == "yes":
+                return cycle, cites, t
+        self.fail("the conclusion phase never became due")
+
+    def _conclude(self) -> dict[str, str]:
+        p = self.tracker("conclude")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        return _kv(p.stdout)
+
+    def _finish(self, h: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        return self.persist("finish", "--payload", "-", stdin=json.dumps(h))
+
+    # --- the mappings
+
+    def test_concluded_end_to_end_with_citations_and_cost(self) -> None:
+        self._init("--max-cycles=4", "--max-stuck=3", "--conclude-after=2c")
+        rid = self._start()
+        rc_, note = self.persist(
+            "note",
+            "--kind",
+            "failed-avenue",
+            "--text",
+            "exact tendsto_atTop_mono h: type mismatch",
+        )
+        k, cites, due = self._until_due()
+        self.assertEqual((k, due["conclude_reason"]), (2, "max-cycles"))
+        snap = self._conclude()
+        self.assertEqual(snap["conclude_at_cycles"], "2")
+        # the conclusion is cycle k+1: synthesis (no candidate applies) → the
+        # final Replan → ONE real tick, stuck=yes (a report is not progress)
+        final_replan = self._replan(k + 1, [note["cite"], cites[-1]])
+        t = self._tick("yes")
+        self.assertEqual((t["_exit"], t["concluding"]), ("0", "yes"))
+        status, reason = _map_conclusion(t, finalized=False)
+        self.assertEqual((status, reason), ("stopped", "concluded"))
+        final = _mapped_handoff(
+            status,
+            reason,
+            failed_avenues=[note["cite"]],
+            artifacts=[_PARTIAL],
+        )
+        final["evidence"]["top_candidates"] = [final_replan["cite"]]
+        rc_, done = self._finish(final)
+        self.assertEqual((rc_, done["action"], done["stored"]), (0, "done", True), done)
+        # exactly one tick per Replan: no manufactured ticks
+        st = self._status()
+        self.assertEqual(st["cycles_total"], "3")
+        # cost accounting by phase: conclude_at against the final counters
+        self.assertEqual(
+            (
+                int(st["cycles_total"]) - int(st["conclude_at_cycles"]),
+                int(st["stuck_cycles_total"])
+                - int(st["conclude_at_stuck_cycles_total"]),
+            ),
+            (1, 1),
+        )
+        out = rs.op_load(self.root, rid)
+        self.assertEqual(
+            [e["kind"] for e in out["events"]],
+            ["note", "replan", "replan", "replan", "handoff"],
+        )
+        self.assertEqual(
+            out["effective_handoff"]["payload"]["stop_reason"], "concluded"
+        )
+        replans = [e for e in out["events"] if e["kind"] == "replan"]
+        self.assertEqual([r["payload"]["cycle"] for r in replans], [1, 2, 3])
+        by_seq = {e["seq"]: e for e in out["events"]}
+        for cite in (
+            replans[-1]["payload"]["cites"] + final["evidence"]["top_candidates"]
+        ):
+            run, seq = cite.split("#")
+            self.assertEqual(run, rid)
+            self.assertIn(int(seq), by_seq)
+
+    def test_a_limit_reached_during_the_conclusion_is_that_limit(self) -> None:
+        self._init("--max-cycles=4", "--max-stuck=3", "--conclude-after=15%")
+        self._start()
+        k, _cites, due = self._until_due()
+        self.assertEqual((k, due["conclude_reason"]), (3, "max-cycles"))
+        self._conclude()
+        self._replan(k + 1, [])
+        t = self._tick("yes")
+        self.assertEqual(
+            (t["result"], t["stop_reason"]), ("LIMIT_REACHED", "max-cycles")
+        )
+        status, reason = _map_conclusion(t, finalized=False)
+        self.assertEqual((status, reason), ("stopped", "max-cycles"))
+        rc_, done = self._finish(_mapped_handoff(status, reason))
+        self.assertEqual((rc_, done["stored"]), (0, True), done)
+
+    def test_finalization_on_the_last_available_cycle_is_solved(self) -> None:
+        self._init("--max-cycles=4", "--max-stuck=3", "--conclude-after=15%")
+        rid = self._start()
+        k, _cites, _due = self._until_due()
+        self._conclude()
+        # one sorry left, an already-tested candidate still applies: finalized
+        self._replan(k + 1, [])
+        t = self._tick("no")  # a sorry was filled during cycle k+1
+        self.assertEqual(t["result"], "LIMIT_REACHED")  # the budget was consumed …
+        status, reason = _map_conclusion(t, finalized=True)
+        self.assertEqual((status, reason), ("solved", None))  # … completion wins
+        rc_, done = self._finish(_mapped_handoff(status, reason))
+        self.assertEqual((rc_, done["stored"]), (0, True), done)
+        self.assertEqual(
+            rs.op_load(self.root, rid)["effective_handoff"]["payload"]["status"],
+            "solved",
+        )
+
+    def test_simultaneous_limits_follow_the_tracker_precedence(self) -> None:
+        self._init("--max-cycles=3", "--max-stuck=3", "--conclude-after=15%")
+        self._start()
+        k, _cites, due = self._until_due(stuck="yes")
+        self.assertEqual((k, due["conclude_reason"]), (2, "max-stuck"))
+        self._conclude()
+        self._replan(k + 1, [])
+        t = self._tick("yes")
+        self.assertEqual(t["violation"], "max-cycles,max-stuck")
+        status, reason = _map_conclusion(t, finalized=False)
+        self.assertEqual(reason, "max-stuck")  # blocker-driven first
+        rc_, done = self._finish(_mapped_handoff(status, reason))
+        self.assertEqual((rc_, done["stored"]), (0, True), done)
+
+    def test_runtime_overshoot_starts_no_attempt_and_maps_to_max_runtime(self) -> None:
+        self._init(
+            "--max-cycles=10",
+            "--max-stuck=3",
+            "--max-runtime=10m",
+            "--conclude-after=15%",
+        )
+        self._start()
+        self._shift_clock(520)  # inside the 90 s runtime reserve
+        k, _cites, due = self._until_due()
+        self.assertEqual((k, due["conclude_reason"]), (1, "max-runtime"))
+        self._conclude()
+        self._shift_clock(700)  # a long tool call overshot the budget
+        # the controller reads status before finalization: spent → no attempt
+        start_attempt = self._status()["runtime_exhausted"] != "yes"
+        self.assertFalse(start_attempt)
+        self._replan(k + 1, [])
+        t = self._tick("yes")
+        self.assertEqual(t["stop_reason"], "max-runtime")
+        status, reason = _map_conclusion(t, finalized=False)
+        rc_, done = self._finish(_mapped_handoff(status, reason))
+        self.assertEqual((rc_, reason, done["stored"]), (0, "max-runtime", True), done)
+
+    def test_conclude_after_zero_is_the_current_behaviour(self) -> None:
+        self._init("--max-cycles=2", "--max-stuck=3", "--conclude-after=0")
+        self._start()
+        self._replan(1, [])
+        self.assertEqual(self._tick("no")["conclude"], "no")
+        self.assertNotEqual(self.tracker("conclude").returncode, 0)
+        self._replan(2, [])
+        t = self._tick("no")
+        self.assertEqual(
+            (t["result"], t["stop_reason"], t["conclude"]),
+            ("LIMIT_REACHED", "max-cycles", "no"),
+        )
+
+    # --- persistence: off, uncertain, and stopped mid-conclusion
+
+    def test_persistence_off_makes_no_store_calls_and_a_valid_handoff(self) -> None:
+        self.env.pop("LEAN4_RUN_PERSIST_STATE")
+        self._init("--max-cycles=4", "--max-stuck=3", "--conclude-after=2c")
+        _k, _cites, _due = self._until_due(persist=False)
+        self._conclude()
+        t = self._tick("yes")
+        h = _mapped_handoff(*_map_conclusion(t, finalized=False), artifacts=[_PARTIAL])
+        self.assertEqual(h["stop_reason"], "concluded")
+        self.assertFalse(os.path.exists(self.root))
+        self.assertFalse(os.path.exists(self.state))
+
+    def test_indeterminate_finish_is_reported_unconfirmed(self) -> None:
+        self._init("--max-cycles=4", "--max-stuck=3", "--conclude-after=2c")
+        self._start()
+        k, _cites, _due = self._until_due()
+        self._conclude()
+        self._replan(k + 1, [])
+        h = _mapped_handoff(*_map_conclusion(self._tick("yes"), finalized=False))
+        fake = os.path.join(self.tmp, "fake_store.py")
+        with open(fake, "w", encoding="utf-8") as f:
+            f.write(
+                "import json, os, sys\nargs = sys.argv[1:]\nsys.path.insert(0, %r)\n"
+                "import run_store as rs\n"
+                % _LIB
+                + BAD_JOURNAL_FSYNC
+                + "sys.exit(rs.main(args))\n"
+            )
+        self.env["LEAN4_RUN_STORE_ARGV"] = json.dumps([sys.executable, fake])
+        rc_, done = self._finish(h)
+        self.assertEqual(
+            (rc_, done["stored"], done["persistence"]),
+            (rp.EXIT_STOP, False, "unconfirmed"),
+            done,
+        )
+        self.assertNotIn("cite", done)
+
+    def test_committed_final_replan_with_failed_bookkeeping_stops_before_the_tick(
+        self,
+    ) -> None:
+        self._init("--max-cycles=4", "--max-stuck=3", "--conclude-after=2c")
+        rid = self._start()
+        k, _cites, _due = self._until_due()
+        self._conclude()
+        # the state directory is frozen after the real store commits the Replan
+        d = os.path.join(self.tmp, "st-frozen")
+        os.makedirs(d)
+        state = os.path.join(d, "state.json")
+        shutil.move(self.state, state)
+        self.env["LEAN4_RUN_PERSIST_STATE"] = state
+        fake = os.path.join(self.tmp, "fake_store.py")
+        with open(fake, "w", encoding="utf-8") as f:
+            f.write(
+                "import json, os, sys\nargs = sys.argv[1:]\nsys.path.insert(0, %r)\n"
+                "import run_store as rs\nos.chmod(%r, 0o500)\nsys.exit(rs.main(args))\n"
+                % (_LIB, d)
+            )
+        self.env["LEAN4_RUN_STORE_ARGV"] = json.dumps([sys.executable, fake])
+        try:
+            rc_, res = self.persist(
+                "replan", "--payload", "-", stdin=json.dumps(_replan(k + 1, []))
+            )
+        finally:
+            os.chmod(d, 0o700)
+        # stored and citable …
+        self.assertEqual(res["committed"]["cite"], f"{rid}#{k + 1}")
+        self.assertEqual(rs.op_load(self.root, rid)["events"][-1]["kind"], "replan")
+        # … but the action is stop: no final tick, no finish; the fallback is shown
+        self.assertEqual((rc_, res["action"]), (rp.EXIT_STOP, "stop"), res)
+        self.assertEqual(res["handoff"]["stop_reason"], "operational-error")
+        self.assertEqual(rc.validate_handoff(res["handoff"]), [])
+        self.assertEqual(self._status()["cycles_total"], str(k))  # the tick never ran
+        rc_, again = self._finish(_mapped_handoff("stopped", "concluded"))
+        self.assertEqual(again["action"], "done")
+        self.assertFalse(again["stored"])  # a stopped helper never stores more
+
+    def test_an_interrupted_conclusion_reports_only_what_was_produced(self) -> None:
+        self._init("--max-cycles=4", "--max-stuck=3", "--conclude-after=2c")
+        rid = self._start()
+        k, _cites, _due = self._until_due()
+        self._conclude()
+        # synthesis produced a partial patch and some leads, then the store refused
+        rc_, res = self.persist(
+            "progress",
+            "--payload",
+            "-",
+            stdin=json.dumps(
+                {
+                    "schema": rp.PROGRESS_SCHEMA,
+                    "attempted_tools": ["lean_leansearch"],
+                    "artifacts": [_PARTIAL],
+                    "evidence": {
+                        "queries": ["tendsto atTop monotone"],
+                        "top_candidates": ["tendsto_atTop_mono"],
+                        "attempts": [],
+                    },
+                }
+            ),
+        )
+        self.assertEqual((rc_, res["action"]), (0, "continue"), res)
+        fake = os.path.join(self.tmp, "fake_store.py")
+        with open(fake, "w", encoding="utf-8") as f:
+            f.write(
+                "import json, sys\nprint(json.dumps({'schema':'run-store-result/v1',"
+                "'outcome':'nothing_written','code':'journal_damaged','detail':'x'})); sys.exit(3)\n"
+            )
+        self.env["LEAN4_RUN_STORE_ARGV"] = json.dumps([sys.executable, fake])
+        rc_, res = self.persist(
+            "replan", "--payload", "-", stdin=json.dumps(_replan(k + 1, []))
+        )
+        self.assertEqual((rc_, res["action"]), (rp.EXIT_STOP, "stop"), res)
+        fb = res["handoff"]
+        # the material actually produced, and no verdict: an operational stop
+        self.assertEqual(fb["artifacts"], [_PARTIAL])
+        self.assertEqual(fb["evidence"]["queries"], ["tendsto atTop monotone"])
+        self.assertEqual(
+            (fb["status"], fb["stop_reason"]), ("stopped", "operational-error")
+        )
+        self.assertEqual(rc.validate_handoff(fb), [])
+        self.assertEqual(
+            [e["kind"] for e in rs.op_load(self.root, rid)["events"]], ["replan"] * k
+        )
 
 
 if __name__ == "__main__":

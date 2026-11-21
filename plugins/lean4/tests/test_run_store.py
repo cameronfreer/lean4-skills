@@ -247,6 +247,16 @@ class RoundTrip(_Base):
             [e["kind"] for e in out["events"]], ["note", "dispatch", "handoff"]
         )
 
+    def test_concluded_handoff_round_trips(self) -> None:
+        # #85: the store validates through run_contract_validate, so the
+        # additive stop reason is accepted with no store change.
+        rid = self.create()
+        h = valid_handoff(status="stopped", stop_reason="concluded", next_action="stop")
+        self.assertEqual(rs.op_set_handoff(self.root, rid, h)["outcome"], "committed")
+        out = rs.op_load(self.root, rid)
+        self.assertEqual(out["effective_handoff"]["payload"], h)
+        self.assertEqual(out["handoff_cache"], "current")
+
     def test_no_handoff_yet_means_cache_absent(self) -> None:
         rid = self.create()
         out = rs.op_load(self.root, rid)
