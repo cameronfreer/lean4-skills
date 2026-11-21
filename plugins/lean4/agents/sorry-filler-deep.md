@@ -7,24 +7,23 @@ model: opus
 
 ## Inputs
 
-Consume the `run-contract/v1` [dispatch record](../skills/lean4/references/handoff-contract.md#dispatch-record-parent--worker) (`record == "dispatch"`): read `target`/`scope`, the `context` envelope (pre-collected LSP state — use it as the starting state when MCP is unavailable), and `owned_files` + `file_baseline` (fail closed on these — see below). Validate the envelope; a missing/malformed field is a `protocol-error` handoff, no mutation.
+Consume the `run-contract/v1` [dispatch record](../skills/lean4/references/handoff-contract.md#dispatch-record-parent--worker) (`record == "dispatch"`): read `target`/`scope`, the `context` envelope (pre-collected LSP state — use it as the starting state when live LSP is unavailable), and `owned_files` + `file_baseline` (fail closed on these — see below). Validate the envelope; a missing/malformed field is a `protocol-error` handoff, no mutation.
 
 `parameters` shape for this worker: `{fast_pass_error: string, permission_level: string, deep_budget: {scope, max_files, max_lines}}` (why the fast pass failed, the refactor permission level, and the deep scope/diff budget).
 
 ## Actions
 
 1. **Understand why fast pass failed**:
-   - Start with `lean_goal(file, line)` and `lean_diagnostic_messages(file)` before any edits or Bash verification
+   - Start with `lean_goal(file, line)` and `lean_diagnostic_messages(file)` before edits or file-level compilation; native LSP calls through Bash are part of this first check
    - Read surrounding code and dependencies
    - Check if needs: argument reordering, helper lemmas, type class refactoring (statement generalization NOT permitted — header fence)
    - Search with 1-2 LSP tools before trying fallback scripts or file-level compilation
 
-   > **MCP canary:** If both `lean_goal` and `lean_diagnostic_messages` are unavailable
-   > (tool-not-found, missing from context, or otherwise inaccessible), emit
-   > "⚠ Lean MCP tools unavailable in this subagent context" and proceed using
-   > script fallback for search and `lake env lean` / `lake build` for validation.
+   > **Selected LSP backend:** Use [canonical dispatch](../skills/lean4/SKILL.md#canonical-semantic-tool-dispatch). Preserve explicit MCP selection; otherwise prefer `cli_local` after `lean4-skills-lsp doctor --project ROOT --json` succeeds. Native commands run through Bash even without MCP tools.
    >
-   > **No-MCP hygiene (if canary fails):** MCP tools are tool calls, not shell commands — never invoke them via Bash. Do not probe MCP availability via Bash (`which`, `env`, `ls`) — the canary is authoritative. Stop retrying MCP for this run. Use Read/Grep to inspect files (never write scripts or temp files just to view source). Temp `.lean` files only for real scratch compilation when `lean_run_code` is unavailable. Start from pre-collected context in the parent prompt.
+   > **LSP canary:** Check goals/diagnostics through the selected backend before degrading. If neither backend is usable, emit "Lean LSP unavailable in this subagent context" and use script search plus the dependency-aware file/build gates below.
+   >
+   > **Transport hygiene:** MCP names are tool calls, never Bash commands; do not probe MCP with `which`/`env`/`ls`. The native executable is a Bash command. Follow bounded timeout recovery and stop retrying unavailable tools. In `cli_local`, skip remote searches and `lean_run_code`; use local search/documented scratch fallback. Read source with Read/Grep; start from the parent's pre-collected context.
 
 2. **Outline plan FIRST** (~200-500 tokens):
    ```markdown
@@ -73,7 +72,7 @@ Final summary (~200-300 tokens):
 - May NOT make large architectural changes without approval
 - May NOT delete existing working proofs
 - Must validate after every phase: `lean_goal` before first edit and after material changes; `lean_diagnostic_messages` per edit batch
-- Prefer live-file MCP for target-context work; for isolated scratch experiments use `lean_run_code` (temporary `.lean` files only as last resort)
+- Prefer selected-backend live LSP for target-context work; for isolated scratch experiments use `lean_run_code` (temporary `.lean` files only as last resort)
 - Engine creates path-scoped snapshot before deep and rolls back on regression or scope exceeded
 - Follow mathlib 100-char line width — do not wrap lines at 80 when they fit within 100
 - Engine enforces `--deep-scope`, `--deep-max-files`, `--deep-max-lines` — do not bypass

@@ -6,8 +6,6 @@ user_invocable: true
 
 # Lean4 Diagnostics
 
-Diagnostics, troubleshooting, and migration assistance for the Lean4 plugin.
-
 ## Usage
 
 ```
@@ -88,11 +86,14 @@ fi
 The persistent preflight checks `LEAN4_*`, PATH, and wrappers. Codex checks the
 installed tree and absolute wrappers. Each has a canonical recovery block.
 
-### 1b. MCP Tools
+### 1b. LSP Backends
+
+Use [canonical dispatch](../skills/lean4/SKILL.md#canonical-semantic-tool-dispatch); preserve explicit MCP selection, otherwise prefer `cli_local`.
 
 | Check | Detection | Status |
 |-------|-----------|--------|
-| Lean LSP MCP | `lean_goal` tool available in this session | Optional (sub-second feedback) |
+| Native CLI | `lean4-skills-lsp doctor --project ROOT --json`: exit 0, both availability booleans true in `data` | Local LSP available; separate source install |
+| Lean LSP MCP | `lean_goal` tool available in this session | Optional selected MCP backend |
 `✓ … available` or `⚠ … unavailable — see INSTALLATION.md`
 
 ### 2. Plugin Check
@@ -107,6 +108,7 @@ plugins/lean4/
 ├── skills/lean4/ (SKILL.md + references/)
 ├── agents/       (4 files)
 ├── bin/          (lean4-skills-* wrappers; absolute under Codex, on PATH under Claude)
+├── lsp/          (Lean CLI sources; build/install separately)
 └── lib/scripts/  (executable .py / .sh internals)
 ```
 
@@ -192,15 +194,14 @@ Keys: y=remove this, n=keep this, a=remove all remaining, q=quit now
 ### Environment
 ✓ lean 4.x.x
 ✓ lake 4.x.x
-...
 
-### MCP Tools
-✓ Lean LSP MCP tools available in this session (lean_goal)
+### LSP Backends
+✓ Native CLI available (doctor: toolchain + server; cli_local selected)
+→ MCP not selected; its absence does not disable native LSP
 
 ### Plugin
 ✓ LEAN4_PLUGIN_ROOT set
 ✓ Scripts executable
-...
 
 ### Project
 ✓ Build passes
@@ -249,13 +250,14 @@ No changes made. Run `/lean4:diagnose cleanup --apply` to remove.
 | lake not found | Install via elan |
 | Scripts not executable | Wrappers should be shipped executable — check `command -v lean4-skills-sorry-analyzer`. For unwrapped internals: `chmod +x $LEAN4_SCRIPTS/*.sh $LEAN4_SCRIPTS/*.py` |
 | Build fails | `lake update && lake clean && lake build` |
-| Fresh worktree rebuild is slow / LSP times out on first use | Prime cache (`lake cache get` or `lake exe cache get`), then `lake build`; do not symlink `.lake/build` from another worktree |
+| Native LSP timeout alone | Inspect status/error, check native status/doctor, allow at most one bounded retry, then fallback/report; a timeout alone does not justify a build |
+| Missing/stale imports | Hydrate cache, explicitly run `lake lean <file>` or the appropriate `lake build`, then stop/requery the native session; do not symlink another worktree's `.lake/build` |
 | Stale build after `lake clean` | Hydrate cache (`lake cache get` or `lake exe cache get`), then `lake build` |
 | Legacy plugin detected | Uninstall old plugin, remove directory |
 | Stale env vars | Restart session after removing old plugin |
 | Commands not found after migration | Check `/lean4:*` not `/lean4-theorem-proving:*` |
 | `rg` not found | Install via package manager — see [ripgrep](../../../INSTALLATION.md#optional-ripgrep) |
-| Lean LSP MCP tools unavailable | Check `claude mcp list` (Claude Code); if missing, `claude mcp add --transport stdio --scope user lean-lsp -- uvx lean-lsp-mcp` or see [INSTALLATION.md](../../../INSTALLATION.md#lean-lsp-mcp-server-all-hosts) |
+| No usable LSP backend | Check [native installation/recovery](../../../INSTALLATION.md#native-lean-lsp-cli-source-install); for explicit MCP, see [MCP setup](../../../INSTALLATION.md#lean-lsp-mcp-server-all-hosts); otherwise use script/file gates |
 
 Under Codex, PreToolUse is advisory and is not a security boundary.
 

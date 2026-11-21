@@ -404,55 +404,65 @@ to find the right mathlib lemma..."
 ✅ Just read it directly
 ```
 
-## Integration with MCP Server
+## Integration with LSP Backends
 
-**Main thread:** Prefer MCP tools over scripts for all interactive proof work.
+**Main thread:** Use the [canonical semantic dispatch](../SKILL.md#canonical-semantic-tool-dispatch).
+Preserve explicit MCP selection; otherwise prefer `cli_local` after a successful
+native doctor. Scripts are the bounded fallback, not the automatic consequence
+of MCP absence. Native commands run through Bash; MCP tool names never do.
 
-**Specialized proof-editing subagents:** Start from parent-provided pre-collected context (see [cycle-engine.md § Pre-flight Context](cycle-engine.md#pre-flight-context-for-subagent-dispatch)). Direct MCP access in the subagent is opportunistic, not assumed — if the startup canary detects MCP is unavailable, the agent commits to its fallback behavior immediately.
-
-See [SKILL.md § Operating Profiles](../SKILL.md#operating-profiles) for the full profile definitions.
+**Specialized proof workers:** Start from the parent's pre-collected LSP context
+([cycle-engine pre-flight](cycle-engine.md#pre-flight-context-for-subagent-dispatch)).
+Try the selected backend's canary before reducing capabilities. A usable native
+CLI retains goal/diagnostic/trial access even without inherited MCP tools.
+Use [operating profiles](../SKILL.md#operating-profiles) for budgets and recovery.
+In `cli_local`, skip unavailable remote searches; trials need exact ranges,
+candidate JSON and the original source identity, and run sequentially.
 
 **Hierarchy:**
-1. **Main thread + MCP** (best) — direct LSP integration, real-time feedback
-2. **Subagent with pre-collected context** (normal for sorry-filler-deep, proof-golfer, axiom-eliminator) — parent collects MCP results, agent starts from that state; MCP in subagent is a bonus if available
-3. **Subagent returning to caller** (proof-repair) — if MCP canary fails, returns no diff and lets the caller escalate rather than operating in fallback mode
-4. **Subagent + scripts only** (fallback) — batch operations or when pre-collected context is insufficient
-5. **Direct script execution** (non-Claude hosts) — when not using Claude Code
+1. **Main thread + selected LSP backend** — direct live inspection.
+2. **Worker + selected LSP backend + pre-collected context** — native via Bash
+   or explicitly selected MCP; reuse parent context as the starting state.
+3. **Worker with no usable live backend** — proof-repair returns no diff;
+   sorry-filler-deep/axiom-eliminator use scripts and required file/project gates;
+   proof-golfer limits itself to its documented syntactic fallback.
+4. **Inline controller** — execute the same workflow when delegation is absent.
 
 **Pre-collected context dispatch pattern:**
 ```
-# Parent collects MCP context before dispatch
-lean_goal(file, line)              # Capture goal state
-lean_diagnostic_messages(file)     # Capture diagnostics
-lean_local_search("keyword")       # Search results
+# Parent uses semantic calls through its selected backend before dispatch.
+lean_goal(file, line)                 # Capture goal state
+lean_diagnostic_messages(file)        # Capture diagnostics
+lean_local_search("keyword")          # Capture local search observations
 
-# Dispatch with pre-collected context (subagent may not have MCP)
+# Worker receives the results and the selected backend/project instructions.
 "Dispatch sorry-filler-deep on Foo.lean:42 with pre-collected context:
  Goal: ⊢ n + m = m + n
  Diagnostics: sorry at line 42
- Search: lean_local_search('Nat.add_comm') → [Nat.add_comm]"
-
-# Delegate batch operations to subagents
-"Dispatch Explore agent to run lean4-skills-check-axioms-inline on all changed files"
+ Search: Nat.add_comm
+ Backend: cli_local; project root: /repo; use canonical command dispatch"
 ```
 
-**Why pre-collect context?**
-- MCP tools may not be available in subagents (see Known Limitation below)
-- Pre-collecting gives the agent a working starting state even without MCP
-- The agent can still use `lake env lean` via Bash for post-edit validation
-- See [cycle-engine.md § Pre-flight Context](cycle-engine.md#pre-flight-context-for-subagent-dispatch) for per-agent context specs
+Keep the existing `run-contract/v1` schema: pass backend/project guidance in the
+worker prompt alongside the record; do not add undeclared record fields.
+Pre-collected context can become stale, so refresh live observations/source
+identity and retain file-baseline guards before editing.
 
 ### Known Limitation: MCP in Plugin Subagents
 
-In current Claude Code versions, plugin-defined subagents may fail to inherit MCP server connections from the parent thread (upstream: anthropics/claude-code#39962). Each agent has a startup canary that detects this; the fallback behavior varies by agent (proof-repair returns no diff and lets the caller escalate; sorry-filler-deep and axiom-eliminator fall back to scripts and `lake build`; proof-golfer limits to syntactic patterns with `lake env lean` per-hunk verification).
+Plugin-defined subagents may fail to inherit MCP connections from their parent
+(upstream: anthropics/claude-code#39962). This is an MCP transport limitation;
+it does not establish that native LSP is unavailable. Test the native CLI when
+appropriate before entering the no-LSP fallback. A worker without Bash cannot
+invoke it: return to the caller rather than inventing a usable capability.
 
-**Mitigations (built into the plugin):**
-- **Pre-flight context:** The parent thread collects goal state, diagnostics, and search results before dispatch and includes them in the agent prompt. See [cycle-engine.md § Pre-flight Context](cycle-engine.md#pre-flight-context-for-subagent-dispatch).
-- **No-MCP hygiene:** Each agent's canary block enforces: no invoking MCP tool names via Bash, no retrying MCP after canary fails, use Read/Grep for file inspection (not scripts or temp files).
-
-**Additional workarounds:**
-- Prefer **user-scoped** MCP server (`claude mcp add --transport stdio --scope user lean-lsp -- ...`) over project-scoped — user-scoped servers have been more reliable
-- For work that critically depends on live MCP feedback, run in the main conversation thread rather than delegating
+**Mitigations:**
+- Collect selected-backend LSP context before dispatch and summarize results.
+- Keep canaries backend-aware; do not shell-probe or shell-invoke MCP tools.
+- For explicitly selected MCP, user-scoped server registration may help tool
+  inheritance; if live MCP is essential, keep that work in the main thread.
+- Use Read/Grep for source inspection. Scratch compilation, dependency-aware
+  file checks and final axiom/project gates remain separate from LSP access.
 
 ## Multi-Branch Workflows
 
@@ -609,7 +619,7 @@ and show a prioritized list before asking how to proceed"
 - Check script arguments - did you pass the right pattern?
 - Try different search mode (name vs content vs type)
 - Dispatch with more specific instructions
-- Fall back to MCP server tools if available
+- Use the selected native or explicit MCP backend when available; treat incomplete native search as incomplete coverage
 
 ### "Agent output was too verbose"
 

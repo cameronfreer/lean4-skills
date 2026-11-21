@@ -1,11 +1,8 @@
 name: lean-integration
 
-# Real-toolchain integration suite for the file-gate / /disprove certification
-# sequence (#166, PR #195): one Linux job, one pinned Lean toolchain (the
-# fixture's lean-toolchain), no mathlib, no LSP; plus a second job that reruns
-# only the core reference snippets on a newer Lean. Separate from lint.yml so the
-# fast contract suites stay fast; the toolchain is cached, the fixture
-# projects' .lake directories are never cached (their state is the experiment).
+# Preserve the existing file-gate/reference jobs. Native LSP binaries are built
+# once at Lean 4.35.0, then tested against actual project servers at both pins.
+# Core suites have no Mathlib dependency; real Mathlib remains opt-in.
 
 on:
   pull_request:
@@ -130,3 +127,152 @@ jobs:
           bash ../reference_snippets/run_core_snippets.sh | tee "$RUNNER_TEMP/snippets.log"
           # The version-gated fixture must have run here, not been skipped.
           grep -F '== grind_bv_snippets.lean (must elaborate' "$RUNNER_TEMP/snippets.log"
+
+  native-lsp-build:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_LEAN: leanprover/lean4:v4.35.0
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cache native build toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.elan
+          key: elan-${{ runner.os }}-${{ env.BUILD_LEAN }}
+
+      - name: Install elan + the CLI build toolchain
+        run: |
+          set -euo pipefail
+          if [ ! -x "$HOME/.elan/bin/elan" ]; then
+            curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+              | sh -s -- -y --default-toolchain none
+          fi
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+          "$HOME/.elan/bin/elan" toolchain install "$BUILD_LEAN"
+
+      - name: Build native CLI and test runner once
+        working-directory: plugins/lean4/lsp
+        run: lake +leanprover/lean4:v4.35.0 build lean4-skills-lsp test
+
+      - name: Core unit, session and isolated-trial suites (no Mathlib)
+        working-directory: plugins/lean4/lsp
+        run: |
+          set -euo pipefail
+          .lake/build/bin/test --unit
+          .lake/build/bin/test --session
+          .lake/build/bin/test --trials
+
+      - name: Upload compiled executables
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-lsp-linux-x86_64
+          path: |
+            plugins/lean4/lsp/.lake/build/bin/lean4-skills-lsp
+            plugins/lean4/lsp/.lake/build/bin/test
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  native-lsp-integration:
+    needs: native-lsp-build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        server-toolchain:
+          - leanprover/lean4:v4.33.1
+          - leanprover/lean4:v4.35.0
+    steps:
+      # No checkout: both the installed smoke and integration runner must work
+      # with only the compiled artifacts, independently of the source tree.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Cache target server toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.elan
+          key: elan-${{ runner.os }}-${{ matrix.server-toolchain }}
+
+      - name: Install elan + target server toolchain
+        env:
+          SERVER_LEAN: ${{ matrix.server-toolchain }}
+        run: |
+          set -euo pipefail
+          if [ ! -x "$HOME/.elan/bin/elan" ]; then
+            curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+              | sh -s -- -y --default-toolchain none
+          fi
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+          "$HOME/.elan/bin/elan" toolchain install "$SERVER_LEAN"
+
+      - name: Download compiled executables into standalone runner layout
+        uses: actions/download-artifact@v4
+        with:
+          name: native-lsp-linux-x86_64
+          path: ${{ runner.temp }}/native-lsp-runner/.lake/build/bin
+
+      - name: Restore artifact modes and install CLI on PATH
+        run: |
+          set -euo pipefail
+          chmod 0755 "$RUNNER_TEMP/native-lsp-runner/.lake/build/bin/lean4-skills-lsp" \
+            "$RUNNER_TEMP/native-lsp-runner/.lake/build/bin/test"
+          mkdir -p "$RUNNER_TEMP/native-lsp-bin" "$RUNNER_TEMP/native-lsp-smoke-cwd"
+          install -m 0755 "$RUNNER_TEMP/native-lsp-runner/.lake/build/bin/lean4-skills-lsp" \
+            "$RUNNER_TEMP/native-lsp-bin/lean4-skills-lsp"
+          echo "$RUNNER_TEMP/native-lsp-bin" >> "$GITHUB_PATH"
+
+      - name: Installed CLI smoke outside checkout and project cwd
+        working-directory: ${{ runner.temp }}/native-lsp-smoke-cwd
+        env:
+          SERVER_LEAN: ${{ matrix.server-toolchain }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY_SMOKE'
+          import json
+          import os
+          from pathlib import Path
+          import shutil
+          import subprocess
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "native smoke λ with spaces"
+          root.mkdir()
+          (root / "lakefile.toml").write_text("name = 'native_smoke'\n")
+          (root / "lean-toolchain").write_text(os.environ["SERVER_LEAN"] + "\n")
+          (root / "Example.lean").write_text("example (n : Nat) : n = n := by\n  sorry\n")
+          assert shutil.which("lean4-skills-lsp") == str(
+              Path(os.environ["RUNNER_TEMP"]) / "native-lsp-bin/lean4-skills-lsp"
+          )
+
+          def call(*args):
+              result = subprocess.run(
+                  ["lean4-skills-lsp", *args, "--project", str(root), "--json"],
+                  capture_output=True, text=True, check=False, timeout=40,
+              )
+              print(result.stdout, end="")
+              assert result.returncode == 0, result.stderr + result.stdout
+              response = json.loads(result.stdout)
+              assert response["schema"] == "lean4-lsp/v1" and response["ok"]
+              assert response["projectRoot"] == str(root.resolve())
+              return response
+
+          try:
+              doctor = call("doctor")
+              assert doctor["data"]["buildVersion"] == "4.35.0"
+              assert doctor["data"]["projectServerAvailable"]
+              goal = call("goal", "Example.lean", "--line", "2", "--column", "3")
+              assert goal["status"] == "goals_present" and goal["sourceIdentity"]
+              call("status")
+          finally:
+              call("stop")
+          PY_SMOKE
+
+      - name: Native real-server integration matrix
+        # The runner resolves its companion CLI relative to this cwd. No source
+        # files, .olean files, or CLI build toolchain are needed by this job.
+        working-directory: ${{ runner.temp }}/native-lsp-runner
+        env:
+          SERVER_LEAN: ${{ matrix.server-toolchain }}
+        run: .lake/build/bin/test --integration --server-toolchain "$SERVER_LEAN"

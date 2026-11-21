@@ -1,0 +1,6 @@
+{"version": "1.3.0",
+ "packagesDir": ".lake/packages",
+ "packages": [],
+ "name": "«lean4-skills-lsp»",
+ "lakeDir": ".lake",
+ "fixedToolchain": false}
