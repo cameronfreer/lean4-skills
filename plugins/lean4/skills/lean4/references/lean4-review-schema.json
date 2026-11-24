@@ -78,7 +78,7 @@
       "enum": ["error", "warning", "advisory", "hint", "style"]
     },
     "category": {
-      "description": "Mathlib-review taxonomy vocabulary (#114) plus legacy-accepted values. Legacy values are accepted, not normalized.",
+      "description": "Mathlib-review taxonomy vocabulary (#114), formal-pair (pair-audit findings surfaced by --pairs, #88), plus legacy-accepted values. Legacy values are accepted, not normalized.",
       "type": "string",
       "enum": [
         "docstring",
@@ -92,6 +92,7 @@
         "import-hygiene",
         "module-system",
         "metadata",
+        "formal-pair",
         "sorry",
         "axiom",
         "style",

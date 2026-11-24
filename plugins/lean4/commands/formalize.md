@@ -200,5 +200,6 @@ Always run `lean4-skills-check-axioms-inline <target> --report-only` before pres
 - [Examples](../skills/lean4/references/command-examples.md#formalize)
 - [LSP Tools API](../skills/lean4/references/lean-lsp-tools-api.md) — search tools used in proof attempts
 - [Learning Pathways](../skills/lean4/references/learn-pathways.md) — intent taxonomy, source handling
+- [Formal Pairs](../skills/lean4/references/formal-pairs.md) — `formal-pair/v1`, linking an informal claim to its Lean declarations, and the read-only `lean4-skills-pair-audit`, surfaced by `/lean4:review --pairs` (`--emit-artifacts` is a later slice of #88)
 - `/lean4:draft` — skeleton-only drafting (no prove phase)
 - `/lean4:autoformalize` — autonomous synthesis (unattended)

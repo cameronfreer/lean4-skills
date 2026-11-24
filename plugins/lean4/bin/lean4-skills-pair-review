@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# lean4-skills-pair-review — model-facing wrapper around lib/scripts/pair_review.py.
+# Maps a pair-audit/v1 report (from lean4-skills-pair-audit --json) to a
+# lean4-review-output/v2 object for /lean4:review --pairs (issue #88, slice 2):
+# category formal-pair, rule_id the audit code, severity error/warning/hint.
+# Pure: reads the pair file and the report, runs no Lean. See formal-pairs.md.
+#
+# Exit codes:
+#   0  a valid lean4-review-output/v2 object was printed
+#   2  usage error, unreadable file, or malformed JSON
+#   3  the input is not a pair-audit/v1 report or a formal-pair/v1 file
+#   4  operational failure (the shipped review schema is unreadable)
+#
+# See lean4-skills-project-context for the bin/-wrapper rationale.
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+exec "${LEAN4_PYTHON_BIN:-python3}" "$PLUGIN_ROOT/lib/scripts/pair_review.py" "$@"

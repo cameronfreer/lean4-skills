@@ -66,6 +66,13 @@ jobs:
           LEAN_FILE_GATE_KEEP_DIR: ${{ runner.temp }}/lean_file_gate_failures
         run: python3 plugins/lean4/tests/integration/test_lean_file_gate.py -v
 
+      # formal-pair/v1 auditor (#88) on its core-Lean fixture, same pinned
+      # toolchain. PAIR_AUDIT_REQUIRE_LEAN turns the local skip into a failure.
+      - name: Pair-audit integration (formal-pair/v1, #88)
+        env:
+          PAIR_AUDIT_REQUIRE_LEAN: "1"
+        run: python3 plugins/lean4/tests/integration/test_pair_audit_lean.py -v
+
       - name: Core-Lean reference snippets (instance registration; #167/#168/#169 diagnostics; #181 grind/metaprogramming/linter/Verso/profiler)
         # Same pinned toolchain, no Mathlib. Documented repairs must elaborate;
         # documented failures are #guard_msgs controls, plus one must-fail file

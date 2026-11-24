@@ -645,6 +645,87 @@ REVIEW_SCOPE_REQUIRES_TARGET_AND_LINE = CrossValidation(
 )
 
 
+# -- review_pairs_file_exists ----------------------------------------------
+
+
+def review_pairs_file_exists(
+    options: Mapping[str, object],
+    ctx: ParseContext,
+) -> list[str]:
+    """review: --pairs must name an existing file (os.path.exists budget)."""
+    pairs = options.get("--pairs")
+    if pairs and not os.path.isfile(os.path.join(ctx.cwd, str(pairs))):
+        return [f"--pairs file {pairs!s} does not exist."]
+    return []
+
+
+REVIEW_PAIRS_FILE_EXISTS = CrossValidation(
+    rule_id="review_pairs_file_exists",
+    fn=review_pairs_file_exists,
+    severity="error",
+    doc_phrases=("missing `--pairs` file \u2192 startup validation error",),
+    summary="review: --pairs must name an existing file",
+)
+
+
+# -- review_pairs_scope ----------------------------------------------------
+
+
+def review_pairs_scope(
+    options: Mapping[str, object],
+    ctx: ParseContext,
+) -> list[str]:
+    """review: --pairs audits claims per file, so it needs a file-level scope.
+
+    `sorry`/`deps` scopes (explicit, or implied by `--line`) review one goal;
+    a pair audit reports per claim and per file, so the combination is refused
+    rather than silently widened.
+    """
+    if not options.get("--pairs"):
+        return []
+    scope = options.get("--scope")
+    if scope in ("sorry", "deps") or options.get("--line") is not None:
+        return [
+            "--pairs requires --scope=file, changed or project (not sorry/deps/--line)."
+        ]
+    return []
+
+
+REVIEW_PAIRS_SCOPE = CrossValidation(
+    rule_id="review_pairs_scope",
+    fn=review_pairs_scope,
+    severity="error",
+    doc_phrases=(
+        "`--pairs` with `--scope=sorry`, `--scope=deps` or `--line` \u2192 startup validation error",
+    ),
+    summary="review: --pairs needs a file, changed or project scope",
+)
+
+
+# -- review_pairs_stuck_ignored --------------------------------------------
+
+
+def review_pairs_stuck_ignored(
+    options: Mapping[str, object],
+    ctx: ParseContext,
+) -> list[str]:
+    """review: stuck triage reports blockers only; --pairs is ignored there."""
+    if options.get("--pairs") and options.get("--mode") == "stuck":
+        return [
+            "--pairs is ignored with --mode=stuck (stuck triage reports blockers only)."
+        ]
+    return []
+
+
+REVIEW_PAIRS_STUCK_IGNORED = CrossValidation(
+    rule_id="review_pairs_stuck_ignored",
+    fn=review_pairs_stuck_ignored,
+    severity="warning",
+    doc_phrases=("`--pairs` with `--mode=stuck` \u2192 warning, ignored",),
+    summary="review: --pairs is ignored in stuck mode",
+)
+
+
 # -- mathlib_template_requires_output_file ---------------------------------
 
 

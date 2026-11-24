@@ -187,6 +187,7 @@ class OutputSchemaStructuredOutputs(unittest.TestCase):
             "import-hygiene",
             "module-system",
             "metadata",
+            "formal-pair",
         }
         legacy = {"sorry", "axiom", "style", "structure", "naming", "golf", "import"}
         self.assertTrue(new <= cat, f"missing new categories: {sorted(new - cat)}")
