@@ -422,7 +422,7 @@ lean4-skills-sorry-analyzer . --report-only
 
 **Tactics:** [tactics-reference](references/tactics-reference.md) (tactic lookup — grep `^### TacticName`), [grind-tactic](references/grind-tactic.md) (SMT-style automation — when simp can't close), [simp-reference](references/simp-reference.md) (mechanism choice, simp normal forms, `@[simp]` hygiene, simproc authoring), [tactic-patterns](references/tactic-patterns.md), [calc-patterns](references/calc-patterns.md)
 
-**Proof Development:** [proof-templates](references/proof-templates.md), [proof-refactoring](references/proof-refactoring.md) (28K — grep by topic), [proof-simplification](references/proof-simplification.md) (strategy-level: mathlib search, congr lemmas, helper extraction), [sorry-filling](references/sorry-filling.md)
+**Proof Development:** [proof-templates](references/proof-templates.md), [proof-refactoring](references/proof-refactoring.md) (28K — grep by topic), [proof-simplification](references/proof-simplification.md) (strategy-level: mathlib search, congr lemmas, helper extraction), [sorry-filling](references/sorry-filling.md), [small-case-falsification](references/small-case-falsification.md) (check a conjectural statement on small instances before it becomes a `sorry`)
 
 **Optimization:** [proof-golfing](references/proof-golfing.md) (includes safety rules, bounded LSP lemma replacement, bulk rewrites, anti-patterns; escalates to axiom-eliminator), [proof-golfing-patterns](references/proof-golfing-patterns.md), [performance-optimization](references/performance-optimization.md) (grep by symptom), [profiling-workflows](references/profiling-workflows.md) (diagnose slow builds/proofs)
 

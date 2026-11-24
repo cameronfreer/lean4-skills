@@ -255,7 +255,7 @@ Structural escape hatches when the issue is shape, not the next tactic: shrink t
 - Use `/lean4:prove --deep=stuck` for deep sorry-filling workflow
 
 **If statement may be false:**
-- Run preflight falsification (decide, small enumeration)
+- Run preflight falsification (decide, small enumeration); for statements Lean cannot enumerate, a small-case script ([small-case-falsification](small-case-falsification.md))
 - If counterexample found, create `T_counterexample`
 - Create `T_salvaged` with weaker/corrected statement
 - See prove/autoprove stuck → salvage workflow

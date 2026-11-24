@@ -114,7 +114,7 @@ Invoke draft logic (same algorithm as `/lean4:draft`):
 
 1. **Intent Intake** — resolve `--intent` and `--presentation`.
 2. **Claim Acquisition** — parse topic or ingest `--source`.
-3. **Draft Theorem Skeleton** — translate claim to sorry-stubbed Lean declaration.
+3. **Draft Theorem Skeleton** — translate claim to sorry-stubbed Lean declaration. For a conjectural claim, run the [small-case falsification](../skills/lean4/references/small-case-falsification.md) check first.
 4. **Elaboration Check** — `lean_diagnostic_messages` on skeleton.
 5. **Proof Attempt** (when `--draft-mode=attempt`, default) — `lean_goal` + `lean_multi_attempt` loop.
 

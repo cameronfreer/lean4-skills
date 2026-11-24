@@ -6,6 +6,7 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 
 for f in core_instance_snippets.lean diagnostic_snippets.lean \
+         falsify_first_snippets.lean \
          grind_snippets.lean grind_suggestions_snippets.lean \
          meta_snippets.lean verso_snippets.lean; do
     echo "== $f (must elaborate)"
