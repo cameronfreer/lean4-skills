@@ -264,7 +264,8 @@ See [sorry-filling.md](references/sorry-filling.md) for the full scratch-work pr
   `lean4-skills-project-context`,
   `lean4-skills-checkpoint-mathlib-roots`,
   `lean4-skills-validate-review-output`, `lean4-skills-run-store`,
-  `lean4-skills-run-persist`, `lean4-skills-pair-audit`). In a persistent environment these
+  `lean4-skills-run-persist`, `lean4-skills-pair-audit`,
+  `lean4-skills-pair-review`). In a persistent environment these
   are bare commands on PATH. In a trusted native Codex plugin, prefix the
   wrapper name with the literal absolute `bin_dir` from SessionStart (for
   example `/installed/plugin/bin/lean4-skills-sorry-analyzer`). Do not use
@@ -412,7 +413,7 @@ lean4-skills-sorry-analyzer . --report-only
 
 **Run Store:** [run-store](references/run-store.md) — `run-store/v1`, the storage primitive for those records (`lean4-skills-run-store`: immutable manifest, append-only journal, disposable handoff cache; historical evidence, never certification). `prove`/`autoprove --persist` write runs through `lean4-skills-run-persist` per [cycle-engine § Run Persistence](references/cycle-engine.md#run-persistence) (#82B); prior-run reuse: `--prior-run` (#82C) per [cycle-engine § Prior-Run Reuse](references/cycle-engine.md#prior-run-reuse); resume/inspect remain open under #82.
 
-**Formal Pairs:** [formal-pairs](references/formal-pairs.md) — `formal-pair/v1`, informal claims paired with their Lean declarations (#88), and the read-only auditor `lean4-skills-pair-audit` (declarations resolved by name, status checked against `sorry` and axioms, statement drift by type hash). No command emits or consumes pairs yet.
+**Formal Pairs:** [formal-pairs](references/formal-pairs.md) — `formal-pair/v1`, informal claims paired with their Lean declarations (#88), and the read-only auditor `lean4-skills-pair-audit` (declarations resolved by name, status checked against `sorry` and axioms, statement drift by type hash). `/lean4:review --pairs` surfaces its findings through `lean4-skills-pair-review`; no command emits pairs yet.
 
 **LSP Tools:** [lean-lsp-server](references/lean-lsp-server.md) (quick start), [lean-lsp-tools-api](references/lean-lsp-tools-api.md) (full API — grep `^##` for tool names)
 

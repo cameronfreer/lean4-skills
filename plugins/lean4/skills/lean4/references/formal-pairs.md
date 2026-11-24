@@ -1,8 +1,8 @@
 # Formal Pairs (`formal-pair/v1`)
 
-**Status:** format and auditor only, slice 1 of #88. This reference is the contract for `formal-pair/v1` ([schema](formal-pair-schema.json)) and for the read-only auditor `lean4-skills-pair-audit` (`lib/scripts/pair_audit.py`). No command writes or reads pair files yet: `/lean4:review` integration and `/lean4:formalize --emit-artifacts` are later slices of #88.
+**Status:** slices 1 and 2 of #88. This reference is the contract for `formal-pair/v1` ([schema](formal-pair-schema.json)), for the read-only auditor `lean4-skills-pair-audit` (`lib/scripts/pair_audit.py`), and for its use by `/lean4:review --pairs` through `lean4-skills-pair-review` (`lib/scripts/pair_review.py`). No command writes pair files yet: `/lean4:formalize --emit-artifacts` is a later slice of #88.
 
-**Executable evidence:** `lib/scripts/tests/test_pair_audit.py` (schema, cross-field rules, every finding code, exit codes; no Lean) and `tests/integration/test_pair_audit_lean.py` (the same fixture against a pinned toolchain, in the lean-integration workflow).
+**Executable evidence:** `lib/scripts/tests/test_pair_audit.py` (schema, cross-field rules, every finding code, exit codes; no Lean), `lib/scripts/tests/test_pair_review.py` (the mapping to `lean4-review-output/v2`, scope filter, locations, exit codes; no Lean) and `tests/integration/test_pair_audit_lean.py` (the same fixture against a pinned toolchain, in the lean-integration workflow).
 
 ## What a pair is
 
@@ -70,6 +70,19 @@ It writes one probe file under `<project>/.lake/pair_audit/`, elaborates it with
 | `relation-unchecked`, `unformalized` | info | counted, for the reviewer |
 
 Exit codes: `0` no error or warning, `1` findings, `2` usage or malformed JSON, `3` schema or cross-field failure, `4` operational (no `lake`, the probe does not elaborate, a declaration got no record).
+
+## In `/lean4:review`
+
+`/lean4:review --pairs=PATH` runs the auditor with `--json` and pipes the report through `lean4-skills-pair-review`, which prints a `lean4-review-output/v2` object; the review validates it and merges it like a hook's output ([review.md](../../../commands/review.md#formal-pair-audit)).
+
+| Audit | Review |
+|---|---|
+| `severity` `error` / `warning` / `info` | `error` / `warning` / `hint` |
+| finding code | `rule_id`, under `category: formal-pair` |
+| claim's `formal.file` | `file` (`null` when the claim has none) |
+| first line declaring the name's last component in that file | `line` (`null` when not found, or for `stale-path`) |
+
+`--files` keeps only claims whose `formal.file` is in the review scope; under `--scope=project` every claim is kept. The line is a plain text search, a pointer for the reader: the auditor itself resolves by name. Exit codes: `0` a valid object printed, `2` usage or malformed JSON, `3` not a `pair-audit/v1` report or not a `formal-pair/v1` file, `4` the shipped review schema is unreadable.
 
 ## Reading a drift warning
 

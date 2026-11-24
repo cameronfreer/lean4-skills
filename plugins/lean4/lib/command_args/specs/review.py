@@ -2,8 +2,8 @@
 
 /lean4:review had no parser spec until #110. It is adopted here as one full
 spec covering every currently-documented flag PLUS the two mathlib-review
-gate flags, rather than validating only the new flags (which would deepen the
-drift #110's track removes). Behaviour beyond parsing — the Layer 1 / Layer 2
+gate flags (and, since #88 slice 2, ``--pairs``), rather than validating only
+the new flags (which would deepen the drift #110's track removes). Behaviour beyond parsing — the Layer 1 / Layer 2
 split, project-context gating, advisory labelling, and output validation —
 lives in review.md.
 
@@ -16,6 +16,9 @@ from __future__ import annotations
 
 from ..coercions import (
     REVIEW_MATHLIB_REVIEW_CONFLICT,
+    REVIEW_PAIRS_FILE_EXISTS,
+    REVIEW_PAIRS_SCOPE,
+    REVIEW_PAIRS_STUCK_IGNORED,
     REVIEW_SCOPE_REQUIRES_TARGET_AND_LINE,
 )
 from ..types import CommandSpec, FlagSpec, PositionalSpec
@@ -89,6 +92,14 @@ SPEC = CommandSpec(
                 "detection."
             ),
         ),
+        FlagSpec(
+            name="--pairs",
+            type="path",
+            notes=(
+                "formal-pair/v1 file: surface lean4-skills-pair-audit findings "
+                "as category formal-pair (#88)."
+            ),
+        ),
     ),
     cross_validations=(
         # --mathlib-review + --no-mathlib-review -> single startup error,
@@ -97,5 +108,10 @@ SPEC = CommandSpec(
         # sorry/deps need target+line; file needs target (documented scope
         # preconditions — the parser is authoritative at startup).
         REVIEW_SCOPE_REQUIRES_TARGET_AND_LINE,
+        # --pairs: the file must exist; per-claim findings need a file-level
+        # scope; stuck triage ignores it (warning).
+        REVIEW_PAIRS_FILE_EXISTS,
+        REVIEW_PAIRS_SCOPE,
+        REVIEW_PAIRS_STUCK_IGNORED,
     ),
 )

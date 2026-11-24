@@ -19,6 +19,7 @@ Read-only review of Lean proofs for quality, style, and optimization opportuniti
 /lean4:review File.lean --line=89 --scope=deps  # Review sorry + its dependencies
 /lean4:review --scope=project              # Review entire project (prompts)
 /lean4:review --mathlib-review             # Force the mathlib-review bar (Layer 2)
+/lean4:review Core.lean --pairs=pairs.json # Also surface formal-pair audit findings
 ```
 
 ## Invocation Contract
@@ -61,6 +62,7 @@ Startup requirements:
 | --mode | No | `batch` (default) or `stuck` (triage) |
 | --mathlib-review | No | Force the Layer-2 mathlib-review bar at full strictness, overriding project-context detection. Mutually exclusive with `--no-mathlib-review`. |
 | --no-mathlib-review | No | Force Layer-2 findings to advisory, overriding project-context detection. Mutually exclusive with `--mathlib-review`. |
+| --pairs | No | A `formal-pair/v1` file: surface `lean4-skills-pair-audit` findings in the review (see [Formal-Pair Audit](#formal-pair-audit)). |
 
 ## Scope Behavior
 
@@ -162,6 +164,14 @@ The agent selects files based on scope, then runs these analyses (per file or di
 
 Layer 1 findings are always blockers-or-hygiene for the current project. The
 second-pass **mathlib-review layer** below runs on top of them.
+
+## Formal-Pair Audit
+
+With `--pairs=PATH` (batch mode), after Layer 1 run `lean4-skills-pair-audit PATH --project . --json > report.json`, then `lean4-skills-pair-review PATH --report report.json --project . --files <files in scope>` (no `--files` under `--scope=project`), pass the output through `lean4-skills-validate-review-output` and merge it like a hook's. Findings carry `category: formal-pair` and the audit code as `rule_id`; audit severities map `error`→`error`, `warning`→`warning`, `info`→`hint`. Render them under `### Formal Pairs`.
+
+- A `drift` finding asks the reader to re-read the claim's informal statement against the new type. Never report it, or any finding, as a mismatch between the informal and formal statements: neither tool judges that ([formal-pairs.md](../skills/lean4/references/formal-pairs.md)).
+- An audit exit `2`/`3`/`4` is reported in that section with no findings; it never suppresses Layer-1 or Layer-2 findings.
+- Startup: missing `--pairs` file → startup validation error; `--pairs` with `--scope=sorry`, `--scope=deps` or `--line` → startup validation error; `--pairs` with `--mode=stuck` → warning, ignored.
 
 ## Mathlib Review Layer (Layer 2)
 
@@ -450,4 +460,4 @@ for CI integration patterns.
 - [mathlib-style.md](../skills/lean4/references/mathlib-style.md)
 - [mathlib-review-taxonomy.md](../skills/lean4/references/mathlib-review-taxonomy.md) — the vocabulary the [Mathlib Review Layer](#mathlib-review-layer-layer-2) emits. Its buckets become first-class findings when Layer 2 is at full strictness, and advisory findings otherwise.
 - [Examples](../skills/lean4/references/command-examples.md#review)
-- [Formal Pairs](../skills/lean4/references/formal-pairs.md) — `lean4-skills-pair-audit` checks a `formal-pair/v1` file (missing declarations, `sorry` or axioms against each claim's status, statement drift); not yet wired into this command (#88)
+- [Formal Pairs](../skills/lean4/references/formal-pairs.md) — `lean4-skills-pair-audit` checks a `formal-pair/v1` file (missing declarations, `sorry` or axioms against each claim's status, statement drift); `--pairs` surfaces its findings here (#88)

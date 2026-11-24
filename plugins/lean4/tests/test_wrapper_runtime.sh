@@ -79,6 +79,7 @@ lean4-skills-find-exact-candidates:2
 lean4-skills-find-golfable:2
 lean4-skills-find-usages:1
 lean4-skills-pair-audit:2
+lean4-skills-pair-review:2
 lean4-skills-preflight:2
 lean4-skills-project-context:0
 lean4-skills-run-persist:2

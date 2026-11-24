@@ -20,6 +20,7 @@ Hard-primitive scripts for Lean 4 workflows. These implement functionality that'
 | `find_exact_candidates.py` | Find exact? replacement candidates | Optional companion for direct-proof discovery |
 | `analyze_let_usage.py` | Detect false-positive optimizations | Before inlining let bindings |
 | `pair_audit.py` | Audit a `formal-pair/v1` file (informal claim ↔ Lean declarations) | After a refactor or golf, before a paper or review |
+| `pair_review.py` | Map a `pair-audit/v1` report to `lean4-review-output/v2` (category `formal-pair`) | Run by `/lean4:review --pairs` |
 
 ## Core Scripts
 

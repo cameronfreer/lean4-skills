@@ -12,8 +12,9 @@ independent source of truth:
 The output schema is OpenAI Structured Outputs constrained (object root,
 `additionalProperties: false` everywhere, every property required, semantic
 optionals as nullable types). Category values are the mathlib-review taxonomy
-(#114) plus legacy-accepted values (`sorry, axiom, style, structure, naming,
-golf, import`) — accepted, not normalized.
+(#114), `formal-pair` (pair-audit findings, emitted by `/lean4:review --pairs`
+itself, #88), plus legacy-accepted values (`sorry, axiom, style, structure,
+naming, golf, import`) — accepted, not normalized.
 
 ---
 
