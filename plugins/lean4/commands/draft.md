@@ -121,6 +121,8 @@ Two entry points:
 
 Parse natural-language claim → draft theorem skeleton with appropriate types, hypotheses, and conclusion. Use mathlib naming conventions and types where possible (`lean_local_search`, `lean_leanfinder`/`lean_leansearch`, `lean_loogle` to find canonical types).
 
+**Conjectural claims.** When the claim is not taken verbatim from a proved source (a guessed intermediate lemma, a generalisation, a claim the source only presumes), check it on small instances before it becomes a `sorry` target: see [small-case-falsification.md](../skills/lean4/references/small-case-falsification.md). A witness goes to `/lean4:disprove`; passing small cases is evidence, not proof.
+
 ### 3. Elaboration Check
 
 Run `lean_diagnostic_messages` on the drafted skeleton. Under `--elab-check=strict`, all diagnostics must be clean (excluding the expected sorry). Under `--elab-check=best-effort`, attempt to fix diagnostics but continue if unfixable.

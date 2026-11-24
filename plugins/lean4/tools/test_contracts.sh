@@ -2787,6 +2787,56 @@ if [[ "$check47_ok" -eq 1 ]]; then
     ok "Check 47: conclusion phase pinned (#85: reserve forms + rounding, tick-only trigger, latch, boundary sequence and mapping, finalization rule, time limitation, persistence reporting; concluded in the contract with its reader boundary; protocol tests wired)"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 48: small-case falsification before formalizing (#87). The two worked
+# cases with core-Lean content are established by falsify_first_snippets.lean
+# (run_core_snippets.sh in lean-integration.yml); this check pins the rule's
+# one home, its boundary, the disprove hand-off and the links that reach it.
+# ---------------------------------------------------------------------------
+check48_ok=1
+_c48_ref="$PLUGIN_ROOT/skills/lean4/references/small-case-falsification.md"
+if [[ ! -f "$_c48_ref" ]]; then
+    fail "Check 48: skills/lean4/references/small-case-falsification.md is missing"
+    check48_ok=0
+else
+    for _c48_h in '## When to Run It' '## How' '## Handing a Witness to `/lean4:disprove`' \
+                  '## Boundary' '## Worked Cases'; do
+        if ! grep -qxF -- "$_c48_h" "$_c48_ref"; then
+            fail "Check 48: small-case-falsification.md missing '$_c48_h'"
+            check48_ok=0
+        fi
+    done
+    _c48_b=$(extract_section "$_c48_ref" "## Boundary")
+    if ! grep -qF '**Passing small cases is not a proof.**' <<<"$_c48_b" \
+       || ! grep -qF 'Small cases can be degenerate' <<<"$_c48_b"; then
+        fail "Check 48: Boundary must say that passing small cases is not a proof, and that small cases can be degenerate"
+        check48_ok=0
+    fi
+    _c48_w=$(extract_section "$_c48_ref" "## Handing a Witness to \`/lean4:disprove\`")
+    if ! grep -qF 'A script'"'"'s witness is a hypothesis until Lean certifies it.' <<<"$_c48_w" \
+       || ! grep -qF '`REFUTED` is reported only when the negation type-checks' <<<"$_c48_w" \
+       || ! grep -qF '`WITNESS: <value>`' "$_c48_ref"; then
+        fail "Check 48: the disprove hand-off must keep REFUTED for Lean-certified negations and the WITNESS: line format"
+        check48_ok=0
+    fi
+fi
+for _c48_f in commands/draft.md commands/formalize.md skills/lean4/references/sorry-filling.md \
+              skills/lean4/SKILL.md; do
+    if ! grep -qF 'small-case-falsification.md' "$PLUGIN_ROOT/$_c48_f"; then
+        fail "Check 48: $_c48_f no longer links small-case-falsification.md"
+        check48_ok=0
+    fi
+done
+if [[ ! -f "$PLUGIN_ROOT/tests/fixtures/reference_snippets/falsify_first_snippets.lean" ]] \
+   || ! grep -qF 'falsify_first_snippets.lean' "$PLUGIN_ROOT/tests/fixtures/reference_snippets/run_core_snippets.sh" \
+   || ! grep -qF 'reference_snippets/run_core_snippets.sh' "$PLUGIN_ROOT/../../.github/workflows/lean-integration.yml"; then
+    fail "Check 48: falsify_first_snippets.lean must exist and run through run_core_snippets.sh in lean-integration.yml"
+    check48_ok=0
+fi
+if [[ "$check48_ok" -eq 1 ]]; then
+    ok "Check 48: small-case falsification pinned (#87: one reference with when/how/hand-off/boundary/worked cases, REFUTED only on a Lean-certified negation, WITNESS: format, linked from draft/formalize/sorry-filling/SKILL.md, core-Lean fixture in CI)"
+fi
+
 if [[ "$check39_ok" -eq 1 ]]; then
     ok "Check 39: file-gate scope pinned (#166: canonical section w/ both failure directions + both recovery paths, cited sites corrected, cross-file editors routed, disprove REFUTED licensed by lake lean <target-file>, no naive module-name derivation)"
 fi
