@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# lean4-skills-pair-audit — model-facing wrapper around lib/scripts/pair_audit.py.
+# Audits a formal-pair/v1 file (informal claims paired with Lean declarations,
+# issue #88) against a Lake project: declarations resolved by name, sorry and
+# axioms checked against each claim's status, statement drift detected by type
+# hash. Read-only except --update-hashes. See formal-pairs.md.
+#
+# Exit codes:
+#   0  no error or warning
+#   1  error or warning findings
+#   2  usage error, unreadable file, or malformed JSON
+#   3  the pair file fails the schema or a cross-field rule
+#   4  operational failure (no lake, probe does not elaborate)
+#
+# See lean4-skills-project-context for the bin/-wrapper rationale.
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+exec "${LEAN4_PYTHON_BIN:-python3}" "$PLUGIN_ROOT/lib/scripts/pair_audit.py" "$@"

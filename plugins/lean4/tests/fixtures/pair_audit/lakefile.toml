@@ -1,0 +1,9 @@
+# Fixture for tests/integration/test_pair_audit_lean.py (#88, formal-pair/v1).
+# Core Lean only, no mathlib. The test copies this project to a temp dir, so
+# the probe and the build never touch the checked-in tree.
+name = "pairs"
+version = "0.1.0"
+defaultTargets = ["Pairs"]
+
+[[lean_lib]]
+name = "Pairs"

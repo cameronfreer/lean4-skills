@@ -1,0 +1,27 @@
+{
+  "schema": "formal-pair/v1",
+  "source": {"citation": "Fixture for lean4-skills-pair-audit"},
+  "claims": [
+    {"id": "c1-proved", "informal": "Adding zero changes nothing.", "status": "proved",
+     "relation": "matches",
+     "formal": {"module": "Pairs.Basic", "file": "Pairs/Basic.lean", "declarations": ["Pairs.add_zero'"]}},
+    {"id": "c2-sorry-proved", "informal": "Multiplication commutes.", "status": "proved",
+     "relation": "matches",
+     "formal": {"module": "Pairs.Basic", "declarations": ["Pairs.mul_comm'"]}},
+    {"id": "c3-axiom", "informal": "Every number has a larger one.", "status": "proved",
+     "relation": "matches",
+     "formal": {"module": "Pairs.Basic", "declarations": ["Pairs.exists_gt"]}},
+    {"id": "c4-moved", "informal": "Zero plus n is n.", "status": "proved",
+     "relation": "matches",
+     "formal": {"module": "Pairs.Basic", "file": "Pairs/Old.lean", "declarations": ["Pairs.zero_add'"]}},
+    {"id": "c5-drift", "informal": "Adding zero changes nothing.", "status": "proved",
+     "relation": "matches",
+     "formal": {"module": "Pairs.Basic", "declarations": ["Pairs.add_zero'"]},
+     "type_hash": {"Pairs.add_zero'": "sha256:0000000000000000000000000000000000000000000000000000000000000000"}},
+    {"id": "c6-missing", "informal": "A lemma that was renamed away.", "status": "proved",
+     "relation": "unchecked",
+     "formal": {"module": "Pairs.Basic", "declarations": ["Pairs.no_such_lemma"]}},
+    {"id": "c7-open", "informal": "Not formalised yet.", "status": "unformalized",
+     "relation": "unchecked"}
+  ]
+}
