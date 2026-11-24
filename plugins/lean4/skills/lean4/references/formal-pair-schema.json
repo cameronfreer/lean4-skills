@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cameronfreer/lean4-skills/plugins/lean4/skills/lean4/references/formal-pair-schema.json",
+  "title": "formal-pair/v1",
+  "description": "Informal claims paired with the Lean declarations that formalise them (issue #88). Read by lean4-skills-pair-audit; see formal-pairs.md.",
+  "type": "object",
+  "required": [
+    "schema",
+    "claims"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "formal-pair/v1"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/claim"
+      }
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "citation": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      }
+    },
+    "formal": {
+      "type": "object",
+      "required": [
+        "module",
+        "declarations"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "module": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "declarations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "term": {
+      "type": "object",
+      "required": [
+        "source",
+        "lean"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "lean": {
+          "type": "string"
+        }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "required": [
+        "id",
+        "informal",
+        "status",
+        "relation"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "locator": {
+          "type": "string"
+        },
+        "informal": {
+          "type": "string"
+        },
+        "formal": {
+          "$ref": "#/$defs/formal"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "proved",
+            "partial",
+            "axiomatized",
+            "refuted",
+            "unformalized"
+          ]
+        },
+        "relation": {
+          "type": "string",
+          "enum": [
+            "matches",
+            "more-general",
+            "weaker",
+            "source-false",
+            "hypothesis-added",
+            "unchecked"
+          ]
+        },
+        "type_hash": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "terminology": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/term"
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

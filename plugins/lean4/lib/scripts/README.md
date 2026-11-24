@@ -19,6 +19,7 @@ Hard-primitive scripts for Lean 4 workflows. These implement functionality that'
 | `find_golfable.py` | Find proof-golfing opportunities | After proofs compile, before final commit |
 | `find_exact_candidates.py` | Find exact? replacement candidates | Optional companion for direct-proof discovery |
 | `analyze_let_usage.py` | Detect false-positive optimizations | Before inlining let bindings |
+| `pair_audit.py` | Audit a `formal-pair/v1` file (informal claim ↔ Lean declarations) | After a refactor or golf, before a paper or review |
 
 ## Core Scripts
 

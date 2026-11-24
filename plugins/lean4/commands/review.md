@@ -450,3 +450,4 @@ for CI integration patterns.
 - [mathlib-style.md](../skills/lean4/references/mathlib-style.md)
 - [mathlib-review-taxonomy.md](../skills/lean4/references/mathlib-review-taxonomy.md) — the vocabulary the [Mathlib Review Layer](#mathlib-review-layer-layer-2) emits. Its buckets become first-class findings when Layer 2 is at full strictness, and advisory findings otherwise.
 - [Examples](../skills/lean4/references/command-examples.md#review)
+- [Formal Pairs](../skills/lean4/references/formal-pairs.md) — `lean4-skills-pair-audit` checks a `formal-pair/v1` file (missing declarations, `sorry` or axioms against each claim's status, statement drift); not yet wired into this command (#88)
